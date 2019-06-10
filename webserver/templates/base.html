@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trains - Magic Version Control & Experiment Manager for AI</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Heebo" type="text/css" media="all"/>
+    <link rel="stylesheet" href="/static/styles/index.css">
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-117913368-1"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-117913368-1');
+    </script>
+</head>
+<body>
+<div class="container text-center">
+    <br/><br/><br/>
+    <div class="row">
+        {% set pwidth = popup_width or 4 %}
+        <div class="col col-md-{{ ((12 - pwidth) / 2)|int }}"></div>
+        <div class="col col-md-{{ pwidth }} jumbotron" style="border-radius: 0px; !important;">
+            <section class="mx-auto">
+                <img src="/static/trains-logo-solid-italic.svg" alt="TRAINS" class="img-responsive"/>
+                <br class="my-4 nav-divider"/>
+
+        {% block popup %}
+
+        {% endblock %}
+            </section>
+        </div>
+    </div>
+    {% if get_flashed_messages() %}
+    <div class="row">
+        <div class="col col-md-2"></div>
+
+        <div class="col col-md-8">
+
+        {% block messages %}
+        {% endblock %}
+
+        </div>
+        <div class="col col-md-2"></div>
+    {% endif %}
+</div>
+</div>
+</body>
+</html>

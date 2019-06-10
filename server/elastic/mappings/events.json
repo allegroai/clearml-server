@@ -1,0 +1,27 @@
+{
+  "template": "events-*",
+  "settings": {
+    "number_of_shards": 5
+  },
+  "mappings": {
+    "_default_": {
+      "_source": {
+        "enabled": true
+      },
+      "_routing": {
+        "required": true
+      },
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "task":       { "type": "keyword" },
+        "type":       { "type": "keyword" },
+        "worker":     { "type": "keyword" },
+        "timestamp":  { "type": "date" },
+        "iter":       { "type": "long" },
+        "metric":     { "type": "keyword" },
+        "variant":    { "type": "keyword" },
+        "value":      { "type": "float" }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "template": "events-log-*",
+  "order" : 1,
+  "mappings": {
+    "_default_": {
+      "properties": {
+        "msg":    { "type":"text", "index": false },
+        "level":  { "type":"keyword" }
+      }
+    }
+  }
+}

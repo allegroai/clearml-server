@@ -1,0 +1,30 @@
+body {
+  background-color: #202432;
+}
+
+.jumbotron {
+  background-color: #384161;
+  color: #c3cdf0;
+  font-family: Heebo;
+}
+
+.jumbotron .btn {
+  background-color: #2c3246;
+  color: #c3cdf0;
+  border:0px solid transparent; /* this was 1px earlier */
+}
+
+.jumbotron .btn:hover {
+  background-color: #c3cdf0;
+  color: #2c3246;
+  border:0px solid transparent; /* this was 1px earlier */
+}
+
+.login-buttons .btn {
+  text-align: left !important;
+  margin-bottom: 10px;
+}
+
+.login-buttons .btn i {
+  margin-right: 10px;
+}

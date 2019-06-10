@@ -1,0 +1,6 @@
+{% macro error_class(name, msg, code, subcode=0) %}
+class {{ name }}({{ base_class_name }}):
+    _default_code = {{ code }}
+    _default_subcode = {{ subcode }}
+    _default_msg = "{{ msg|capitalize }}"
+{% endmacro -%}
