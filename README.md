@@ -218,11 +218,11 @@ When we release a new version and include a new pre-built Docker image for it, u
     
     The Docker names are (see [Launching Docker images](##launching-docker-images)):
     
-       * `trains-elastic`
-       * `trains-mongo`
-       * `trains-fileserver`
-       * `trains-apiserver`
-       * `trains-webserver`
+    * `trains-elastic`
+    * `trains-mongo`
+    * `trains-fileserver`
+    * `trains-apiserver`
+    * `trains-webserver`
 
 2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
