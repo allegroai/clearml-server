@@ -2,9 +2,13 @@
 
 ##  Magic Version Control & Experiment Manager for AI
 
+[![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
+[![GitHub version](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)
+[![PyPI status](https://img.shields.io/badge/status-beta-yellow.svg)](https://img.shields.io/badge/status-beta-yellow.svg)
+
 ## Introduction
 
-The **trains-server** is the infrastructure for [trains](https://github.com/allegroai/trains).
+The **trains-server** is the infrastructure for [TRAINS](https://github.com/allegroai/trains).
 It allows multiple users to collaborate and manage their experiments. 
  
 The **trains-server** contains the following components:
@@ -52,7 +56,7 @@ The **trains-server's** code is freely available [here](https://github.com/alleg
  +------------------------|-------------------------------------------+
  |     +------------------|--------------+                            |
  |     |  Training        |              |    +---------------------+ |
- |     |  Code        +---+------------+ |    | trains configuration| |
+ |     |  Code        +---+------------+ |    | TRAINS configuration| |
  |     |              | TRAINS         | |    | ~/trains.conf       | |
  |     |              |                +------+                     | |
  |     |              +----------------+ |    +---------------------+ |
