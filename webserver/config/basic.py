@@ -57,7 +57,7 @@ class BasicConfig:
             return conf
 
         if verbose:
-            print("Loading config from {conf_root}")
+            print(f"Loading config from {conf_root}")
 
         for file in conf_root.rglob("*.conf"):
             key = ".".join(file.relative_to(conf_root).with_suffix("").parts)

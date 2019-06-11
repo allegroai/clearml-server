@@ -210,6 +210,11 @@ def _serve_webapp(path=None):
     return response
 
 
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory("static", "favicon.ico")
+
+
 @app.route("/")
 def index():
     if not current_user.is_authenticated:
