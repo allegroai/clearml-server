@@ -96,7 +96,7 @@ sudo apt-get install -y docker-ce
 
 #### Step 2. Setup the Docker daemon
 
-To run the ElasticSearch Docker container, you must setup the Docker daemon by modifing the default 
+To run the ElasticSearch Docker container, you must setup the Docker daemon by modifying the default 
 values required by Elastic in your Docker configuration file
 that are used by the **trains-server**. We provide instructions for the most common Docker configuration files.
 
@@ -216,7 +216,7 @@ When we release a new version and include a new pre-built Docker image for it, u
         sudo docker stop <docker-name>
         sudo docker rm -v <docker-name>
     
-    The Docker names are (see [Launching Docker images](##launching-docker-images)):
+    The Docker names are (see [Launching Docker Containers](#launching-docker-containers)):
     
     * `trains-elastic`
     * `trains-mongo`
@@ -237,7 +237,7 @@ When we release a new version and include a new pre-built Docker image for it, u
         sudo rm -R /opt/trains/data
         sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
 
-3. Launch the newly released Docker image (see [Launching Docker images](#Launching-docker-images)).
+3. Launch the newly released Docker image (see [Launching Docker Containers](#launching-docker-containers)).
 
 ## License
 
