@@ -68,8 +68,11 @@ The **trains-server's** code is freely available [here](https://github.com/alleg
 
 This section contains the instructions to setup and launch a pre-built Docker image for the **trains-server**.
 
-**Note**: This Docker image was tested with Linux, only. For Windows users, we recommend running the server
+**Please Note**:
+* This Docker image was tested with Linux, only. For Windows users, we recommend running the server
 on a Linux virtual machine.
+
+* All command-line instructions below assume you're using `bash`. 
 
 ### Prerequisites
 
@@ -77,66 +80,65 @@ You must be logged in as a user with sudo privileges.
  
 ### Setup
 
-#### Step 1. Install Docker CE
+#### Step 1: Install Docker CE
 
 You must install Docker to run the pre-packaged **trains-server**.
 
-* For [Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/) / Mint (x86_64/amd64):
+* See [Supported platforms](https://docs.docker.com/install//#support) in the Docker documentation for instructions
 
-```bash
-sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-. /etc/os-release
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable"
-sudo apt-get update
-sudo apt-get install -y docker-ce
-```
+* For example, to install in [Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/) / Mint (x86_64/amd64):
 
-* For other operating systems, see [Supported platforms](https://docs.docker.com/install//#support) in the Docker documentation for instructions.
+    ```bash
+    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    . /etc/os-release
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable"
+    sudo apt-get update
+    sudo apt-get install -y docker-ce
+    ```
 
-#### Step 2. Setup the Docker daemon
+#### Step 2: Setup the Docker daemon
 
 To run the ElasticSearch Docker container, you must setup the Docker daemon by modifying the default 
-values required by Elastic in your Docker configuration file
-that are used by the **trains-server**. We provide instructions for the most common Docker configuration files.
+values required by Elastic in your Docker configuration file (see [Notes for production use and defaults](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#_notes_for_production_use_and_defaults)). We provide instructions for the most common Docker configuration files.
 
 You must edit or create a Docker configuration file:
 
-* If your Docker configuration file is `/etc/sysconfig/docker`, edit it. 
+* If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it. 
 
     Add the options in quotes to the available arguments in the `OPTIONS` section:
 
-```bash
-OPTIONS="--default-ulimit nofile=1024:65536 --default-ulimit memlock=-1:-1"
-```
+    ```bash
+    OPTIONS="--default-ulimit nofile=1024:65536 --default-ulimit memlock=-1:-1"
+    ```
 
 * Otherwise, edit `/etc/docker/daemon.json` (if it exists) or create it (if it does not exist).
 
-    Add or modify the `defaults-ulimits` section as shown below. Be sure your configuration file contains the `nofile` and `memlock` sub-sections and values shown. 
+    Add or modify the `defaults-ulimits` section as shown below. Be sure the `defaults-ulimits` section contains the `nofile` and `memlock` sub-sections and values shown. 
 
-    **Note**: Your configuration file may contain other sections. If so, confirm that the sections are separated by commas. For more information about Docker configuration files, see an [Daemon configuration file](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file) in the Docker documentation.
+    **Note**: Your configuration file may contain other sections. If so, confirm that the sections are separated by commas (valid JSON format). For more information about Docker configuration files, see [Daemon configuration file](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file) in the Docker documentation.
 
     The **trains-server** required defaults values are:
 
-```json
-{
-    "default-ulimits": {
-        "nofile": {
-            "name": "nofile",
-            "hard": 65536,
-            "soft": 1024
-        },
-        "memlock":
-        {
-            "name": "memlock",
-            "soft": -1,
-            "hard": -1
+    ```json
+    {
+        "default-ulimits": {
+            "nofile": {
+                "name": "nofile",
+                "hard": 65536,
+                "soft": 1024
+            },
+            "memlock":
+            {
+                "name": "memlock",
+                "soft": -1,
+                "hard": -1
+            }
         }
     }
-}
-```
+    ```
 
-#### Step 3. Restart the Docker daemon
+#### Step 3: Restart the Docker daemon
 
 You must restart the Docker daemon after modifying the configuration file:
 
@@ -145,25 +147,25 @@ sudo service docker stop
 sudo service docker start
 ```
 
-#### Step 4. Set the Maximum Number of Memory Map Areas
+#### Step 4: Set the Maximum Number of Memory Map Areas
 
 The maximum number of memory map areas a process can use is defined
 using the `vm.max_map_count` kernel setting. 
 
-Elastic requires that `vm.max_map_count` to be at least 262144.
+Elastic requires that `vm.max_map_count` is at least 262144 (see [Production mode](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#docker-cli-run-prod-mode)).
 
 * For CentOS 7, Ubuntu 16.04, Mint 18.3, Ubuntu 18.04 and Mint 19 users, we tested the following commands to set
 `vm.max_map_count`:
 
-```bash
-sudo echo "vm.max_map_count=262144" > /tmp/99-trains.conf
-sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
-sudo sysctl -w vm.max_map_count=262144
-```
+    ```bash
+    sudo echo "vm.max_map_count=262144" > /tmp/99-trains.conf
+    sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
+    sudo sysctl -w vm.max_map_count=262144
+    ```
 
 * For information about setting this parameter on other systems, see the [elastic](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode) documentation.
 
-#### Step 5. Choose a Data Directory
+#### Step 5: Choose a Data Directory
 
 You must choose a directory on your system in which all data maintained by the **trains-server** is stored,
 create that directory, and set its permissions. The data stored in that directory includes the database, uploaded files and logs.
@@ -176,7 +178,7 @@ sudo mkdir -p /opt/trains/data/elastic && sudo chown -R 1000:1000 /opt/trains
 
 ### Launching Docker Containers
 
-Launch the Docker containers. For example, if your data directory is `\opt\trains`,
+Launch the Docker containers. For example, if your data directory is `/opt/trains`,
 then use the following commands:
 
 ```bash
@@ -204,6 +206,20 @@ After the **trains-server** Dockers are up, the following are available:
 * API server on port `8008`
 * Web server on port `8080`
 * File server on port `8081`
+
+### Configuring **trains**
+
+Once you've installed the **trains-server**, please make sure to configure **trains** to use your locally installed server (and not the demo server).
+
+If you've already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows: 
+
+```
+api {
+    host: "http://localhost:8008"
+}
+```
+
+See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details. 
 
 ## Upgrade
 
