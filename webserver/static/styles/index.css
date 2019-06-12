@@ -33,10 +33,11 @@ body {
   display: none;
 }
 
-/* Smartphones ----------- */
-@media only screen and (max-width: 760px) {
-  .mobile-warn {
-    display: block;
-  }
+.mobile-warn.show {
+  display: block;
+}
+
+.mobile-warn > strong {
+  margin-right: 5px;
 }
 /*# sourceMappingURL=index.css.map */
