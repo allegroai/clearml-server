@@ -1,6 +1,6 @@
 # TRAINS Server
 
-##  Magic Version Control & Experiment Manager for AI
+##  Automagical Version Control & Experiment Manager for AI
 
 [![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
 [![GitHub version](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)
@@ -9,19 +9,19 @@
 ## Introduction
 
 The **trains-server** is the infrastructure for [TRAINS](https://github.com/allegroai/trains).
-It allows multiple users to collaborate and manage their experiments. 
- 
+It allows multiple users to collaborate and manage their experiments.
+
 The **trains-server** contains the following components:
 
 * the Web-App which is a single-page UI for experiment management and browsing
-* a REST interface for: 
+* a REST interface for:
     * documenting and logging experiment information, statistics and results
     * querying experiments history, logs and results
 * a locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
 You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)).
 
-When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)). 
+When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)).
 
 The **trains-server's** code is freely available [here](https://github.com/allegroai/trains-server).
 
@@ -72,12 +72,12 @@ This section contains the instructions to setup and launch a pre-built Docker im
 * This Docker image was tested with Linux, only. For Windows users, we recommend running the server
 on a Linux virtual machine.
 
-* All command-line instructions below assume you're using `bash`. 
+* All command-line instructions below assume you're using `bash`.
 
 ### Prerequisites
 
 You must be logged in as a user with sudo privileges.
- 
+
 ### Setup
 
 #### Step 1: Install Docker CE
@@ -99,12 +99,12 @@ You must install Docker to run the pre-packaged **trains-server**.
 
 #### Step 2: Setup the Docker daemon
 
-To run the ElasticSearch Docker container, you must setup the Docker daemon by modifying the default 
+To run the ElasticSearch Docker container, you must setup the Docker daemon by modifying the default
 values required by Elastic in your Docker configuration file (see [Notes for production use and defaults](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#_notes_for_production_use_and_defaults)). We provide instructions for the most common Docker configuration files.
 
 You must edit or create a Docker configuration file:
 
-* If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it. 
+* If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it.
 
     Add the options in quotes to the available arguments in the `OPTIONS` section:
 
@@ -114,7 +114,7 @@ You must edit or create a Docker configuration file:
 
 * Otherwise, edit `/etc/docker/daemon.json` (if it exists) or create it (if it does not exist).
 
-    Add or modify the `defaults-ulimits` section as shown below. Be sure the `defaults-ulimits` section contains the `nofile` and `memlock` sub-sections and values shown. 
+    Add or modify the `defaults-ulimits` section as shown below. Be sure the `defaults-ulimits` section contains the `nofile` and `memlock` sub-sections and values shown.
 
     **Note**: Your configuration file may contain other sections. If so, confirm that the sections are separated by commas (valid JSON format). For more information about Docker configuration files, see [Daemon configuration file](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file) in the Docker documentation.
 
@@ -150,7 +150,7 @@ sudo service docker start
 #### Step 4: Set the Maximum Number of Memory Map Areas
 
 The maximum number of memory map areas a process can use is defined
-using the `vm.max_map_count` kernel setting. 
+using the `vm.max_map_count` kernel setting.
 
 Elastic requires that `vm.max_map_count` is at least 262144 (see [Production mode](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#docker-cli-run-prod-mode)).
 
@@ -211,7 +211,7 @@ After the **trains-server** Dockers are up, the following are available:
 
 Once you've installed the **trains-server**, please make sure to configure **trains** to use your locally installed server (and not the demo server).
 
-If you've already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows: 
+If you've already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
 
 ```
 api {
@@ -219,7 +219,7 @@ api {
 }
 ```
 
-See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details. 
+See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
 
 ## Upgrade
 
@@ -231,9 +231,9 @@ When we release a new version and include a new pre-built Docker image for it, u
 
         sudo docker stop <docker-name>
         sudo docker rm -v <docker-name>
-    
+
     The Docker names are (see [Launching Docker Containers](#launching-docker-containers)):
-    
+
     * `trains-elastic`
     * `trains-mongo`
     * `trains-fileserver`
@@ -243,13 +243,13 @@ When we release a new version and include a new pre-built Docker image for it, u
 2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
     For example, if your data directory is `/opt/trains`, use the following command:
-    
+
         sudo tar czvf ~/trains_backup.tgz /opt/trains/data
-    
-    This back ups all data to an archive in your home directory. 
-    
+
+    This back ups all data to an archive in your home directory.
+
     To restore this example backup, use the following command:
-    
+
         sudo rm -R /opt/trains/data
         sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
 
