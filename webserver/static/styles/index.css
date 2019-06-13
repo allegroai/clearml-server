@@ -30,6 +30,7 @@ body {
 }
 
 .mobile-warn {
+  font-size: 40px;
   display: none;
 }
 
