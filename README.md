@@ -1,6 +1,6 @@
 # TRAINS Server
 
-##  Automagical Version Control & Experiment Manager for AI
+##  Auto-Magical Experiment Manager & Version Control for AI
 
 [![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
 [![GitHub version](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)
