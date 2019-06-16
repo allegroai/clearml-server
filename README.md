@@ -8,16 +8,18 @@
 
 ## Introduction
 
-The **trains-server** is the infrastructure for [TRAINS](https://github.com/allegroai/trains).
+The **trains-server** is the backend service infrastructure for [TRAINS](https://github.com/allegroai/trains).
 It allows multiple users to collaborate and manage their experiments.
+By default, TRAINS is set up to work with the TRAINS demo server, which is open to anyone and resets periodically. 
+In order to host your own server, you will need to install **trains-server** and point TRAINS to it.
 
-The **trains-server** contains the following components:
+**trains-server** contains the following components:
 
-* the Web-App which is a single-page UI for experiment management and browsing
-* a REST interface for:
-    * documenting and logging experiment information, statistics and results
-    * querying experiments history, logs and results
-* a locally-hosted file server for storing images and models making them easily accessible using the Web-App
+* The TRAINS Web-App, a single-page UI for experiment management and browsing
+* RESTful API for:
+    * Documenting and logging experiment information, statistics and results
+    * Querying experiments history, logs and results
+* Locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
 You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)).
 
@@ -34,6 +36,8 @@ The **trains-server's** code is freely available [here](https://github.com/alleg
 ## Installation
 
 This section contains the instructions to setup and launch a pre-built Docker image for the **trains-server**.
+This is the quickest way to get started with your own server. 
+Alternatively, you can build the entire trains-server architecture using the code available in our repositories.
 
 **Please Note**:
 * This Docker image was tested with Linux, only. For Windows users, we recommend running the server
@@ -135,7 +139,7 @@ Elastic requires that `vm.max_map_count` is at least 262144 (see [Production mod
 #### Step 5: Choose a Data Directory
 
 You must choose a directory on your system in which all data maintained by the **trains-server** is stored,
-create that directory, and set its permissions. The data stored in that directory includes the database, uploaded files and logs.
+Create a directory, and set its permissions. The data stored in this directory will include the database, uploaded files and logs.
 
 For example, if your data directory is `/opt/trains`, then use the following command:
 
@@ -176,9 +180,9 @@ After the **trains-server** Dockers are up, the following are available:
 
 ### Configuring **trains**
 
-Once you've installed the **trains-server**, please make sure to configure **trains** to use your locally installed server (and not the demo server).
+Once you have installed the **trains-server**, make sure to configure **trains** to use your locally installed server (and not the demo server).
 
-If you've already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
+If you have already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
 
 ```
 api {
@@ -187,6 +191,12 @@ api {
 ```
 
 See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
+
+## What next?
+
+Now that the **trains-server** is installed, and TRAINS is configured to use it, 
+you can [use](https://github.com/allegroai/trains#using-trains) TRAINS in your experiments and view them in the web server, 
+for example http://localhost:8080
 
 ## Upgrade
 
@@ -226,8 +236,10 @@ When we release a new version and include a new pre-built Docker image for it, u
 
 [Server Side Public License v1.0](https://github.com/mongodb/mongo/blob/master/LICENSE-Community.txt)
 
-**trains-server** relies *heavily* on both [MongoDB](https://github.com/mongodb/mongo) and [ElasticSearch](https://github.com/elastic/elasticsearch).
-With the recent changes in both MongoDB's and ElasticSearch's OSS license, we feel it is our job as a community to support the projects we love and cherish.
-We feel the cause for the license change in both cases is more than just, and chose [SSPL](https://www.mongodb.com/licensing/server-side-public-license) because it is the more general and flexible of the two.
+**trains-server** relies on both [MongoDB](https://github.com/mongodb/mongo) and [ElasticSearch](https://github.com/elastic/elasticsearch).
+With the recent changes in both MongoDB's and ElasticSearch's OSS license, we feel it is our responsibility as a 
+member of the community to support the projects we love and cherish.
+We believe the cause for the license change in both cases is more than just, 
+and chose [SSPL](https://www.mongodb.com/licensing/server-side-public-license) because it is the more general and flexible of the two licenses.
 
 This is our way to say - we support you guys!
