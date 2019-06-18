@@ -3,6 +3,7 @@
 ##  Auto-Magical Experiment Manager & Version Control for AI
 
 [![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
+[![Python versions](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)
 [![GitHub version](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)
 [![PyPI status](https://img.shields.io/badge/status-beta-yellow.svg)](https://img.shields.io/badge/status-beta-yellow.svg)
 
@@ -33,7 +34,13 @@ The **trains-server's** code is freely available [here](https://github.com/alleg
 ![Alt Text](https://github.com/allegroai/trains/blob/master/docs/system_diagram.png?raw=true)
 
 
-## Installation
+## Installation - AWS
+
+Use our pre-installed Amazon Machine Image for easy deployment in AWS. 
+
+Details and instructions can be found  [here](docs/install_aws.md).
+
+## Installation - Docker
 
 This section contains the instructions to setup and launch a pre-built Docker image for the **trains-server**.
 This is the quickest way to get started with your own server. 
@@ -47,13 +54,13 @@ on a Linux virtual machine.
 
 ### Prerequisites
 
-You must be logged in as a user with sudo privileges.
+Make sure you are logged in as a user with sudo privileges.
 
 ### Setup
 
 #### Step 1: Install Docker CE
 
-You must install Docker to run the pre-packaged **trains-server**.
+In order to run the pre-packaged **trains-server**, install Docker.
 
 * See [Supported platforms](https://docs.docker.com/install//#support) in the Docker documentation for instructions
 
@@ -70,10 +77,10 @@ You must install Docker to run the pre-packaged **trains-server**.
 
 #### Step 2: Setup the Docker daemon
 
-To run the ElasticSearch Docker container, you must setup the Docker daemon by modifying the default
+To run the ElasticSearch Docker container, setup the Docker daemon by modifying the default
 values required by Elastic in your Docker configuration file (see [Notes for production use and defaults](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#_notes_for_production_use_and_defaults)). We provide instructions for the most common Docker configuration files.
 
-You must edit or create a Docker configuration file:
+Edit or create the Docker configuration file:
 
 * If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it.
 
@@ -111,7 +118,7 @@ You must edit or create a Docker configuration file:
 
 #### Step 3: Restart the Docker daemon
 
-You must restart the Docker daemon after modifying the configuration file:
+After modifying the configuration file, restart the Docker daemon:
 
 ```bash
 sudo service docker stop
@@ -138,8 +145,8 @@ Elastic requires that `vm.max_map_count` is at least 262144 (see [Production mod
 
 #### Step 5: Choose a Data Directory
 
-You must choose a directory on your system in which all data maintained by the **trains-server** is stored,
-Create a directory, and set its permissions. The data stored in this directory will include the database, uploaded files and logs.
+Choose a directory on your system in which all data maintained by the **trains-server** is stored.
+Create this directory, and set its owner and group to `uid` 1000. The data stored in this directory will include the database, uploaded files and logs.
 
 For example, if your data directory is `/opt/trains`, then use the following command:
 
