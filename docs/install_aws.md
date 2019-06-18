@@ -2,17 +2,22 @@
 
 In order to easily deploy **trains-server** on AWS, we created the following Amazon Machine Images (AMIs).
 
-Service port numbers on these AMIs are: 
+Service port numbers on these AMIs are:
  - Web: 8080
  - API: 8008
  - File Server: 8081
+
+Persistent storage configuration:
+ - MongoDB: /opt/trains/data/
+ - ElasticSearch: /opt/trains/data/
+ - File Server: /mnt/fileserver/
 
 Instructions on launching a custom AMI from the EC2 console can be found [here](https://aws.amazon.com/premiumsupport/knowledge-center/launch-instance-custom-ami/)
 and a detailed version [here](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/launching-instance.html).
 
 The minimum recommended instance type is **t3a.large**
 
-##Released versions
+## Released versions
 
 The following sections provide a list containing AMI Image ID per region for each released **trains-server** version.
 
