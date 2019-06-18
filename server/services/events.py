@@ -355,7 +355,6 @@ def get_task_plots_v1_7(call, company_id, req_model):
     #     last_iter_count=iters,
     #     scroll_id=scroll_id)
 
-    # the following is a hack for Bosch, requested by Moshik
     # get last 10K events by iteration and group them by unique metric+variant, returning top events for combination
     result = event_bll.get_task_events(
         company_id, task_id,
@@ -414,7 +413,6 @@ def get_debug_images_v1_7(call, company_id, req_model):
     #     last_iter_count=iters,
     #     scroll_id=scroll_id)
 
-    # the following is a hack for Bosch, requested by Moshik
     # get last 10K events by iteration and group them by unique metric+variant, returning top events for combination
     result = event_bll.get_task_events(
         company_id, task_id,
