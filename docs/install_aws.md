@@ -8,8 +8,8 @@ Service port numbers on these AMIs are:
  - File Server: 8081
 
 Persistent storage configuration:
- - MongoDB: /opt/trains/data/
- - ElasticSearch: /opt/trains/data/
+ - MongoDB: /opt/trains/data/mongo/
+ - ElasticSearch: /opt/trains/data/elastic/
  - File Server: /mnt/fileserver/
 
 Instructions on launching a custom AMI from the EC2 console can be found [here](https://aws.amazon.com/premiumsupport/knowledge-center/launch-instance-custom-ami/)
