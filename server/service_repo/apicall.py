@@ -171,6 +171,8 @@ class APICallResult(DataContainer):
         self._traceback = traceback
         self._extra = None
         self._filename = None
+        self._headers = {}
+        self._cookies = {}
 
     def get_log_entry(self):
         res = dict(
@@ -239,6 +241,14 @@ class APICallResult(DataContainer):
     @filename.setter
     def filename(self, value):
         self._filename = value
+
+    @property
+    def headers(self):
+        return self._headers
+
+    @property
+    def cookies(self):
+        return self._cookies
 
 
 class MissingIdentity(Exception):

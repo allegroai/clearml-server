@@ -1,2 +1,1 @@
 numpy>=1.12.1
-parameterized>=0.7.0

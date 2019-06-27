@@ -5,16 +5,16 @@ import json
 import unittest
 
 import es_factory
+from tests.api_client import APIClient
 from config import config
-from tests.automated import TestService
 
 log = config.logger(__file__)
 
 
-class TestDatasetsService(TestService):
+class TestDatasetsService(unittest.TestCase):
 
-    def setUp(self, version="1.0"):
-        super(TestDatasetsService, self).setUp(version=version)
+    def setUp(self):
+        self.api = APIClient(base_url="http://localhost:5100/v1.0")
         self.created_tasks = []
 
         self.task = dict(

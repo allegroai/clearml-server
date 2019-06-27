@@ -50,15 +50,22 @@ def before_request():
     try:
         call = create_api_call(request)
         content, content_type = ServiceRepo.handle_call(call)
-        headers = None
+        headers = {}
         if call.result.filename:
-            headers = {
-                "Content-Disposition": f"attachment; filename={call.result.filename}"
-            }
+            headers["Content-Disposition"] = f"attachment; filename={call.result.filename}"
 
-        return Response(
+        if call.result.headers:
+            headers.update(call.result.headers)
+
+        response = Response(
             content, mimetype=content_type, status=call.result.code, headers=headers
         )
+
+        if call.result.cookies:
+            for key, value in call.result.cookies.items():
+                response.set_cookie(key, value, httponly=True)
+
+        return response
     except Exception as ex:
         log.exception(f"Failed processing request {request.url}: {ex}")
         return f"Failed processing request {request.url}", 500

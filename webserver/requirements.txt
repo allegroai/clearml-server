@@ -1,4 +1,5 @@
 Jinja2>=2.9.6
+setuptools>=33,<34
 requests>=2.0
 Werkzeug==0.12.2
 Flask==0.12.2

@@ -31,6 +31,12 @@ class CreateUserError(Exception):
     pass
 
 
+class UsersGetAllError(Exception):
+    def __init__(self, res, *args):
+        self.res = res
+        super(UsersGetAllError, self).__init__(res, *args)
+
+
 class SimpleUser(UserMixin):
     _cache = None
 
@@ -62,7 +68,7 @@ class SimpleUser(UserMixin):
     def get_all(cls):
         res = SessionFactory.get().send_request("users.get_all")
         if not res.ok:
-            return None
+            raise UsersGetAllError(res)
         return [
             cls(user_data=UserData.from_dict(user))
             for user in res.json()["data"]["users"]

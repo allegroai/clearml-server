@@ -18,11 +18,9 @@ from apimodels.base import UpdateResponse
 from bll.auth import AuthBLL
 from config import config
 from database.errors import translate_errors_context
-from database.model.auth import (
-    User,
-)
+from database.model.auth import User
 from service_repo import APICall, endpoint
-from service_repo.auth import Token
+from service_repo.auth import Token, AuthType
 
 log = config.logger(__file__)
 
@@ -41,6 +39,11 @@ def login(call):
         company_id=call.identity.company,
         expiration_sec=call.data_model.expiration_sec,
     )
+
+    # Add authorization cookie
+    call.result.cookies[
+        config.get("apiserver.auth.session_auth_cookie_name")
+    ] = call.result.data_model.token
 
 
 @endpoint(

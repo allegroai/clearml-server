@@ -30,6 +30,7 @@ from user import (
     AUTH_TOKEN_COOKIE_KEY,
     CreateUserError,
 )
+from user.simple import UsersGetAllError
 
 log = config.logger(__file__)
 
@@ -188,7 +189,18 @@ def _get_webapp_conf():
 
 @app.route("/login")
 def login():
-    users = sorted((user.user_data for user in UserFactory.get_class().get_all()), key=attrgetter("name"))
+    try:
+        users = sorted((user.user_data for user in UserFactory.get_class().get_all()), key=attrgetter("name"))
+    except UsersGetAllError as ex:
+        log.warning("error when getting users: %r", ex)
+        try:
+            result_msg = ex.res.json()["meta"]["result_msg"]
+        except Exception as ex:
+            log.exception("error when getting users: error when parsing error data")
+            flash(f"Unknown error: {ex!r} (check logs for more info)")
+        else:
+            flash(result_msg)
+        return make_response(render_template("login.html", users=[]))
     response = make_response(render_template("login.html", users=users))
     # make sure to clear out session token cookie
     response.set_cookie(

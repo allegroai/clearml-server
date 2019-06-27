@@ -1,0 +1,76 @@
+version: "3.6"
+services:
+  apiserver:
+    command:
+    - apiserver
+    container_name: trains-apiserver
+    image: allegroai/trains:latest
+    network_mode: host
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/logs
+      target: /var/log/trains
+  elasticsearch:
+    container_name: trains-elastic
+    environment:
+      ES_JAVA_OPTS: -Xms2g -Xmx2g
+      bootstrap.memory_lock: "true"
+      cluster.name: trains
+      cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+      discovery.zen.minimum_master_nodes: "1"
+      http.compression_level: "7"
+      node.ingest: "true"
+      node.name: trains
+      reindex.remote.whitelist: '*.*'
+      script.inline: "true"
+      script.painless.regex.enabled: "true"
+      script.update: "true"
+      thread_pool.bulk.queue_size: "2000"
+      thread_pool.search.queue_size: "10000"
+      xpack.monitoring.enabled: "false"
+      xpack.security.enabled: "false"
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+    network_mode: host
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/data/elastic
+      target: /usr/share/elasticsearch/data
+  fileserver:
+    command:
+    - fileserver
+    container_name: trains-fileserver
+    image: allegroai/trains:latest
+    network_mode: host
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/logs
+      target: /var/log/trains
+    - type: bind
+      source: /opt/trains/data/fileserver
+      target: /mnt/fileserver
+  mongo:
+    container_name: trains-mongo
+    image: mongo:3.6.5
+    network_mode: host
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/data/mongo/db
+      target: /data/db
+    - type: bind
+      source: /opt/trains/data/mongo/configdb
+      target: /data/configdb
+  webserver:
+    command:
+    - webserver
+    container_name: trains-webserver
+    image: allegroai/trains:latest
+    network_mode: host
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/logs
+      target: /var/log/trains
