@@ -1,4 +1,7 @@
 import logging
+from functools import reduce
+from os import getenv
+from os.path import expandvars
 from pathlib import Path
 
 from pyhocon import ConfigTree, ConfigFactory
@@ -8,6 +11,10 @@ from pyparsing import (
     RecursiveGrammarException,
     ParseSyntaxException,
 )
+
+DEFAULT_EXTRA_CONFIG_PATH = "/opt/trains/config"
+EXTRA_CONFIG_PATH_ENV_KEY = "TRAINS_CONFIG_DIR"
+EXTRA_CONFIG_PATH_SEP = ":"
 
 
 class BasicConfig:
@@ -39,8 +46,32 @@ class BasicConfig:
         path = ".".join((self.prefix, Path(name).stem))
         return logging.getLogger(path)
 
+    def _read_env_paths(self, key):
+        value = getenv(EXTRA_CONFIG_PATH_ENV_KEY, DEFAULT_EXTRA_CONFIG_PATH)
+        if value is None:
+            return
+        paths = [
+            Path(expandvars(v)).expanduser() for v in value.split(EXTRA_CONFIG_PATH_SEP)
+        ]
+        invalid = [
+            path
+            for path in paths
+            if not path.is_dir() and str(path) != DEFAULT_EXTRA_CONFIG_PATH
+        ]
+        if invalid:
+            print(f"WARNING: Invalid paths in {key} env var: {' '.join(invalid)}")
+        return [path for path in paths if path.is_dir()]
+
     def _load(self, verbose=True):
-        self._config = self._read_recursive(self.folder, verbose=verbose)
+        extra_config_paths = self._read_env_paths(EXTRA_CONFIG_PATH_ENV_KEY) or []
+
+        self._config = reduce(
+            lambda config, path: ConfigTree.merge_configs(
+                config, self._read_recursive(path, verbose=verbose), copy_trees=True
+            ),
+            [self.folder] + extra_config_paths,
+            ConfigTree(),
+        )
 
     def _read_recursive(self, conf_root, verbose=True):
         conf = ConfigTree()
