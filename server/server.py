@@ -63,7 +63,7 @@ def before_request():
 
         if call.result.cookies:
             for key, value in call.result.cookies.items():
-                response.set_cookie(key, value, httponly=True)
+                response.set_cookie(key, value, **config.get("apiserver.auth.cookies"))
 
         return response
     except Exception as ex:
