@@ -55,3 +55,7 @@ class TaskData(models.Base):
 class CreateRequest(TaskData):
     name = StringField(required=True)
     type = StringField(required=True, validators=Enum(*get_options(TaskType)))
+
+
+class PingRequest(models.Base):
+    task = StringField(required=True)
