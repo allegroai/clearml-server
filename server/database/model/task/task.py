@@ -29,6 +29,7 @@ class TaskStatus(object):
     published = 'published'
     closed = 'closed'
     failed = 'failed'
+    completed = 'completed'
     unknown = 'unknown'
 
 
@@ -49,6 +50,7 @@ class Script(EmbeddedDocument):
     entry_point = StringField(required=True)
     working_dir = StringField()
     requirements = SafeDictField()
+    diff = StringField()
 
 
 class Execution(EmbeddedDocument):
