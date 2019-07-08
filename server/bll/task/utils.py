@@ -96,7 +96,12 @@ def validate_status_change(current_status, new_status):
 
 state_machine = {
     TaskStatus.created: {TaskStatus.in_progress},
-    TaskStatus.in_progress: {TaskStatus.stopped, TaskStatus.failed, TaskStatus.created},
+    TaskStatus.in_progress: {
+        TaskStatus.stopped,
+        TaskStatus.failed,
+        TaskStatus.created,
+        TaskStatus.completed,
+    },
     TaskStatus.stopped: {
         TaskStatus.closed,
         TaskStatus.created,
@@ -104,6 +109,7 @@ state_machine = {
         TaskStatus.in_progress,
         TaskStatus.published,
         TaskStatus.publishing,
+        TaskStatus.completed,
     },
     TaskStatus.closed: {
         TaskStatus.created,
@@ -115,6 +121,11 @@ state_machine = {
     TaskStatus.failed: {TaskStatus.created, TaskStatus.stopped, TaskStatus.published},
     TaskStatus.publishing: {TaskStatus.published},
     TaskStatus.published: set(),
+    TaskStatus.completed: {
+        TaskStatus.published,
+        TaskStatus.in_progress,
+        TaskStatus.created,
+    }
 }
 
 

@@ -2,24 +2,16 @@ from datetime import datetime
 
 import database
 from apierrors import errors
-from apimodels.auth import (
-    GetTokenResponse,
-    CreateUserRequest,
-    Credentials as CredModel,
-)
+from apimodels.auth import GetTokenResponse, CreateUserRequest, Credentials as CredModel
 from apimodels.users import CreateRequest as Users_CreateRequest
 from bll.user import UserBLL
 from config import config
+from config.info import get_version, get_build_number
 from database.errors import translate_errors_context
 from database.model.auth import User, Role, Credentials
 from database.model.company import Company
-from service_repo import APICall
-from service_repo.auth import (
-    Identity,
-    Token,
-    get_client_id,
-    get_secret_key,
-)
+from service_repo import APICall, ServiceRepo
+from service_repo.auth import Identity, Token, get_client_id, get_secret_key
 
 log = config.logger("AuthBLL")
 
@@ -62,6 +54,9 @@ class AuthBLL:
                 identity=identity,
                 entities=entities,
                 expiration_sec=expiration_sec,
+                api_version=str(ServiceRepo.max_endpoint_version()),
+                server_version=str(get_version()),
+                server_build=str(get_build_number()),
             )
 
             return GetTokenResponse(token=token.decode("ascii"))
