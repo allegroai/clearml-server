@@ -1,5 +1,6 @@
 import base64
 import jwt
+from mongoengine import Q
 
 from database.errors import translate_errors_context
 from database.model.company import Company
@@ -11,6 +12,7 @@ from timing_context import TimingContext
 
 from .payload import Payload, Token, Basic, AuthType
 from .identity import Identity
+from .fixed_user import FixedUser
 
 
 log = config.logger(__file__)
@@ -54,8 +56,17 @@ def authorize_credentials(auth_data, service, action, call_data_items):
         log.exception('malformed credentials')
         raise errors.unauthorized.BadCredentials(str(e))
 
+    query = Q(credentials__match=Credentials(key=access_key, secret=secret_key))
+
+    if FixedUser.enabled():
+        fixed_user = FixedUser.get_by_username(access_key)
+        if fixed_user:
+            if secret_key != fixed_user.password:
+                raise errors.unauthorized.InvalidCredentials('bad username or password')
+            query = Q(id=fixed_user.user_id)
+
     with TimingContext("mongo", "user_by_cred"), translate_errors_context('authorizing request'):
-        user = User.objects(credentials__match=Credentials(key=access_key, secret=secret_key)).first()
+        user = User.objects(query).first()
 
     if not user:
         raise errors.unauthorized.InvalidCredentials('failed to locate provided credentials')

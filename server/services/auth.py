@@ -20,7 +20,8 @@ from config import config
 from database.errors import translate_errors_context
 from database.model.auth import User
 from service_repo import APICall, endpoint
-from service_repo.auth import Token, AuthType
+from service_repo.auth import Token
+from service_repo.auth.fixed_user import FixedUser
 
 log = config.logger(__file__)
 
@@ -167,3 +168,8 @@ def update(call, company_id, _):
     call.result.data_model = UpdateResponse(
         updated=result.modified_count, fields=fields
     )
+
+
+@endpoint("auth.fixed_users_mode")
+def fixed_users_mode(call: APICall, *_, **__):
+    call.result.data = dict(enabled=FixedUser.enabled())
