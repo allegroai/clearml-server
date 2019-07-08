@@ -26,8 +26,6 @@ You can quickly setup your **trains-server** using a pre-built Docker image (see
 
 When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)).
 
-The **trains-server's** code is freely available [here](https://github.com/allegroai/trains-server).
-
 ## System diagram
 
 
@@ -154,6 +152,51 @@ For example, if your data directory is `/opt/trains`, then use the following com
 sudo mkdir -p /opt/trains/data/elastic && sudo chown -R 1000:1000 /opt/trains
 ```
 
+### Configuration
+
+The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
+
+If the configuration is changed while the server is running, the server should be restarted for changes to take effect.
+
+<!---
+#### Fixed users mode (basic users management)
+
+In this mode, the server authenticates users based on a pre-configured users list.
+
+Enable this feature by placing an `apiserver.conf` file under `/opt/trains/config`, containing for example:
+
+    fixed_users {
+        enabled: true
+        users: [
+            {
+                username: "jane"
+                password: "123456"
+                name: "Jane Doe"
+            },
+            {
+                username: "john"
+                password: "abcdef"
+                name: "John Doe"
+            }
+        ]
+    }
+-->
+#### Non-responsive experiments watchdog
+
+This watchdog monitors experiments that were not updated for a given period of time, and marks them as `stopped`. The watchdog is always active.
+
+To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`, containing for example:
+
+    tasks {
+        non_responsive_tasks_watchdog {
+            # In-progress tasks that haven't been updated for at least 'value' seconds will be stopped by the watchdog
+            threshold_sec: 7200
+        
+            # Watchdog will sleep for this number of seconds after each cycle
+            watch_interval_sec: 900
+        }
+    }
+
 ### Launching Docker Containers
 
 **Note**:
@@ -179,7 +222,7 @@ sudo docker run -d --restart="always" --name="trains-fileserver" --network="host
 ```
 
 ```bash
-sudo docker run -d --restart="always" --name="trains-apiserver" --network="host" -v /opt/trains/logs:/var/log/trains allegroai/trains:latest apiserver
+sudo docker run -d --restart="always" --name="trains-apiserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/config:/opt/trains/config allegroai/trains:latest apiserver
 ```
 
 ```bash
@@ -198,11 +241,9 @@ Once you have installed the **trains-server**, make sure to configure **trains**
 
 If you have already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
 
-```
-api {
-    host: "http://localhost:8008"
-}
-```
+    api {
+        host: "http://localhost:8008"
+    }
 
 See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
 
@@ -231,7 +272,15 @@ When we release a new version and include a new pre-built Docker image for it, u
     * `trains-apiserver`
     * `trains-webserver`
 
-2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
+2. Pull the new **trains-server** docker image using the following command:
+
+        sudo docker pull allegroai/trains:latest
+    
+    If you wish to pull a different version, replace `latest` with the required version number, for example:
+
+        sudo docker pull allegroai/trains:0.10.0
+        
+3. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
     For example, if your data directory is `/opt/trains`, use the following command:
 
@@ -244,7 +293,7 @@ When we release a new version and include a new pre-built Docker image for it, u
         sudo rm -R /opt/trains/data
         sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
 
-3. Launch the newly released Docker image (see [Launching Docker Containers](#launching-docker-containers)).
+4. Launch the newly released Docker image (see [Launching Docker Containers](#launching-docker-containers)).
 
 ## License
 
