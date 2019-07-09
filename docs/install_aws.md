@@ -17,6 +17,10 @@ and a detailed version [here](https://docs.aws.amazon.com/AWSEC2/latest/UserGuid
 
 The minimum recommended instance type is **t3a.large**
 
+## Upgrading
+
+In order to upgrade **trains-server** on an existing EC2 instance based on one of these AMIs, SSH into the instance and follow the [upgrade instructions](../README.md#upgrade) for **trains-server**.
+
 ## Released versions
 
 The following sections provide a list containing AMI Image ID per region for each released **trains-server** version.

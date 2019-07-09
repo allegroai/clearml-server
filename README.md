@@ -32,7 +32,7 @@ When new releases are available, you can upgrade your pre-built Docker image (se
 ![Alt Text](https://github.com/allegroai/trains/blob/master/docs/system_diagram.png?raw=true)
 
 
-## Installation - AWS
+## Install / Upgrade - AWS
 
 Use our pre-installed Amazon Machine Image for easy deployment in AWS. 
 
