@@ -152,35 +152,44 @@ For example, if your data directory is `/opt/trains`, then use the following com
 sudo mkdir -p /opt/trains/data/elastic && sudo chown -R 1000:1000 /opt/trains
 ```
 
-### Configuration
+### Optional Configuration
 
 The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
 
 If the configuration is changed while the server is running, the server should be restarted for changes to take effect.
 
-<!---
+
 #### Fixed users mode (basic users management)
 
-In this mode, the server authenticates users based on a pre-configured users list.
+In this mode, the server authenticates users based only on a pre-configured users list.
 
-Enable this feature by placing an `apiserver.conf` file under `/opt/trains/config`, containing for example:
+Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
+ 
+**Notice**: In order for the changes to take effect, the *trains-apiserver* (docker) will need to be restarted.
 
-    fixed_users {
-        enabled: true
-        users: [
-            {
-                username: "jane"
-                password: "123456"
-                name: "Jane Doe"
-            },
-            {
-                username: "john"
-                password: "abcdef"
-                name: "John Doe"
-            }
-        ]
+Sample fixed user configuration file `/opt/trains/config/apiserver.conf`:
+
+    auth {
+        # Fixed users login credetials 
+        # No other user will be able to login
+        fixed_users {
+            enabled: true
+            users: [
+                {
+                    username: "jane"
+                    password: "12345678"
+                    name: "Jane Doe"
+                },
+                {
+                    username: "john"
+                    password: "12345678"
+                    name: "John Doe"
+                },
+            ]
+        }
     }
--->
+ 
+
 #### Non-responsive experiments watchdog
 
 This watchdog monitors experiments that were not updated for a given period of time, and marks them as `stopped`. The watchdog is always active.
@@ -235,11 +244,11 @@ After the **trains-server** Dockers are up, the following are available:
 * Web server on port `8080`
 * File server on port `8081`
 
-### Configuring **trains**
+### Configuring **TRAINS** client
 
-Once you have installed the **trains-server**, make sure to configure **trains** to use your locally installed server (and not the demo server).
+Once you have installed the **trains-server**, make sure to configure **TRAINS** [client](https://github.com/allegroai/trains) to use your locally installed server (and not the demo server).
 
-If you have already installed **trains**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
+If you have already installed **TRAINS**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
 
     api {
         host: "http://localhost:8008"
