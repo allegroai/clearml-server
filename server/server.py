@@ -16,7 +16,7 @@ from utilities import json
 from init_data import init_es_data, init_mongo_data
 
 app = Flask(__name__, static_url_path="/static")
-CORS(app, supports_credentials=True, **config.get("apiserver.cors"))
+CORS(app, **config.get("apiserver.cors"))
 Compress(app)
 
 log = config.logger(__file__)
@@ -63,7 +63,10 @@ def before_request():
 
         if call.result.cookies:
             for key, value in call.result.cookies.items():
-                response.set_cookie(key, value, **config.get("apiserver.auth.cookies"))
+                if value is None:
+                    response.set_cookie(key, "", expires=0)
+                else:
+                    response.set_cookie(key, value, **config.get("apiserver.auth.cookies"))
 
         return response
     except Exception as ex:

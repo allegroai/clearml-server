@@ -1,13 +1,15 @@
 from datetime import datetime
+
 import attr
 from furl import furl
 
-from database.model.user import User
-from database.model.auth import User as AuthUser, Credentials
 from config import config
 from database.model.auth import Role
+from database.model.auth import User as AuthUser, Credentials
 from database.model.company import Company
+from database.model.user import User
 from elastic.apply_mappings import apply_mappings_to_host
+from es_factory import get_cluster_config
 from service_repo.auth.fixed_user import FixedUser
 
 log = config.logger(__file__)
@@ -22,10 +24,9 @@ class MissingElasticConfiguration(Exception):
 
 
 def init_es_data():
-    hosts_key = "hosts.elastic.events.hosts"
-    hosts_config = config.get(hosts_key, None)
+    hosts_config = get_cluster_config("events").get("hosts")
     if not hosts_config:
-        raise MissingElasticConfiguration(hosts_key)
+        raise MissingElasticConfiguration("for cluster 'events'")
 
     for conf in hosts_config:
         host = furl(scheme="http", host=conf["host"], port=conf["port"]).url
@@ -117,7 +118,11 @@ def init_mongo_data():
             _ensure_auth_user(user, company_id)
 
         if FixedUser.enabled():
+            log.info("Fixed users mode is enabled")
             for user in FixedUser.from_config():
-                _ensure_user(user, company_id)
+                try:
+                    _ensure_user(user, company_id)
+                except Exception as ex:
+                    log.error(f"Failed creating fixed user {user['name']}: {ex}")
     except Exception as ex:
         pass
