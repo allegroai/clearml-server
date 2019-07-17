@@ -1,16 +1,18 @@
 """ A Simple file server for uploading and downloading files """
 import json
-import logging.config
 import os
 from argparse import ArgumentParser
 from pathlib import Path
 
 from flask import Flask, request, send_from_directory, safe_join
-from pyhocon import ConfigFactory
+from flask_compress import Compress
+from flask_cors import CORS
 
-logging.config.dictConfig(ConfigFactory.parse_file("logging.conf"))
+from config import config
 
 app = Flask(__name__)
+CORS(app, **config.get("fileserver.cors"))
+Compress(app)
 
 
 @app.route("/", methods=["POST"])
@@ -29,7 +31,15 @@ def upload():
 
 @app.route("/<path:path>", methods=["GET"])
 def download(path):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], path)
+    response = send_from_directory(app.config["UPLOAD_FOLDER"], path)
+    if config.get("fileserver.download.disable_browser_caching", False):
+        headers = response.headers
+        headers["Pragma-directive"] = "no-cache"
+        headers["Cache-directive"] = "no-cache"
+        headers["Cache-control"] = "no-cache"
+        headers["Pragma"] = "no-cache"
+        headers["Expires"] = "0"
+    return response
 
 
 def main():
