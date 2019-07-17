@@ -218,7 +218,7 @@ sudo docker run -d --restart="always" --name="trains-mongo" -v /opt/trains/data/
 ```
 
 ```bash
-sudo docker run -d --restart="always" --name="trains-fileserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/data/fileserver:/mnt/fileserver -v /opt/trains/config:/opt/trains/config allegroai/trains:latest fileserver
+sudo docker run -d --restart="always" --name="trains-fileserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/data/fileserver:/mnt/fileserver allegroai/trains:latest fileserver
 ```
 
 ```bash
@@ -226,7 +226,7 @@ sudo docker run -d --restart="always" --name="trains-apiserver" --network="host"
 ```
 
 ```bash
-sudo docker run -d --restart="always" --name="trains-webserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/config:/opt/trains/config allegroai/trains:latest webserver
+sudo docker run -d --restart="always" --name="trains-webserver" -p 8080:80 allegroai/trains:latest webserver
 ```
 
 After the **trains-server** Dockers are up, the following are available:
