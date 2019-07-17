@@ -31,10 +31,8 @@ log = config.logger(__file__)
     request_data_model=GetTokenRequest,
     response_data_model=GetTokenResponse,
 )
-def login(call):
+def login(call: APICall, *_, **__):
     """ Generates a token based on the authenticated user (intended for use with credentials) """
-    assert isinstance(call, APICall)
-
     call.result.data_model = AuthBLL.get_token_for_user(
         user_id=call.identity.user,
         company_id=call.identity.company,
@@ -45,6 +43,11 @@ def login(call):
     call.result.cookies[
         config.get("apiserver.auth.session_auth_cookie_name")
     ] = call.result.data_model.token
+
+
+@endpoint("auth.logout", min_version="2.2")
+def logout(call: APICall, *_, **__):
+    call.result.cookies[config.get("apiserver.auth.session_auth_cookie_name")] = None
 
 
 @endpoint(
