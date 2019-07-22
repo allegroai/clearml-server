@@ -25,7 +25,9 @@ In order to upgrade **trains-server** on an existing EC2 instance based on one o
 
 The following sections provide a list containing AMI Image ID per region for each released **trains-server** version.
 
-### v0.10.1
+### Latest Version AMI
+**For easier upgrades: The following AMI automatically update to the latest release every reboot**
+
 * **eu-north-1** : ami-0a8e95b10d114f76c
 * **ap-south-1** : ami-03d9fac7e8135fd04
 * **eu-west-3** : ami-0bed4b2370f302790
@@ -42,6 +44,24 @@ The following sections provide a list containing AMI Image ID per region for eac
 * **us-west-1** : ami-093b365a75c8457ab
 * **us-west-2** : ami-0b3c068037f8cb03d
 * **us-east-1** : ami-0f2e1f2d006287666
+
+### v0.10.1
+* **eu-north-1** : ami-0059e722ab7aff31b
+* **ap-south-1** : ami-05aa09b6dfaef2057
+* **eu-west-3** : ami-03ce396ad6c08c684
+* **eu-west-2** : ami-0ef9a00780ca4a6c6
+* **eu-west-1** : ami-0cd75eef75fbfeb28
+* **ap-northeast-2** : ami-04fc511ca43663746
+* **ap-northeast-1** : ami-0681413e88c6c3716
+* **sa-east-1** : ami-0e7373671cc5280c2
+* **ca-central-1** : ami-0e1af38b0c9d18e70
+* **ap-southeast-1** : ami-0d49dbd7d7abfbb80
+* **ap-southeast-2** : ami-041160f24b8e62635
+* **eu-central-1** : ami-0ecb6bba2ee7bd63b
+* **us-east-2** : ami-0f668fc81356df4f5
+* **us-west-1** : ami-032a3e3ae5f1bb661
+* **us-west-2** : ami-02dae03bb9708579a
+* **us-east-1** : ami-0ca191ee0226617cb
 
 ### v0.10.0
 * **eu-north-1** : ami-05ba33c763877e54e
