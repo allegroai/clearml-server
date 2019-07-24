@@ -14,7 +14,7 @@ services:
     environment:
       ELASTIC_SERVICE_SERVICE_HOST: ${HOSTIP}
       MONGODB_SERVICE_SERVICE_HOST: ${HOSTIP}
-    restart: "no"
+    restart: always
     volumes:
     - type: bind
       source: /opt/trains/logs
