@@ -1,0 +1,66 @@
+version: "3.6"
+services:
+  trainsserver:
+    command:
+     - -c
+     - "echo \"#!/bin/bash\" > /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh webserver&\" >> /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh fileserver&\" >> /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh apiserver\" >> /opt/trains/all.sh && cat /opt/trains/all.sh && chmod +x /opt/trains/all.sh && /opt/trains/all.sh"
+    entrypoint: /bin/bash
+    container_name: trains-server
+    image: allegroai/trains:latest
+    ports:
+    - 8008:8008
+    - 8080:80
+    - 8081:8081
+    environment:
+      ELASTIC_SERVICE_SERVICE_HOST: ${HOSTIP}
+      MONGODB_SERVICE_SERVICE_HOST: ${HOSTIP}
+    restart: "no"
+    volumes:
+    - type: bind
+      source: /opt/trains/logs
+      target: /var/log/trains
+    - type: bind
+      source: /opt/trains/data/fileserver
+      target: /mnt/fileserver
+
+  elasticsearch:
+    container_name: trains-elastic
+    environment:
+      ES_JAVA_OPTS: -Xms2g -Xmx2g
+      bootstrap.memory_lock: "true"
+      cluster.name: trains
+      cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+      discovery.zen.minimum_master_nodes: "1"
+      http.compression_level: "7"
+      node.ingest: "true"
+      node.name: trains
+      reindex.remote.whitelist: '*.*'
+      script.inline: "true"
+      script.painless.regex.enabled: "true"
+      script.update: "true"
+      thread_pool.bulk.queue_size: "2000"
+      thread_pool.search.queue_size: "10000"
+      xpack.monitoring.enabled: "false"
+      xpack.security.enabled: "false"
+      transport.host: localhost
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+    ports:
+    - 9200:9200
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/data/elastic
+      target: /usr/share/elasticsearch/data
+  mongo:
+    container_name: trains-mongo
+    image: mongo:3.6.5
+    ports:
+    - 27017:27017
+    restart: always
+    volumes:
+    - type: bind
+      source: /opt/trains/data/mongo/db
+      target: /data/db
+    - type: bind
+      source: /opt/trains/data/mongo/configdb
+      target: /data/configdb
