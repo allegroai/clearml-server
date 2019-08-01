@@ -306,6 +306,15 @@ When we release a new version and include a new pre-built Docker image for it, u
 
 4. Launch the newly released Docker image (see [Launching Docker Containers](#launching-docker-containers)).
 
+## Community & Support
+
+If you have any questions, look to the TRAINS-server [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md), or
+tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/trains) with '**trains**' tag.
+
+For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/trains-server/issues).
+
+Additionally, you can always find us at *trains@allegro.ai*
+
 ## License
 
 [Server Side Public License v1.0](https://github.com/mongodb/mongo/blob/master/LICENSE-Community.txt)
