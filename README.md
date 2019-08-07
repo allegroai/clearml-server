@@ -53,7 +53,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
     sudo sysctl -w vm.max_map_count=262144
     
-    sudo sudo service docker restart
+    sudo service docker restart
     ``` 
 
 1. Create local directories for the databases and storage.
@@ -103,12 +103,12 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
 
 The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
 
-If the configuration is changed while the server is running, to apply the changes you must restart the server (see [Restarting trains-server](#restart-server)).
+In order to apply the new configuration, you must restart the server (see [Restarting trains-server](#restart-server)).
 
 ### Configuring TRAINS to Authenticate Web Login Credentials
 
 By default anyone can login to the **trains-server** Web-App.
-You can configure the **trains-server** to allow access only to specific users (with pre-configured user/pass).
+You can configure the **trains-server** to allow only a specific set of users to access the system.
 
 Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
  
@@ -139,10 +139,12 @@ To apply the `apiserver.conf` changes, you must restart the *trains-apiserver* (
 
 ### Configuring the Non-Responsive Experiments Watchdog Thresholds
 
-The non-responsive experiment watchdog monitors experiments that were not updated for a given period of time, 
-and marks them as `aborted`. The watchdog is always active with a default of 7200 seconds (2 hours).
+The non-responsive experiment watchdog, monitors experiments that were not updated for a given period of time, 
+and marks them as `aborted`. The watchdog is always active with a default of 7200 seconds (2 hours) of inactivity threshold.
 
-To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`, containing for example:
+To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`.
+
+Sample watchdog configuration file `/opt/trains/config/services.conf`:
 
     tasks {
         non_responsive_tasks_watchdog {
@@ -176,10 +178,16 @@ to use your locally installed server (and not the demo server).
 
 - Or manually edit `~/trains.conf` file, making sure the `api_server` value is configured correctly, for example:
 
-
-    api {
-        api_server: "http://localhost:8008"
-    }
+        api {
+            # API server on port 8008
+            api_server: "http://localhost:8008"
+        
+            # web_server on port 8080
+            web_server: "http://localhost:8080"
+        
+            # file server on port 8081
+            files_server: "http://localhost:8081"
+        }
 
 See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
 
