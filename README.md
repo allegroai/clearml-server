@@ -75,15 +75,15 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
         
 1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
 
-        $ git clone https://github.com/allegroai/trains-server.git
-        $ cd trains-server
+        git clone https://github.com/allegroai/trains-server.git
+        cd trains-server
         
 1. Launch the Docker containers <a name="launch-docker"></a>
 
     * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md#ubuntu), [OS X](docs/faq.md#mac-osx))
     
     ```bash                    
-    $ docker-compose up
+    docker-compose up
     ```
             
     * Manually   
@@ -158,8 +158,8 @@ To restart the **trains-server**, you must first stop and remove the containers,
 
 1. Restarting docker-compose containers.
 
-        $ docker-compose down
-        $ docker-compose up
+        docker-compose down
+        docker-compose up
         
 1. Manually restarting dockers [instructions](docs/manual_docker.md).
 
@@ -196,7 +196,7 @@ When we release a new version and include a new pre-built Docker image for it, u
     * Using Docker-Compose
     
         ```bash                    
-        $ docker-compose up
+        docker-compose down
         ```
 
     * Manual Docker launching 
