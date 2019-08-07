@@ -47,6 +47,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     Make sure port 8080/8081/8008 are available for the `trains-server` services 
     
     Increase vm.max_map_count for `ElasticSearch` docker
+    
     ```bash
     echo "vm.max_map_count=262144" > /tmp/99-trains.conf
     sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
@@ -56,6 +57,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     ``` 
 
 1. Create local directories for the databases and storage.
+    
     ```bash
     sudo mkdir -p /opt/trains/data/elastic
     sudo mkdir -p /opt/trains/data/mongo/db
@@ -66,24 +68,26 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
 
     Linux
     ```bash
-    sudo chown -R 1000:1000 /opt/trains
+    $ sudo chown -R 1000:1000 /opt/trains
     ```
     Mac OS X
     ```bash            
-    sudo chown -R $(whoami):staff /opt/trains
+    $ sudo chown -R $(whoami):staff /opt/trains
     ```
         
 1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
-
-        git clone https://github.com/allegroai/trains-server.git
-        cd trains-server
+    
+    ```bash                    
+    $ git clone https://github.com/allegroai/trains-server.git
+    $ cd trains-server
+    ```
         
 1. Launch the Docker containers <a name="launch-docker"></a>
 
     * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md#ubuntu), [OS X](docs/faq.md#mac-osx))
     
     ```bash                    
-    docker-compose up
+    $ docker-compose up
     ```
             
     * Manually   
@@ -158,8 +162,8 @@ To restart the **trains-server**, you must first stop and remove the containers,
 
 1. Restarting docker-compose containers.
 
-        docker-compose down
-        docker-compose up
+        $ docker-compose down
+        $ docker-compose up
         
 1. Manually restarting dockers [instructions](docs/manual_docker.md).
 
@@ -195,14 +199,16 @@ When we release a new version and include a new pre-built Docker image for it, u
 
     * Using Docker-Compose
     
-        ```bash                    
-        docker-compose down
+        ```bash
+        $ docker-compose down
         ```
 
     * Manual Docker launching 
     
-            sudo docker stop <docker-name>
-            sudo docker rm -v <docker-name>
+        ```bash
+        $ sudo docker stop <docker-name>
+        $ sudo docker rm -v <docker-name>
+        ```
     
         The Docker names are (see [Launching Docker Containers](#launch-docker)):
     
@@ -215,23 +221,28 @@ When we release a new version and include a new pre-built Docker image for it, u
 2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
     For example, if your data directory is `/opt/trains`, use the following command:
-
-        sudo tar czvf ~/trains_backup.tgz /opt/trains/data
-
+        
+    ```bash
+    $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+    ```
     This backups all data to an archive in your home directory.
 
     To restore this example backup, use the following command:
-
-        sudo rm -R /opt/trains/data
-        sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
-
+    ```bash
+    $ sudo rm -R /opt/trains/data
+    $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+    ```
+    
 3. Pull the new **trains-server** docker image using the following command:
 
-        sudo docker pull allegroai/trains:latest
+    ```bash
+    $ sudo docker pull allegroai/trains:latest
+    ```
     
-    If you wish to pull a different version, replace `latest` with the required version number, for example:
-
-        sudo docker pull allegroai/trains:0.10.1
+    If you wish to pull a different version, replace `latest` with the required version number, for example:    
+    ```bash
+    $ sudo docker pull allegroai/trains:0.10.1
+     ```
         
 4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
 
