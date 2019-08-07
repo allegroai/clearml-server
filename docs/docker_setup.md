@@ -79,8 +79,6 @@ For CentOS 7, Ubuntu 16.04, Mint 18.3, Ubuntu 18.04 and Mint 19.x, we tested the
 echo "vm.max_map_count=262144" > /tmp/99-trains.conf
 sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
 sudo sysctl -w vm.max_map_count=262144
-
-sudo service docker restart
 ```
 
 For information about setting this parameter on other systems, see the [elastic](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode) documentation.

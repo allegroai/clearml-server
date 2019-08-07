@@ -80,7 +80,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
         
 1. Launch the Docker containers <a name="launch-docker"></a>
 
-    * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md##ubuntu), [OS X](docs/faq.md#mac-osx))
+    * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md#ubuntu), [OS X](docs/faq.md#mac-osx))
     
     ```bash                    
     $ docker-compose up
@@ -193,18 +193,39 @@ When we release a new version and include a new pre-built Docker image for it, u
 
 1. Shut down and remove each of your Docker instances using the following commands:
 
-        sudo docker stop <docker-name>
-        sudo docker rm -v <docker-name>
+    * Using Docker-Compose
+    
+        ```bash                    
+        $ docker-compose up
+        ```
 
-    The Docker names are (see [Launching Docker Containers](#launch-docker)):
+    * Manual Docker launching 
+    
+            sudo docker stop <docker-name>
+            sudo docker rm -v <docker-name>
+    
+        The Docker names are (see [Launching Docker Containers](#launch-docker)):
+    
+        * `trains-elastic`
+        * `trains-mongo`
+        * `trains-fileserver`
+        * `trains-apiserver`
+        * `trains-webserver`
 
-    * `trains-elastic`
-    * `trains-mongo`
-    * `trains-fileserver`
-    * `trains-apiserver`
-    * `trains-webserver`
+2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
-2. Pull the new **trains-server** docker image using the following command:
+    For example, if your data directory is `/opt/trains`, use the following command:
+
+        sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+
+    This backups all data to an archive in your home directory.
+
+    To restore this example backup, use the following command:
+
+        sudo rm -R /opt/trains/data
+        sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+
+3. Pull the new **trains-server** docker image using the following command:
 
         sudo docker pull allegroai/trains:latest
     
@@ -212,19 +233,6 @@ When we release a new version and include a new pre-built Docker image for it, u
 
         sudo docker pull allegroai/trains:0.10.1
         
-3. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
-
-    For example, if your data directory is `/opt/trains`, use the following command:
-
-        sudo tar czvf ~/trains_backup.tgz /opt/trains/data
-
-    This back ups all data to an archive in your home directory.
-
-    To restore this example backup, use the following command:
-
-        sudo rm -R /opt/trains/data
-        sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
-
 4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
 
 ## Community & Support
