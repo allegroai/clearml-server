@@ -6,11 +6,11 @@
 
 * [Running trains-server on Mac OS X](#mac-osx)
 
+* [Installing trains-server on stand alone Linux Ubuntu  systems ](#ubuntu)
+
 * [Resolving port conflicts preventing fixed users mode authentication and login](#port-conflict)
 
 * [Configuring trains-server for sub-domains and load balancers](#sub-domains)
-
-* [Installing trains-server on stand alone Linux Ubuntu  systems ](#ubuntu)
 
 ### Deploying trains-server on Kubernetes clusters <a name="kubernetes"></a>
 
@@ -53,15 +53,49 @@ After installing, each time your computer reboots, you must run the `docker-comp
 
 1. Run `docker-compose` with a unified docker.
 
-   Notice: *HOSTIP* holds the host network IP address. 
-   If you have multiple network cards, you might want to specify a different network interface or set the IP manually. 
-
-    **You must run this command each time your computer reboots, because the dockers will not automatically reload.**
-
-        $ HOSTIP=$(ipconfig getifaddr en0) docker-compose -f docker-compose-unified.yml up
+        $ docker-compose -f docker-compose-unified.yml up
         
     Your server is now running on [http://localhost:8080](http://localhost:8080)
 
+### Installing trains-server on stand alone Linux Ubuntu systems <a name="ubuntu"></a>
+
+To install **trains-server** on a stand alone Linux Ubuntu, follow the steps belows.
+
+After installing, each time your computer reboots, you must run the `docker-compose` command (see Step 6), because the dockers will not automatically reload.
+
+1. Install [docker for Linux Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/).
+
+1. Install `docker-compose` using the following commands (for more detailed information, see the [Install Docker Compose](https://docs.docker.com/compose/install/) in the Docker documentation):
+
+        sudo curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose 
+
+1. Remove the previous installation of **trains-server**. 
+
+    **WARNING**: This clears all existing **TRAINS** databases.
+
+        $ sudo rm -R /opt/trains/
+        
+1. Create local directories for the databases and storage.
+
+        $ sudo mkdir -p /opt/trains/data/elastic
+        $ sudo mkdir -p /opt/trains/data/mongo/db
+        $ sudo mkdir -p /opt/trains/data/mongo/configdb
+        $ sudo mkdir -p /opt/trains/logs
+        $ sudo mkdir -p /opt/trains/data/fileserver
+        $ sudo chown -R 1000:1000 /opt/trains
+
+1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
+
+        $ git clone https://github.com/allegroai/trains-server.git
+        $ cd trains-server
+        
+1. Run `docker-compose` with a unified docker. 
+
+        $ /usr/local/bin/docker-compose -f docker-compose-unified.yml up
+    
+    Your server is now running on [http://localhost:8080](http://localhost:8080)
+    
 ### Resolving port conflicts preventing fixed users mode authentication and login <a name="port-conflict"></a>
 
 A port conflict may occur between the **trains-server** MongoDB and Elastic instances and other
@@ -147,46 +181,3 @@ For example, if your domain is `trains.mydomain.com` and your sub-domains are `a
         
 1. Run the Docker containers with our updated `docker run` commands (see [Launching Docker Containers](#https://github.com/allegroai/trains-server#launching-docker-containers)).        
 
-### Installing trains-server on stand alone Linux Ubuntu systems <a name="ubuntu"></a>
-
-To install **trains-server** on a stand alone Linux Ubuntu, follow the steps belows.
-
-After installing, each time your computer reboots, you must run the `docker-compose` command (see Step 6), because the dockers will not automatically reload.
-
-1. Install [docker for Linux Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/).
-
-1. Install `docker-compose` using the following commands (for more detailed information, see the [Install Docker Compose](https://docs.docker.com/compose/install/) in the Docker documentation):
-
-        sudo curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose 
-
-1. Remove the previous installation of **trains-server**. 
-
-    **WARNING**: This clears all existing **TRAINS** databases.
-
-        $ sudo rm -R /opt/trains/
-        
-1. Create local directories for the databases and storage.
-
-        $ sudo mkdir -p /opt/trains/data/elastic
-        $ sudo mkdir -p /opt/trains/data/mongo/db
-        $ sudo mkdir -p /opt/trains/data/mongo/configdb
-        $ sudo mkdir -p /opt/trains/logs
-        $ sudo mkdir -p /opt/trains/data/fileserver
-        $ sudo chown -R $(whoami):$(whoami) /opt/trains
-
-1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
-
-        $ git clone https://github.com/allegroai/trains-server.git
-        $ cd trains-server
-        
-1. Run `docker-compose` with a unified docker. 
-
-   Notice: *HOSTIP* holds the host network IP address. 
-   If you have multiple network cards, you might want to specify a different network interface or set the IP manually. 
-
-    **You must run this command each time your computer reboots, because the dockers will not automatically reload.**
-
-        $ HOSTIP=$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f8) /usr/local/bin/docker-compose -f docker-compose-unified.yml up
-    
-    Your server is now running on [http://localhost:8080](http://localhost:8080)

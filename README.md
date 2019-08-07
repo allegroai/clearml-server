@@ -31,141 +31,83 @@ When new releases are available, you can upgrade your pre-built Docker image (se
 
 ![Alt Text](https://github.com/allegroai/trains/blob/master/docs/system_diagram.png?raw=true)
 
+## Install / Upgrade - AWS <a name="aws"></a>
 
-## Install / Upgrade - AWS
+Use one of our pre-installed Amazon Machine Images for easy deployment in AWS. 
 
-Use our pre-installed Amazon Machine Image for easy deployment in AWS. 
+For details and instructions, see [TRAINS-server: AWS pre-installed images](docs/install_aws.md).
 
-Details and instructions can be found  [here](docs/install_aws.md).
+## Install - Linux, Mac OS X <a name="installation"></a>
 
-## Installation - Docker
+Use our pre-built Docker image for easy deployment in Linux and Mac OS X. 
+For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
 
-This section contains the instructions to setup and launch a pre-built Docker image for the **trains-server**.
-This is the quickest way to get started with your own server. 
-Alternatively, you can build the entire trains-server architecture using the code available in our repositories.
+1. Setup Docker (Full details [Setup Docker Service](docs/docker_setup.md))
 
-**Please Note**:
-* This Docker image was tested with Linux, only. For Windows users, we recommend running the server
-on a Linux virtual machine.
-
-* All command-line instructions below assume you're using `bash`.
-
-### Prerequisites
-
-Make sure you are logged in as a user with sudo privileges.
-
-### Setup
-
-#### Step 1: Install Docker CE
-
-In order to run the pre-packaged **trains-server**, install Docker.
-
-* See [Supported platforms](https://docs.docker.com/install//#support) in the Docker documentation for instructions
-
-* For example, to install in [Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/) / Mint (x86_64/amd64):
-
+    Make sure port 8080/8081/8008 are available for the `trains-server` services 
+    
+    Increase vm.max_map_count for `ElasticSearch` docker
     ```bash
-    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    . /etc/os-release
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable"
-    sudo apt-get update
-    sudo apt-get install -y docker-ce
-    ```
-
-#### Step 2: Setup the Docker daemon
-
-To run the ElasticSearch Docker container, setup the Docker daemon by modifying the default
-values required by Elastic in your Docker configuration file (see [Notes for production use and defaults](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#_notes_for_production_use_and_defaults)). We provide instructions for the most common Docker configuration files.
-
-Edit or create the Docker configuration file:
-
-* If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it.
-
-    Add the options in quotes to the available arguments in the `OPTIONS` section:
-
-    ```bash
-    OPTIONS="--default-ulimit nofile=1024:65536 --default-ulimit memlock=-1:-1"
-    ```
-
-* Otherwise, edit `/etc/docker/daemon.json` (if it exists) or create it (if it does not exist).
-
-    Add or modify the `defaults-ulimits` section as shown below. Be sure the `defaults-ulimits` section contains the `nofile` and `memlock` sub-sections and values shown.
-
-    **Note**: Your configuration file may contain other sections. If so, confirm that the sections are separated by commas (valid JSON format). For more information about Docker configuration files, see [Daemon configuration file](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file) in the Docker documentation.
-
-    The **trains-server** required defaults values are:
-
-    ```json
-    {
-        "default-ulimits": {
-            "nofile": {
-                "name": "nofile",
-                "hard": 65536,
-                "soft": 1024
-            },
-            "memlock":
-            {
-                "name": "memlock",
-                "soft": -1,
-                "hard": -1
-            }
-        }
-    }
-    ```
-
-#### Step 3: Restart the Docker daemon
-
-After modifying the configuration file, restart the Docker daemon:
-
-```bash
-sudo service docker stop
-sudo service docker start
-```
-
-#### Step 4: Set the Maximum Number of Memory Map Areas
-
-The maximum number of memory map areas a process can use is defined
-using the `vm.max_map_count` kernel setting.
-
-Elastic requires that `vm.max_map_count` is at least 262144 (see [Production mode](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#docker-cli-run-prod-mode)).
-
-* For CentOS 7, Ubuntu 16.04, Mint 18.3, Ubuntu 18.04 and Mint 19 users, we tested the following commands to set
-`vm.max_map_count`:
-
-    ```bash
-    sudo echo "vm.max_map_count=262144" > /tmp/99-trains.conf
+    echo "vm.max_map_count=262144" > /tmp/99-trains.conf
     sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
     sudo sysctl -w vm.max_map_count=262144
+    
+    sudo sudo service docker restart
+    ``` 
+
+1. Create local directories for the databases and storage.
+    ```bash
+    sudo mkdir -p /opt/trains/data/elastic
+    sudo mkdir -p /opt/trains/data/mongo/db
+    sudo mkdir -p /opt/trains/data/mongo/configdb
+    sudo mkdir -p /opt/trains/logs
+    sudo mkdir -p /opt/trains/data/fileserver
+    ``` 
+
+    Linux
+    ```bash
+    sudo chown -R 1000:1000 /opt/trains
     ```
+    Mac OS X
+    ```bash            
+    sudo chown -R $(whoami):staff /opt/trains
+    ```
+        
+1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
 
-* For information about setting this parameter on other systems, see the [elastic](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode) documentation.
+        $ git clone https://github.com/allegroai/trains-server.git
+        $ cd trains-server
+        
+1. Launch the Docker containers <a name="launch-docker"></a>
 
-#### Step 5: Choose a Data Directory
+    * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md##ubuntu), [OS X](docs/faq.md#mac-osx))
+    
+    ```bash                    
+    $ docker-compose up
+    ```
+            
+    * Manually   
+     See [TRAINS-server: Launching Docker Containers Manually](docs/manual_docker.md)) for instructions.
+    
+1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
+    
+    * Web server on port `8080`
+    * API server on port `8008`
+    * File server on port `8081`
 
-Choose a directory on your system in which all data maintained by the **trains-server** is stored.
-Create this directory, and set its owner and group to `uid` 1000. The data stored in this directory will include the database, uploaded files and logs.
-
-For example, if your data directory is `/opt/trains`, then use the following command:
-
-```bash
-sudo mkdir -p /opt/trains/data/elastic && sudo chown -R 1000:1000 /opt/trains
-```
-
-### Optional Configuration
+## Optional: Configuration
 
 The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
 
-If the configuration is changed while the server is running, the server should be restarted for changes to take effect.
+If the configuration is changed while the server is running, to apply the changes you must restart the server (see [Restarting trains-server](#restart-server)).
 
+### Configuring TRAINS to Authenticate Web Login Credentials
 
-#### Fixed users mode (basic users management)
-
-In this mode, the server authenticates users based only on a pre-configured users list.
+By default anyone can login to the **trains-server** Web-App.
+You can configure the **trains-server** to allow access only to specific users (with pre-configured user/pass).
 
 Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
  
-**Notice**: In order for the changes to take effect, the *trains-apiserver* (docker) will need to be restarted.
 
 Sample fixed user configuration file `/opt/trains/config/apiserver.conf`:
 
@@ -189,10 +131,12 @@ Sample fixed user configuration file `/opt/trains/config/apiserver.conf`:
         }
     }
  
+To apply the `apiserver.conf` changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
 
-#### Non-responsive experiments watchdog
+### Configuring the Non-Responsive Experiments Watchdog Thresholds
 
-This watchdog monitors experiments that were not updated for a given period of time, and marks them as `stopped`. The watchdog is always active.
+The non-responsive experiment watchdog monitors experiments that were not updated for a given period of time, 
+and marks them as `aborted`. The watchdog is always active with a default of 7200 seconds (2 hours).
 
 To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`, containing for example:
 
@@ -206,54 +150,31 @@ To change the watchdog's timeouts, place a `services.conf` file under `/opt/trai
         }
     }
 
-### Launching Docker Containers
+To apply the `services.conf` changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
 
-To launch the Docker containers, first confirm the required ports are available and then launch the Docker containers. 
+### Restarting trains-server <a name="restart-server"></a>
 
-If your data directory is not `/opt/trains`, then in the five `docker run` commands below, you must replace all occurrences of `/opt/trains` with your data directory path.
+To restart the **trains-server**, you must first stop and remove the containers, and then restart.
 
-1. Make sure ports `8008`, `8080` and `8081` are not in use. If these ports are already taken, the containers will fail to initialize. 
+1. Restarting docker-compose containers.
 
-    Run the following commands:
-
-        sudo netstat -tplna | egrep "8008|8080|8081"
+        $ docker-compose down
+        $ docker-compose up
         
-    If the commands show no output, the ports are available.        
+1. Manually restarting dockers [instructions](docs/manual_docker.md).
 
-1. Launch the **trains-elastic** Docker container.
+## Configuring **TRAINS** client
 
-        sudo docker run -d --restart="always" --name="trains-elastic" -e "ES_JAVA_OPTS=-Xms2g -Xmx2g" -e "bootstrap.memory_lock=true" -e "cluster.name=trains" -e "discovery.zen.minimum_master_nodes=1" -e "node.name=trains" -e "script.inline=true" -e "script.update=true" -e "thread_pool.bulk.queue_size=2000" -e "thread_pool.search.queue_size=10000" -e "xpack.security.enabled=false" -e "xpack.monitoring.enabled=false" -e "cluster.routing.allocation.node_initial_primaries_recoveries=500" -e "node.ingest=true" -e "http.compression_level=7" -e "reindex.remote.whitelist=*.*" -e "script.painless.regex.enabled=true" --network="host" -v /opt/trains/data/elastic:/usr/share/elasticsearch/data docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+Once you have installed the **trains-server**, make sure to configure **TRAINS** [client](https://github.com/allegroai/trains) 
+to use your locally installed server (and not the demo server).
 
-1. Launch the **trains-mongo** Docker container. 
+- Run the `trains-init` command for an interactive setup 
 
-        sudo docker run -d --restart="always" --name="trains-mongo" -v /opt/trains/data/mongo/db:/data/db -v /opt/trains/data/mongo/configdb:/data/configdb --network="host" mongo:3.6.5
+- Or manually edit `~/trains.conf` file, making sure the `api_server` value is configured correctly, for example:
 
-1. Launch the **trains-fileserver** Docker container. 
-
-        sudo docker run -d --restart="always" --name="trains-fileserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/data/fileserver:/mnt/fileserver allegroai/trains:latest fileserver
-
-1. Launch the **trains-apiserver** Docker container. 
-
-        sudo docker run -d --restart="always" --name="trains-apiserver" --network="host" -v /opt/trains/logs:/var/log/trains -v /opt/trains/config:/opt/trains/config allegroai/trains:latest apiserver
-
-1. Launch the **trains-webserver** Docker container. 
-
-        sudo docker run -d --restart="always" --name="trains-webserver" -p 8080:80 allegroai/trains:latest webserver
-
-After the **trains-server** Dockers are up, the following are available:
-
-* API server on port `8008`
-* Web server on port `8080`
-* File server on port `8081`
-
-### Configuring **TRAINS** client
-
-Once you have installed the **trains-server**, make sure to configure **TRAINS** [client](https://github.com/allegroai/trains) to use your locally installed server (and not the demo server).
-
-If you have already installed **TRAINS**, run the `trains-init` command for an interactive setup or edit your `trains.conf` file and make sure the `api.host` value is configured as follows:
 
     api {
-        host: "http://localhost:8008"
+        api_server: "http://localhost:8008"
     }
 
 See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
@@ -264,7 +185,7 @@ Now that the **trains-server** is installed, and TRAINS is configured to use it,
 you can [use](https://github.com/allegroai/trains#using-trains) TRAINS in your experiments and view them in the web server, 
 for example http://localhost:8080
 
-## Upgrade
+## Upgrading <a name="upgrade"></a>
 
 We are constantly updating, improving and adding to the **trains-server**.
 New releases will include new pre-built Docker images.
@@ -275,7 +196,7 @@ When we release a new version and include a new pre-built Docker image for it, u
         sudo docker stop <docker-name>
         sudo docker rm -v <docker-name>
 
-    The Docker names are (see [Launching Docker Containers](#launching-docker-containers)):
+    The Docker names are (see [Launching Docker Containers](#launch-docker)):
 
     * `trains-elastic`
     * `trains-mongo`
@@ -289,7 +210,7 @@ When we release a new version and include a new pre-built Docker image for it, u
     
     If you wish to pull a different version, replace `latest` with the required version number, for example:
 
-        sudo docker pull allegroai/trains:0.10.0
+        sudo docker pull allegroai/trains:0.10.1
         
 3. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
 
@@ -304,7 +225,7 @@ When we release a new version and include a new pre-built Docker image for it, u
         sudo rm -R /opt/trains/data
         sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
 
-4. Launch the newly released Docker image (see [Launching Docker Containers](#launching-docker-containers)).
+4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
 
 ## Community & Support
 

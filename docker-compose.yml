@@ -5,13 +5,25 @@ services:
     - apiserver
     container_name: trains-apiserver
     image: allegroai/trains:latest
-    network_mode: host
     restart: always
     volumes:
     - type: bind
       source: /opt/trains/logs
       target: /var/log/trains
+    links:
+      - mongo:mongo
+      - elasticsearch:elasticsearch
+      - fileserver:fileserver
+    environment:
+      ELASTIC_SERVICE_SERVICE_HOST: elasticsearch
+      MONGODB_SERVICE_SERVICE_HOST: mongo
+    ports:
+    - "8008:8008"
+    networks:
+      - backend
   elasticsearch:
+    networks:
+      - backend
     container_name: trains-elastic
     environment:
       ES_JAVA_OPTS: -Xms2g -Xmx2g
@@ -30,19 +42,25 @@ services:
       thread_pool.search.queue_size: "10000"
       xpack.monitoring.enabled: "false"
       xpack.security.enabled: "false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
-    network_mode: host
     restart: always
     volumes:
     - type: bind
       source: /opt/trains/data/elastic
       target: /usr/share/elasticsearch/data
+    ports:
+    - "9200:9200"
   fileserver:
+    networks:
+      - backend
     command:
     - fileserver
     container_name: trains-fileserver
     image: allegroai/trains:latest
-    network_mode: host
     restart: always
     volumes:
     - type: bind
@@ -51,10 +69,13 @@ services:
     - type: bind
       source: /opt/trains/data/fileserver
       target: /mnt/fileserver
+    ports:
+    - "8081:8081"
   mongo:
+    networks:
+      - backend
     container_name: trains-mongo
     image: mongo:3.6.5
-    network_mode: host
     restart: always
     volumes:
     - type: bind
@@ -63,14 +84,25 @@ services:
     - type: bind
       source: /opt/trains/data/mongo/configdb
       target: /data/configdb
+    ports:
+    - "27017:27017"
   webserver:
+    networks:
+      - backend
     command:
     - webserver
     container_name: trains-webserver
     image: allegroai/trains:latest
-    network_mode: host
     restart: always
     volumes:
     - type: bind
       source: /opt/trains/logs
       target: /var/log/trains
+    links:
+      - apiserver
+    ports:
+    - "8080:80"
+
+networks:
+  backend:
+    driver: bridge
