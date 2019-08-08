@@ -22,7 +22,7 @@ In order to host your own server, you will need to install **trains-server** and
     * Querying experiments history, logs and results
 * Locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
-You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)) or pre-installed machine image [AMI](#ami).
+You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)) or pre-installed machine image [AMI](#aws).
 
 When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)) or simply restart the machine with the [auto-update AMI](docs/install_aws.md#autoupdate).
 
