@@ -22,7 +22,6 @@ services:
     links:
       - mongo:mongo
       - elasticsearch:elasticsearch
-      - fileserver:fileserver
     environment:
       ELASTIC_SERVICE_SERVICE_HOST: elasticsearch
       MONGODB_SERVICE_SERVICE_HOST: mongo
