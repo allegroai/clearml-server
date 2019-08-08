@@ -22,9 +22,9 @@ In order to host your own server, you will need to install **trains-server** and
     * Querying experiments history, logs and results
 * Locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
-You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)).
+You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)) or pre-installed machine image [AMI](#ami).
 
-When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)).
+When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)) or simply restart the machine with the [auto-update AMI](docs/install_aws.md#autoupdate).
 
 ## System diagram
 
@@ -42,7 +42,7 @@ For details and instructions, see [TRAINS-server: AWS pre-installed images](docs
 Use our pre-built Docker image for easy deployment in Linux and Mac OS X. 
 For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
 
-1. Setup Docker (Full details [Setup Docker Service](docs/docker_setup.md))
+1. Setup Docker (Full details [Setup Docker Service Manually](docs/docker_setup.md))
 
     Make sure port 8080/8081/8008 are available for the `trains-server` services 
     
@@ -91,7 +91,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     ```
             
     * Manually   
-     See [TRAINS-server: Launching Docker Containers Manually](docs/manual_docker.md)) for instructions.
+     See [TRAINS-server: Launching Docker Containers Manually](docs/docker_setup.md#launch) for instructions.
     
 1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
     
@@ -167,7 +167,7 @@ To restart the **trains-server**, you must first stop and remove the containers,
         $ docker-compose down
         $ docker-compose up
         
-1. Manually restarting dockers [instructions](docs/manual_docker.md).
+1. Manually restarting dockers [instructions](docs/docker_setup.md#launch).
 
 ## Configuring **TRAINS** client
 
@@ -189,7 +189,7 @@ to use your locally installed server (and not the demo server).
             files_server: "http://localhost:8081"
         }
 
-See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#installing-and-configuring-trains) for more details.
+See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#configuration) for more details.
 
 ## What next?
 

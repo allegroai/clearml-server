@@ -25,7 +25,7 @@ In order to upgrade **trains-server** on an existing EC2 instance based on one o
 
 The following sections provide a list containing AMI Image ID per region for each released **trains-server** version.
 
-### Latest Version AMI
+### Latest Version AMI <a name="autoupdate"></a>
 **For easier upgrades: The following AMI automatically update to the latest release every reboot**
 
 * **eu-north-1** : ami-0a8e95b10d114f76c
