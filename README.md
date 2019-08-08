@@ -42,7 +42,7 @@ For details and instructions, see [TRAINS-server: AWS pre-installed images](docs
 Use our pre-built Docker image for easy deployment in Linux and Mac OS X. 
 For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
 
-1. Setup Docker (Full details [Setup Docker Service Manually](docs/docker_setup.md))
+1. Setup Docker (Full details [Setup Docker Service Manually](docs/docker_setup.md#setup-docker))
 
     Make sure port 8080/8081/8008 are available for the `trains-server` services 
     
