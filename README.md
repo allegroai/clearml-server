@@ -104,7 +104,7 @@ The **trains-server** default configuration can be easily overridden using exter
 
 In order to apply the new configuration, you must restart the server (see [Restarting trains-server](#restart-server)).
 
-### Configuring TRAINS to Authenticate Web Login Credentials
+### Adding Web Login Authentication
 
 By default anyone can login to the **trains-server** Web-App.
 You can configure the **trains-server** to allow only a specific set of users to access the system.
@@ -136,7 +136,7 @@ Sample fixed user configuration file `/opt/trains/config/apiserver.conf`:
  
 To apply the `apiserver.conf` changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
 
-### Configuring the Non-Responsive Experiments Watchdog Thresholds
+### Configuring the Non-Responsive Experiments Watchdog
 
 The non-responsive experiment watchdog, monitors experiments that were not updated for a given period of time, 
 and marks them as `aborted`. The watchdog is always active with a default of 7200 seconds (2 hours) of inactivity threshold.
