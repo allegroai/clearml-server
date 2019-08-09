@@ -28,7 +28,7 @@ which you can use to create a Helm chart for **trains-server** and contains deta
 
 To install and configure **trains-server** on Mac OS X, follow the steps below. 
 
-After installing, each time your computer reboots, you must run the `docker-compose` command (see Step 5), because the dockers will not automatically reload.
+1. Install [docker for OS X](https://docs.docker.com/docker-for-mac/install/).
 
 1. Configure [Docker](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode).
 
@@ -44,14 +44,14 @@ After installing, each time your computer reboots, you must run the `docker-comp
         $ sudo mkdir -p /opt/trains/data/fileserver
         $ sudo chown -R $(whoami):staff /opt/trains
 
-1. Open the Docker app, select **Preferences**, and then on the **File Sharing** tab, add `/mnt/fileserver` and `/opt/trains`.
+1. Open the Docker app, select **Preferences**, and then on the **File Sharing** tab, add `/opt/trains`.
 
 1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
 
         $ git clone https://github.com/allegroai/trains-server.git
         $ cd trains-server
 
-1. Run `docker-compose` with a unified docker.
+1. Run `docker-compose` with the unified docker image.
 
         $ docker-compose -f docker-compose-unified.yml up
         
@@ -61,9 +61,7 @@ After installing, each time your computer reboots, you must run the `docker-comp
 
 To install **trains-server** on a stand alone Linux Ubuntu, follow the steps belows.
 
-After installing, each time your computer reboots, you must run the `docker-compose` command (see Step 6), because the dockers will not automatically reload.
-
-1. Install [docker for Linux Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/).
+1. Install [docker for Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/).
 
 1. Install `docker-compose` using the following commands (for more detailed information, see the [Install Docker Compose](https://docs.docker.com/compose/install/) in the Docker documentation):
 
@@ -90,7 +88,7 @@ After installing, each time your computer reboots, you must run the `docker-comp
         $ git clone https://github.com/allegroai/trains-server.git
         $ cd trains-server
         
-1. Run `docker-compose` with a unified docker. 
+1. Run `docker-compose` with the unified docker image. 
 
         $ /usr/local/bin/docker-compose -f docker-compose-unified.yml up
     
