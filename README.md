@@ -26,7 +26,7 @@ You can quickly setup your **trains-server** using a pre-built Docker image (see
 
 When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)) or simply restart the machine with the [auto-update AMI](docs/install_aws.md#autoupdate).
 
-## System diagram
+## System design
 
 
 ![Alt Text](https://github.com/allegroai/trains/blob/master/docs/system_diagram.png?raw=true)
@@ -37,7 +37,7 @@ Use one of our pre-installed Amazon Machine Images for easy deployment in AWS.
 
 For details and instructions, see [TRAINS-server: AWS pre-installed images](docs/install_aws.md).
 
-## Install - Linux, Mac OS X <a name="installation"></a>
+## Installation - Linux, Mac OS X <a name="installation"></a>
 
 Use our pre-built Docker image for easy deployment in Linux and Mac OS X. 
 For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
@@ -99,7 +99,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     * API server on port `8008`
     * File server on port `8081`
 
-## Optional: Configuration
+## Optional Configuration
 
 The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
 
