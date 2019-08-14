@@ -37,10 +37,11 @@ Use one of our pre-installed Amazon Machine Images for easy deployment in AWS.
 
 For details and instructions, see [TRAINS-server: AWS pre-installed images](docs/install_aws.md).
 
-## Installation - Linux, Mac OS X <a name="installation"></a>
+## Docker Installation - Linux, Mac OS X <a name="installation"></a>
 
 Use our pre-built Docker image for easy deployment in Linux and Mac OS X. 
 For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
+Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trains).
 
 1. Setup Docker ([docker-compose Ubuntu](docs/faq.md#ubuntu), [docker-compose OS X](docs/faq.md#mac-osx), [Setup Docker Service Manually](docs/docker_setup.md#setup-docker))
 
@@ -90,7 +91,7 @@ For Windows, we recommend installing our pre-built Docker image on a Linux virtu
     $ docker-compose up
     ```
             
-    * Manually, see [TRAINS-server: Launching Docker Containers Manually](docs/docker_setup.md#launch) for instructions.
+    * Manually, see [Launching Docker Containers Manually](docs/docker_setup.md#launch) for instructions.
     
 1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
     
