@@ -28,48 +28,7 @@ sudo apt-get update
 sudo apt-get install -y docker-ce
 ```
 
-### Step 2: Setup the Docker daemon
-
-To setup the Docker daemon to run the ElasticSearch Docker container, 
-modify the default values required by Elastic in your Docker configuration file (see [Notes for production use and defaults](https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html#_notes_for_production_use_and_defaults)) in the Elasticsearch documentation.
-
-The following are the instructions to modify those Elastic default values for the most common Docker configuration files.
-
-* If your system contains a `/etc/sysconfig/docker` Docker configuration file, edit it.
-
-    Add the options in quotes to the available arguments in the `OPTIONS` section:
-
-    ```bash
-    OPTIONS="--default-ulimit nofile=1024:65536 --default-ulimit memlock=-1:-1"
-    ```
-
-* Otherwise, edit `/etc/docker/daemon.json` (if it exists) or create it (if it does not exist).
-
-    Add or modify the `defaults-ulimits` section as shown below. Be sure the `defaults-ulimits` section contains the `nofile` and `memlock` sub-sections and values shown.
-
-    **Note**: Your configuration file may contain other sections. If so, confirm that the sections are separated by commas (valid JSON format). For more information about Docker configuration files, see [Daemon configuration file](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file) in the Docker documentation.
-
-    The **trains-server** required defaults values are:
-
-    ```json
-    {
-        "default-ulimits": {
-            "nofile": {
-                "name": "nofile",
-                "hard": 65536,
-                "soft": 1024
-            },
-            "memlock":
-            {
-                "name": "memlock",
-                "soft": -1,
-                "hard": -1
-            }
-        }
-    }
-    ```
-
-### Step 3: Set the Maximum Number of Memory Map Areas
+### Step 2: Set the Maximum Number of Memory Map Areas
 
 Elastic requires that the `vm.max_map_count` kernel setting, which is the maximum number of memory map areas a process can use, is set to at least 262144.
 
@@ -83,7 +42,7 @@ sudo sysctl -w vm.max_map_count=262144
 
 For information about setting this parameter on other systems, see the [elastic](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode) documentation.
 
-### Step 4: Restart the Docker daemon
+### Step 3: Restart the Docker daemon
 
 Restart the Docker daemon.
 
@@ -91,7 +50,7 @@ Restart the Docker daemon.
 sudo service docker restart
 ```
 
-### Step 5: Choose a Data Directory
+### Step 4: Choose a Data Directory
 
 Choose a directory on your system in which all data maintained by the **trains-server** is stored.
 Create this directory, and set its owner and group to `uid` 1000. The data stored in this directory includes the database, uploaded files and logs.
@@ -116,7 +75,7 @@ If your data directory is not `/opt/trains`, then in the five `docker run` comma
 
 1. Launch the **trains-elastic** Docker container.
 
-        sudo docker run -d --restart="always" --name="trains-elastic" -e "ES_JAVA_OPTS=-Xms2g -Xmx2g" -e "bootstrap.memory_lock=true" -e "cluster.name=trains" -e "discovery.zen.minimum_master_nodes=1" -e "node.name=trains" -e "script.inline=true" -e "script.update=true" -e "thread_pool.bulk.queue_size=2000" -e "thread_pool.search.queue_size=10000" -e "xpack.security.enabled=false" -e "xpack.monitoring.enabled=false" -e "cluster.routing.allocation.node_initial_primaries_recoveries=500" -e "node.ingest=true" -e "http.compression_level=7" -e "reindex.remote.whitelist=*.*" -e "script.painless.regex.enabled=true" --network="host" -v /opt/trains/data/elastic:/usr/share/elasticsearch/data docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+        sudo docker run -d --restart="always" --name="trains-elastic" -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1 -e "ES_JAVA_OPTS=-Xms2g -Xmx2g" -e "bootstrap.memory_lock=true" -e "cluster.name=trains" -e "discovery.zen.minimum_master_nodes=1" -e "node.name=trains" -e "script.inline=true" -e "script.update=true" -e "thread_pool.bulk.queue_size=2000" -e "thread_pool.search.queue_size=10000" -e "xpack.security.enabled=false" -e "xpack.monitoring.enabled=false" -e "cluster.routing.allocation.node_initial_primaries_recoveries=500" -e "node.ingest=true" -e "http.compression_level=7" -e "reindex.remote.whitelist=*.*" -e "script.painless.regex.enabled=true" --network="host" -v /opt/trains/data/elastic:/usr/share/elasticsearch/data docker.elastic.co/elasticsearch/elasticsearch:5.6.16
 
 1. Launch the **trains-mongo** Docker container. 
 
