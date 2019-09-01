@@ -22,15 +22,29 @@ In order to host your own server, you will need to install **trains-server** and
     * Querying experiments history, logs and results
 * Locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
-You can quickly setup your **trains-server** using a pre-built Docker image (see [Installation](#installation)) or pre-installed machine image [AMI](#aws).
+You can quickly setup your **trains-server** using:
+ - [Docker Installation](#installation) 
+ - Pre-built Amazon [AWS image](#aws)
+ - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#trains-server-for-kubernetes-clusters-using-helm) 
+ or manual [Kubernetes installation](https://github.com/allegroai/trains-server-k8s#trains-server-for-kubernetes-clusters)
 
-When new releases are available, you can upgrade your pre-built Docker image (see [Upgrade](#upgrade)) or simply restart the machine with the [auto-update AMI](docs/install_aws.md#autoupdate).
 
 ## System design
 
 
 ![Alt Text](https://github.com/allegroai/trains/blob/master/docs/system_diagram.png?raw=true)
 
+**trains-server** has two supported configurations:
+- Single IP (domain) with the following open ports
+    - Web application on port 8080 
+    - API service on port 8008
+    - File storage service on port 8081
+    
+- Sub-Domain configuration with default http/s ports (80 or 443)
+    - Web application on sub-domain: app.\*.\*
+    - API service on sub-domain: api.\*.\*
+    - File storage service on sub-domain: files.\*.\*
+  
 ## Install / Upgrade - AWS <a name="aws"></a>
 
 Use one of our pre-installed Amazon Machine Images for easy deployment in AWS. 
@@ -188,6 +202,9 @@ to use your locally installed server (and not the demo server).
             # file server on port 8081
             files_server: "http://localhost:8081"
         }
+
+* Notice that if you setup **trains-server** in a sub-domain configuration, there is no need to specify a port number, 
+it will be inferred from the http/s scheme.
 
 See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#configuration) for more details.
 
