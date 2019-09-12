@@ -10,6 +10,9 @@ services:
     - type: bind
       source: /opt/trains/logs
       target: /var/log/trains
+    - type: bind
+      source: /opt/trains/config
+      target: /opt/trains/config
     links:
       - mongo:mongo
       - elasticsearch:elasticsearch
