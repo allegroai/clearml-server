@@ -15,7 +15,7 @@
 ### Deploying trains-server on Kubernetes clusters <a name="kubernetes"></a>
 
 **trains-server** supports Kubernetes. See [trains-server-k8s](https://github.com/allegroai/trains-server-k8s)
-which contains the YAML files describing the required services and detailed instructions for deploying 
+which contains the YAML files describing the required services and detailed instructions for deploying
 **trains-server** to a Kubernetes clusters.
 
 ### Creating a Helm Chart for trains-server Kubernetes deployment <a name="helm"></a>
@@ -26,7 +26,7 @@ which you can use to create a Helm chart for **trains-server** and contains deta
 
 ### Running trains-server on Mac OS X <a name="mac-osx"></a>
 
-To install and configure **trains-server** on Mac OS X, follow the steps below. 
+To install and configure **trains-server** on Mac OS X, follow the steps below.
 
 1. Install [docker for OS X](https://docs.docker.com/docker-for-mac/install/).
 
@@ -54,7 +54,7 @@ To install and configure **trains-server** on Mac OS X, follow the steps below.
 1. Run `docker-compose` with the unified docker image.
 
         $ docker-compose -f docker-compose-unified.yml up
-        
+
     Your server is now running on [http://localhost:8080](http://localhost:8080)
 
 ### Installing trains-server on stand alone Linux Ubuntu systems <a name="ubuntu"></a>
@@ -66,14 +66,14 @@ To install **trains-server** on a stand alone Linux Ubuntu, follow the steps bel
 1. Install `docker-compose` using the following commands (for more detailed information, see the [Install Docker Compose](https://docs.docker.com/compose/install/) in the Docker documentation):
 
         sudo curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose 
+        sudo chmod +x /usr/local/bin/docker-compose
 
-1. Remove the previous installation of **trains-server**. 
+1. Remove the previous installation of **trains-server**.
 
     **WARNING**: This clears all existing **TRAINS** databases.
 
         $ sudo rm -R /opt/trains/
-        
+
 1. Create local directories for the databases and storage.
 
         $ sudo mkdir -p /opt/trains/data/elastic
@@ -87,13 +87,13 @@ To install **trains-server** on a stand alone Linux Ubuntu, follow the steps bel
 
         $ git clone https://github.com/allegroai/trains-server.git
         $ cd trains-server
-        
-1. Run `docker-compose` with the unified docker image. 
 
-        $ /usr/local/bin/docker-compose -f docker-compose-unified.yml up
-    
+1. Run `docker-compose`
+
+        $ /usr/local/bin/docker-compose -f docker-compose.yml up
+
     Your server is now running on [http://localhost:8080](http://localhost:8080)
-    
+
 ### Resolving port conflicts preventing fixed users mode authentication and login <a name="port-conflict"></a>
 
 A port conflict may occur between the **trains-server** MongoDB and Elastic instances and other
@@ -102,10 +102,10 @@ instances running on your system. **trains-server** uses the following default p
 * MongoDB port `27017`
 * Elastic port `9200`
 
-You can check for port conflicts in the logs in `/opt/trains/log`.  
+You can check for port conflicts in the logs in `/opt/trains/log`.
 
-If a port conflict occurs, first change the port in your **trains-server** `/opt/trains/server/config/default/hosts.conf` file to the new port and then 
-run the `docker run` command with the `port` option specifying the new port to restart the **trains-server** instance. 
+If a port conflict occurs, first change the port in your **trains-server** `/opt/trains/server/config/default/hosts.conf` file to the new port and then
+run the `docker run` command with the `port` option specifying the new port to restart the **trains-server** instance.
 
 For example, to resolve a MongoDB port conflict change port `27017` to `27018`:
 
@@ -123,7 +123,7 @@ For example, to resolve a MongoDB port conflict change port `27017` to `27018`:
             index_version: "1"
           }
         }
-        
+
         mongo {
           backend {
             host: "mongodb://127.0.0.1:27018/backend"
@@ -143,7 +143,7 @@ The environment variables will be available to set different ports for both Mong
 * `MONGODB_SERVICE_PORT` (e.g., `MONGODB_SERVICE_PORT=27018`)
 * `ELASTIC_SERVICE_POST` (e.g., `ELASTIC_SERVICE_POST=9201`)
 
-### Configuring trains-server for sub-domains and load balancers <a name="sub-domains"></a>    
+### Configuring trains-server for sub-domains and load balancers <a name="sub-domains"></a>
 
 You can configure **trains-server** for sub-domains and a load balancer.
 
@@ -176,6 +176,6 @@ For example, if your domain is `trains.mydomain.com` and your sub-domains are `a
     * Security and routing:
         * Load balancer: make sure the load balancers are able to receive traffic from the relevant IP addresses (Security groups and Subnets definitions).
         * Instances: make sure the load balancers are able to access the instances, using the relevant ports (Security groups definitions).
-        
-1. Run the Docker containers with our updated `docker run` commands (see [Launching Docker Containers](#https://github.com/allegroai/trains-server#launching-docker-containers)).        
+
+1. Run the Docker containers with our updated `docker run` commands (see [Launching Docker Containers](#https://github.com/allegroai/trains-server#launching-docker-containers)).
 
