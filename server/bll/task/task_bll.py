@@ -2,8 +2,7 @@ import re
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Mapping, Collection
-from urllib.parse import urlparse
+from typing import Collection, Sequence, Tuple, Any
 
 import six
 from mongoengine import Q
@@ -13,12 +12,15 @@ import es_factory
 from apierrors import errors
 from config import config
 from database.errors import translate_errors_context
-from database.fields import OutputDestinationField
 from database.model.model import Model
 from database.model.project import Project
-from database.model.task.metrics import MetricEvent
 from database.model.task.output import Output
-from database.model.task.task import Task, TaskStatus, TaskStatusMessage, TaskTags
+from database.model.task.task import (
+    Task,
+    TaskStatus,
+    TaskStatusMessage,
+    TaskSystemTags,
+)
 from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
 from timing_context import TimingContext
@@ -143,7 +145,7 @@ class TaskBLL(object):
         return model
 
     @classmethod
-    def validate(cls, task: Task, force=False):
+    def validate(cls, task: Task):
         assert isinstance(task, Task)
 
         if task.parent and not Task.get(
@@ -154,23 +156,11 @@ class TaskBLL(object):
         if task.project:
             Project.get_for_writing(company=task.company, id=task.project)
 
-        model = cls.validate_execution_model(task)
-        if model and not force and not model.ready:
-            raise errors.bad_request.ModelNotReady(
-                "can't be used in a task", model=model.id
-            )
+        cls.validate_execution_model(task)
 
         if task.execution:
             if task.execution.parameters:
                 cls._validate_execution_parameters(task.execution.parameters)
-
-        if task.output and task.output.destination:
-            parsed_url = urlparse(task.output.destination)
-            if parsed_url.scheme not in OutputDestinationField.schemes:
-                raise errors.bad_request.FieldsValueError(
-                    "unsupported scheme for output destination",
-                    dest=task.output.destination,
-                )
 
     @staticmethod
     def _validate_execution_parameters(parameters):
@@ -236,7 +226,7 @@ class TaskBLL(object):
         last_update: datetime = None,
         last_iteration: int = None,
         last_iteration_max: int = None,
-        last_metrics: Mapping[str, Mapping[str, MetricEvent]] = None,
+        last_values: Sequence[Tuple[Tuple[str, ...], Any]] = None,
         **extra_updates,
     ):
         """
@@ -248,7 +238,7 @@ class TaskBLL(object):
             task's last iteration value.
         :param last_iteration_max: Last reported iteration. Use this to conditionally set a value only
             if the current task's last iteration value is smaller than the provided value.
-        :param last_metrics: Last reported metrics summary.
+        :param last_values: Last reported metrics summary (value, metric, variant).
         :param extra_updates: Extra task updates to include in this update call.
         :return:
         """
@@ -259,10 +249,18 @@ class TaskBLL(object):
         elif last_iteration_max is not None:
             extra_updates.update(max__last_iteration=last_iteration_max)
 
-        if last_metrics is not None:
-            extra_updates.update(last_metrics=last_metrics)
+        if last_values is not None:
 
-        return Task.objects(id=task_id, company=company_id).update(
+            def op_path(op, *path):
+                return "__".join((op, "last_metrics") + path)
+
+            for path, value in last_values:
+                extra_updates[op_path("set", *path)] = value
+                if path[-1] == "value":
+                    extra_updates[op_path("min", *path[:-1], "min_value")] = value
+                    extra_updates[op_path("max", *path[:-1], "max_value")] = value
+
+        Task.objects(id=task_id, company=company_id).update(
             upsert=False, last_update=last_update, **extra_updates
         )
 
@@ -378,11 +376,11 @@ class TaskBLL(object):
         task = TaskBLL.get_task_with_access(
             task_id,
             company_id=company_id,
-            only=("status", "project", "tags", "last_update"),
+            only=("status", "project", "tags", "system_tags", "last_update"),
             requires_write_access=True,
         )
 
-        if TaskTags.development in task.tags:
+        if TaskSystemTags.development in task.system_tags:
             new_status = TaskStatus.stopped
             status_message = f"Stopped by {user_name}"
         else:
@@ -448,3 +446,55 @@ class TaskBLL(object):
 
             except Exception as ex:
                 log.exception(f"Failed stopping tasks: {str(ex)}")
+
+    @staticmethod
+    def get_aggregated_project_execution_parameters(
+        company_id,
+        project_ids: Sequence[str] = None,
+        page: int = 0,
+        page_size: int = 500,
+    ) -> Tuple[int, int, Sequence[str]]:
+
+        page = max(0, page)
+        page_size = max(1, page_size)
+
+        pipeline = [
+            {
+                "$match": {
+                    "company": company_id,
+                    "execution.parameters": {"$exists": True, "$gt": {}},
+                    **({"project": {"$in": project_ids}} if project_ids else {}),
+                }
+            },
+            {"$project": {"parameters": {"$objectToArray": "$execution.parameters"}}},
+            {"$unwind": "$parameters"},
+            {"$group": {"_id": "$parameters.k"}},
+            {"$sort": {"_id": 1}},
+            {
+                "$group": {
+                    "_id": 1,
+                    "total": {"$sum": 1},
+                    "results": {"$push": "$$ROOT"},
+                }
+            },
+            {
+                "$project": {
+                    "total": 1,
+                    "results": {"$slice": ["$results", page * page_size, page_size]},
+                }
+            },
+        ]
+
+        with translate_errors_context():
+            result = next(Task.objects.aggregate(*pipeline), None)
+
+        total = 0
+        remaining = 0
+        results = []
+
+        if result:
+            total = int(result.get("total", -1))
+            results = [r["_id"] for r in result.get("results", [])]
+            remaining = max(0, total - (len(results) + page * page_size))
+
+        return total, remaining, results

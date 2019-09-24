@@ -76,7 +76,7 @@ class Endpoint(object):
         Provided endpoints and their schemas on a best-effort basis.
         """
         d = {
-            "min_version": self.min_version,
+            "min_version": str(self.min_version),
             "required_fields": self.required_fields,
             "request_data_model": None,
             "response_data_model": None,

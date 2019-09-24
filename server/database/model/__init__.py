@@ -1,3 +1,5 @@
+from enum import Enum
+
 from mongoengine import Document, StringField
 
 from apierrors import errors
@@ -54,3 +56,7 @@ def validate_id(cls, company, **kwargs):
         **{name: obj_id for obj_id in missing for name in id_to_name[obj_id]}
     )
 
+
+class EntityVisibility(Enum):
+    active = "active"
+    archived = "archived"

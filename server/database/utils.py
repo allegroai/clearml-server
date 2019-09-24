@@ -1,5 +1,6 @@
 import hashlib
 from inspect import ismethod, getmembers
+from typing import Sequence, Tuple, Set, Optional
 from uuid import uuid4
 
 from mongoengine import EmbeddedDocumentField, ListField, Document, Q
@@ -12,9 +13,13 @@ def get_fields(cls, of_type=BaseField, return_instance=False):
     """ get field names from a class containing mongoengine fields """
     res = []
     for cls_ in reversed(cls.mro()):
-        res.extend([k if not return_instance else (k, v)
-                    for k, v in vars(cls_).items()
-                    if isinstance(v, of_type)])
+        res.extend(
+            [
+                k if not return_instance else (k, v)
+                for k, v in vars(cls_).items()
+                if isinstance(v, of_type)
+            ]
+        )
     return res
 
 
@@ -22,9 +27,13 @@ def get_fields_and_attr(cls, attr):
     """ get field names from a class containing mongoengine fields """
     res = {}
     for cls_ in reversed(cls.mro()):
-        res.update({k: getattr(v, attr)
-                    for k, v in vars(cls_).items()
-                    if isinstance(v, BaseField) and hasattr(v, attr)})
+        res.update(
+            {
+                k: getattr(v, attr)
+                for k, v in vars(cls_).items()
+                if isinstance(v, BaseField) and hasattr(v, attr)
+            }
+        )
     return res
 
 
@@ -33,7 +42,7 @@ def _get_field_choices(name, field):
     if issubclass(field_t, EmbeddedDocumentField):
         obj = field.document_type_obj
         n, choices = _get_field_choices(field.name, obj.field)
-        return '%s__%s' % (name, n), choices
+        return "%s__%s" % (name, n), choices
     elif issubclass(type(field), ListField):
         return name, field.field.choices
     return name, field.choices
@@ -46,8 +55,14 @@ def get_fields_with_attr(cls, attr, default=False):
             continue
         field_t = type(field)
         if issubclass(field_t, EmbeddedDocumentField):
-            fields.extend((('%s__%s' % (field_name, name), choices)
-                           for name, choices in get_fields_with_attr(field.document_type, attr, default)))
+            fields.extend(
+                (
+                    ("%s__%s" % (field_name, name), choices)
+                    for name, choices in get_fields_with_attr(
+                        field.document_type, attr, default
+                    )
+                )
+            )
         elif issubclass(type(field), ListField):
             fields.append((field_name, field.field.choices))
         else:
@@ -58,11 +73,7 @@ def get_fields_with_attr(cls, attr, default=False):
 def get_items(cls):
     """ get key/value items from an enum-like class (members represent enumeration key/value) """
 
-    res = {
-        k: v
-        for k, v in getmembers(cls)
-        if not (k.startswith("_") or ismethod(v))
-    }
+    res = {k: v for k, v in getmembers(cls) if not (k.startswith("_") or ismethod(v))}
     return res
 
 
@@ -81,7 +92,7 @@ def parse_from_call(call_data, fields, cls_fields, discard_none_values=True):
         fields = {k: None for k in fields}
     fields = {k: v for k, v in fields.items() if k in cls_fields}
     res = {}
-    with translate_errors_context('parsing call data'):
+    with translate_errors_context("parsing call data"):
         for field, desc in fields.items():
             value = call_data.get(field)
             if value is None:
@@ -93,20 +104,34 @@ def parse_from_call(call_data, fields, cls_fields, discard_none_values=True):
                 if callable(desc):
                     desc(value)
                 else:
-                    if issubclass(desc, (list, tuple, dict)) and not isinstance(value, desc):
-                        raise ParseCallError('expecting %s' % desc.__name__, field=field)
-                    if issubclass(desc, Document) and not desc.objects(id=value).only('id'):
-                        raise ParseCallError('expecting %s id' % desc.__name__, id=value, field=field)
+                    if issubclass(desc, (list, tuple, dict)) and not isinstance(
+                        value, desc
+                    ):
+                        raise ParseCallError(
+                            "expecting %s" % desc.__name__, field=field
+                        )
+                    if issubclass(desc, Document) and not desc.objects(id=value).only(
+                        "id"
+                    ):
+                        raise ParseCallError(
+                            "expecting %s id" % desc.__name__, id=value, field=field
+                        )
             res[field] = value
         return res
 
 
 def init_cls_from_base(cls, instance):
-    return cls(**{k: v for k, v in instance.to_mongo(use_db_field=False).to_dict().items() if k[0] != '_'})
+    return cls(
+        **{
+            k: v
+            for k, v in instance.to_mongo(use_db_field=False).to_dict().items()
+            if k[0] != "_"
+        }
+    )
 
 
 def get_company_or_none_constraint(company=None):
-    return Q(company__in=(company, None, '')) | Q(company__exists=False)
+    return Q(company__in=(company, None, "")) | Q(company__exists=False)
 
 
 def field_does_not_exist(field: str, empty_value=None, is_list=False) -> Q:
@@ -118,10 +143,25 @@ def field_does_not_exist(field: str, empty_value=None, is_list=False) -> Q:
                     the length of the array will be used (len==0 means empty)
     :return:
     """
-    query = (Q(**{f"{field}__exists": False}) |
-             Q(**{f"{field}__in": {empty_value, None}}))
+    query = Q(**{f"{field}__exists": False}) | Q(
+        **{f"{field}__in": {empty_value, None}}
+    )
     if is_list:
         query |= Q(**{f"{field}__size": 0})
+    return query
+
+
+def field_exists(field: str, empty_value=None) -> Q:
+    """
+    Creates a query object used for finding a field that exists and is not None or empty.
+    :param field: Field name
+    :param empty_value: The empty value to test for (None means no specific empty value will be used).
+    For lists pass [] for empty_value
+    :return:
+    """
+    query = Q(**{f"{field}__exists": True}) & Q(
+        **{f"{field}__nin": {empty_value, None}}
+    )
     return query
 
 
@@ -129,12 +169,14 @@ def get_subkey(d, key_path, default=None):
     """ Get a key from a nested dictionary. kay_path is a '.' separated string of keys used to traverse
         the nested dictionary.
     """
-    keys = key_path.split('.')
+    keys = key_path.split(".")
     for i, key in enumerate(keys):
         if not isinstance(d, dict):
-            raise KeyError('Expecting a dict (%s)' % ('.'.join(keys[:i]) if i else 'bad input'))
+            raise KeyError(
+                "Expecting a dict (%s)" % (".".join(keys[:i]) if i else "bad input")
+            )
         d = d.get(key)
-        if key is None:
+        if d is None:
             return default
     return d
 
@@ -158,3 +200,41 @@ def merge_dicts(*dicts):
 def filter_fields(cls, fields):
     """From the fields dictionary return only the fields that match cls fields"""
     return {key: fields[key] for key in fields if key in get_fields(cls)}
+
+
+def _names_set(*names: str) -> Set[str]:
+    """
+    Given a list of names return set with names and '-names'
+    """
+    return set(names) | set(f"-{name}" for name in names)
+
+
+system_tag_names = {
+    "model": _names_set("active", "archived"),
+    "project": _names_set("archived", "public", "default"),
+    "task": _names_set("active", "archived", "development"),
+}
+
+system_tag_prefixes = {"task": _names_set("annotat")}
+
+
+def partition_tags(
+    entity: str, tags: Sequence[str], system_tags: Optional[Sequence[str]] = ()
+) -> Tuple[Sequence[str], Sequence[str]]:
+    """
+    Partition the given tags sequence into system and user-defined tags
+    :param entity: The name of the entity that defines the list of the system tags
+    :param tags: The tags to partition
+    :param system_tags: Optional. If passed then these tags are considered system together
+    with those defined for the entity.
+    :return: a tuple where the first element is the sequence of user-defined tags and
+    the second element is the sequence of system tags
+    """
+    tags = set(tags)
+    system_tags = set(system_tags)
+    system_tags |= tags & system_tag_names[entity]
+
+    prefixes = system_tag_prefixes.get(entity, [])
+    system_tags |= {t for t in tags for p in prefixes if t.lower().startswith(p)}
+
+    return list(tags - system_tags), list(system_tags)

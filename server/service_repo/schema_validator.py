@@ -12,7 +12,7 @@ from config import config
 log = config.logger(__file__)
 
 
-@attr.s(auto_attribs=True, auto_exc=True)
+@attr.s(auto_attribs=True, cmp=False)
 class FastValidationError(Exception):
     error: fastjsonschema.JsonSchemaException
     data: dict

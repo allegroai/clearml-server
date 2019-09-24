@@ -33,13 +33,14 @@ from database.model.task.output import Output
 from database.model.task.task import Task, TaskStatus, Script, DEFAULT_LAST_ITERATION
 from database.utils import get_fields, parse_from_call
 from service_repo import APICall, endpoint
+from services.utils import conform_tag_fields, conform_output_tags
 from timing_context import TimingContext
 from utilities import safe_get
 
 task_fields = set(Task.get_fields())
 task_script_fields = set(get_fields(Script))
 get_all_query_options = Task.QueryParameterOptions(
-    list_fields=("id", "user", "tags", "type", "status", "project"),
+    list_fields=("id", "user", "tags", "system_tags", "type", "status", "project"),
     datetime_fields=("status_changed",),
     pattern_fields=("name", "comment"),
     fields=("parent",),
@@ -79,11 +80,13 @@ def get_by_id(call: APICall, company_id, req_model: TaskRequest):
         req_model.task, company_id=company_id, allow_public=True
     )
     task_dict = task.to_proper_dict()
+    conform_output_tags(call, task_dict)
     call.result.data = {"task": task_dict}
 
 
 @endpoint("tasks.get_all_ex", required_fields=[])
 def get_all_ex(call: APICall):
+    conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all_ex"):
             tasks = Task.get_many_with_join(
@@ -91,13 +94,15 @@ def get_all_ex(call: APICall):
                 query_dict=call.data,
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
+                override_none_ordering=True,
             )
-
+        conform_output_tags(call, tasks)
         call.result.data = {"tasks": tasks}
 
 
 @endpoint("tasks.get_all", required_fields=[])
 def get_all(call: APICall):
+    conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all"):
             tasks = Task.get_many(
@@ -106,7 +111,9 @@ def get_all(call: APICall):
                 query_dict=call.data,
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
+                override_none_ordering=True,
             )
+        conform_output_tags(call, tasks)
         call.result.data = {"tasks": tasks}
 
 
@@ -188,6 +195,7 @@ def close(call: APICall, company_id, req_model: UpdateRequest):
 create_fields = {
     "name": None,
     "tags": list,
+    "system_tags": list,
     "type": None,
     "error": None,
     "comment": None,
@@ -219,10 +227,7 @@ def prepare_create_fields(
             output = Output(destination=output_dest)
         fields["output"] = output
 
-    # Make sure there are no duplicate tags
-    tags = fields.get("tags")
-    if tags:
-        fields["tags"] = list(set(tags))
+    conform_tag_fields(call, fields)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_fields:
@@ -251,7 +256,7 @@ def _validate_and_get_task_from_call(call: APICall, **kwargs):
         task = task_bll.create(call, fields)
 
     with TimingContext("code", "validate"):
-        task_bll.validate(task, force=call.data.get("force", False))
+        task_bll.validate(task)
 
     return task
 
@@ -272,16 +277,14 @@ def create(call: APICall, company_id, req_model: CreateRequest):
     call.result.data = {"id": task.id}
 
 
-def prepare_update_fields(task, call_data):
+def prepare_update_fields(call: APICall, task, call_data):
     valid_fields = deepcopy(task.__class__.user_set_allowed())
     update_fields = {k: v for k, v in create_fields.items() if k in valid_fields}
     update_fields["output__error"] = None
     t_fields = task_fields
     t_fields.add("output__error")
     fields = parse_from_call(call_data, update_fields, t_fields)
-    tags = fields.get("tags")
-    if tags:
-        fields["tags"] = list(set(tags))
+    conform_tag_fields(call, fields)
     return fields, valid_fields
 
 
@@ -296,7 +299,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
         if not task:
             raise errors.bad_request.InvalidTaskId(id=task_id)
 
-        partial_update_dict, valid_fields = prepare_update_fields(task, call.data)
+        partial_update_dict, valid_fields = prepare_update_fields(call, task, call.data)
 
         if not partial_update_dict:
             return UpdateResponse(updated=0)
@@ -309,7 +312,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
         )
 
         update_project_time(updated_fields.get("project"))
-
+        conform_output_tags(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 
@@ -364,7 +367,7 @@ def update_batch(call: APICall):
 
         bulk_ops = []
         for id, data in items.items():
-            fields, valid_fields = prepare_update_fields(tasks[id], data)
+            fields, valid_fields = prepare_update_fields(call, tasks[id], data)
             partial_update_dict = Task.get_safe_update_dict(fields)
             if not partial_update_dict:
                 continue
@@ -421,7 +424,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
                 d.update(value)
                 fields[key] = d
 
-        task_bll.validate(task_bll.create(call, fields), force=force)
+        task_bll.validate(task_bll.create(call, fields))
 
         # make sure field names do not end in mongoengine comparison operators
         fixed_fields = {
@@ -434,6 +437,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             fixed_fields.update(last_update=now)
             updated = task.update(upsert=False, **fixed_fields)
             update_project_time(fields.get("project"))
+            conform_output_tags(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)
@@ -463,6 +467,7 @@ def reset(call: APICall, company_id, req_model: UpdateRequest):
         set__last_metrics={},
         unset__output__result=1,
         unset__output__model=1,
+        __raw__={"$pull": {"execution.artifacts": {"mode": {"$ne": "input"}}}},
     )
 
     res = ResetResponse(
@@ -670,7 +675,10 @@ def publish(call: APICall, company_id, req_model: PublishRequest):
 
 
 @endpoint(
-    "tasks.completed", min_version="2.2", request_data_model=UpdateRequest, response_data_model=UpdateResponse
+    "tasks.completed",
+    min_version="2.2",
+    request_data_model=UpdateRequest,
+    response_data_model=UpdateResponse,
 )
 def completed(call: APICall, company_id, request: PublishRequest):
     call.result.data_model = UpdateResponse(
@@ -688,4 +696,3 @@ def ping(_, company_id, request: PingRequest):
     TaskBLL.set_last_update(
         task_ids=[request.task], company_id=company_id, last_update=datetime.utcnow()
     )
-

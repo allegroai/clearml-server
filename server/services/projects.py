@@ -9,27 +9,32 @@ from mongoengine import Q
 import database
 from apierrors import errors
 from apimodels.base import UpdateResponse
+from apimodels.projects import GetHyperParamReq, GetHyperParamResp, ProjectReq
 from bll.task import TaskBLL
 from database.errors import translate_errors_context
+from database.model import EntityVisibility
 from database.model.model import Model
 from database.model.project import Project
-from database.model.task.task import Task, TaskStatus, TaskVisibility
+from database.model.task.task import Task, TaskStatus
 from database.utils import parse_from_call, get_options, get_company_or_none_constraint
 from service_repo import APICall, endpoint
+from services.utils import conform_tag_fields, conform_output_tags
 from timing_context import TimingContext
 
 task_bll = TaskBLL()
-archived_tasks_cond = {"$in": [TaskVisibility.archived.value, "$tags"]}
+archived_tasks_cond = {"$in": [EntityVisibility.archived.value, "$system_tags"]}
 
 create_fields = {
     "name": None,
     "description": None,
     "tags": list,
+    "system_tags": list,
     "default_output_destination": None,
 }
 
 get_all_query_options = Project.QueryParameterOptions(
-    pattern_fields=("name", "description"), list_fields=("tags", "id")
+    pattern_fields=("name", "description"),
+    list_fields=("tags", "system_tags", "id"),
 )
 
 
@@ -43,32 +48,39 @@ def get_by_id(call):
             query = Q(id=project_id) & get_company_or_none_constraint(
                 call.identity.company
             )
-            res = Project.objects(query).first()
-        if not res:
+            project = Project.objects(query).first()
+        if not project:
             raise errors.bad_request.InvalidProjectId(id=project_id)
 
-        res = res.to_proper_dict()
+        project_dict = project.to_proper_dict()
+        conform_output_tags(call, project_dict)
 
-        call.result.data = {"project": res}
+        call.result.data = {"project": project_dict}
 
 
 def make_projects_get_all_pipelines(project_ids, specific_state=None):
-    archived = TaskVisibility.archived.value
-    status_count_pipeline = [
-        # count tasks per project per status
-        {"$match": {"project": {"$in": project_ids}}},
-        # make sure tags is always an array (required by subsequent $in in archived_tasks_cond)
-        {
+    archived = EntityVisibility.archived.value
+
+    def ensure_system_tags():
+        """
+        Make sure system tags is always an array (required by subsequent $in in archived_tasks_cond
+        """
+        return {
             "$addFields": {
-                "tags": {
+                "system_tags": {
                     "$cond": {
-                        "if": {"$ne": [{"$type": "$tags"}, "array"]},
+                        "if": {"$ne": [{"$type": "$system_tags"}, "array"]},
                         "then": [],
-                        "else": "$tags",
+                        "else": "$system_tags",
                     }
                 }
             }
-        },
+        }
+
+    status_count_pipeline = [
+        # count tasks per project per status
+        {"$match": {"project": {"$in": project_ids}}},
+        ensure_system_tags(),
         {
             "$group": {
                 "_id": {
@@ -125,12 +137,12 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
 
     group_step = {"_id": "$project"}
 
-    for state in TaskVisibility:
+    for state in EntityVisibility:
         if specific_state and state != specific_state:
             continue
-        if state == TaskVisibility.active:
+        if state == EntityVisibility.active:
             group_step[state.value] = runtime_subquery({"$not": archived_tasks_cond})
-        elif state == TaskVisibility.archived:
+        elif state == EntityVisibility.archived:
             group_step[state.value] = runtime_subquery(archived_tasks_cond)
 
     runtime_pipeline = [
@@ -141,6 +153,7 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
                 "project": {"$in": project_ids},
             }
         },
+        ensure_system_tags(),
         {
             # for each project
             "$group": group_step
@@ -151,32 +164,33 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
 
 
 @endpoint("projects.get_all_ex")
-def get_all_ex(call):
-    assert isinstance(call, APICall)
+def get_all_ex(call: APICall):
     include_stats = call.data.get("include_stats")
-    stats_for_state = call.data.get("stats_for_state", TaskVisibility.active.value)
+    stats_for_state = call.data.get("stats_for_state", EntityVisibility.active.value)
 
     if stats_for_state:
         try:
-            specific_state = TaskVisibility(stats_for_state)
+            specific_state = EntityVisibility(stats_for_state)
         except ValueError:
             raise errors.bad_request.FieldsValueError(stats_for_state=stats_for_state)
     else:
         specific_state = None
 
+    conform_tag_fields(call, call.data)
     with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
-        res = Project.get_many_with_join(
+        projects = Project.get_many_with_join(
             company=call.identity.company,
             query_dict=call.data,
             query_options=get_all_query_options,
             allow_public=True,
         )
+        conform_output_tags(call, projects)
 
         if not include_stats:
-            call.result.data = {"projects": res}
+            call.result.data = {"projects": projects}
             return
 
-        ids = [project["id"] for project in res]
+        ids = [project["id"] for project in projects]
         status_count_pipeline, runtime_pipeline = make_projects_get_all_pipelines(
             ids, specific_state=specific_state
         )
@@ -187,11 +201,11 @@ def get_all_ex(call):
             return dict(default_counts, **entry)
 
         status_count = defaultdict(lambda: {})
-        key = itemgetter(TaskVisibility.archived.value)
+        key = itemgetter(EntityVisibility.archived.value)
         for result in Task.objects.aggregate(*status_count_pipeline):
             for k, group in groupby(sorted(result["counts"], key=key), key):
                 section = (
-                    TaskVisibility.archived if k else TaskVisibility.active
+                    EntityVisibility.archived if k else EntityVisibility.active
                 ).value
                 status_count[result["_id"]][section] = set_default_count(
                     {
@@ -219,32 +233,32 @@ def get_all_ex(call):
         }
 
     report_for_states = [
-        s for s in TaskVisibility if not specific_state or specific_state == s
+        s for s in EntityVisibility if not specific_state or specific_state == s
     ]
 
-    for project in res:
+    for project in projects:
         project["stats"] = {
             task_state.value: get_status_counts(project["id"], task_state.value)
             for task_state in report_for_states
         }
 
-    call.result.data = {"projects": res}
+    call.result.data = {"projects": projects}
 
 
 @endpoint("projects.get_all")
-def get_all(call):
-    assert isinstance(call, APICall)
-
+def get_all(call: APICall):
+    conform_tag_fields(call, call.data)
     with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
-        res = Project.get_many(
+        projects = Project.get_many(
             company=call.identity.company,
             query_dict=call.data,
             query_options=get_all_query_options,
             parameters=call.data,
             allow_public=True,
         )
+        conform_output_tags(call, projects)
 
-        call.result.data = {"projects": res}
+        call.result.data = {"projects": projects}
 
 
 @endpoint("projects.create", required_fields=["name", "description"])
@@ -254,6 +268,7 @@ def create(call):
 
     with translate_errors_context():
         fields = parse_from_call(call.data, create_fields, Project.get_fields())
+        conform_tag_fields(call, fields)
         now = datetime.utcnow()
         project = Project(
             id=database.utils.id(),
@@ -271,7 +286,7 @@ def create(call):
 @endpoint(
     "projects.update", required_fields=["project"], response_data_model=UpdateResponse
 )
-def update(call):
+def update(call: APICall):
     """
     update
 
@@ -280,7 +295,6 @@ def update(call):
     :return: updated - `int` - number of projects updated
              fields - `[string]` - updated fields
     """
-    assert isinstance(call, APICall)
     project_id = call.data["project"]
 
     with translate_errors_context():
@@ -291,9 +305,11 @@ def update(call):
         fields = parse_from_call(
             call.data, create_fields, Project.get_fields(), discard_none_values=False
         )
+        conform_tag_fields(call, fields)
         fields["last_update"] = datetime.utcnow()
         with TimingContext("mongo", "projects_update"):
             updated = project.update(upsert=False, **fields)
+        conform_output_tags(call, fields)
         call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
 
@@ -317,7 +333,7 @@ def delete(call):
             (Model, errors.bad_request.ProjectHasModels),
         ):
             res = cls.objects(
-                project=project_id, tags__nin=[TaskVisibility.archived.value]
+                project=project_id, system_tags__nin=[EntityVisibility.archived.value]
             ).only("id")
             if res and not force:
                 raise error("use force=true to delete", id=project_id)
@@ -329,12 +345,33 @@ def delete(call):
         call.result.data = {"deleted": 1, "disassociated_tasks": updated_count}
 
 
-@endpoint("projects.get_unique_metric_variants")
-def get_unique_metric_variants(call, company_id, req_model):
-    project_id = call.data.get("project")
+@endpoint("projects.get_unique_metric_variants", request_data_model=ProjectReq)
+def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectReq):
 
     metrics = task_bll.get_unique_metric_variants(
-        company_id, [project_id] if project_id else None
+        company_id, [request.project] if request.project else None
     )
 
     call.result.data = {"metrics": metrics}
+
+
+@endpoint(
+    "projects.get_hyper_parameters",
+    min_version="2.2",
+    request_data_model=GetHyperParamReq,
+    response_data_model=GetHyperParamResp,
+)
+def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamReq):
+
+    total, remaining, parameters = TaskBLL.get_aggregated_project_execution_parameters(
+        company_id,
+        project_ids=[request.project] if request.project else None,
+        page=request.page,
+        page_size=request.page_size,
+    )
+
+    call.result.data = {
+        "total": total,
+        "remaining": remaining,
+        "parameters": parameters,
+    }

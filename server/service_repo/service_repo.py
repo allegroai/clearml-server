@@ -1,10 +1,10 @@
 import re
 from importlib import import_module
 from itertools import chain
-from typing import cast, Iterable, List, MutableMapping
+from pathlib import Path
+from typing import cast, Iterable, List, MutableMapping, Optional, Tuple
 
 import jsonmodels.models
-from pathlib import Path
 
 import timing_context
 from apierrors import APIError
@@ -30,7 +30,11 @@ class ServiceRepo(object):
     _version_required = config.get("apiserver.version.required")
     """ If version is required, parsing will fail for endpoint paths that do not contain a valid version """
 
-    _max_version = PartialVersion("2.1")
+    _check_max_version = config.get("apiserver.version.check_max_version")
+    """If the check is set, parsing will fail for endpoint request with the version that is grater than the current 
+    maximum """
+
+    _max_version = PartialVersion("2.3")
     """ Maximum version number (the highest min_version value across all endpoints) """
 
     _endpoint_exp = (
@@ -133,7 +137,7 @@ class ServiceRepo(object):
         return cls._max_version
 
     @classmethod
-    def _get_endpoint(cls, name, version):
+    def _get_endpoint(cls, name, version) -> Optional[Endpoint]:
         versions = cls._endpoints.get(name)
         if not versions:
             return None
@@ -144,7 +148,7 @@ class ServiceRepo(object):
             return None
 
     @classmethod
-    def _resolve_endpoint_from_call(cls, call):
+    def _resolve_endpoint_from_call(cls, call: APICall) -> Optional[Endpoint]:
         assert isinstance(call, APICall)
         endpoint = cls._get_endpoint(
             call.endpoint_name, call.requested_endpoint_version
@@ -167,7 +171,7 @@ class ServiceRepo(object):
         return endpoint
 
     @classmethod
-    def parse_endpoint_path(cls, path):
+    def parse_endpoint_path(cls, path: str) -> Tuple[PartialVersion, str]:
         """ Parse endpoint version, service and action from request path. """
         m = cls._endpoint_exp.match(path)
         if not m:
@@ -182,14 +186,14 @@ class ServiceRepo(object):
                 version = PartialVersion(version)
             except ValueError as e:
                 raise RequestPathHasInvalidVersion(version=version, reason=e)
-            if version > cls._max_version:
+            if cls._check_max_version and version > cls._max_version:
                 raise InvalidVersionError(
                     f"Invalid API version (max. supported version is {cls._max_version})"
                 )
         return version, endpoint_name
 
     @classmethod
-    def _should_return_stack(cls, code, subcode):
+    def _should_return_stack(cls, code: int, subcode: int) -> bool:
         if not cls._return_stack or code not in cls._return_stack_on_code:
             return False
         if subcode is None:
@@ -202,7 +206,7 @@ class ServiceRepo(object):
         return subcode in subcode_list
 
     @classmethod
-    def _validate_call(cls, call):
+    def _validate_call(cls, call: APICall) -> Optional[Endpoint]:
         endpoint = cls._resolve_endpoint_from_call(call)
         if call.failed:
             return
@@ -210,11 +214,13 @@ class ServiceRepo(object):
         return endpoint
 
     @classmethod
-    def validate_call(cls, call):
+    def validate_call(cls, call: APICall):
         cls._validate_call(call)
 
     @classmethod
-    def _get_company(cls, call, endpoint=None, ignore_error=False):
+    def _get_company(
+        cls, call: APICall, endpoint: Endpoint = None, ignore_error: bool = False
+    ) -> Optional[str]:
         authorize = endpoint and endpoint.authorize
         if ignore_error or not authorize:
             try:
@@ -224,7 +230,7 @@ class ServiceRepo(object):
         return call.identity.company
 
     @classmethod
-    def handle_call(cls, call):
+    def handle_call(cls, call: APICall):
         try:
             assert isinstance(call, APICall)
 

@@ -7,11 +7,16 @@ from config import config
 
 log = config.logger(__file__)
 
-OVERRIDE_HOST_ENV_KEY = "ELASTIC_SERVICE_SERVICE_HOST"
+OVERRIDE_HOST_ENV_KEY = ("ELASTIC_SERVICE_HOST", "ELASTIC_SERVICE_SERVICE_HOST")
+OVERRIDE_PORT_ENV_KEY = "ELASTIC_SERVICE_PORT"
 
-OVERRIDE_HOST = getenv(OVERRIDE_HOST_ENV_KEY)
+OVERRIDE_HOST = next(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)), None)
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
+
+OVERRIDE_PORT = getenv(OVERRIDE_PORT_ENV_KEY)
+if OVERRIDE_PORT:
+    log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
 _instances = {}
 
@@ -63,9 +68,15 @@ def get_cluster_config(cluster_name):
     if not cluster_config:
         raise MissingClusterConfiguration(cluster_name)
 
-    if OVERRIDE_HOST:
+    def set_host_prop(key, value):
         for host in cluster_config.get('hosts', []):
-            host["host"] = OVERRIDE_HOST
+            host[key] = value
+
+    if OVERRIDE_HOST:
+        set_host_prop("host", OVERRIDE_HOST)
+
+    if OVERRIDE_PORT:
+        set_host_prop("port", OVERRIDE_PORT)
 
     return cluster_config
 

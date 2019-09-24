@@ -45,6 +45,7 @@ class Role(object):
 class Credentials(EmbeddedDocument):
     key = StringField(required=True)
     secret = StringField(required=True)
+    last_used = DateTimeField()
 
 
 class User(DbModelMixin, AuthDocument):

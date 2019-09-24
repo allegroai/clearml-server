@@ -143,7 +143,8 @@ def get_credentials(call):
         # we return ONLY the key IDs, never the secrets (want a secret? create new credentials)
         call.result.data_model = GetCredentialsResponse(
             credentials=[
-                CredentialsResponse(access_key=c.key) for c in user.credentials
+                CredentialsResponse(access_key=c.key, last_used=c.last_used)
+                for c in user.credentials
             ]
         )
 

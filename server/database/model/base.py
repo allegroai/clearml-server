@@ -1,8 +1,9 @@
 import re
 from collections import namedtuple
 from functools import reduce
-from typing import Collection
+from typing import Collection, Sequence
 
+from boltons.iterutils import first
 from dateutil.parser import parse as parse_datetime
 from mongoengine import Q, Document
 from six import string_types
@@ -13,7 +14,12 @@ from database.errors import MakeGetAllQueryError
 from database.projection import project_dict, ProjectionHelper
 from database.props import PropsMixin
 from database.query import RegexQ, RegexWrapper
-from database.utils import get_company_or_none_constraint, get_fields_with_attr
+from database.utils import (
+    get_company_or_none_constraint,
+    get_fields_with_attr,
+    field_exists,
+    field_does_not_exist,
+)
 
 log = config.logger("dbmodel")
 
@@ -68,7 +74,7 @@ class GetMixin(PropsMixin):
         def __init__(
             self,
             pattern_fields=("name",),
-            list_fields=("tags", "id"),
+            list_fields=("tags", "system_tags", "id"),
             datetime_fields=None,
             fields=None,
         ):
@@ -261,6 +267,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection=None,
         expand_reference_ids=True,
+        override_none_ordering=False,
     ):
         """
         Fetch all documents matching a provided query with support for joining referenced documents according to the
@@ -296,6 +303,7 @@ class GetMixin(PropsMixin):
             query=query,
             query_options=query_options,
             allow_public=allow_public,
+            override_none_ordering=override_none_ordering,
         )
 
         def projection_func(doc_type, projection, ids):
@@ -320,6 +328,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection: Collection[str] = None,
         return_dicts=True,
+        override_none_ordering=False,
     ):
         """
         Fetch all documents matching a provided query. Supported several built-in options
@@ -343,6 +352,8 @@ class GetMixin(PropsMixin):
         :param override_projection: A list of projection fields overriding any projection specified in the `param_dict`
             argument
         :param allow_public: If True, objects marked as public (no associated company) are also queried.
+        :param override_none_ordering: If True, then items with the None values in the first ordered field
+        are always sorted in the end
         :return: A list of objects matching the query.
         """
         if query_dict is not None:
@@ -355,6 +366,15 @@ class GetMixin(PropsMixin):
         else:
             q = cls._prepare_perm_query(company, allow_public=allow_public)
         _query = (q & query) if query else q
+
+        if override_none_ordering:
+            return cls._get_many_override_none_ordering(
+                query=_query,
+                parameters=parameters,
+                query_dict=query_dict,
+                query_options=query_options,
+                override_projection=override_projection,
+            )
 
         return cls._get_many_no_company(
             query=_query,
@@ -427,6 +447,105 @@ class GetMixin(PropsMixin):
         if return_dicts:
             return [obj.to_proper_dict(only=only) for obj in qs]
         return qs
+
+    @classmethod
+    def _get_many_override_none_ordering(
+        cls,
+        query: Q = None,
+        parameters: dict = None,
+        query_dict: dict = None,
+        query_options: QueryParameterOptions = None,
+        override_projection: Collection[str] = None,
+    ) -> Sequence[dict]:
+        """
+        Fetch all documents matching a provided query. For the first order by field
+        the None values are sorted in the end regardless of the sorting order.
+        This is a company-less version for internal uses. We assume the caller has either added any necessary
+        constraints to the query or that no constraints are required.
+
+        NOTE: BE VERY CAREFUL WITH THIS CALL, as it allows returning data across companies.
+
+        :param query: Query object (mongoengine.Q)
+        :param parameters: Parameters dict from which paging ordering and searching parameters are extracted.
+        :param query_dict: If provided, passed to prepare_query() along with all of the relevant arguments to produce
+            a query. The resulting query is AND'ed with the `query` parameter (if provided).
+        :param query_options: query parameters options (see ParametersOptions)
+        :param override_projection: A list of projection fields overriding any projection specified in the `param_dict`
+            argument
+        """
+        parameters = parameters or {}
+        search_text = parameters.get("search_text")
+
+        page, page_size = cls.validate_paging(parameters=parameters)
+
+        query_sets = []
+        order_by = parameters.get(cls._ordering_key)
+        if order_by:
+            order_by = order_by if isinstance(order_by, list) else [order_by]
+            order_by = [cls._text_score if x == "@text_score" else x for x in order_by]
+            if not search_text and cls._text_score in order_by:
+                raise errors.bad_request.FieldsValueError(
+                    "text score cannot be used in order_by when search text is not used"
+                )
+            order_field = first(
+                field for field in order_by if not field.startswith("$")
+            )
+            if (
+                order_field
+                and not order_field.startswith("-")
+                and (not query_dict or order_field not in query_dict)
+            ):
+                empty_value = None
+                if order_field in query_options.list_fields:
+                    empty_value = []
+                elif order_field in query_options.pattern_fields:
+                    empty_value = ""
+                mongo_field = order_field.replace(".", "__")
+                non_empty = query & field_exists(mongo_field, empty_value=empty_value)
+                empty = query & field_does_not_exist(
+                    mongo_field, empty_value=empty_value
+                )
+                query_sets = [cls.objects(non_empty), cls.objects(empty)]
+
+        if not query_sets:
+            query_sets = [cls.objects(query)]
+
+        if search_text:
+            query_sets = [qs.search_text(search_text) for qs in query_sets]
+
+        if order_by:
+            # add ordering
+            query_sets = [qs.order_by(*order_by) for qs in query_sets]
+
+        only = cls.get_projection(parameters, override_projection)
+        if only:
+            # add projection
+            query_sets = [qs.only(*only) for qs in query_sets]
+        else:
+            exclude = set(cls.get_exclude_fields())
+            if exclude:
+                query_sets = [qs.exclude(*exclude) for qs in query_sets]
+
+        if page is None or not page_size:
+            return [obj.to_proper_dict(only=only) for qs in query_sets for obj in qs]
+
+        # add paging
+        ret = []
+        start = page * page_size
+        for qs in query_sets:
+            qs_size = qs.count()
+            if qs_size < start:
+                start -= qs_size
+                continue
+            ret.extend(
+                obj.to_proper_dict(only=only) for obj in qs.skip(start).limit(page_size)
+            )
+            if len(ret) >= page_size:
+                break
+            start = 0
+            page_size -= len(ret)
+
+        return ret
 
     @classmethod
     def get_for_writing(

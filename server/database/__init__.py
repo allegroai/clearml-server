@@ -11,11 +11,14 @@ from config import config
 from .defs import Database
 from .utils import get_items
 
+from boltons.iterutils import first
+
 log = config.logger("database")
 
 strict = config.get("apiserver.mongo.strict", True)
 
-OVERRIDE_HOST_ENV_KEY = "MONGODB_SERVICE_SERVICE_HOST"
+OVERRIDE_HOST_ENV_KEY = ("MONGODB_SERVICE_HOST", "MONGODB_SERVICE_SERVICE_HOST")
+OVERRIDE_PORT_ENV_KEY = "MONGODB_SERVICE_PORT"
 
 _entries = []
 
@@ -34,9 +37,13 @@ def initialize():
     missing = []
     log.info("Initializing database connections")
 
-    override_hostname = getenv(OVERRIDE_HOST_ENV_KEY)
+    override_hostname = first(map(getenv, OVERRIDE_HOST_ENV_KEY), None)
     if override_hostname:
         log.info(f"Using override mongodb host {override_hostname}")
+
+    override_port = getenv(OVERRIDE_PORT_ENV_KEY)
+    if override_port:
+        log.info(f"Using override mongodb port {override_port}")
 
     for key, alias in get_items(Database).items():
         if key not in db_entries:
@@ -44,8 +51,12 @@ def initialize():
             continue
 
         entry = DatabaseEntry(alias=alias, **db_entries.get(key))
+
         if override_hostname:
             entry.host = furl(entry.host).set(host=override_hostname).url
+
+        if override_port:
+            entry.host = furl(entry.host).set(port=override_port).url
 
         try:
             entry.validate()

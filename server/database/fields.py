@@ -1,5 +1,6 @@
-import re
+from operator import itemgetter
 from sys import maxsize
+from typing import Type, Tuple
 
 import six
 from mongoengine import (
@@ -11,6 +12,7 @@ from mongoengine import (
     SortedListField,
     MapField,
     DictField,
+    DynamicField,
 )
 
 
@@ -88,104 +90,6 @@ class CustomFloatField(FloatField):
             self.error("Float value must be greater than %s" % str(self.greater_than))
 
 
-# TODO: bucket name should be at most 63 characters....
-aws_s3_bucket_only_regex = (
-    r"^s3://"
-    r"(?:(?:\w[A-Z0-9\-]+\w)\.)*(?:\w[A-Z0-9\-]+\w)"  # bucket name
-)
-
-aws_s3_url_with_bucket_regex = (
-    r"^s3://"
-    r"(?:(?:\w[A-Z0-9\-]+\w)\.)*(?:\w[A-Z0-9\-]+\w)"  # bucket name
-    r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?))"  # domain...
-)
-
-non_aws_s3_regex = (
-    r"^s3://"
-    r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?)|"  # domain...
-    r"localhost|"  # localhost...
-    r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|"  # ...or ipv4
-    r"\[?[A-F0-9]*:[A-F0-9:]+\]?)"  # ...or ipv6
-    r"(?::\d+)?"  # optional port
-    r"(?:/(?:(?:\w[A-Z0-9\-]+\w)\.)*(?:\w[A-Z0-9\-]+\w))"  # bucket name
-)
-
-google_gs_bucket_only_regex = (
-    r"^gs://"
-    r"(?:(?:\w[A-Z0-9\-_]+\w)\.)*(?:\w[A-Z0-9\-_]+\w)"  # bucket name
-)
-
-file_regex = r"^file://"
-
-generic_url_regex = (
-    r"^%s://"  # scheme placeholder
-    r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?)|"  # domain...
-    r"localhost|"  # localhost...
-    r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|"  # ...or ipv4
-    r"\[?[A-F0-9]*:[A-F0-9:]+\]?)"  # ...or ipv6
-    r"(?::\d+)?"  # optional port
-)
-
-path_suffix = r"(?:/?|[/?]\S+)$"
-file_path_suffix = r"(?:/\S*[^/]+)$"
-
-
-class _RegexURLField(StringField):
-    _regex = []
-
-    def __init__(self, regex, **kwargs):
-        super(_RegexURLField, self).__init__(**kwargs)
-        regex = regex if isinstance(regex, (tuple, list)) else [regex]
-        self._regex = [
-            re.compile(e, re.IGNORECASE) if isinstance(e, six.string_types) else e
-            for e in regex
-        ]
-
-    def validate(self, value):
-        # Check first if the scheme is valid
-        if not any(regex for regex in self._regex if regex.match(value)):
-            self.error("Invalid URL: {}".format(value))
-            return
-
-
-class OutputDestinationField(_RegexURLField):
-    """ A field representing task output URL """
-
-    schemes = ["s3", "gs", "file"]
-    _expressions = (
-        aws_s3_bucket_only_regex + path_suffix,
-        aws_s3_url_with_bucket_regex + path_suffix,
-        non_aws_s3_regex + path_suffix,
-        google_gs_bucket_only_regex + path_suffix,
-        file_regex + path_suffix,
-    )
-
-    def __init__(self, **kwargs):
-        super(OutputDestinationField, self).__init__(self._expressions, **kwargs)
-
-
-class SupportedURLField(_RegexURLField):
-    """ A field representing a model URL """
-
-    schemes = ["s3", "gs", "file", "http", "https"]
-
-    _expressions = tuple(
-        pattern + file_path_suffix
-        for pattern in (
-            aws_s3_bucket_only_regex,
-            aws_s3_url_with_bucket_regex,
-            non_aws_s3_regex,
-            google_gs_bucket_only_regex,
-            file_regex,
-            (generic_url_regex % "http"),
-            (generic_url_regex % "https"),
-        )
-    )
-
-    def __init__(self, **kwargs):
-        super(SupportedURLField, self).__init__(self._expressions, **kwargs)
-
-
 class StrippedStringField(StringField):
     def __init__(
         self, regex=None, max_length=None, min_length=None, strip_chars=None, **kwargs
@@ -235,3 +139,42 @@ class SafeDictField(DictField):
 
         if contains_empty_key(value):
             self.error("Empty keys are not allowed in a DictField")
+
+
+class SafeSortedListField(SortedListField):
+    """
+    SortedListField that does not raise an error in case items are not comparable
+    (in which case they will be sorted by their string representation)
+    """
+    def to_mongo(self, *args, **kwargs):
+        try:
+            return super(SafeSortedListField, self).to_mongo(*args, **kwargs)
+        except TypeError:
+            return self._safe_to_mongo(*args, **kwargs)
+
+    def _safe_to_mongo(self, value, use_db_field=True, fields=None):
+        value = super(SortedListField, self).to_mongo(value, use_db_field, fields)
+        if self._ordering is not None:
+            def key(v): return str(itemgetter(self._ordering)(v))
+        else:
+            key = str
+        return sorted(value, key=key, reverse=self._order_reverse)
+
+
+class UnionField(DynamicField):
+    def __init__(self, types, *args, **kwargs):
+        super(UnionField, self).__init__(*args, **kwargs)
+        self.types: Tuple[Type] = tuple(types)
+
+    def validate(self, value, clean=True):
+        if not isinstance(value, self.types):
+            type_names = [t.__name__ for t in self.types]
+            expected = " or ".join(
+                filter(
+                    None,
+                    (", ".join(type_names[:-1]), type_names[-1]))
+            )
+            self.error(
+                f"Expected {expected}, got {type(value).__name__}: {value}"
+            )
+        super(UnionField, self).validate(value, clean)

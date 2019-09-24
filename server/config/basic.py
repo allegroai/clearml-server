@@ -1,4 +1,5 @@
 import logging
+import os
 from functools import reduce
 from os import getenv
 from os.path import expandvars
@@ -15,6 +16,9 @@ from pyparsing import (
 DEFAULT_EXTRA_CONFIG_PATH = "/opt/trains/config"
 EXTRA_CONFIG_PATH_ENV_KEY = "TRAINS_CONFIG_DIR"
 EXTRA_CONFIG_PATH_SEP = ":"
+
+EXTRA_CONFIG_VALUES_ENV_KEY_SEP = "__"
+EXTRA_CONFIG_VALUES_ENV_KEY_PREFIX = f"TRAINS{EXTRA_CONFIG_VALUES_ENV_KEY_SEP}"
 
 
 class BasicConfig:
@@ -46,6 +50,20 @@ class BasicConfig:
         path = ".".join((self.prefix, Path(name).stem))
         return logging.getLogger(path)
 
+    def _read_extra_env_config_values(self):
+        """ Loads extra configuration from environment-injected values """
+        result = ConfigTree()
+        prefix = EXTRA_CONFIG_VALUES_ENV_KEY_PREFIX
+
+        keys = sorted(k for k in os.environ if k.startswith(prefix))
+        for key in keys:
+            path = key[len(prefix) :].replace(EXTRA_CONFIG_VALUES_ENV_KEY_SEP, ".")
+            result = ConfigTree.merge_configs(
+                result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
+            )
+
+        return result
+
     def _read_env_paths(self, key):
         value = getenv(EXTRA_CONFIG_PATH_ENV_KEY, DEFAULT_EXTRA_CONFIG_PATH)
         if value is None:
@@ -64,12 +82,17 @@ class BasicConfig:
 
     def _load(self, verbose=True):
         extra_config_paths = self._read_env_paths(EXTRA_CONFIG_PATH_ENV_KEY) or []
+        extra_config_values = self._read_extra_env_config_values()
+        configs = [
+            self._read_recursive(path, verbose=verbose)
+            for path in [self.folder] + extra_config_paths
+        ]
 
         self._config = reduce(
-            lambda config, path: ConfigTree.merge_configs(
-                config, self._read_recursive(path, verbose=verbose), copy_trees=True
+            lambda last, config: ConfigTree.merge_configs(
+                last, config, copy_trees=True
             ),
-            [self.folder] + extra_config_paths,
+            configs + [extra_config_values],
             ConfigTree(),
         )
 

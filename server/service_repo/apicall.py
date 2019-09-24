@@ -104,7 +104,7 @@ class DataContainer(object):
         if self._batched_data:
             try:
                 data_model = [cls(**item) for item in self._batched_data]
-            except TypeError as ex:
+            except (ValueError, TypeError) as ex:
                 raise CallParsingError(str(ex))
 
             for m in data_model:
@@ -112,7 +112,7 @@ class DataContainer(object):
         else:
             try:
                 data_model = cls(**self.data)
-            except TypeError as ex:
+            except (ValueError, TypeError) as ex:
                 raise CallParsingError(str(ex))
 
             if not self.schema_validator.enabled:
@@ -182,8 +182,6 @@ class APICallResult(DataContainer):
             traceback=self._traceback,
             extra=self._extra,
         )
-        if self.log_data:
-            res["data"] = self.data
         return res
 
     def copy_from(self, result):

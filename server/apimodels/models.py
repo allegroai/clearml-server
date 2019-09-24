@@ -11,6 +11,7 @@ class CreateModelRequest(models.Base):
     uri = fields.StringField(required=True)
     labels = DictField(value_types=string_types+(int,), required=True)
     tags = ListField(items_types=string_types)
+    system_tags = ListField(items_types=string_types)
     comment = fields.StringField()
     public = fields.BoolField(default=False)
     project = fields.StringField()

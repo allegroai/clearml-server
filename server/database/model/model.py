@@ -1,7 +1,7 @@
 from mongoengine import Document, StringField, DateTimeField, ListField, BooleanField
 
 from database import Database, strict
-from database.fields import SupportedURLField, StrippedStringField, SafeDictField
+from database.fields import StrippedStringField, SafeDictField
 from database.model import DbModelMixin
 from database.model.model_labels import ModelLabels
 from database.model.company import Company
@@ -48,7 +48,8 @@ class Model(DbModelMixin, Document):
     task = StringField(reference_field=Task)
     comment = StringField(user_set_allowed=True)
     tags = ListField(StringField(required=True), user_set_allowed=True)
-    uri = SupportedURLField(default='', user_set_allowed=True)
+    system_tags = ListField(StringField(required=True), user_set_allowed=True)
+    uri = StrippedStringField(default='', user_set_allowed=True)
     framework = StringField()
     design = SafeDictField()
     labels = ModelLabels()

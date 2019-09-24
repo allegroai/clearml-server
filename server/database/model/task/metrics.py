@@ -1,14 +1,14 @@
-from mongoengine import EmbeddedDocument, StringField, DateTimeField, LongField, DynamicField
+from mongoengine import EmbeddedDocument, StringField, DynamicField
 
 
 class MetricEvent(EmbeddedDocument):
-    metric = StringField(required=True, )
-    variant = StringField(required=True)
-    type = StringField(required=True)
-    timestamp = DateTimeField(default=0, required=True)
-    iter = LongField()
-    value = DynamicField(required=True)
+    meta = {
+        # For backwards compatibility reasons
+        'strict': False,
+    }
 
-    @classmethod
-    def from_dict(cls, **kwargs):
-        return cls(**{k: v for k, v in kwargs.items() if k in cls._fields})
+    metric = StringField(required=True)
+    variant = StringField(required=True)
+    value = DynamicField(required=True)
+    min_value = DynamicField()  # for backwards compatibility reasons
+    max_value = DynamicField()  # for backwards compatibility reasons

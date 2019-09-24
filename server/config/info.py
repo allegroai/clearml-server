@@ -18,3 +18,11 @@ def get_version():
         return (root / "VERSION").read_text().strip()
     except FileNotFoundError:
         return ""
+
+
+@lru_cache()
+def get_commit_number():
+    try:
+        return (root / "COMMIT").read_text().strip()
+    except FileNotFoundError:
+        return ""

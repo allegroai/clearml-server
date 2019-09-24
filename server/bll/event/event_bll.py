@@ -1,24 +1,24 @@
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
+from enum import Enum
 from operator import attrgetter
+from typing import Sequence
 
 import attr
 import six
 from elasticsearch import helpers
-from enum import Enum
-
-from mongoengine import Q
 from nested_dict import nested_dict
 
 import database.utils as dbutils
 import es_factory
 from apierrors import errors
+from bll.event.event_metrics import EventMetrics
 from bll.task import TaskBLL
 from database.errors import translate_errors_context
 from database.model.task.task import Task
-from database.model.task.metrics import MetricEvent
 from timing_context import TimingContext
+from utilities.dicts import flatten_nested_items
 
 
 class EventType(Enum):
@@ -44,7 +44,12 @@ class EventBLL(object):
     id_fields = ["task", "iter", "metric", "variant", "key"]
 
     def __init__(self, events_es=None):
-        self.es = events_es if events_es is not None else es_factory.connect("events")
+        self.es = events_es or es_factory.connect("events")
+        self._metrics = EventMetrics(self.es)
+
+    @property
+    def metrics(self) -> EventMetrics:
+        return self._metrics
 
     def add_events(self, company_id, events, worker):
         actions = []
@@ -94,7 +99,7 @@ class EventBLL(object):
                 event["value"] = event["values"]
                 del event["values"]
 
-            index_name = EventBLL.get_index_name(company_id, event_type)
+            index_name = EventMetrics.get_index_name(company_id, event_type)
             es_action = {
                 "_op_type": "index",  # overwrite if exists with same ID
                 "_index": index_name,
@@ -154,13 +159,6 @@ class EventBLL(object):
                     else:
                         errors_in_bulk.append(info)
 
-            last_metrics = {
-                t.id: t.to_proper_dict().get("last_metrics", {})
-                for t in Task.objects(id__in=task_ids, company=company_id).only(
-                    "last_metrics"
-                )
-            }
-
             remaining_tasks = set()
             now = datetime.utcnow()
             for task_id in task_ids:
@@ -173,7 +171,6 @@ class EventBLL(object):
                     now=now,
                     iter=task_iteration.get(task_id),
                     last_events=task_last_events.get(task_id),
-                    last_metrics=last_metrics.get(task_id),
                 )
 
                 if not updated:
@@ -210,9 +207,7 @@ class EventBLL(object):
         if timestamp is None or timestamp < event["timestamp"]:
             last_events[metric_hash][variant_hash] = event
 
-    def _update_task(
-        self, company_id, task_id, now, iter=None, last_events=None, last_metrics=None
-    ):
+    def _update_task(self, company_id, task_id, now, iter=None, last_events=None):
         """
         Update task information in DB with aggregated results after handling event(s) related to this task.
 
@@ -226,23 +221,13 @@ class EventBLL(object):
             fields["last_iteration"] = iter
 
         if last_events:
-
-            def get_metric_event(ev):
-                me = MetricEvent.from_dict(**ev)
-                if "timestamp" in ev:
-                    me.timestamp = datetime.utcfromtimestamp(ev["timestamp"] / 1000)
-                return me
-
-            new_last_metrics = nested_dict(2, MetricEvent)
-            new_last_metrics.update(last_metrics)
-
-            for metric_hash, variants in last_events.items():
-                for variant_hash, event in variants.items():
-                    new_last_metrics[metric_hash][variant_hash] = get_metric_event(
-                        event
-                    )
-
-            fields["last_metrics"] = new_last_metrics.to_dict()
+            fields["last_values"] = list(
+                flatten_nested_items(
+                    last_events,
+                    nesting=2,
+                    include_leaves=["value", "metric", "variant"],
+                )
+            )
 
         if not fields:
             return False
@@ -270,7 +255,7 @@ class EventBLL(object):
             if event_type is None:
                 event_type = "*"
 
-            es_index = EventBLL.get_index_name(company_id, event_type)
+            es_index = EventMetrics.get_index_name(company_id, event_type)
 
             if not self.es.indices.exists(es_index):
                 return [], None, 0
@@ -289,6 +274,125 @@ class EventBLL(object):
         total_events = es_res["hits"]["total"]
 
         return events, next_scroll_id, total_events
+
+    def get_last_iterations_per_event_metric_variant(
+        self, es_index: str, task_id: str, num_last_iterations: int, event_type: str
+    ):
+        if not self.es.indices.exists(es_index):
+            return []
+
+        es_req: dict = {
+            "size": 0,
+            "aggs": {
+                "metrics": {
+                    "terms": {"field": "metric"},
+                    "aggs": {
+                        "variants": {
+                            "terms": {"field": "variant"},
+                            "aggs": {
+                                "iters": {
+                                    "terms": {
+                                        "field": "iter",
+                                        "size": num_last_iterations,
+                                        "order": {"_term": "desc"},
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
+        }
+        if event_type:
+            es_req["query"]["bool"]["must"].append({"term": {"type": event_type}})
+
+        with translate_errors_context(), TimingContext(
+            "es", "task_last_iter_metric_variant"
+        ):
+            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+        if "aggregations" not in es_res:
+            return []
+
+        return [
+            (metric["key"], variant["key"], iter["key"])
+            for metric in es_res["aggregations"]["metrics"]["buckets"]
+            for variant in metric["variants"]["buckets"]
+            for iter in variant["iters"]["buckets"]
+        ]
+
+    def get_task_plots(
+        self,
+        company_id: str,
+        tasks: Sequence[str],
+        last_iterations_per_plot: int = None,
+        sort=None,
+        size: int = 500,
+        scroll_id: str = None,
+    ):
+        if scroll_id:
+            with translate_errors_context(), TimingContext("es", "get_task_events"):
+                es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
+        else:
+            event_type = "plot"
+            es_index = EventMetrics.get_index_name(company_id, event_type)
+            if not self.es.indices.exists(es_index):
+                return TaskEventsResult()
+
+            query = {"bool": defaultdict(list)}
+
+            if last_iterations_per_plot is None:
+                must = query["bool"]["must"]
+                must.append({"terms": {"task": tasks}})
+            else:
+                should = query["bool"]["should"]
+                for i, task_id in enumerate(tasks):
+                    last_iters = self.get_last_iterations_per_event_metric_variant(
+                        es_index, task_id, last_iterations_per_plot, event_type
+                    )
+                    if not last_iters:
+                        continue
+
+                    for metric, variant, iter in last_iters:
+                        should.append(
+                            {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"task": task_id}},
+                                        {"term": {"metric": metric}},
+                                        {"term": {"variant": variant}},
+                                        {"term": {"iter": iter}},
+                                    ]
+                                }
+                            }
+                        )
+                if not should:
+                    return TaskEventsResult()
+
+            if sort is None:
+                sort = [{"timestamp": {"order": "asc"}}]
+
+            es_req = {"sort": sort, "size": min(size, 10000), "query": query}
+
+            routing = ",".join(tasks)
+
+            with translate_errors_context(), TimingContext("es", "get_task_plots"):
+                es_res = self.es.search(
+                    index=es_index,
+                    body=es_req,
+                    ignore=404,
+                    routing=routing,
+                    scroll="1h",
+                )
+
+        events = [doc["_source"] for doc in es_res.get("hits", {}).get("hits", [])]
+        # scroll id may be missing when queering a totally empty DB
+        next_scroll_id = es_res.get("_scroll_id")
+        total_events = es_res["hits"]["total"]
+
+        return TaskEventsResult(
+            events=events, next_scroll_id=next_scroll_id, total_events=total_events
+        )
 
     def get_task_events(
         self,
@@ -311,7 +415,7 @@ class EventBLL(object):
             if event_type is None:
                 event_type = "*"
 
-            es_index = EventBLL.get_index_name(company_id, event_type)
+            es_index = EventMetrics.get_index_name(company_id, event_type)
             if not self.es.indices.exists(es_index):
                 return TaskEventsResult()
 
@@ -374,7 +478,7 @@ class EventBLL(object):
 
     def get_metrics_and_variants(self, company_id, task_id, event_type):
 
-        es_index = EventBLL.get_index_name(company_id, event_type)
+        es_index = EventMetrics.get_index_name(company_id, event_type)
 
         if not self.es.indices.exists(es_index):
             return {}
@@ -405,7 +509,7 @@ class EventBLL(object):
         return metrics
 
     def get_task_latest_scalar_values(self, company_id, task_id):
-        es_index = EventBLL.get_index_name(company_id, "training_stats_scalar")
+        es_index = EventMetrics.get_index_name(company_id, "training_stats_scalar")
 
         if not self.es.indices.exists(es_index):
             return {}
@@ -488,147 +592,9 @@ class EventBLL(object):
             metrics.append(metric_summary)
         return metrics, max_timestamp
 
-    def compare_scalar_metrics_average_per_iter(
-        self, company_id, task_ids, allow_public=True
-    ):
-        assert isinstance(task_ids, list)
-
-        task_name_by_id = {}
-        with translate_errors_context():
-            task_objs = Task.get_many(
-                company=company_id,
-                query=Q(id__in=task_ids),
-                allow_public=allow_public,
-                override_projection=("id", "name"),
-                return_dicts=False,
-            )
-            if len(task_objs) < len(task_ids):
-                invalid = tuple(set(task_ids) - set(r.id for r in task_objs))
-                raise errors.bad_request.InvalidTaskId(company=company_id, ids=invalid)
-
-            task_name_by_id = {t.id: t.name for t in task_objs}
-
-        es_index = EventBLL.get_index_name(company_id, "training_stats_scalar")
-        if not self.es.indices.exists(es_index):
-            return {}
-
-        es_req = {
-            "size": 0,
-            "_source": {"excludes": []},
-            "query": {"terms": {"task": task_ids}},
-            "aggs": {
-                "iters": {
-                    "histogram": {"field": "iter", "interval": 1, "min_doc_count": 1},
-                    "aggs": {
-                        "metric_and_variant": {
-                            "terms": {
-                                "script": "doc['metric'].value +'/'+ doc['variant'].value",
-                                "size": 10000,
-                            },
-                            "aggs": {
-                                "tasks": {
-                                    "terms": {"field": "task"},
-                                    "aggs": {"avg_val": {"avg": {"field": "value"}}},
-                                }
-                            },
-                        }
-                    },
-                }
-            },
-        }
-        with translate_errors_context(), TimingContext("es", "task_stats_comparison"):
-            es_res = self.es.search(index=es_index, body=es_req)
-
-        if "aggregations" not in es_res:
-            return
-
-        metrics = {}
-        for iter_bucket in es_res["aggregations"]["iters"]["buckets"]:
-            iteration = int(iter_bucket["key"])
-            for metric_bucket in iter_bucket["metric_and_variant"]["buckets"]:
-                metric_name = metric_bucket["key"]
-                if metrics.get(metric_name) is None:
-                    metrics[metric_name] = {}
-
-                metric_data = metrics[metric_name]
-                for task_bucket in metric_bucket["tasks"]["buckets"]:
-                    task_id = task_bucket["key"]
-                    value = task_bucket["avg_val"]["value"]
-                    if metric_data.get(task_id) is None:
-                        metric_data[task_id] = {
-                            "x": [],
-                            "y": [],
-                            "name": task_name_by_id[
-                                task_id
-                            ],  # todo: lookup task name from id
-                        }
-                    metric_data[task_id]["x"].append(iteration)
-                    metric_data[task_id]["y"].append(value)
-
-        return metrics
-
-    def get_scalar_metrics_average_per_iter(self, company_id, task_id):
-
-        es_index = EventBLL.get_index_name(company_id, "training_stats_scalar")
-        if not self.es.indices.exists(es_index):
-            return {}
-
-        es_req = {
-            "size": 0,
-            "_source": {"excludes": []},
-            "query": {"term": {"task": task_id}},
-            "aggs": {
-                "iters": {
-                    "histogram": {"field": "iter", "interval": 1, "min_doc_count": 1},
-                    "aggs": {
-                        "metrics": {
-                            "terms": {
-                                "field": "metric",
-                                "size": 200,
-                                "order": {"_term": "desc"},
-                            },
-                            "aggs": {
-                                "variants": {
-                                    "terms": {
-                                        "field": "variant",
-                                        "size": 500,
-                                        "order": {"_term": "desc"},
-                                    },
-                                    "aggs": {"avg_val": {"avg": {"field": "value"}}},
-                                }
-                            },
-                        }
-                    },
-                }
-            },
-            "version": True,
-        }
-
-        with translate_errors_context(), TimingContext("es", "task_stats_scalar"):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
-
-        metrics = {}
-        if "aggregations" in es_res:
-            for iter_bucket in es_res["aggregations"]["iters"]["buckets"]:
-                iteration = int(iter_bucket["key"])
-                for metric_bucket in iter_bucket["metrics"]["buckets"]:
-                    metric_name = metric_bucket["key"]
-                    if metrics.get(metric_name) is None:
-                        metrics[metric_name] = {}
-
-                    metric_data = metrics[metric_name]
-                    for variant_bucket in metric_bucket["variants"]["buckets"]:
-                        variant = variant_bucket["key"]
-                        value = variant_bucket["avg_val"]["value"]
-                        if metric_data.get(variant) is None:
-                            metric_data[variant] = {"x": [], "y": [], "name": variant}
-                        metric_data[variant]["x"].append(iteration)
-                        metric_data[variant]["y"].append(value)
-        return metrics
-
     def get_vector_metrics_per_iter(self, company_id, task_id, metric, variant):
 
-        es_index = EventBLL.get_index_name(company_id, "training_stats_vector")
+        es_index = EventMetrics.get_index_name(company_id, "training_stats_vector")
         if not self.es.indices.exists(es_index):
             return [], []
 
@@ -685,7 +651,7 @@ class EventBLL(object):
         return [b["key"] for b in es_res["aggregations"]["iters"]["buckets"]]
 
     def delete_task_events(self, company_id, task_id):
-        es_index = EventBLL.get_index_name(company_id, "*")
+        es_index = EventMetrics.get_index_name(company_id, "*")
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):
             es_res = self.es.delete_by_query(
@@ -693,8 +659,3 @@ class EventBLL(object):
             )
 
         return es_res.get("deleted", 0)
-
-    @staticmethod
-    def get_index_name(company_id, event_type):
-        event_type = event_type.lower().replace(" ", "_")
-        return "events-%s-%s" % (event_type, company_id)

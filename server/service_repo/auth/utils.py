@@ -30,6 +30,8 @@ def get_secret_key(length=50):
     Create a random secret key.
 
     Taken from the Django project.
+    NOTE: asterisk is not supported due to issues with environment variables containing
+     asterisks (in case the secret key is stored in an environment variable)
     """
-    chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(-_=+)'
+    chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&(-_=+)'
     return get_random_string(length, chars)

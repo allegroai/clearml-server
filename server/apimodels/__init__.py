@@ -4,11 +4,10 @@ from enum import Enum
 from typing import Union, Type, Iterable
 
 import jsonmodels.errors
-import jsonmodels.validators
 import six
 import validators
 from jsonmodels import fields
-from jsonmodels.fields import _LazyType
+from jsonmodels.fields import _LazyType, NotSet
 from jsonmodels.models import Base as ModelBase
 from jsonmodels.validators import Enum as EnumValidator
 from luqum.parser import parser, ParseError
@@ -25,6 +24,12 @@ def make_default(field_cls, default_value):
 
 
 class ListField(fields.ListField):
+    def __init__(self, items_types=None, *args, default=NotSet, **kwargs):
+        if default is not NotSet and callable(default):
+            default = default()
+
+        super(ListField, self).__init__(items_types, *args, default=default, **kwargs)
+
     def _cast_value(self, value):
         try:
             return super(ListField, self)._cast_value(value)
@@ -144,6 +149,46 @@ class EnumField(fields.StringField):
         return super().parse_value(value)
 
 
+class ActualEnumField(fields.StringField):
+    @property
+    def types(self):
+        return (self.__enum,)
+
+    def __init__(
+        self,
+        enum_class: Type[Enum],
+        *args,
+        validators=None,
+        required=False,
+        default=None,
+        **kwargs
+    ):
+        self.__enum = enum_class
+        # noinspection PyTypeChecker
+        choices = list(enum_class)
+        validator_cls = EnumValidator if required else NullableEnumValidator
+        validators = [*(validators or []), validator_cls(*choices)]
+        super().__init__(
+            default=default and self.parse_value(default),
+            *args,
+            required=required,
+            validators=validators,
+            **kwargs
+        )
+
+    def parse_value(self, value):
+        if value is None and not self.required:
+            return self.get_default_value()
+        try:
+            # noinspection PyArgumentList
+            return self.__enum(value)
+        except ValueError:
+            return value
+
+    def to_struct(self, value):
+        return super().to_struct(value.value)
+
+
 class EmailField(fields.StringField):
     def validate(self, value):
         super().validate(value)
@@ -160,3 +205,12 @@ class DomainField(fields.StringField):
             return
         if validators.domain(value) is not True:
             raise errors.bad_request.InvalidDomainName()
+
+
+class StringEnum(Enum):
+    def __str__(self):
+        return self.value
+
+    # noinspection PyMethodParameters
+    def _generate_next_value_(name, start, count, last_values):
+        return name

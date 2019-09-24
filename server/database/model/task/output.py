@@ -1,7 +1,7 @@
 from mongoengine import EmbeddedDocument, StringField
-from database.utils import get_options
 
-from database.fields import OutputDestinationField
+from database.fields import StrippedStringField
+from database.utils import get_options
 
 
 class Result(object):
@@ -10,7 +10,7 @@ class Result(object):
 
 
 class Output(EmbeddedDocument):
-    destination = OutputDestinationField()
+    destination = StrippedStringField()
     model = StringField(reference_field='Model')
     error = StringField(user_set_allowed=True)
     result = StringField(choices=get_options(Result))

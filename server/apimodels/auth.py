@@ -1,4 +1,4 @@
-from jsonmodels.fields import IntField, StringField, BoolField, EmbeddedField
+from jsonmodels.fields import IntField, StringField, BoolField, EmbeddedField, DateTimeField
 from jsonmodels.models import Base
 from jsonmodels.validators import Max, Enum
 
@@ -79,6 +79,7 @@ class Credentials(Base):
 
 class CredentialsResponse(Credentials):
     secret_key = StringField()
+    last_used = DateTimeField(default=None)
 
 
 class CreateCredentialsResponse(Base):

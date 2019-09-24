@@ -36,8 +36,8 @@ class TestTasksResetDelete(TestService):
 
     TASK_CANNOT_BE_DELETED_CODES = (400, 123)
 
-    def setUp(self):
-        super(TestTasksResetDelete, self).setUp()
+    def setUp(self, version="1.7"):
+        super(TestTasksResetDelete, self).setUp(version=version)
         self.tasks = self.api.tasks
         self.models = self.api.models
 

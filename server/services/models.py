@@ -1,5 +1,4 @@
 from datetime import datetime
-from urllib.parse import urlparse
 
 from mongoengine import Q, EmbeddedDocument
 
@@ -16,7 +15,6 @@ from apimodels.models import (
 from bll.task import TaskBLL
 from config import config
 from database.errors import translate_errors_context
-from database.fields import SupportedURLField
 from database.model import validate_id
 from database.model.model import Model
 from database.model.project import Project
@@ -27,13 +25,23 @@ from database.utils import (
     filter_fields,
 )
 from service_repo import APICall, endpoint
+from services.utils import conform_tag_fields, conform_output_tags
 from timing_context import TimingContext
 
 log = config.logger(__file__)
 get_all_query_options = Model.QueryParameterOptions(
     pattern_fields=("name", "comment"),
     fields=("ready",),
-    list_fields=("tags", "framework", "uri", "id", "project", "task", "parent"),
+    list_fields=(
+        "tags",
+        "system_tags",
+        "framework",
+        "uri",
+        "id",
+        "project",
+        "task",
+        "parent",
+    ),
 )
 
 
@@ -43,20 +51,20 @@ def get_by_id(call):
     model_id = call.data["model"]
 
     with translate_errors_context():
-        res = Model.get_many(
+        models = Model.get_many(
             company=call.identity.company,
             query_dict=call.data,
             query=Q(id=model_id),
             allow_public=True,
         )
-        if not res:
+        if not models:
             raise errors.bad_request.InvalidModelId(
                 "no such public or company model",
                 id=model_id,
                 company=call.identity.company,
             )
-
-        call.result.data = {"model": res[0]}
+        conform_output_tags(call, models[0])
+        call.result.data = {"model": models[0]}
 
 
 @endpoint("models.get_by_task_id", required_fields=["task"])
@@ -66,31 +74,32 @@ def get_by_task_id(call):
 
     with translate_errors_context():
         query = dict(id=task_id, company=call.identity.company)
-        res = Task.get(_only=["output"], **query)
-        if not res:
+        task = Task.get(_only=["output"], **query)
+        if not task:
             raise errors.bad_request.InvalidTaskId(**query)
-        if not res.output:
+        if not task.output:
             raise errors.bad_request.MissingTaskFields(field="output")
-        if not res.output.model:
+        if not task.output.model:
             raise errors.bad_request.MissingTaskFields(field="output.model")
 
-        model_id = res.output.model
-        res = Model.objects(
+        model_id = task.output.model
+        model = Model.objects(
             Q(id=model_id) & get_company_or_none_constraint(call.identity.company)
         ).first()
-        if not res:
+        if not model:
             raise errors.bad_request.InvalidModelId(
                 "no such public or company model",
                 id=model_id,
                 company=call.identity.company,
             )
-        call.result.data = {"model": res.to_proper_dict()}
+        model_dict = model.to_proper_dict()
+        conform_output_tags(call, model_dict)
+        call.result.data = {"model": model_dict}
 
 
 @endpoint("models.get_all_ex", required_fields=[])
-def get_all_ex(call):
-    assert isinstance(call, APICall)
-
+def get_all_ex(call: APICall):
+    conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all_ex"):
             models = Model.get_many_with_join(
@@ -99,14 +108,13 @@ def get_all_ex(call):
                 allow_public=True,
                 query_options=get_all_query_options,
             )
-
+        conform_output_tags(call, models)
         call.result.data = {"models": models}
 
 
 @endpoint("models.get_all", required_fields=[])
-def get_all(call):
-    assert isinstance(call, APICall)
-
+def get_all(call: APICall):
+    conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all"):
             models = Model.get_many(
@@ -116,13 +124,14 @@ def get_all(call):
                 allow_public=True,
                 query_options=get_all_query_options,
             )
-
+        conform_output_tags(call, models)
         call.result.data = {"models": models}
 
 
 create_fields = {
     "name": None,
     "tags": list,
+    "system_tags": list,
     "task": Task,
     "comment": None,
     "uri": None,
@@ -134,22 +143,10 @@ create_fields = {
     "ready": None,
 }
 
-schemes = list(SupportedURLField.schemes)
-
-
-def _validate_uri(uri):
-    parsed_uri = urlparse(uri)
-    if parsed_uri.scheme not in schemes:
-        raise errors.bad_request.InvalidModelUri("unsupported scheme", uri=uri)
-    elif not parsed_uri.path:
-        raise errors.bad_request.InvalidModelUri("missing path", uri=uri)
-
 
 def parse_model_fields(call, valid_fields):
     fields = parse_from_call(call.data, valid_fields, Model.get_fields())
-    tags = fields.get("tags")
-    if tags:
-        fields["tags"] = list(set(tags))
+    conform_tag_fields(call, fields)
     return fields
 
 
@@ -251,15 +248,14 @@ def create(call, company, req_model):
         if project:
             validate_id(Project, company=company, project=project)
 
-        uri = req_model.uri
-        if uri:
-            _validate_uri(uri)
         task = req_model.task
         req_data = req_model.to_struct()
         if task:
             validate_task(call, req_data)
 
         fields = filter_fields(Model, req_data)
+        conform_tag_fields(call, fields)
+
         # create and save model
         model = Model(
             id=database.utils.id(),
@@ -276,12 +272,12 @@ def create(call, company, req_model):
 def prepare_update_fields(call, fields):
     fields = fields.copy()
     if "uri" in fields:
-        _validate_uri(fields["uri"])
-
         # clear UI cache if URI is provided (model updated)
         fields["ui_cache"] = fields.pop("ui_cache", {})
     if "task" in fields:
         validate_task(call, fields)
+
+    conform_tag_fields(call, fields)
     return fields
 
 
@@ -290,8 +286,7 @@ def validate_task(call, fields):
 
 
 @endpoint("models.edit", required_fields=["model"], response_data_model=UpdateResponse)
-def edit(call):
-    assert isinstance(call, APICall)
+def edit(call: APICall):
     identity = call.identity
     model_id = call.data["model"]
 
@@ -327,13 +322,13 @@ def edit(call):
 
         if fields:
             updated = model.update(upsert=False, **fields)
+            conform_output_tags(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)
 
 
-def _update_model(call, model_id=None):
-    assert isinstance(call, APICall)
+def _update_model(call: APICall, model_id=None):
     identity = call.identity
     model_id = model_id or call.data["model"]
 
@@ -358,6 +353,7 @@ def _update_model(call, model_id=None):
         updated_count, updated_fields = Model.safe_update(
             call.identity.company, model.id, data
         )
+        conform_output_tags(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 

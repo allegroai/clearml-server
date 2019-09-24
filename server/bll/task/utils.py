@@ -66,6 +66,10 @@ class ChangeStatusRequest(object):
             )
 
         update_project_time(project_id)
+
+        # make sure that _raw_ queries are not returned back to the client
+        fields.pop("__raw__", None)
+
         return dict(updated=updated, fields=fields)
 
     def validate_transition(self, current_status):
@@ -135,9 +139,11 @@ def get_possible_status_changes(current_status):
     :return possible states from current state
     """
     possible = state_machine.get(current_status)
-    assert (
-        possible is not None
-    ), f"Current status {current_status} not supported by state machine"
+    if possible is None:
+        raise errors.server_error.InternalError(
+            f"Current status {current_status} not supported by state machine"
+        )
+
     return possible
 
 

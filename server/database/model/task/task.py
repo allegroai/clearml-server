@@ -1,5 +1,3 @@
-from enum import Enum
-
 from mongoengine import (
     StringField,
     EmbeddedDocumentField,
@@ -7,10 +5,18 @@ from mongoengine import (
     DateTimeField,
     IntField,
     ListField,
+    LongField,
 )
 
 from database import Database, strict
-from database.fields import StrippedStringField, SafeMapField, SafeDictField
+from database.fields import (
+    StrippedStringField,
+    SafeMapField,
+    SafeDictField,
+    UnionField,
+    EmbeddedDocumentSortedListField,
+    SafeSortedListField,
+)
 from database.model import AttributedDocument
 from database.model.model_labels import ModelLabels
 from database.model.project import Project
@@ -22,27 +28,27 @@ DEFAULT_LAST_ITERATION = 0
 
 
 class TaskStatus(object):
-    created = 'created'
-    in_progress = 'in_progress'
-    stopped = 'stopped'
-    publishing = 'publishing'
-    published = 'published'
-    closed = 'closed'
-    failed = 'failed'
-    completed = 'completed'
-    unknown = 'unknown'
+    created = "created"
+    in_progress = "in_progress"
+    stopped = "stopped"
+    publishing = "publishing"
+    published = "published"
+    closed = "closed"
+    failed = "failed"
+    completed = "completed"
+    unknown = "unknown"
 
 
 class TaskStatusMessage(object):
-    stopping = 'stopping'
+    stopping = "stopping"
 
 
-class TaskTags(object):
-    development = 'development'
+class TaskSystemTags(object):
+    development = "development"
 
 
 class Script(EmbeddedDocument):
-    binary = StringField(default='python')
+    binary = StringField(default="python")
     repository = StringField(required=True)
     tag = StringField()
     branch = StringField()
@@ -53,51 +59,70 @@ class Script(EmbeddedDocument):
     diff = StringField()
 
 
+class ArtifactTypeData(EmbeddedDocument):
+    preview = StringField()
+    content_type = StringField()
+    data_hash = StringField()
+
+
+class Artifact(EmbeddedDocument):
+    key = StringField(required=True)
+    type = StringField(required=True)
+    mode = StringField(choices=("input", "output"), default="output")
+    uri = StringField()
+    hash = StringField()
+    content_size = LongField()
+    timestamp = LongField()
+    type_data = EmbeddedDocumentField(ArtifactTypeData)
+    display_data = SafeSortedListField(ListField(UnionField((int, float, str))))
+
+
 class Execution(EmbeddedDocument):
     test_split = IntField(default=0)
     parameters = SafeDictField(default=dict)
-    model = StringField(reference_field='Model')
-    model_desc = SafeMapField(StringField(default=''))
+    model = StringField(reference_field="Model")
+    model_desc = SafeMapField(StringField(default=""))
     model_labels = ModelLabels()
     framework = StringField()
+    artifacts = EmbeddedDocumentSortedListField(Artifact)
 
     queue = StringField()
-    ''' Queue ID where task was queued '''
+    """ Queue ID where task was queued """
 
 
 class TaskType(object):
-    training = 'training'
-    testing = 'testing'
+    training = "training"
+    testing = "testing"
 
 
 class Task(AttributedDocument):
     meta = {
-        'db_alias': Database.backend,
-        'strict': strict,
-        'indexes': [
-            'created',
-            'started',
-            'completed',
+        "db_alias": Database.backend,
+        "strict": strict,
+        "indexes": [
+            "created",
+            "started",
+            "completed",
             {
-                'name': '%s.task.main_text_index' % Database.backend,
-                'fields': [
-                    '$name',
-                    '$id',
-                    '$comment',
-                    '$execution.model',
-                    '$output.model',
-                    '$script.repository',
-                    '$script.entry_point',
+                "name": "%s.task.main_text_index" % Database.backend,
+                "fields": [
+                    "$name",
+                    "$id",
+                    "$comment",
+                    "$execution.model",
+                    "$output.model",
+                    "$script.repository",
+                    "$script.entry_point",
                 ],
-                'default_language': 'english',
-                'weights': {
-                    'name': 10,
-                    'id': 10,
-                    'comment': 10,
-                    'execution.model': 2,
-                    'output.model': 2,
-                    'script.repository': 1,
-                    'script.entry_point': 1,
+                "default_language": "english",
+                "weights": {
+                    "name": 10,
+                    "id": 10,
+                    "comment": 10,
+                    "execution.model": 2,
+                    "output.model": 2,
+                    "script.repository": 1,
+                    "script.entry_point": 1,
                 },
             },
         ],
@@ -123,12 +148,8 @@ class Task(AttributedDocument):
     output = EmbeddedDocumentField(Output, default=Output)
     execution: Execution = EmbeddedDocumentField(Execution, default=Execution)
     tags = ListField(StringField(required=True), user_set_allowed=True)
+    system_tags = ListField(StringField(required=True), user_set_allowed=True)
     script = EmbeddedDocumentField(Script)
     last_update = DateTimeField()
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
-
-
-class TaskVisibility(Enum):
-    active = 'active'
-    archived = 'archived'

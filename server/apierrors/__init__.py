@@ -83,7 +83,8 @@ _error_codes = {
         21: ('bad_credentials', 'unauthorized (malformed credentials)'),
         22: ('invalid_credentials', 'unauthorized (invalid credentials)'),
         30: ('invalid_token', 'invalid token'),
-        31: ('blocked_token', 'token is blocked')
+        31: ('blocked_token', 'token is blocked'),
+        40: ('invalid_fixed_user', 'fixed user ID was not found')
     },
 
     (403, 'forbidden'): {

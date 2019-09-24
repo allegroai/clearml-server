@@ -1,7 +1,7 @@
 from mongoengine import StringField, DateTimeField, ListField
 
 from database import Database, strict
-from database.fields import OutputDestinationField, StrippedStringField
+from database.fields import StrippedStringField
 from database.model import AttributedDocument
 from database.model.base import GetMixin
 
@@ -9,7 +9,8 @@ from database.model.base import GetMixin
 class Project(AttributedDocument):
 
     get_all_query_options = GetMixin.QueryParameterOptions(
-        pattern_fields=("name", "description"), list_fields=("tags", "id")
+        pattern_fields=("name", "description"),
+        list_fields=("tags", "system_tags", "id"),
     )
 
     meta = {
@@ -34,6 +35,7 @@ class Project(AttributedDocument):
     )
     description = StringField(required=True)
     created = DateTimeField(required=True)
-    tags = ListField(StringField(required=True), default=list)
-    default_output_destination = OutputDestinationField()
+    tags = ListField(StringField(required=True))
+    system_tags = ListField(StringField(required=True))
+    default_output_destination = StrippedStringField()
     last_update = DateTimeField()

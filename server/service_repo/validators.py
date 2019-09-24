@@ -150,7 +150,7 @@ def validate_impersonation(endpoint, call):
                 ),
                 service=service,
                 action=action,
-                call_data_items=call.batched_data,
+                call=call,
             )
         else:
             return False

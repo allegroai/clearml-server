@@ -107,7 +107,6 @@ def update_call_data(call, req):
                 form[key] = True
             elif form[key].lower() == "false":
                 form[key] = False
-        # NOTE: dict() form data to make sure we won't pass along a MultiDict or some other nasty crap
         call.data = json_body or form or {}
 
 
