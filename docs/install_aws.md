@@ -28,40 +28,40 @@ The following sections provide a list containing AMI Image ID per region for eac
 ### Latest Version AMI <a name="autoupdate"></a>
 **For easier upgrades: The following AMI automatically update to the latest release every reboot**
 
-* **eu-north-1** : ami-047eb12cf0b47b2d1
-* **ap-south-1** : ami-0a2facc5f027ab528
-* **eu-west-3** : ami-08ef18e0e4ca1e6c6
-* **eu-west-2** : ami-0a7133d9a3c800bbd
-* **eu-west-1** : ami-0f1cce84bb2187729
-* **ap-northeast-2** : ami-0825c4e06cc194272
-* **ap-northeast-1** : ami-024db084d549289f3
-* **sa-east-1** : ami-04eca8d7ab944a48c
-* **ca-central-1** : ami-03b7bfbb8607c9bc4
-* **ap-southeast-1** : ami-0a8667b8ba3564202
-* **ap-southeast-2** : ami-0866de3db64f63e15
-* **eu-central-1** : ami-04898b0923493de1b
-* **us-east-2** : ami-06afbbc84f5d829da
-* **us-west-1** : ami-045fe6664792a00d7
-* **us-west-2** : ami-0132184364da97720
-* **us-east-1** : ami-08747037c11256d44
+* **eu-north-1** : ami-075099a3efe13ff44
+* **ap-south-1** : ami-0ffcb769c06663df0
+* **eu-west-3** : ami-0e3147b1a5a0d7769
+* **eu-west-2** : ami-02560f572e1e49e9c
+* **eu-west-1** : ami-094eec51d30bb6cf2
+* **ap-northeast-2** : ami-02bf7eb1b2b3879cc
+* **ap-northeast-1** : ami-0e631ad6ed1e0952c
+* **sa-east-1** : ami-08d9fed1bd83887b8
+* **ca-central-1** : ami-017c0d0122603e9ba
+* **ap-southeast-1** : ami-098739c8694396f7e
+* **ap-southeast-2** : ami-0ce9f8006fb6a01b1
+* **eu-central-1** : ami-0e9aa4cde368a3b2f
+* **us-east-2** : ami-0c84932a9ec8ba69e
+* **us-west-1** : ami-0793446f57fc3e0dd
+* **us-west-2** : ami-09024fc28c9768181
+* **us-east-1** : ami-0ff392a18e027420e
 
 ### v0.11.0
-* **eu-north-1** : ami-0303acd0967b3df38
-* **ap-south-1** : ami-0e14dc1e886344a3e
-* **eu-west-3** : ami-00de3fa500c2e7ea9
-* **eu-west-2** : ami-0bd68bec0c2631535
-* **eu-west-1** : ami-094b8dcc9b6f9a04c
-* **ap-northeast-2** : ami-0091bb348c218d4c5
-* **ap-northeast-1** : ami-0e06fbc71a9e7a74d
-* **sa-east-1** : ami-0e99a346d8e585f76
-* **ca-central-1** : ami-09874b823457e5874
-* **ap-southeast-1** : ami-0823fd4963b3d4ff4
-* **ap-southeast-2** : ami-0463d77897f1c0569
-* **eu-central-1** : ami-0bb5cb2f5d444f905
-* **us-east-2** : ami-0b364bf4c7dc12f67
-* **us-west-1** : ami-0a97c0548d53d9f1d
-* **us-west-2** : ami-06588b5bde813c28c
-* **us-east-1** : ami-0a43a4b03215b0144
+* **eu-north-1** : ami-0cbe338f058018c97
+* **ap-south-1** : ami-06d72ff894f7a5e5d
+* **eu-west-3** : ami-00f2a45d67df2d2f3
+* **eu-west-2** : ami-0627ae688f4533237
+* **eu-west-1** : ami-00bf924ccb0354418
+* **ap-northeast-2** : ami-0800edf1d1dec1da8
+* **ap-northeast-1** : ami-07b2ed9709cdc4b15
+* **sa-east-1** : ami-0012c1648618b812c
+* **ca-central-1** : ami-02870b965d002fc8a
+* **ap-southeast-1** : ami-068ec23abf2473192
+* **ap-southeast-2** : ami-06664624728b5e01a
+* **eu-central-1** : ami-05f2a9304f237a6f0
+* **us-east-2** : ami-0ec242e6dca2b72b9
+* **us-west-1** : ami-050b6577acf246ceb
+* **us-west-2** : ami-0e384b6f78bf96ebe
+* **us-east-1** : ami-0a7b46f907d5d9c4a
 
 ### v0.10.1
 * **eu-north-1** : ami-09937ec4d18350c32
