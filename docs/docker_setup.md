@@ -63,6 +63,7 @@ For example, if your data directory is `/opt/trains`, then use the following com
     sudo mkdir -p /opt/trains/data/mongo/configdb
     sudo mkdir -p /opt/trains/logs
     sudo mkdir -p /opt/trains/data/fileserver
+    sudo mkdir -p /opt/trains/config
 
     sudo chown -R 1000:1000 /opt/trains
 ```
