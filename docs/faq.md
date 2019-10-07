@@ -41,6 +41,7 @@ To install and configure **trains-server** on Mac OS X, follow the steps below.
         $ sudo mkdir -p /opt/trains/data/mongo/db
         $ sudo mkdir -p /opt/trains/data/mongo/configdb
         $ sudo mkdir -p /opt/trains/logs
+        $ sudo mkdir -p /opt/trains/config
         $ sudo mkdir -p /opt/trains/data/fileserver
         $ sudo chown -R $(whoami):staff /opt/trains
 
@@ -80,6 +81,7 @@ To install **trains-server** on a stand alone Linux Ubuntu, follow the steps bel
         $ sudo mkdir -p /opt/trains/data/mongo/db
         $ sudo mkdir -p /opt/trains/data/mongo/configdb
         $ sudo mkdir -p /opt/trains/logs
+        $ sudo mkdir -p /opt/trains/config
         $ sudo mkdir -p /opt/trains/data/fileserver
         $ sudo chown -R 1000:1000 /opt/trains
 
