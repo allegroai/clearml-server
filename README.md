@@ -79,6 +79,7 @@ Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trai
     sudo mkdir -p /opt/trains/data/mongo/configdb
     sudo mkdir -p /opt/trains/logs
     sudo mkdir -p /opt/trains/data/fileserver
+    sudo mkdir -p /opt/trains/config
     ``` 
 
     Linux
