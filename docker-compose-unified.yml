@@ -66,6 +66,7 @@ services:
     container_name: trains-mongo
     image: mongo:3.6.5
     restart: always
+    command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
     - type: bind
       source: /opt/trains/data/mongo/db
