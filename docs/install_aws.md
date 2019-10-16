@@ -28,22 +28,22 @@ The following sections provide a list containing AMI Image ID per region for eac
 ### Latest Version AMI <a name="autoupdate"></a>
 **For easier upgrades: The following AMI automatically update to the latest release every reboot**
 
-* **eu-north-1** : ami-075099a3efe13ff44
-* **ap-south-1** : ami-0ffcb769c06663df0
-* **eu-west-3** : ami-0e3147b1a5a0d7769
-* **eu-west-2** : ami-02560f572e1e49e9c
-* **eu-west-1** : ami-094eec51d30bb6cf2
-* **ap-northeast-2** : ami-02bf7eb1b2b3879cc
-* **ap-northeast-1** : ami-0e631ad6ed1e0952c
-* **sa-east-1** : ami-08d9fed1bd83887b8
-* **ca-central-1** : ami-017c0d0122603e9ba
-* **ap-southeast-1** : ami-098739c8694396f7e
-* **ap-southeast-2** : ami-0ce9f8006fb6a01b1
-* **eu-central-1** : ami-0e9aa4cde368a3b2f
-* **us-east-2** : ami-0c84932a9ec8ba69e
-* **us-west-1** : ami-0793446f57fc3e0dd
-* **us-west-2** : ami-09024fc28c9768181
-* **us-east-1** : ami-0ff392a18e027420e
+* **eu-north-1** : ami-05d0d39ba39c93781
+* **ap-south-1** : ami-01ae99e1c27e0490a
+* **eu-west-3** : ami-01b156f8c7dd38121
+* **eu-west-2** : ami-01b80d5a23b8847fb
+* **eu-west-1** : ami-0524891495168c944
+* **ap-northeast-2** : ami-0594f00619bea922f
+* **ap-northeast-1** : ami-0d97b860be6f71a9f
+* **sa-east-1** : ami-0b0889651918730b8
+* **ca-central-1** : ami-040c641b2f71082b1
+* **ap-southeast-1** : ami-00a57be01d39ff964
+* **ap-southeast-2** : ami-066dcf2cc155b6ec1
+* **eu-central-1** : ami-0bb64c4bdecebc0a9
+* **us-east-2** : ami-04addd0766ebb8f46
+* **us-west-1** : ami-0ea895789568bb537
+* **us-west-2** : ami-07ae3d0dedfdb2278
+* **us-east-1** : ami-07fe3993427800995
 
 ### v0.11.0
 * **eu-north-1** : ami-0cbe338f058018c97
