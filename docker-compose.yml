@@ -13,10 +13,10 @@ services:
     - type: bind
       source: /opt/trains/config
       target: /opt/trains/config
-    links:
-      - mongo:mongo
-      - elasticsearch:elasticsearch
-      - fileserver:fileserver
+    depends_on:
+      - mongo
+      - elasticsearch
+      - fileserver
     environment:
       ELASTIC_SERVICE_SERVICE_HOST: elasticsearch
       MONGODB_SERVICE_SERVICE_HOST: mongo
@@ -102,7 +102,7 @@ services:
     - type: bind
       source: /opt/trains/logs
       target: /var/log/trains
-    links:
+    depends_on:
       - apiserver
     ports:
     - "8080:80"

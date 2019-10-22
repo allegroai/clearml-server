@@ -19,9 +19,9 @@ services:
     - type: bind
       source: /opt/trains/data/fileserver
       target: /mnt/fileserver
-    links:
-      - mongo:mongo
-      - elasticsearch:elasticsearch
+    depends_on:
+      - mongo
+      - elasticsearch
     environment:
       ELASTIC_SERVICE_SERVICE_HOST: elasticsearch
       MONGODB_SERVICE_SERVICE_HOST: mongo
