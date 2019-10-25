@@ -13,8 +13,17 @@ class StartedResponse(UpdateResponse):
     started = IntField()
 
 
+class EnqueueResponse(UpdateResponse):
+    queued = IntField()
+
+
+class DequeueResponse(UpdateResponse):
+    dequeued = IntField()
+
+
 class ResetResponse(UpdateResponse):
     deleted_indices = ListField(items_types=six.string_types)
+    dequeued = DictField()
     frames = DictField()
     events = DictField()
     model_deleted = IntField()
@@ -28,6 +37,10 @@ class UpdateRequest(TaskRequest):
     status_reason = StringField(default="")
     status_message = StringField(default="")
     force = BoolField(default=False)
+
+
+class EnqueueRequest(UpdateRequest):
+    queue = StringField()
 
 
 class DeleteRequest(UpdateRequest):
@@ -58,4 +71,4 @@ class CreateRequest(TaskData):
 
 
 class PingRequest(TaskRequest):
-    task = StringField(required=True)
+    pass

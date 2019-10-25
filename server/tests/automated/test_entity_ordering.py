@@ -6,8 +6,8 @@ from typing import Sequence
 from tests.automated import TestService
 
 
-class TestTasksOrdering(TestService):
-    test_comment = "Task ordering test"
+class TestEntityOrdering(TestService):
+    test_comment = "Entity ordering test"
     only_fields = ["id", "started", "comment"]
 
     def setUp(self, **kwargs):

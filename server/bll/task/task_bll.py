@@ -208,7 +208,7 @@ class TaskBLL(object):
         ]
 
         with translate_errors_context():
-            result = Task.objects.aggregate(*pipeline)
+            result = Task.aggregate(*pipeline)
             return [r["metrics"][0] for r in result]
 
     @staticmethod
@@ -376,11 +376,27 @@ class TaskBLL(object):
         task = TaskBLL.get_task_with_access(
             task_id,
             company_id=company_id,
-            only=("status", "project", "tags", "system_tags", "last_update"),
+            only=(
+                "status",
+                "project",
+                "tags",
+                "system_tags",
+                "last_worker",
+                "last_update",
+            ),
             requires_write_access=True,
         )
 
-        if TaskSystemTags.development in task.system_tags:
+        def is_run_by_worker(t: Task) -> bool:
+            """Checks if there is an active worker running the task"""
+            update_timeout = config.get("apiserver.workers.task_update_timeout", 600)
+            return (
+                t.last_worker
+                and t.last_update
+                and (datetime.utcnow() - t.last_update).total_seconds() < update_timeout
+            )
+
+        if TaskSystemTags.development in task.system_tags or not is_run_by_worker(task):
             new_status = TaskStatus.stopped
             status_message = f"Stopped by {user_name}"
         else:
@@ -486,7 +502,10 @@ class TaskBLL(object):
         ]
 
         with translate_errors_context():
-            result = next(Task.objects.aggregate(*pipeline), None)
+            result = next(
+                Task.aggregate(*pipeline),
+                None,
+            )
 
         total = 0
         remaining = 0

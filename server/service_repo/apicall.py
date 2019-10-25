@@ -7,8 +7,7 @@ from jsonmodels import models
 from six import string_types
 
 import database
-import timing_context
-from timing_context import TimingContext
+from timing_context import TimingContext, TimingStats
 from utilities import json
 from .auth import Identity
 from .auth import Payload as AuthPayload
@@ -306,8 +305,6 @@ class APICall(DataContainer):
     ):
         super(APICall, self).__init__(data=data, batched_data=batched_data)
 
-        timing_context.clear()
-
         self._id = database.utils.id()
         self._files = files  # currently dic of key to flask's FileStorage)
         self._start_ts = time.time()
@@ -508,7 +505,7 @@ class APICall(DataContainer):
     def mark_end(self):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
-        self.stats = timing_context.stats()
+        self.stats = TimingStats.aggregate()
 
     def get_response(self):
         def make_version_number(version):

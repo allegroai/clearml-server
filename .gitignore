@@ -4,6 +4,8 @@ static/build.json
 static/dashboard/node_modules
 static/webapp/node_modules
 static/webapp/.git
+scripts/
+generators/
 *.pyc
 __pycache__
 .ropeproject

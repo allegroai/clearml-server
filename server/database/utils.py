@@ -1,6 +1,6 @@
 import hashlib
 from inspect import ismethod, getmembers
-from typing import Sequence, Tuple, Set, Optional
+from typing import Sequence, Tuple, Set, Optional, Callable, Any
 from uuid import uuid4
 
 from mongoengine import EmbeddedDocumentField, ListField, Document, Q
@@ -9,64 +9,58 @@ from mongoengine.base import BaseField
 from .errors import translate_errors_context, ParseCallError
 
 
-def get_fields(cls, of_type=BaseField, return_instance=False):
+def get_fields(cls, of_type=BaseField, return_instance=False, subfields=False):
+    return _get_fields(
+        cls,
+        of_type=of_type,
+        subfields=subfields,
+        selector=lambda k, v: (k, v) if return_instance else k,
+    )
+
+
+def get_fields_attr(cls, attr):
     """ get field names from a class containing mongoengine fields """
-    res = []
-    for cls_ in reversed(cls.mro()):
-        res.extend(
-            [
-                k if not return_instance else (k, v)
-                for k, v in vars(cls_).items()
-                if isinstance(v, of_type)
-            ]
-        )
-    return res
+    return dict(
+        _get_fields(cls, with_attr=attr, selector=lambda k, v: (k, getattr(v, attr)))
+    )
 
 
-def get_fields_and_attr(cls, attr):
-    """ get field names from a class containing mongoengine fields """
-    res = {}
-    for cls_ in reversed(cls.mro()):
-        res.update(
-            {
-                k: getattr(v, attr)
-                for k, v in vars(cls_).items()
-                if isinstance(v, BaseField) and hasattr(v, attr)
-            }
-        )
-    return res
+def get_fields_choices(cls, attr):
+    def get_choices(field_name: str, field: BaseField) -> Tuple:
+        if isinstance(field, ListField):
+            return field_name, field.field.choices
+        return field_name, field.choices
+
+    return dict(_get_fields(cls, with_attr=attr, subfields=True, selector=get_choices))
 
 
-def _get_field_choices(name, field):
-    field_t = type(field)
-    if issubclass(field_t, EmbeddedDocumentField):
-        obj = field.document_type_obj
-        n, choices = _get_field_choices(field.name, obj.field)
-        return "%s__%s" % (name, n), choices
-    elif issubclass(type(field), ListField):
-        return name, field.field.choices
-    return name, field.choices
-
-
-def get_fields_with_attr(cls, attr, default=False):
+def _get_fields(
+    cls,
+    with_attr=None,
+    of_type=BaseField,
+    subfields=False,
+    selector: Optional[Callable[[str, BaseField], Any]] = None,
+    path: Tuple[str, ...] = (),
+):
     fields = []
     for field_name, field in cls._fields.items():
-        if not getattr(field, attr, default):
-            continue
-        field_t = type(field)
-        if issubclass(field_t, EmbeddedDocumentField):
+        field_path = path + (field_name,)
+        if isinstance(field, of_type) and (not with_attr or hasattr(field, with_attr)):
+            full_name = "__".join(field_path)
+            fields.append(selector(full_name, field) if selector else full_name)
+
+        if subfields and isinstance(field, EmbeddedDocumentField):
             fields.extend(
-                (
-                    ("%s__%s" % (field_name, name), choices)
-                    for name, choices in get_fields_with_attr(
-                        field.document_type, attr, default
-                    )
+                _get_fields(
+                    field.document_type,
+                    with_attr=with_attr,
+                    of_type=of_type,
+                    subfields=subfields,
+                    selector=selector,
+                    path=field_path,
                 )
             )
-        elif issubclass(type(field), ListField):
-            fields.append((field_name, field.field.choices))
-        else:
-            fields.append((field_name, field.choices))
+
     return fields
 
 
@@ -151,17 +145,20 @@ def field_does_not_exist(field: str, empty_value=None, is_list=False) -> Q:
     return query
 
 
-def field_exists(field: str, empty_value=None) -> Q:
+def field_exists(field: str, empty_value=None, is_list=False) -> Q:
     """
     Creates a query object used for finding a field that exists and is not None or empty.
     :param field: Field name
-    :param empty_value: The empty value to test for (None means no specific empty value will be used).
-    For lists pass [] for empty_value
+    :param empty_value: The empty value to test for (None means no specific empty value will be used)
+    :param is_list: Is this a list (array) field. In this case, instead of testing for an empty value,
+                    the length of the array will be used (len==0 means empty)
     :return:
     """
     query = Q(**{f"{field}__exists": True}) & Q(
         **{f"{field}__nin": {empty_value, None}}
     )
+    if is_list:
+        query &= Q(**{f"{field}__not__size": 0})
     return query
 
 
@@ -213,6 +210,7 @@ system_tag_names = {
     "model": _names_set("active", "archived"),
     "project": _names_set("archived", "public", "default"),
     "task": _names_set("active", "archived", "development"),
+    "queue": _names_set("default"),
 }
 
 system_tag_prefixes = {"task": _names_set("annotat")}

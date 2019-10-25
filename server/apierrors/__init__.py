@@ -48,7 +48,6 @@ _error_codes = {
         129: ('task_publish_in_progress', 'Task publish in progress'),
         130: ('task_not_found', 'task not found'),
 
-
         # Models
         200: ('model_error', 'general task error'),
         201: ('invalid_model_id', 'invalid model id'),
@@ -70,9 +69,26 @@ _error_codes = {
         403: ('project_not_found', 'project not found'),
         405: ('project_has_models', 'project has associated models'),
 
+        # Queues
+        701: ('invalid_queue_id', 'invalid queue id'),
+        702: ('queue_not_empty', 'queue is not empty'),
+        703: ('invalid_queue_or_task_not_queued', 'invalid queue id or task not in queue'),
+        704: ('removed_during_reposition', 'task was removed by another party during reposition'),
+        705: ('failed_adding_during_reposition', 'failed adding task back to queue during reposition'),
+        706: ('task_already_queued', 'failed adding task to queue since task is already queued'),
+        707: ('no_default_queue', 'no queue is tagged as the default queue for this company'),
+        708: ('multiple_default_queues', 'more than one queue is tagged as the default queue for this company'),
+
         # Database
         800: ('data_validation_error', 'data validation error'),
         801: ('expected_unique_data', 'value combination already exists'),
+
+        # Workers
+        1001: ('invalid_worker_id', 'invalid worker id'),
+        1002: ('worker_registration_failed', 'worker registration failed'),
+        1003: ('worker_registered', 'worker is already registered'),
+        1004: ('worker_not_registered', 'worker is not registered'),
+        1005: ('worker_stats_not_found', 'worker stats not found'),
     },
 
     (401, 'unauthorized'): {

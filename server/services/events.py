@@ -20,18 +20,18 @@ event_bll = EventBLL()
 
 
 @endpoint("events.add")
-def add(call, company_id, req_model):
-    assert isinstance(call, APICall)
+def add(call: APICall, company_id, req_model):
+    data = call.data.copy()
+    allow_locked = data.pop("allow_locked", False)
     added, batch_errors = event_bll.add_events(
-        company_id, [call.data.copy()], call.worker
+        company_id, [data], call.worker, allow_locked_tasks=allow_locked
     )
     call.result.data = dict(added=added, errors=len(batch_errors))
     call.kpis["events"] = 1
 
 
 @endpoint("events.add_batch")
-def add_batch(call, company_id, req_model):
-    assert isinstance(call, APICall)
+def add_batch(call: APICall, company_id, req_model):
     events = call.batched_data
     if events is None or len(events) == 0:
         raise errors.bad_request.BatchContainsNoItems()
@@ -209,8 +209,9 @@ def vector_metrics_iter_histogram(call, company_id, req_model):
 
 
 @endpoint("events.get_task_events", required_fields=["task"])
-def get_task_events(call, company_id, req_model):
+def get_task_events(call, company_id, _):
     task_id = call.data["task"]
+    batch_size = call.data.get("batch_size")
     event_type = call.data.get("event_type")
     scroll_id = call.data.get("scroll_id")
     order = call.data.get("order") or "asc"
@@ -222,6 +223,7 @@ def get_task_events(call, company_id, req_model):
         sort=[{"timestamp": {"order": order}}],
         event_type=event_type,
         scroll_id=scroll_id,
+        size=batch_size,
     )
 
     call.result.data = dict(
@@ -302,7 +304,11 @@ def multi_task_scalar_metrics_iter_histogram(
     # Note, bll already validates task ids as it needs their names
     call.result.data = dict(
         metrics=event_bll.metrics.compare_scalar_metrics_average_per_iter(
-            company_id, task_ids=task_ids, samples=req_model.samples, allow_public=True, key=req_model.key
+            company_id,
+            task_ids=task_ids,
+            samples=req_model.samples,
+            allow_public=True,
+            key=req_model.key,
         )
     )
 
@@ -423,7 +429,6 @@ def get_task_plots(call, company_id, req_model):
     task_bll.assert_exists(call.identity.company, task_id, allow_public=True)
     result = event_bll.get_task_plots(
         company_id,
-
         tasks=[task_id],
         sort=[{"iter": {"order": "desc"}}],
         last_iterations_per_plot=iters,
@@ -505,9 +510,14 @@ def get_debug_images(call, company_id, req_model):
 @endpoint("events.delete_for_task", required_fields=["task"])
 def delete_for_task(call, company_id, req_model):
     task_id = call.data["task"]
+    allow_locked = call.data.get("allow_locked", False)
 
     task_bll.assert_exists(company_id, task_id)
-    call.result.data = dict(deleted=event_bll.delete_task_events(company_id, task_id))
+    call.result.data = dict(
+        deleted=event_bll.delete_task_events(
+            company_id, task_id, allow_locked=allow_locked
+        )
+    )
 
 
 def _get_top_iter_unique_events_per_task(events, max_iters, tasks):

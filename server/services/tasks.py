@@ -11,7 +11,7 @@ from mongoengine import EmbeddedDocument, Q
 from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
 
-from apierrors import errors
+from apierrors import errors, APIError
 from apimodels.base import UpdateResponse
 from apimodels.tasks import (
     StartedResponse,
@@ -24,13 +24,24 @@ from apimodels.tasks import (
     TaskRequest,
     DeleteRequest,
     PingRequest,
+    EnqueueRequest,
+    EnqueueResponse,
+    DequeueResponse,
 )
 from bll.event import EventBLL
+from bll.queue import QueueBLL
 from bll.task import TaskBLL, ChangeStatusRequest, update_project_time, split_by
+from bll.util import SetFieldsResolver
 from database.errors import translate_errors_context
 from database.model.model import Model
 from database.model.task.output import Output
-from database.model.task.task import Task, TaskStatus, Script, DEFAULT_LAST_ITERATION
+from database.model.task.task import (
+    Task,
+    TaskStatus,
+    Script,
+    DEFAULT_LAST_ITERATION,
+    Execution,
+)
 from database.utils import get_fields, parse_from_call
 from service_repo import APICall, endpoint
 from services.utils import conform_tag_fields, conform_output_tags
@@ -48,20 +59,23 @@ get_all_query_options = Task.QueryParameterOptions(
 
 task_bll = TaskBLL()
 event_bll = EventBLL()
+queue_bll = QueueBLL()
 
 
 TaskBLL.start_non_responsive_tasks_watchdog()
 
 
 def set_task_status_from_call(
-    request: UpdateRequest, company_id, new_status=None, **kwargs
+    request: UpdateRequest, company_id, new_status=None, **set_fields
 ) -> dict:
+    fields_resolver = SetFieldsResolver(set_fields)
     task = TaskBLL.get_task_with_access(
         request.task,
         company_id=company_id,
-        only=("status", "project"),
+        only=tuple({"status", "project"} | fields_resolver.get_names()),
         requires_write_access=True,
     )
+
     status_reason = request.status_reason
     status_message = request.status_message
     force = request.force
@@ -71,7 +85,7 @@ def set_task_status_from_call(
         status_reason=status_reason,
         status_message=status_message,
         force=force,
-    ).execute(**kwargs)
+    ).execute(**fields_resolver.get_fields(task))
 
 
 @endpoint("tasks.get_by_id", request_data_model=TaskRequest)
@@ -94,7 +108,6 @@ def get_all_ex(call: APICall):
                 query_dict=call.data,
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
-                override_none_ordering=True,
             )
         conform_output_tags(call, tasks)
         call.result.data = {"tasks": tasks}
@@ -111,7 +124,6 @@ def get_all(call: APICall):
                 query_dict=call.data,
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
-                override_none_ordering=True,
             )
         conform_output_tags(call, tasks)
         call.result.data = {"tasks": tasks}
@@ -167,7 +179,7 @@ def started(call: APICall, company_id, req_model: UpdateRequest):
             req_model,
             company_id,
             new_status=TaskStatus.in_progress,
-            started=datetime.utcnow(),
+            min__started=datetime.utcnow(),  # don't override a previous, smaller "started" field value
         )
     )
     res.started = res.updated
@@ -444,6 +456,130 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
 
 
 @endpoint(
+    "tasks.enqueue",
+    request_data_model=EnqueueRequest,
+    response_data_model=EnqueueResponse,
+)
+def enqueue(call: APICall, company_id, req_model: EnqueueRequest):
+    task_id = req_model.task
+    queue_id = req_model.queue
+    status_message = req_model.status_message
+    status_reason = req_model.status_reason
+
+    if not queue_id:
+        # try to get default queue
+        queue_id = queue_bll.get_default(company_id).id
+
+    with translate_errors_context():
+        query = dict(id=task_id, company=company_id)
+        task = Task.get_for_writing(
+            _only=("type", "script", "execution", "status", "project", "id"), **query
+        )
+        if not task:
+            raise errors.bad_request.InvalidTaskId(**query)
+
+        if not (task.script and task.script.repository and task.script.entry_point):
+            raise errors.bad_request.TaskValidationError(
+                "Task should have repository and script"
+            )
+
+        res = EnqueueResponse(
+            **ChangeStatusRequest(
+                task=task,
+                new_status=TaskStatus.queued,
+                status_reason=status_reason,
+                status_message=status_message,
+                allow_same_state_transition=False,
+            ).execute()
+        )
+
+        try:
+            queue_bll.add_task(
+                company_id=company_id, queue_id=queue_id, task_id=task.id
+            )
+        except Exception:
+            # failed enqueueing, revert to previous state
+            ChangeStatusRequest(
+                task=task,
+                current_status_override=TaskStatus.queued,
+                new_status=task.status,
+                force=True,
+                status_reason="failed enqueueing",
+            ).execute()
+            raise
+
+        # set the current queue ID in the task
+        if task.execution:
+            Task.objects(**query).update(execution__queue=queue_id, multi=False)
+        else:
+            Task.objects(**query).update(
+                execution=Execution(queue=queue_id), multi=False
+            )
+
+        res.queued = 1
+        res.fields.update(**{"execution.queue": queue_id})
+
+        call.result.data_model = res
+
+
+@endpoint(
+    "tasks.dequeue",
+    request_data_model=UpdateRequest,
+    response_data_model=DequeueResponse,
+)
+def dequeue(call: APICall, company_id, req_model: UpdateRequest):
+    task = TaskBLL.get_task_with_access(
+        req_model.task,
+        company_id=company_id,
+        only=("id", "execution", "status", "project"),
+        requires_write_access=True,
+    )
+    if task.status not in (TaskStatus.queued,):
+        raise errors.bad_request.InvalidTaskId(
+            status=task.status, expected=TaskStatus.queued
+        )
+
+    _dequeue(task, company_id)
+
+    status_message = req_model.status_message
+    status_reason = req_model.status_reason
+    res = DequeueResponse(
+        **ChangeStatusRequest(
+            task=task,
+            new_status=TaskStatus.created,
+            status_reason=status_reason,
+            status_message=status_message,
+        ).execute(unset__execution__queue=1)
+    )
+    res.dequeued = 1
+
+    call.result.data_model = res
+
+
+def _dequeue(task: Task, company_id: str, silent_fail=False):
+    """
+    Dequeue the task from the queue
+    :param task: task to dequeue
+    :param silent_fail: do not throw exceptions. APIError is still thrown
+    :raise errors.bad_request.MissingRequiredFields: if the task is not queued
+    :raise APIError or errors.server_error.TransactionError: if internal call to queues.remove_task fails
+    :return: the result of queues.remove_task call. None in case of silent failure
+    """
+    if not task.execution or not task.execution.queue:
+        if silent_fail:
+            return
+        raise errors.bad_request.MissingRequiredFields(
+            "task has no queue value", field="execution.queue"
+        )
+
+    return {
+        "removed": queue_bll.remove_task(
+            company_id=company_id, queue_id=task.execution.queue, task_id=task.id
+        )
+    }
+
+
+@endpoint(
     "tasks.reset", request_data_model=UpdateRequest, response_data_model=ResetResponse
 )
 def reset(call: APICall, company_id, req_model: UpdateRequest):
@@ -458,6 +594,16 @@ def reset(call: APICall, company_id, req_model: UpdateRequest):
 
     api_results = {}
     updates = {}
+
+    try:
+        dequeued = _dequeue(task, company_id, silent_fail=True)
+    except APIError:
+        # dequeue may fail if the task was not enqueued
+        pass
+    else:
+        if dequeued:
+            api_results.update(dequeued=dequeued)
+        updates.update(unset__execution__queue=1)
 
     cleaned_up = cleanup_task(task, force)
     api_results.update(attr.asdict(cleaned_up))

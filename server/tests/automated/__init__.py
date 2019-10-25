@@ -1,6 +1,8 @@
 import abc
 import sys
+from datetime import datetime, timezone
 from functools import partial
+from typing import Iterable
 from unittest import TestCase
 
 from tests.api_client import APIClient
@@ -88,6 +90,19 @@ class TestService(TestCase, TestServiceInterface):
                     log.exception(ex)
         self._deferred = []
 
+    def assertEqualNoOrder(self, first: Iterable, second: Iterable):
+        """Compares 2 sequences regardless of their items order"""
+        self.assertEqual(set(first), set(second))
+
 
 def header(info, title="=" * 20):
     print(title, info, title, file=sys.stderr)
+
+
+def utc_now_tz_aware() -> datetime:
+    """
+    Returns utc now with the utc time zone.
+    Suitable for subsequent usage with functions that
+    make use of tz info like 'timestamp'
+    """
+    return datetime.now(timezone.utc)

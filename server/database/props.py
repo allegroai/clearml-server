@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from operator import attrgetter
 from threading import Lock
+from typing import Sequence
 
 import six
 from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
@@ -11,7 +12,7 @@ from database.fields import (
     UniqueEmbeddedDocumentListField,
     EmbeddedDocumentSortedListField,
 )
-from database.utils import get_fields, get_fields_and_attr
+from database.utils import get_fields, get_fields_attr
 
 
 class PropsMixin(object):
@@ -42,7 +43,7 @@ class PropsMixin(object):
     @staticmethod
     def _get_fields_with_attr(cls_, attr):
         """ Get all fields with the specified attribute (supports nested fields) """
-        res = get_fields_and_attr(cls_, attr=attr)
+        res = get_fields_attr(cls_, attr=attr)
 
         def resolve_doc(v):
             if not isinstance(v, six.string_types):
@@ -123,6 +124,14 @@ class PropsMixin(object):
         return cls.__cached_reference_fields
 
     @classmethod
+    def get_extra_projection(cls, fields: Sequence) -> tuple:
+        if isinstance(fields, str):
+            fields = [fields]
+        return tuple(
+            set(fields).union(cls.get_fields()).difference(cls.get_exclude_fields())
+        )
+
+    @classmethod
     def get_exclude_fields(cls):
         if cls.__cached_exclude_fields is None:
             fields = cls._get_fields_with_attr(cls, 'exclude_by_default')
@@ -140,3 +149,18 @@ class PropsMixin(object):
                 result = separator.join(translated)
                 cls.__cached_dpath_computed_fields[path] = result
         return cls.__cached_dpath_computed_fields[path]
+
+    def get_field_value(self, field_path: str, default=None):
+        """
+        Return the document field_path value by the field_path name.
+        The path may contain '.'. If on any level the path is
+        not found then the default value is returned
+        """
+        path_elements = field_path.split(".")
+        current = self
+        for name in path_elements:
+            current = getattr(current, name, default)
+            if current == default:
+                break
+
+        return current

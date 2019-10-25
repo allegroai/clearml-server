@@ -62,6 +62,8 @@ def authorize_credentials(auth_data, service, action, call_data_items):
 
     query = Q(credentials__match=Credentials(key=access_key, secret=secret_key))
 
+    fixed_user = None
+
     if FixedUser.enabled():
         fixed_user = FixedUser.get_by_username(access_key)
         if fixed_user:
@@ -74,7 +76,7 @@ def authorize_credentials(auth_data, service, action, call_data_items):
         if not user:
             raise errors.unauthorized.InvalidCredentials('failed to locate provided credentials')
 
-        if not FixedUser.enabled():
+        if not fixed_user:
             # In case these are proper credentials, update last used time
             User.objects(id=user.id, credentials__key=access_key).update(
                 **{"set__credentials__$__last_used": datetime.utcnow()}

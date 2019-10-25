@@ -1,4 +1,4 @@
-from typing import Union, Sequence
+from typing import Union, Sequence, Tuple
 
 from database.utils import partition_tags
 from service_repo import APICall
@@ -6,6 +6,9 @@ from service_repo.base import PartialVersion
 
 
 def conform_output_tags(call: APICall, documents: Union[dict, Sequence[dict]]):
+    """
+    For old clients both tags and system tags are returned in 'tags' field
+    """
     if call.requested_endpoint_version >= PartialVersion("2.3"):
         return
     if isinstance(documents, dict):
@@ -18,35 +21,43 @@ def conform_output_tags(call: APICall, documents: Union[dict, Sequence[dict]]):
 
 def conform_tag_fields(call: APICall, document: dict):
     """
+    Upgrade old client tags in place
+    """
+    if "tags" in document:
+        tags, system_tags = conform_tags(
+            call, document["tags"], document.get("system_tags")
+        )
+        if tags != document.get("tags"):
+            document["tags"] = tags
+        if system_tags != document.get("system_tags"):
+            document["system_tags"] = system_tags
+
+
+def conform_tags(
+    call: APICall, tags: Sequence, system_tags: Sequence
+) -> Tuple[Sequence, Sequence]:
+    """
     Make sure that 'tags' from the old SDK clients
     are correctly split into 'tags' and 'system_tags'
     Make sure that there are no duplicate tags
     """
     if call.requested_endpoint_version < PartialVersion("2.3"):
+        tags, system_tags = _upgrade_tags(call, tags, system_tags)
+    return _get_unique_values(tags), _get_unique_values(system_tags)
+
+
+def _upgrade_tags(call: APICall, tags: Sequence, system_tags: Sequence):
+    if tags is not None and not system_tags:
         service_name = call.endpoint_name.partition(".")[0]
-        upgrade_tags(
-            service_name[:-1] if service_name.endswith("s") else service_name, document
-        )
-    remove_duplicate_tags(document)
+        entity = service_name[:-1] if service_name.endswith("s") else service_name
+        return partition_tags(entity, tags)
+
+    return tags, system_tags
 
 
-def upgrade_tags(entity: str, document: dict):
-    """
-    If only 'tags' is present in the fields then extract
-    the system tags from it to a separate field 'system_tags'
-    """
-    tags = document.get("tags")
-    if tags is not None and not document.get("system_tags"):
-        user_tags, system_tags = partition_tags(entity, tags)
-        document["tags"] = user_tags
-        document["system_tags"] = system_tags
+def _get_unique_values(values: Sequence) -> Sequence:
+    """Get unique values from the given sequence"""
+    if not values:
+        return values
 
-
-def remove_duplicate_tags(document: dict):
-    """
-    Remove duplicates from 'tags' and 'system_tags' fields
-    """
-    for name in ("tags", "system_tags"):
-        values = document.get(name)
-        if values:
-            document[name] = list(set(values))
+    return list(set(values))

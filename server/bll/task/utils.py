@@ -7,7 +7,7 @@ import six
 from apierrors import errors
 from database.errors import translate_errors_context
 from database.model.project import Project
-from database.model.task.task import Task, TaskStatus
+from database.model.task.task import Task, TaskStatus, TaskSystemTags
 from database.utils import get_options
 from timing_context import TimingContext
 from utilities.attrs import typed_attrs
@@ -25,9 +25,10 @@ class ChangeStatusRequest(object):
     status_message = attr.ib(type=six.string_types, default="")
     force = attr.ib(type=bool, default=False)
     allow_same_state_transition = attr.ib(type=bool, default=True)
+    current_status_override = attr.ib(default=None)
 
     def execute(self, **kwargs):
-        current_status = self.task.status
+        current_status = self.current_status_override or self.task.status
         project_id = self.task.project
 
         # Verify new status is allowed from current status (will throw exception if not valid)
@@ -43,6 +44,9 @@ class ChangeStatusRequest(object):
             status_changed=now,
             last_update=now,
         )
+
+        if self.new_status == TaskStatus.queued:
+            fields["pull__system_tags"] = TaskSystemTags.development
 
         def safe_mongoengine_key(key):
             return f"__{key}" if key in control else key
@@ -99,7 +103,8 @@ def validate_status_change(current_status, new_status):
 
 
 state_machine = {
-    TaskStatus.created: {TaskStatus.in_progress},
+    TaskStatus.created: {TaskStatus.queued, TaskStatus.in_progress},
+    TaskStatus.queued: {TaskStatus.created, TaskStatus.in_progress},
     TaskStatus.in_progress: {
         TaskStatus.stopped,
         TaskStatus.failed,
@@ -129,7 +134,7 @@ state_machine = {
         TaskStatus.published,
         TaskStatus.in_progress,
         TaskStatus.created,
-    }
+    },
 }
 
 

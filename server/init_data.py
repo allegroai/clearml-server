@@ -8,11 +8,13 @@ from mongoengine.connection import get_db
 from semantic_version import Version
 
 import database.utils
+from bll.queue import QueueBLL
 from config import config
 from database import Database
 from database.model.auth import Role
 from database.model.auth import User as AuthUser, Credentials
 from database.model.company import Company
+from database.model.queue import Queue
 from database.model.user import User
 from database.model.version import Version as DatabaseVersion
 from elastic.apply_mappings import apply_mappings_to_host
@@ -55,6 +57,18 @@ def _ensure_company():
     company = Company(id=company_id, name=company_name)
     company.save()
     return company_id
+
+
+def _ensure_default_queue(company):
+    """
+    If no queue is present for the company then
+    create a new one and mark it as a default
+    """
+    queue = Queue.objects(company=company).only("id").first()
+    if queue:
+        return
+
+    QueueBLL.create(company, name="default", system_tags=["default"])
 
 
 def _ensure_auth_user(user_data, company_id):
@@ -170,6 +184,8 @@ def init_mongo_data():
         _apply_migrations()
 
         company_id = _ensure_company()
+        _ensure_default_queue(company_id)
+
         users = [
             {"name": "apiserver", "role": Role.system, "email": "apiserver@example.com"},
             {"name": "webserver", "role": Role.system, "email": "webserver@example.com"},

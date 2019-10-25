@@ -19,7 +19,7 @@ class FixedUser:
         self.user_id = hashlib.md5(f"{self.username}:{self.password}".encode()).hexdigest()
 
     @classmethod
-    def enabled(self):
+    def enabled(cls):
         return config.get("apiserver.auth.fixed_users.enabled", False)
 
     @classmethod

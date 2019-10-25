@@ -1,5 +1,7 @@
 from operator import itemgetter
-from typing import Sequence, Optional, Callable, Tuple
+from typing import Sequence, Optional, Callable, Tuple, Dict, Any, Set
+
+from database.model import AttributedDocument
 
 
 def extract_properties_to_lists(
@@ -18,3 +20,47 @@ def extract_properties_to_lists(
     """
     value_sequences = zip(*map(extract_func or itemgetter(*key_names), data))
     return dict(zip(key_names, map(list, value_sequences)))
+
+
+class SetFieldsResolver:
+    """
+    The class receives set fields dictionary
+    and for the set fields that require 'min' or 'max'
+    operation replace them with a simple set in case the
+    DB document does not have these fields set
+    """
+
+    SET_MODIFIERS = ("min", "max")
+
+    def __init__(self, set_fields: Dict[str, Any]):
+        self.orig_fields = set_fields
+        self.fields = {
+            f: fname
+            for f, modifier, dunder, fname in (
+                (f,) + f.partition("__") for f in set_fields.keys()
+            )
+            if dunder and modifier in self.SET_MODIFIERS
+        }
+
+    def _get_updated_name(self, doc: AttributedDocument, name: str) -> str:
+        if name in self.fields and doc.get_field_value(self.fields[name]) is None:
+            return self.fields[name]
+        return name
+
+    def get_fields(self, doc: AttributedDocument):
+        """
+        For the given document return the set fields instructions
+        with min/max operations replaced with a single set in case
+        the document does not have the field set
+        """
+        return {
+            self._get_updated_name(doc, name): value
+            for name, value in self.orig_fields.items()
+        }
+
+    def get_names(self) -> Set[str]:
+        """
+        Returns the names of the fields that had min/max modifiers
+        in the format suitable for projection (dot separated)
+        """
+        return set(name.replace("__", ".") for name in self.fields.values())

@@ -277,6 +277,25 @@ def prepare_update_fields(call, fields):
     if "task" in fields:
         validate_task(call, fields)
 
+    if "labels" in fields:
+        labels = fields["labels"]
+
+        def find_other_types(iterable, type_):
+            res = [x for x in iterable if not isinstance(x, type_)]
+            try:
+                return set(res)
+            except TypeError:
+                # Un-hashable, probably
+                return res
+
+        invalid_keys = find_other_types(labels.keys(), str)
+        if invalid_keys:
+            raise errors.bad_request.ValidationError("labels keys must be strings", keys=invalid_keys)
+
+        invalid_values = find_other_types(labels.values(), int)
+        if invalid_values:
+            raise errors.bad_request.ValidationError("labels values must be integers", values=invalid_values)
+
     conform_tag_fields(call, fields)
     return fields
 

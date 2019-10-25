@@ -8,6 +8,7 @@ from typing import Sequence
 import attr
 import six
 from elasticsearch import helpers
+from mongoengine import Q
 from nested_dict import nested_dict
 
 import database.utils as dbutils
@@ -16,7 +17,7 @@ from apierrors import errors
 from bll.event.event_metrics import EventMetrics
 from bll.task import TaskBLL
 from database.errors import translate_errors_context
-from database.model.task.task import Task
+from database.model.task.task import Task, TaskStatus
 from timing_context import TimingContext
 from utilities.dicts import flatten_nested_items
 
@@ -31,6 +32,9 @@ class EventType(Enum):
 
 # noinspection PyTypeChecker
 EVENT_TYPES = set(map(attrgetter("value"), EventType))
+
+
+LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 
 
 @attr.s
@@ -51,7 +55,7 @@ class EventBLL(object):
     def metrics(self) -> EventMetrics:
         return self._metrics
 
-    def add_events(self, company_id, events, worker):
+    def add_events(self, company_id, events, worker, allow_locked_tasks=False):
         actions = []
         task_ids = set()
         task_iteration = defaultdict(lambda: 0)
@@ -132,11 +136,16 @@ class EventBLL(object):
         if task_ids:
             # verify task_ids
             with translate_errors_context(), TimingContext("mongo", "task_by_ids"):
-                res = Task.objects(id__in=task_ids, company=company_id).only("id")
+                extra_msg = None
+                query = Q(id__in=task_ids, company=company_id)
+                if not allow_locked_tasks:
+                    query &= Q(status__nin=LOCKED_TASK_STATUSES)
+                    extra_msg = "or task published"
+                res = Task.objects(query).only("id")
                 if len(res) < len(task_ids):
                     invalid_task_ids = tuple(set(task_ids) - set(r.id for r in res))
                     raise errors.bad_request.InvalidTaskId(
-                        company=company_id, ids=invalid_task_ids
+                        extra_msg, company=company_id, ids=invalid_task_ids
                     )
 
         errors_in_bulk = []
@@ -650,7 +659,19 @@ class EventBLL(object):
 
         return [b["key"] for b in es_res["aggregations"]["iters"]["buckets"]]
 
-    def delete_task_events(self, company_id, task_id):
+    def delete_task_events(self, company_id, task_id, allow_locked=False):
+        with translate_errors_context():
+            extra_msg = None
+            query = Q(id=task_id, company=company_id)
+            if not allow_locked:
+                query &= Q(status__nin=LOCKED_TASK_STATUSES)
+                extra_msg = "or task published"
+            res = Task.objects(query).only("id").first()
+            if not res:
+                raise errors.bad_request.InvalidTaskId(
+                    extra_msg, company=company_id, id=task_id
+                )
+
         es_index = EventMetrics.get_index_name(company_id, "*")
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):

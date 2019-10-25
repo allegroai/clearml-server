@@ -29,6 +29,7 @@ DEFAULT_LAST_ITERATION = 0
 
 class TaskStatus(object):
     created = "created"
+    queued = "queued"
     in_progress = "in_progress"
     stopped = "stopped"
     publishing = "publishing"
@@ -85,7 +86,7 @@ class Execution(EmbeddedDocument):
     model_labels = ModelLabels()
     framework = StringField()
     artifacts = EmbeddedDocumentSortedListField(Artifact)
-
+    docker_cmd = StringField()
     queue = StringField()
     """ Queue ID where task was queued """
 
@@ -150,6 +151,8 @@ class Task(AttributedDocument):
     tags = ListField(StringField(required=True), user_set_allowed=True)
     system_tags = ListField(StringField(required=True), user_set_allowed=True)
     script = EmbeddedDocumentField(Script)
+    last_worker = StringField()
+    last_worker_report = DateTimeField()
     last_update = DateTimeField()
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))

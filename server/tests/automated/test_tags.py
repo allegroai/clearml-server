@@ -1,3 +1,4 @@
+from datetime import datetime
 from time import sleep
 from typing import Sequence
 
@@ -11,7 +12,7 @@ log = config.logger(__file__)
 
 
 class TestTags(TestService):
-    def setUp(self, version="2.3"):
+    def setUp(self, version="2.4"):
         super().setUp(version)
 
     def testPartition(self):
@@ -154,6 +155,12 @@ class TestTags(TestService):
 
         # test development system tag
         self.api.tasks.started(task=task_id)
+        self.api.workers.status_report(
+            worker="Test tags",
+            timestamp=int(datetime.utcnow().timestamp() * 1000),
+            machine_stats=dict(memory_used=30),
+            task=task_id,
+        )
         self.api.tasks.stop(task=task_id)
         task = self.api.tasks.get_by_id(task=task_id).task
         self.assertEqual(task.status, "in_progress")
@@ -161,6 +168,32 @@ class TestTags(TestService):
         self.api.tasks.stop(task=task_id)
         task = self.api.tasks.get_by_id(task=task_id).task
         self.assertEqual(task.status, "stopped")
+
+    def testQueueTags(self):
+        q_id = self._temp_queue(system_tags=["default"])
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["default"]
+        ).queues
+        self.assertFound(q_id, ["default"], queues)
+
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["-default"]
+        ).queues
+        self.assertNotFound(q_id, queues)
+
+        self.api.queues.update(queue=q_id, system_tags=[])
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["-default"]
+        ).queues
+        self.assertFound(q_id, [], queues)
+
+        # test default queue
+        queues = self.api.queues.get_all(system_tags=["default"]).queues
+        if queues:
+            self.assertEqual(queues[0].id, self.api.queues.get_default().id)
+        else:
+            self.api.queues.update(queue=q_id, system_tags=["default"])
+            self.assertEqual(q_id, self.api.queues.get_default().id)
 
     def assertProjectStats(self, project: AttrDict):
         self.assertEqual(set(project.stats.keys()), {"active"})
@@ -173,6 +206,10 @@ class TestTags(TestService):
         self.api.tasks.started(task=task_id)
         sleep(1)
         self.api.tasks.stopped(task=task_id)
+
+    def _temp_queue(self, **kwargs):
+        self._update_missing(kwargs, name="Test tags")
+        return self.create_temp("queues", **kwargs)
 
     def _temp_project(self, **kwargs):
         self._update_missing(kwargs, name="Test tags", description="test")
