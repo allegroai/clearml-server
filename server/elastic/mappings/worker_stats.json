@@ -1,0 +1,23 @@
+{
+  "template": "worker_stats_*",
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "stat": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+            "timestamp":  { "type": "date"    },
+            "worker":     { "type": "keyword" },
+            "category":   { "type": "keyword" },
+            "metric":     { "type": "keyword" },
+            "variant":    { "type": "keyword" },
+            "value":      { "type": "float"   },
+            "unit":       { "type": "keyword" },
+            "task":       { "type": "keyword" }
+      }
+    }
+  }
+}

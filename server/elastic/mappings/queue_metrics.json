@@ -1,0 +1,27 @@
+{
+  "template": "queue_metrics_*",
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "metrics": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+            "timestamp":  {
+              "type": "date"
+            },
+            "queue": {
+              "type": "keyword"
+            },
+            "average_waiting_time": {
+              "type": "float"
+            },
+            "queue_length": {
+              "type": "integer"
+            }
+      }
+    }
+  }
+}
