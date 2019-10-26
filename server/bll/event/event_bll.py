@@ -178,7 +178,7 @@ class EventBLL(object):
                     company_id=company_id,
                     task_id=task_id,
                     now=now,
-                    iter=task_iteration.get(task_id),
+                    iter_max=task_iteration.get(task_id),
                     last_events=task_last_events.get(task_id),
                 )
 
@@ -216,7 +216,7 @@ class EventBLL(object):
         if timestamp is None or timestamp < event["timestamp"]:
             last_events[metric_hash][variant_hash] = event
 
-    def _update_task(self, company_id, task_id, now, iter=None, last_events=None):
+    def _update_task(self, company_id, task_id, now, iter_max=None, last_events=None):
         """
         Update task information in DB with aggregated results after handling event(s) related to this task.
 
@@ -226,8 +226,8 @@ class EventBLL(object):
         """
         fields = {}
 
-        if iter is not None:
-            fields["last_iteration"] = iter
+        if iter_max is not None:
+            fields["last_iteration_max"] = iter_max
 
         if last_events:
             fields["last_values"] = list(

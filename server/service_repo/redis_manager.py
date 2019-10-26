@@ -1,13 +1,24 @@
 import threading
+from os import getenv
 from time import sleep
-
-from redis import StrictRedis
-from redis.sentinel import Sentinel, SentinelConnectionPool
 
 from apierrors.errors.server_error import ConfigError, GeneralError
 from config import config
+from redis import StrictRedis
+from redis.sentinel import Sentinel, SentinelConnectionPool
 
 log = config.logger(__file__)
+
+OVERRIDE_HOST_ENV_KEY = "REDIS_SERVICE_HOST"
+OVERRIDE_PORT_ENV_KEY = "REDIS_SERVICE_PORT"
+
+OVERRIDE_HOST = getenv(OVERRIDE_HOST_ENV_KEY)
+if OVERRIDE_HOST:
+    log.info(f"Using override redis host {OVERRIDE_HOST}")
+
+OVERRIDE_PORT = getenv(OVERRIDE_PORT_ENV_KEY)
+if OVERRIDE_PORT:
+    log.info(f"Using override redis port {OVERRIDE_PORT}")
 
 
 class MyPubSubWorkerThread(threading.Thread):
@@ -108,10 +119,21 @@ class RedisManager(object):
     def __init__(self, redis_config_dict):
         self.aliases = {}
         for alias, alias_config in redis_config_dict.items():
+
+            alias_config = alias_config.as_plain_ordered_dict()
+
             is_cluster = alias_config.get("cluster", False)
-            host = alias_config.get("host", None)
-            port = alias_config.get("port", None)
+
+            host = OVERRIDE_HOST or alias_config.get("host", None)
+            if host:
+                alias_config["host"] = host
+
+            port = OVERRIDE_PORT or alias_config.get("port", None)
+            if port:
+                alias_config["port"] = port
+
             db = alias_config.get("db", 0)
+
             sentinels = alias_config.get("sentinels", None)
             service_name = alias_config.get("service_name", None)
 
@@ -132,12 +154,11 @@ class RedisManager(object):
 
             if is_cluster:
                 # todo support all redis connection args via sentinel's connection_kwargs
-                connection_kwargs = alias_config.as_plain_ordered_dict()
-                del connection_kwargs["sentinels"]
-                del connection_kwargs["cluster"]
-                del connection_kwargs["service_name"]
+                del alias_config["sentinels"]
+                del alias_config["cluster"]
+                del alias_config["service_name"]
                 self.aliases[alias] = RedisCluster(
-                    sentinels, service_name, **connection_kwargs
+                    sentinels, service_name, **alias_config
                 )
             else:
                 self.aliases[alias] = StrictRedis(**alias_config)
