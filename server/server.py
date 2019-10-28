@@ -14,6 +14,8 @@ from service_repo.errors import PathParsingError
 from timing_context import TimingContext
 from utilities import json
 from init_data import init_es_data, init_mongo_data
+from updates import check_updates_thread
+
 
 app = Flask(__name__, static_url_path="/static")
 CORS(app, **config.get("apiserver.cors"))
@@ -33,6 +35,9 @@ init_mongo_data()
 
 ServiceRepo.load("services")
 log.info(f"Exposed Services: {' '.join(ServiceRepo.endpoint_names())}")
+
+
+check_updates_thread.start()
 
 
 @app.before_first_request

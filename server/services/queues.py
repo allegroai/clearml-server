@@ -198,8 +198,6 @@ def get_queue_metrics(
         interval=req_model.interval,
         queue_ids=req_model.queue_ids,
     )
-    if not ret:
-        return GetMetricsResponse(queues=[])
 
     queue_dicts = {
         queue: extract_properties_to_lists(
@@ -214,7 +212,7 @@ def get_queue_metrics(
                 dates=data["date"],
                 avg_waiting_times=data["avg_waiting_time"],
                 queue_lengths=data["queue_length"],
-            )
+            ) if data else QueueMetrics(queue=queue)
             for queue, data in queue_dicts.items()
         ]
     )

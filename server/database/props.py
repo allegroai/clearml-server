@@ -1,11 +1,12 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
+from itertools import chain
 from operator import attrgetter
 from threading import Lock
 from typing import Sequence
 
 import six
 from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
-from mongoengine.base import get_document
+from mongoengine.base import get_document, BaseField
 
 from database.fields import (
     LengthRangeEmbeddedDocumentListField,
@@ -20,6 +21,7 @@ class PropsMixin(object):
     __cached_reference_fields = None
     __cached_exclude_fields = None
     __cached_fields_with_instance = None
+    __cached_field_names_per_type = None
 
     __cached_dpath_computed_fields_lock = Lock()
     __cached_dpath_computed_fields = None
@@ -29,6 +31,39 @@ class PropsMixin(object):
         if cls.__cached_fields is None:
             cls.__cached_fields = get_fields(cls)
         return cls.__cached_fields
+
+    @classmethod
+    def get_field_names_for_type(cls, of_type=BaseField):
+        """
+        Return field names per type including subfields
+        The fields of derived types are also returned
+        """
+        assert issubclass(of_type, BaseField)
+        if cls.__cached_field_names_per_type is None:
+            fields = defaultdict(list)
+            for name, field in get_fields(cls, return_instance=True, subfields=True):
+                fields[type(field)].append(name)
+            for type_ in fields:
+                fields[type_].extend(
+                    chain.from_iterable(
+                        fields[other_type]
+                        for other_type in fields
+                        if other_type != type_ and issubclass(other_type, type_)
+                    )
+                )
+            cls.__cached_field_names_per_type = fields
+
+        if of_type not in cls.__cached_field_names_per_type:
+            names = list(
+                chain.from_iterable(
+                    field_names
+                    for type_, field_names in cls.__cached_field_names_per_type.items()
+                    if issubclass(type_, of_type)
+                )
+            )
+            cls.__cached_field_names_per_type[of_type] = names
+
+        return cls.__cached_field_names_per_type[of_type]
 
     @classmethod
     def get_fields_with_instance(cls, doc_cls):

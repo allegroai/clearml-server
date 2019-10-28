@@ -19,7 +19,6 @@ from database.utils import (
     get_fields_choices,
     field_does_not_exist,
     field_exists,
-    get_fields,
 )
 
 log = config.logger("dbmodel")
@@ -477,11 +476,9 @@ class GetMixin(PropsMixin):
             ):
                 params = {}
                 mongo_field = order_field.replace(".", "__")
-                if mongo_field in get_fields(cls, of_type=ListField, subfields=True):
+                if mongo_field in cls.get_field_names_for_type(of_type=ListField):
                     params["is_list"] = True
-                elif mongo_field in get_fields(
-                    cls, of_type=StringField, subfields=True
-                ):
+                elif mongo_field in cls.get_field_names_for_type(of_type=StringField):
                     params["empty_value"] = ""
                 non_empty = query & field_exists(mongo_field, **params)
                 empty = query & field_does_not_exist(mongo_field, **params)
