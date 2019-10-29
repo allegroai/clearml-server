@@ -478,11 +478,6 @@ def enqueue(call: APICall, company_id, req_model: EnqueueRequest):
         if not task:
             raise errors.bad_request.InvalidTaskId(**query)
 
-        if not (task.script and task.script.repository and task.script.entry_point):
-            raise errors.bad_request.TaskValidationError(
-                "Task should have repository and script"
-            )
-
         res = EnqueueResponse(
             **ChangeStatusRequest(
                 task=task,
