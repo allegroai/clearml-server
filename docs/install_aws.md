@@ -21,6 +21,27 @@ The minimum recommended instance type is **t3a.large**
 
 In order to upgrade **trains-server** on an existing EC2 instance based on one of these AMIs, SSH into the instance and follow the [upgrade instructions](../README.md#upgrade) for **trains-server**.
 
+### Upgrading AMI's to v0.12 
+**Including the automatically updated AMI**
+
+Version 0.12 introduced an additional REDIS docker to the trains-server setup.
+
+AMI upgrading instructions:
+
+1. SSH to the EC2 machine running one of the `Latest Version AMI's`
+2. Execute the following bash commands
+    ```bash
+    sudo bash
+    echo "" >>  /usr/bin/start_or_update_server.sh
+    echo "sudo mkdir -p \${datadir}/redis" >>  /usr/bin/start_or_update_server.sh
+    echo "sudo docker stop trains-redis || true && sudo docker rm -v trains-redis || true" >>  /usr/bin/start_or_update_server.sh
+    echo "echo never | sudo tee -a  /sys/kernel/mm/transparent_hugepage/enabled" >>  /usr/bin/start_or_update_server.sh
+    echo "sudo sysctl vm.overcommit_memory=1" >>  /usr/bin/start_or_update_server.sh
+    echo "sudo docker run -d --restart=always --name=trains-redis -v \${datadir}/redis:/data --network=host redis:5 redis-server" >>  /usr/bin/start_or_update_server.sh
+    ``` 
+3. Reboot the EC2 machine
+
+
 ## Released versions
 
 The following sections provide a list containing AMI Image ID per region for each released **trains-server** version.
@@ -28,22 +49,40 @@ The following sections provide a list containing AMI Image ID per region for eac
 ### Latest Version AMI <a name="autoupdate"></a>
 **For easier upgrades: The following AMI automatically update to the latest release every reboot**
 
-* **eu-north-1** : ami-05d0d39ba39c93781
-* **ap-south-1** : ami-01ae99e1c27e0490a
-* **eu-west-3** : ami-01b156f8c7dd38121
-* **eu-west-2** : ami-01b80d5a23b8847fb
-* **eu-west-1** : ami-0524891495168c944
-* **ap-northeast-2** : ami-0594f00619bea922f
-* **ap-northeast-1** : ami-0d97b860be6f71a9f
-* **sa-east-1** : ami-0b0889651918730b8
-* **ca-central-1** : ami-040c641b2f71082b1
-* **ap-southeast-1** : ami-00a57be01d39ff964
-* **ap-southeast-2** : ami-066dcf2cc155b6ec1
-* **eu-central-1** : ami-0bb64c4bdecebc0a9
-* **us-east-2** : ami-04addd0766ebb8f46
-* **us-west-1** : ami-0ea895789568bb537
-* **us-west-2** : ami-07ae3d0dedfdb2278
-* **us-east-1** : ami-07fe3993427800995
+* **eu-north-1** : ami-072aef14041e70651
+* **ap-south-1** : ami-08032d881daca4de1
+* **eu-west-3** : ami-0b39c123d4343d408
+* **eu-west-2** : ami-0e0fe6fd14b2e9029
+* **eu-west-1** : ami-087c81e06d722e938
+* **ap-northeast-2** : ami-0caf74f03322b994c
+* **ap-northeast-1** : ami-0f723b3d49c0f2749
+* **sa-east-1** : ami-0ac5595ad0e106502
+* **ca-central-1** : ami-053049b463869469a
+* **ap-southeast-1** : ami-0b440ec389d6ff541
+* **ap-southeast-2** : ami-02af978ddc2c15b71
+* **eu-central-1** : ami-09ef364aa8df29760
+* **us-east-2** : ami-02e33f8ab77071509
+* **us-west-1** : ami-0ff33f256907fd460
+* **us-west-2** : ami-0387728fb09c8cda7
+* **us-east-1** : ami-02c47c5233eed7f88
+
+### v0.12.0
+* **eu-north-1** : ami-0ebb4bb8637d0da65
+* **ap-south-1** : ami-0fb3c89eb8a8fc294
+* **eu-west-3** : ami-0b55ea4a6698d5875
+* **eu-west-2** : ami-02979b6d77856b842
+* **eu-west-1** : ami-07f4c17a636489574
+* **ap-northeast-2** : ami-06071092427dd5ab4
+* **ap-northeast-1** : ami-0fbacddfc0e8d2651
+* **sa-east-1** : ami-073590d3b3e6f4cfd
+* **ca-central-1** : ami-0839610fc0101e41c
+* **ap-southeast-1** : ami-0ff0adeef7f9fa879
+* **ap-southeast-2** : ami-03ed15d31bfc2844c
+* **eu-central-1** : ami-0813c06d8b2462c39
+* **us-east-2** : ami-07c593425f988b054
+* **us-west-1** : ami-0eb0e13b1f06c03c0
+* **us-west-2** : ami-000568ca142798412
+* **us-east-1** : ami-062d9da44f96c8a87
 
 ### v0.11.0
 * **eu-north-1** : ami-0cbe338f058018c97
