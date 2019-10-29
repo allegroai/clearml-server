@@ -11,20 +11,18 @@ services:
     - 8008:8008
     - 8080:80
     - 8081:8081
-    restart: always
+    restart: unless-stopped
     volumes:
-    - type: bind
-      source: /opt/trains/logs
-      target: /var/log/trains
-    - type: bind
-      source: /opt/trains/data/fileserver
-      target: /mnt/fileserver
+    - /opt/trains/logs:/var/log/trains
+    - /opt/trains/data/fileserver:/mnt/fileserver
     depends_on:
+      - redis
       - mongo
       - elasticsearch
     environment:
-      ELASTIC_SERVICE_SERVICE_HOST: elasticsearch
-      MONGODB_SERVICE_SERVICE_HOST: mongo
+      ELASTIC_SERVICE_HOST: elasticsearch
+      MONGODB_SERVICE_HOST: mongo
+      REDIS_SERVICE_HOST: redis
     networks:
       - backend
   elasticsearch:
@@ -52,12 +50,13 @@ services:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
-    restart: always
+    restart: unless-stopped
     volumes:
-    - type: bind
-      source: /opt/trains/data/elastic
-      target: /usr/share/elasticsearch/data
+    - /opt/trains/data/elastic:/usr/share/elasticsearch/data
     ports:
     - "9200:9200"
   mongo:
@@ -65,17 +64,23 @@ services:
       - backend
     container_name: trains-mongo
     image: mongo:3.6.5
-    restart: always
+    restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
-    - type: bind
-      source: /opt/trains/data/mongo/db
-      target: /data/db
-    - type: bind
-      source: /opt/trains/data/mongo/configdb
-      target: /data/configdb
+    - /opt/trains/data/mongo/db:/data/db
+    - /opt/trains/data/mongo/configdb:/data/configdb
     ports:
     - "27017:27017"
+  redis:
+    networks:
+      - backend
+    container_name: trains-redis
+    image: redis:5.0
+    restart: unless-stopped
+    volumes:
+    - /opt/trains/data/redis:/data
+    ports:
+    - "6379:6379"
 
 networks:
   backend:
