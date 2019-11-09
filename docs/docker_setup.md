@@ -58,15 +58,15 @@ Create this directory, and set its owner and group to `uid` 1000. The data store
 For example, if your data directory is `/opt/trains`, then use the following command:
 
 ```bash
-    sudo mkdir -p /opt/trains/data/elastic
-    sudo mkdir -p /opt/trains/data/mongo/db
-    sudo mkdir -p /opt/trains/data/mongo/configdb
-    sudo mkdir -p /opt/trains/data/redis
-    sudo mkdir -p /opt/trains/logs
-    sudo mkdir -p /opt/trains/data/fileserver
-    sudo mkdir -p /opt/trains/config
+sudo mkdir -p /opt/trains/data/elastic
+sudo mkdir -p /opt/trains/data/mongo/db
+sudo mkdir -p /opt/trains/data/mongo/configdb
+sudo mkdir -p /opt/trains/data/redis
+sudo mkdir -p /opt/trains/logs
+sudo mkdir -p /opt/trains/data/fileserver
+sudo mkdir -p /opt/trains/config
 
-    sudo chown -R 1000:1000 /opt/trains
+sudo chown -R 1000:1000 /opt/trains
 ```
 
 ## TRAINS-server: Manually Launching Docker Containers <a name="launch"></a>
