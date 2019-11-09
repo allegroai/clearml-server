@@ -153,5 +153,14 @@ When we release a new version and include a new pre-built Docker image for it, u
     $ sudo docker pull allegroai/trains:0.11.0
      ```
 
-4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
+4. Launch the newly released Docker image (see [Launching Docker Containers](#trains-server-manually-launching-docker-containers-)).
 
+
+#### Common Docker Upgrade Errors 
+
+* In case of a docker error: "... The container name "/trains-???" is already in use by ..."      
+    Try removing deprecated images with:
+    ```bash
+    $ docker rm -f $(docker ps -a -q)
+    ```
+  
