@@ -33,13 +33,14 @@ To install and configure **trains-server** on Mac OS X, follow the steps below.
 1. Configure [Docker](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode).
 
         $ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
-        sysctl -w vm.max_map_count=262144
+        $ sysctl -w vm.max_map_count=262144
 
 1. Create local directories for the databases and storage.
 
         $ sudo mkdir -p /opt/trains/data/elastic
         $ sudo mkdir -p /opt/trains/data/mongo/db
         $ sudo mkdir -p /opt/trains/data/mongo/configdb
+        $ sudo mkdir -p /opt/trains/data/redis
         $ sudo mkdir -p /opt/trains/logs
         $ sudo mkdir -p /opt/trains/config
         $ sudo mkdir -p /opt/trains/data/fileserver
