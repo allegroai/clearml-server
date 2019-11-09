@@ -104,3 +104,54 @@ If your data directory is not `/opt/trains`, then in the five `docker run` comma
     * API server on port `8008`
     * Web server on port `8080`
     * File server on port `8081`
+
+## Manually Upgrading TRAINS-server Containers <a name="upgrade"></a>
+
+We are constantly updating, improving and adding to the **trains-server**.
+New releases will include new pre-built Docker images.
+When we release a new version and include a new pre-built Docker image for it, upgrade as follows:
+
+1. Shut down and remove each of your Docker instances using the following commands:
+    
+    ```bash
+    $ sudo docker stop <docker-name>
+    $ sudo docker rm -v <docker-name>
+    ```
+
+    The Docker names are (see [Launching Docker Containers](#launch-docker)):
+
+    * `trains-elastic`
+    * `trains-mongo`
+    * `trains-redis`
+    * `trains-fileserver`
+    * `trains-apiserver`
+    * `trains-webserver`
+
+2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
+
+    For example, if your data directory is `/opt/trains`, use the following command:
+
+    ```bash
+    $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+    ```
+    This backups all data to an archive in your home directory.
+
+    To restore this example backup, use the following command:
+    ```bash
+    $ sudo rm -R /opt/trains/data
+    $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+    ```
+
+3. Pull the new **trains-server** docker image using the following command:
+
+    ```bash
+    $ sudo docker pull allegroai/trains:latest
+    ```
+
+    If you wish to pull a different version, replace `latest` with the required version number, for example:
+    ```bash
+    $ sudo docker pull allegroai/trains:0.11.0
+     ```
+
+4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
+
