@@ -60,18 +60,13 @@ Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trai
 1. Setup Docker (docker-compose installation details: [Ubuntu](docs/faq.md#ubuntu) / [macOS](docs/faq.md#mac-osx))
 
     <details>
-    <summary>Make sure port 8080/8081/8008 are available for the `trains-server` services.</summary>
+    <summary>Make sure ports 8080/8081/8008 are available for the TRAINS-server services:</summary>
    
     For example, to see if port `8080` is in use: 
 
-    - Linux
-      ```bash
-      $ netstat -natp | grep :8080 | grep LISTEN
-      ```
-    - macOS
-      ```bash
-      $ lsof -Pn -i4 | grep :8080 | grep LISTEN
-      ```
+    ```bash
+    $ sudo lsof -Pn -i4 | grep :8080 | grep LISTEN
+    ```
     
     </details>
     
@@ -132,7 +127,7 @@ Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trai
     * API server on port `8008`
     * File server on port `8081`
 
-**\* If something went wrong along the way, check our FAQ: [Docker Setup](docs/docker_setup.md), [Ubuntu Support](docs/faq.md#ubuntu), [macOS Support](docs/faq.md#mac-osx)**
+**\* If something went wrong along the way, check our FAQ: [Docker Setup](docs/docker_setup.md#setup-docker), [Ubuntu Support](docs/faq.md#ubuntu), [macOS Support](docs/faq.md#mac-osx)**
 
 ## Optional Configuration
 
@@ -241,71 +236,41 @@ We are constantly updating, improving and adding to the **trains-server**.
 New releases will include new pre-built Docker images.
 When we release a new version and include a new pre-built Docker image for it, upgrade as follows:
 
-* Upgrading your docker-compose installation
+* Shut down the docker containers
+```bash
+$ docker-compose down
+```
 
-    * Shut down the docker containers
+* We highly recommend backing up your data directory before upgrading.
+
+    Assuming your data directory is `/opt/trains`, to archive all data into `~/trains_backup.tgz` execute:
+    
     ```bash
-    $ docker-compose down
-    ```
-  
-    * We highly recommend backing up your data directory before upgrading     
-    (see **Step ii** in the Manual Docker upgrade)
-
-    * Spin up the docker containers, it will automatically pull the latest trains-server build    
+    $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+    ```    
+    
+    <details>
+    <summary>Restore instructions:</summary>
+    
+    To restore this example backup, execute:
     ```bash
-    $ docker-compose up
+    $ sudo rm -R /opt/trains/data
+    $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+    ```
+    </details>
+
+* Download the latest `docker-compose.yml` file, either [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
+
+    ```bash
+    $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
     ```
 
-    * In case of a docker error: "... The container name "/trains-???" is already in use by ..."      
-      Try removing deprecated images with:
-      ```bash
-      $ docker rm -f $(docker ps -a -q)
-      ```
+* Spin up the docker containers, it will automatically pull the latest trains-server build    
+```bash
+$ docker-compose up -f docker-compose.yml
+```
 
-* Manual Docker upgrade
-    1. Shut down and remove each of your Docker instances using the following commands:
-    
-        ```bash
-        $ sudo docker stop <docker-name>
-        $ sudo docker rm -v <docker-name>
-        ```
-    
-        The Docker names are (see [Launching Docker Containers](#launch-docker)):
-    
-        * `trains-elastic`
-        * `trains-mongo`
-        * `trains-redis`
-        * `trains-fileserver`
-        * `trains-apiserver`
-        * `trains-webserver`
-    
-    2. We highly recommend backing up your data directory!. A simple way to do that is using `tar`:
-    
-        For example, if your data directory is `/opt/trains`, use the following command:
-    
-        ```bash
-        $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
-        ```
-        This backups all data to an archive in your home directory.
-    
-        To restore this example backup, use the following command:
-        ```bash
-        $ sudo rm -R /opt/trains/data
-        $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
-        ```
-    
-    3. Pull the new **trains-server** docker image using the following command:
-    
-        ```bash
-        $ sudo docker pull allegroai/trains:latest
-        ```
-    
-        If you wish to pull a different version, replace `latest` with the required version number, for example:
-        ```bash
-        $ sudo docker pull allegroai/trains:0.11.0
-         ```
-    
-    4. Launch the newly released Docker image (see [Launching Docker Containers](#launch-docker)).
+**\* If something went wrong along the way, check our FAQ: [Docker Upgrade](docs/docker_setup.md#common-docker-upgrade-errors)**
 
 
 ## Community & Support
