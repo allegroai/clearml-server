@@ -255,6 +255,7 @@ class MissingIdentity(Exception):
 class APICall(DataContainer):
     HEADER_AUTHORIZATION = "Authorization"
     HEADER_REAL_IP = "X-Real-IP"
+    HEADER_FORWARDED_FOR = "X-Forwarded-For"
     """ Standard headers """
 
     _transaction_headers = ("X-Trains-Trx",)
@@ -382,8 +383,13 @@ class APICall(DataContainer):
 
     @property
     def real_ip(self):
-        real_ip = self.get_header(self.HEADER_REAL_IP)
-        return real_ip or self._remote_addr or "untrackable"
+        """ Obtain visitor's IP address """
+        return (
+                self.get_header(self.HEADER_FORWARDED_FOR)
+                or self.get_header(self.HEADER_REAL_IP)
+                or self._remote_addr
+                or "untrackable"
+        )
 
     @property
     def failed(self):

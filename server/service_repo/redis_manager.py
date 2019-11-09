@@ -2,21 +2,23 @@ import threading
 from os import getenv
 from time import sleep
 
-from apierrors.errors.server_error import ConfigError, GeneralError
-from config import config
+from boltons.iterutils import first
 from redis import StrictRedis
 from redis.sentinel import Sentinel, SentinelConnectionPool
 
+from apierrors.errors.server_error import ConfigError, GeneralError
+from config import config
+
 log = config.logger(__file__)
 
-OVERRIDE_HOST_ENV_KEY = "REDIS_SERVICE_HOST"
-OVERRIDE_PORT_ENV_KEY = "REDIS_SERVICE_PORT"
+OVERRIDE_HOST_ENV_KEY = ("TRAINS_REDIS_SERVICE_HOST", "REDIS_SERVICE_HOST")
+OVERRIDE_PORT_ENV_KEY = ("TRAINS_REDIS_SERVICE_PORT", "REDIS_SERVICE_PORT")
 
-OVERRIDE_HOST = getenv(OVERRIDE_HOST_ENV_KEY)
+OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override redis host {OVERRIDE_HOST}")
 
-OVERRIDE_PORT = getenv(OVERRIDE_PORT_ENV_KEY)
+OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override redis port {OVERRIDE_PORT}")
 

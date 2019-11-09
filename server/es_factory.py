@@ -1,20 +1,25 @@
 from datetime import datetime
 from os import getenv
 
+from boltons.iterutils import first
 from elasticsearch import Elasticsearch, Transport
 
 from config import config
 
 log = config.logger(__file__)
 
-OVERRIDE_HOST_ENV_KEY = ("ELASTIC_SERVICE_HOST", "ELASTIC_SERVICE_SERVICE_HOST")
-OVERRIDE_PORT_ENV_KEY = "ELASTIC_SERVICE_PORT"
+OVERRIDE_HOST_ENV_KEY = (
+    "TRAINS_ELASTIC_SERVICE_HOST",
+    "ELASTIC_SERVICE_HOST",
+    "ELASTIC_SERVICE_SERVICE_HOST",
+)
+OVERRIDE_PORT_ENV_KEY = ("TRAINS_ELASTIC_SERVICE_PORT", "ELASTIC_SERVICE_PORT")
 
-OVERRIDE_HOST = next(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)), None)
+OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
 
-OVERRIDE_PORT = getenv(OVERRIDE_PORT_ENV_KEY)
+OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
@@ -25,6 +30,7 @@ class MissingClusterConfiguration(Exception):
     """
     Exception when cluster configuration is not found in config files
     """
+
     pass
 
 
@@ -32,6 +38,7 @@ class InvalidClusterConfiguration(Exception):
     """
     Exception when cluster configuration does not contain required properties
     """
+
     pass
 
 
@@ -46,12 +53,14 @@ def connect(cluster_name):
     """
     if cluster_name not in _instances:
         cluster_config = get_cluster_config(cluster_name)
-        hosts = cluster_config.get('hosts', None)
+        hosts = cluster_config.get("hosts", None)
         if not hosts:
             raise InvalidClusterConfiguration(cluster_name)
 
-        args = cluster_config.get('args', {})
-        _instances[cluster_name] = Elasticsearch(hosts=hosts, transport_class=Transport, **args)
+        args = cluster_config.get("args", {})
+        _instances[cluster_name] = Elasticsearch(
+            hosts=hosts, transport_class=Transport, **args
+        )
 
     return _instances[cluster_name]
 
@@ -63,13 +72,13 @@ def get_cluster_config(cluster_name):
     :return: config section for the cluster
     :raises MissingClusterConfiguration: in case no config section is found for the cluster
     """
-    cluster_key = '.'.join(('hosts.elastic', cluster_name))
+    cluster_key = ".".join(("hosts.elastic", cluster_name))
     cluster_config = config.get(cluster_key, None)
     if not cluster_config:
         raise MissingClusterConfiguration(cluster_name)
 
     def set_host_prop(key, value):
-        for host in cluster_config.get('hosts', []):
+        for host in cluster_config.get("hosts", []):
             host[key] = value
 
     if OVERRIDE_HOST:

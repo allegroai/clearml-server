@@ -1,5 +1,6 @@
 from os import getenv
 
+from boltons.iterutils import first
 from furl import furl
 from jsonmodels import models
 from jsonmodels.errors import ValidationError
@@ -11,14 +12,16 @@ from config import config
 from .defs import Database
 from .utils import get_items
 
-from boltons.iterutils import first
-
 log = config.logger("database")
 
 strict = config.get("apiserver.mongo.strict", True)
 
-OVERRIDE_HOST_ENV_KEY = ("MONGODB_SERVICE_HOST", "MONGODB_SERVICE_SERVICE_HOST")
-OVERRIDE_PORT_ENV_KEY = "MONGODB_SERVICE_PORT"
+OVERRIDE_HOST_ENV_KEY = (
+    "TRAINS_MONGODB_SERVICE_HOST",
+    "MONGODB_SERVICE_HOST",
+    "MONGODB_SERVICE_SERVICE_HOST",
+)
+OVERRIDE_PORT_ENV_KEY = ("TRAINS_MONGODB_SERVICE_PORT", "MONGODB_SERVICE_PORT")
 
 _entries = []
 
@@ -41,7 +44,7 @@ def initialize():
     if override_hostname:
         log.info(f"Using override mongodb host {override_hostname}")
 
-    override_port = getenv(OVERRIDE_PORT_ENV_KEY)
+    override_port = first(map(getenv, OVERRIDE_PORT_ENV_KEY), None)
     if override_port:
         log.info(f"Using override mongodb port {override_port}")
 
