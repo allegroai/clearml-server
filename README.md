@@ -144,7 +144,7 @@ Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
 
 Sample `apiserver.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/apiserver.conf)
 
-To apply the changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
+To apply the changes, you must [restart the *trains-server*](#restart-server).
 
 ### Configuring the Non-Responsive Experiments Watchdog
 
@@ -155,7 +155,7 @@ To change the watchdog's timeouts, place a `services.conf` file under `/opt/trai
 
 Sample watchdog `services.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/services.conf)
 
-To apply the changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
+To apply the changes, you must [restart the *trains-server*](#restart-server).
 
 ### Restarting trains-server <a name="restart-server"></a>
 
