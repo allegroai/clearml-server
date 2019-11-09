@@ -142,28 +142,7 @@ You can configure the **trains-server** to allow only a specific set of users to
 
 Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
 
-
-Sample fixed user configuration file `/opt/trains/config/apiserver.conf`:
-
-    auth {
-        # Fixed users login credetials
-        # No other user will be able to login
-        fixed_users {
-            enabled: true
-            users: [
-                {
-                    username: "jane"
-                    password: "12345678"
-                    name: "Jane Doe"
-                },
-                {
-                    username: "john"
-                    password: "12345678"
-                    name: "John Doe"
-                },
-            ]
-        }
-    }
+Sample `apiserver.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/apiserver.conf)
 
 To apply the `apiserver.conf` changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
 
@@ -174,17 +153,7 @@ and marks them as `aborted`. The watchdog is always active with a default of 720
 
 To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`.
 
-Sample watchdog configuration file `/opt/trains/config/services.conf`:
-
-    tasks {
-        non_responsive_tasks_watchdog {
-            # In-progress tasks that haven't been updated for at least 'value' seconds will be stopped by the watchdog
-            threshold_sec: 7200
-
-            # Watchdog will sleep for this number of seconds after each cycle
-            watch_interval_sec: 900
-        }
-    }
+Sample watchdog `services.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/services.conf)
 
 To apply the `services.conf` changes, you must restart the *trains-apiserver* (docker) (see [Restarting trains-server](#restart-server)).
 
