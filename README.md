@@ -203,39 +203,39 @@ We are constantly updating, improving and adding to the **trains-server**.
 New releases will include new pre-built Docker images.
 When we release a new version and include a new pre-built Docker image for it, upgrade as follows:
 
-* Shut down the docker containers
-```bash
-$ docker-compose down
-```
+1. Shut down the docker containers
+   ```bash
+   $ docker-compose down
+   ```
 
-* We highly recommend backing up your data directory before upgrading.
+1. We highly recommend backing up your data directory before upgrading.
 
-    Assuming your data directory is `/opt/trains`, to archive all data into `~/trains_backup.tgz` execute:
-    
-    ```bash
-    $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
-    ```    
-    
-    <details>
-    <summary>Restore instructions:</summary>
-    
-    To restore this example backup, execute:
-    ```bash
-    $ sudo rm -R /opt/trains/data
-    $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
-    ```
-    </details>
+   Assuming your data directory is `/opt/trains`, to archive all data into `~/trains_backup.tgz` execute:
 
-* Download the latest `docker-compose.yml` file, either [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
+   ```bash
+   $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+   ```    
 
-    ```bash
-    $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
-    ```
+   <details>
+   <summary>Restore instructions:</summary>
 
-* Spin up the docker containers, it will automatically pull the latest trains-server build    
-```bash
-$ docker-compose up -f docker-compose.yml
-```
+   To restore this example backup, execute:
+   ```bash
+   $ sudo rm -R /opt/trains/data
+   $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+   ```
+   </details>
+
+1. Download the latest `docker-compose.yml` file, either [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
+
+   ```bash
+   $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
+   ```
+
+1. Spin up the docker containers, it will automatically pull the latest trains-server build    
+   ```bash
+   $ docker-compose up -f docker-compose.yml
+   ```
 
 **\* If something went wrong along the way, check our FAQ: [Docker Upgrade](docs/docker_setup.md#common-docker-upgrade-errors)**
 
