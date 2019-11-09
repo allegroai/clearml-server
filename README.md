@@ -159,14 +159,12 @@ To apply the changes, you must [restart the *trains-server*](#restart-server).
 
 ### Restarting trains-server <a name="restart-server"></a>
 
-To restart the **trains-server**, you must first stop and remove the containers, and then restart.
+To restart the **trains-server**, you must first stop the containers, and then restart them.
+   ```bash
+   $ docker-compose down
+   $ docker-compose up -f docker-compose.yml
+   ```
 
-1. Restarting docker-compose containers.
-
-        $ docker-compose down
-        $ docker-compose up
-
-1. Manually restarting dockers [instructions](docs/docker_setup.md#launch).
 
 ## Configuring **TRAINS** client
 
