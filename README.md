@@ -51,69 +51,88 @@ Use one of our pre-installed Amazon Machine Images for easy deployment in AWS.
 
 For details and instructions, see [TRAINS-server: AWS pre-installed images](docs/install_aws.md).
 
-## Docker Installation - Linux, Mac OS X <a name="installation"></a>
+## Docker Installation - Linux, macOS <a name="installation"></a>
 
-Use our pre-built Docker image for easy deployment in Linux and Mac OS X.
+Use our pre-built Docker image for easy deployment in Linux and macOS.
 For Windows, we recommend installing our pre-built Docker image on a Linux virtual machine.
 Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trains).
 
-1. Setup Docker ([docker-compose Ubuntu](docs/faq.md#ubuntu), [docker-compose OS X](docs/faq.md#mac-osx), [Setup Docker Service Manually](docs/docker_setup.md#setup-docker))
+1. Setup Docker (docker-compose installation details: [Ubuntu](docs/faq.md#ubuntu) / [macOS](docs/faq.md#mac-osx))
 
-    Make sure port 8080/8081/8008 are available for the `trains-server` services
+    <details>
+    <summary>Make sure port 8080/8081/8008 are available for the `trains-server` services.</summary>
+   
+    For example, to see if port `8080` is in use: 
 
+    - Linux
+      ```bash
+      $ netstat -natp | grep :8080 | grep LISTEN
+      ```
+    - macOS
+      ```bash
+      $ lsof -Pn -i4 | grep :8080 | grep LISTEN
+      ```
+    
+    </details>
+    
     Increase vm.max_map_count for `ElasticSearch` docker
 
-    ```bash
-    echo "vm.max_map_count=262144" > /tmp/99-trains.conf
-    sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
-    sudo sysctl -w vm.max_map_count=262144
-
-    sudo service docker restart
-    ```
+    - Linux
+        ```bash
+        $ echo "vm.max_map_count=262144" > /tmp/99-trains.conf
+        $ sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
+        $ sudo sysctl -w vm.max_map_count=262144
+        $ sudo service docker restart
+        ```
+      
+    - macOS
+        ```bash
+        $ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
+        $ sysctl -w vm.max_map_count=262144
+        ```    
 
 1. Create local directories for the databases and storage.
 
     ```bash
-    sudo mkdir -p /opt/trains/data/elastic
-    sudo mkdir -p /opt/trains/data/mongo/db
-    sudo mkdir -p /opt/trains/data/mongo/configdb
-    sudo mkdir -p /opt/trains/data/redis
-    sudo mkdir -p /opt/trains/logs
-    sudo mkdir -p /opt/trains/data/fileserver
-    sudo mkdir -p /opt/trains/config
+    $ sudo mkdir -p /opt/trains/data/elastic
+    $ sudo mkdir -p /opt/trains/data/mongo/db
+    $ sudo mkdir -p /opt/trains/data/mongo/configdb
+    $ sudo mkdir -p /opt/trains/data/redis
+    $ sudo mkdir -p /opt/trains/logs
+    $ sudo mkdir -p /opt/trains/data/fileserver
+    $ sudo mkdir -p /opt/trains/config
     ```
 
-    Linux
-    ```bash
-    $ sudo chown -R 1000:1000 /opt/trains
-    ```
-    Mac OS X
-    ```bash
-    $ sudo chown -R $(whoami):staff /opt/trains
-    ```
+    Set folder permissions
+      
+    - Linux
+      ```bash
+      $ sudo chown -R 1000:1000 /opt/trains
+      ```
+    - macOS
+      ```bash
+      $ sudo chown -R $(whoami):staff /opt/trains
+      ```
 
-1. Clone the [trains-server](https://github.com/allegroai/trains-server) repository and change directories to the new **trains-server** directory.
+1. Download the `docker-compose.yml` file, either download [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
 
     ```bash
-    $ git clone https://github.com/allegroai/trains-server.git
-    $ cd trains-server
+    $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
     ```
 
 1. Launch the Docker containers <a name="launch-docker"></a>
 
-    * Automatically with docker-compose (details: [Linux/Ubuntu](docs/faq.md#ubuntu), [OS X](docs/faq.md#mac-osx))
-
     ```bash
-    $ docker-compose up
+    $ docker-compose up -f docker-compose.yml
     ```
-
-    * Manually, see [Launching Docker Containers Manually](docs/docker_setup.md#launch) for instructions.
 
 1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
 
     * Web server on port `8080`
     * API server on port `8008`
     * File server on port `8081`
+
+**\* If something went wrong along the way, check our FAQ: [Docker Setup](docs/docker_setup.md), [Ubuntu Support](docs/faq.md#ubuntu), [macOS Support](docs/faq.md#mac-osx)**
 
 ## Optional Configuration
 
