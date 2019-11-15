@@ -70,8 +70,8 @@ To run **trains-server** on Windows 10, follow the steps below.
 
 1. Install the Docker Desktop for Windows application by either:
 
-    * following the [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/) instructions.
-    * running the Docker installation [wizard](https://hub.docker.com/?overlay=onboarding).
+    * Following the [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/) instructions.
+    * Running the Docker installation [wizard](https://hub.docker.com/?overlay=onboarding).
 
 1. Increase the memory allocation in Docker Desktop to `4GB`.
 
