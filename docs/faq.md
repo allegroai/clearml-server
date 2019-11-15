@@ -6,11 +6,14 @@
 
 * [Running trains-server on Mac OS X](#mac-osx)
 
+* [Running trains-server on Windows 10](#docker_compose_win10)
+
 * [Installing trains-server on stand alone Linux Ubuntu  systems ](#ubuntu)
 
 * [Resolving port conflicts preventing fixed users mode authentication and login](#port-conflict)
 
 * [Configuring trains-server for sub-domains and load balancers](#sub-domains)
+
 
 ### Deploying trains-server on Kubernetes clusters <a name="kubernetes"></a>
 
@@ -56,6 +59,43 @@ To install and configure **trains-server** on Mac OS X, follow the steps below.
 1. Run `docker-compose` with the unified docker image.
 
         $ docker-compose -f docker-compose-unified.yml up
+
+    Your server is now running on [http://localhost:8080](http://localhost:8080)
+
+### Running trains-server on Windows 10 <a name="docker_compose_win10"></a>
+
+You can run **trains-server** on Windows 10 using Docker Desktop for Windows (see the Docker [System Requirements](https://docs.docker.com/docker-for-windows/install/#system-requirements)).
+
+To run **trains-server** on Windows 10, follow the steps below.
+
+1. Install the Docker Desktop for Windows application by either:
+
+    * following the [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/) instructions.
+    * running the Docker installation [wizard](https://hub.docker.com/?overlay=onboarding).
+
+1. Increase the memory allocation in Docker Desktop to `4GB`.
+
+    1. In your Windows notification area (system tray), right click the Docker icon.
+    
+    1. Click *Settings*, *Advanced*, and then set the memory to at least `4096`. 
+    
+    1. Click *Apply*.
+
+1. Create local directories for data and logs. Open PowerShell and execute the following commands:
+
+        mkdir c:\opt\trains\logs
+        mkdir c:\opt\trains\config
+        mkdir c:\opt\trains\data
+        mkdir c:\opt\trains\data\elastic
+        mkdir c:\opt\trains\data\redis
+        mkdir c:\opt\trains\data\fileserver
+
+1. Save the **trains-server** docker-compose YAML file [docker-compose-win10.yml](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose-win10.yml) as `c:\opt\trains\docker-compose.yml`.
+
+1. Run `docker-compose`. In PowerShell, execute the following commands:
+
+        cd c:\opt\trains\
+        docker-compose up
 
     Your server is now running on [http://localhost:8080](http://localhost:8080)
 

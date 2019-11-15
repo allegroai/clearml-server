@@ -1,0 +1,117 @@
+version: "3.6"
+services:
+
+  apiserver:
+    command:
+    - apiserver
+    container_name: trains-apiserver
+    image: allegroai/trains:latest
+    restart: unless-stopped
+    volumes:
+    - c:/opt/trains/logs:/var/log/trains
+    - c:/opt/trains/config:/opt/trains/config
+    depends_on:
+      - redis
+      - mongo
+      - elasticsearch
+      - fileserver
+    environment:
+      ELASTIC_SERVICE_HOST: elasticsearch
+      MONGODB_SERVICE_HOST: mongo
+      REDIS_SERVICE_HOST: redis
+    ports:
+    - "8008:8008"
+    networks:
+      - backend
+
+  elasticsearch:
+    networks:
+      - backend
+    container_name: trains-elastic
+    environment:
+      ES_JAVA_OPTS: -Xms2g -Xmx2g
+      bootstrap.memory_lock: "true"
+      cluster.name: trains
+      cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+      discovery.zen.minimum_master_nodes: "1"
+      http.compression_level: "7"
+      node.ingest: "true"
+      node.name: trains
+      reindex.remote.whitelist: '*.*'
+      script.inline: "true"
+      script.painless.regex.enabled: "true"
+      script.update: "true"
+      thread_pool.bulk.queue_size: "2000"
+      thread_pool.search.queue_size: "10000"
+      xpack.monitoring.enabled: "false"
+      xpack.security.enabled: "false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.16
+    restart: unless-stopped
+    volumes:
+    - c:/opt/trains/data/elastic:/usr/share/elasticsearch/data
+    ports:
+    - "9200:9200"
+
+  fileserver:
+    networks:
+      - backend
+    command:
+    - fileserver
+    container_name: trains-fileserver
+    image: allegroai/trains:latest
+    restart: unless-stopped
+    volumes:
+    - c:/opt/trains/logs:/var/log/trains
+    - c:/opt/trains/data/fileserver:/mnt/fileserver
+    ports:
+    - "8081:8081"
+
+  mongo:
+    networks:
+      - backend
+    container_name: trains-mongo
+    image: mongo:3.6.5
+    restart: unless-stopped
+    command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
+    volumes:
+    - mongodata:/data
+    ports:
+    - "27017:27017"
+
+  redis:
+    networks:
+      - backend
+    container_name: trains-redis
+    image: redis:5.0
+    restart: unless-stopped
+    volumes:
+    - c:/opt/trains/data/redis:/data
+    ports:
+    - "6379:6379"
+
+  webserver:
+    command:
+    - webserver
+    container_name: trains-webserver
+    image: allegroai/trains:latest
+    restart: unless-stopped
+    volumes:
+    - c:/trains/logs:/var/log/trains
+    depends_on:
+      - apiserver
+    ports:
+    - "8080:80"
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mongodata:
