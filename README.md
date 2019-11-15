@@ -53,10 +53,8 @@ For details and instructions, see [TRAINS-server: AWS pre-installed images](docs
 
 ## Docker Installation - Linux, macOS, and Windows <a name="installation"></a>
 
-Use our pre-built Docker image for easy deployment in Linux and macOS.
-
-For [Windows](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10), please see detailed docker-compose installation instructions on our [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10).
-
+Use our pre-built Docker image for easy deployment in Linux and macOS. <br>
+For [Windows](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10), please see detailed docker-compose installation instructions on our [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10).<br>
 Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trains).
 
 1. Setup Docker (docker-compose installation details: [Ubuntu](docs/faq.md#ubuntu) / [macOS](docs/faq.md#mac-osx))
