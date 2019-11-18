@@ -234,6 +234,7 @@ When we release a new version and include a new pre-built Docker image for it, u
 
 1. Spin up the docker containers, it will automatically pull the latest trains-server build    
    ```bash
+   $ docker-compose -f docker-compose.yml pull
    $ docker-compose -f docker-compose.yml up
    ```
 
