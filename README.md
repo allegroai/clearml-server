@@ -118,7 +118,7 @@ Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trai
 1. Launch the Docker containers <a name="launch-docker"></a>
 
     ```bash
-    $ docker-compose up -f docker-compose.yml
+    $ docker-compose -f docker-compose.yml up
     ```
 
 1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
@@ -162,7 +162,7 @@ To apply the changes, you must [restart the *trains-server*](#restart-server).
 To restart the **trains-server**, you must first stop the containers, and then restart them.
    ```bash
    $ docker-compose down
-   $ docker-compose up -f docker-compose.yml
+   $ docker-compose -f docker-compose.yml up
    ```
 
 
@@ -234,7 +234,7 @@ When we release a new version and include a new pre-built Docker image for it, u
 
 1. Spin up the docker containers, it will automatically pull the latest trains-server build    
    ```bash
-   $ docker-compose up -f docker-compose.yml
+   $ docker-compose -f docker-compose.yml up
    ```
 
 **\* If something went wrong along the way, check our FAQ: [Docker Upgrade](docs/docker_setup.md#common-docker-upgrade-errors)**
