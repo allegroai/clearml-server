@@ -1,7 +1,7 @@
 {
   "template": "events-*",
   "settings": {
-    "number_of_shards": 5
+    "number_of_shards": 1
   },
   "mappings": {
     "_default_": {
