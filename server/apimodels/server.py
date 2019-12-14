@@ -12,3 +12,4 @@ class ReportStatsOptionResponse(Base):
     enabled_time = DateTimeField(nullable=True)
     enabled_version = StringField(nullable=True)
     enabled_user = StringField(nullable=True)
+    current_version = StringField()

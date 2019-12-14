@@ -12,7 +12,7 @@ class ThreadsManager:
         self.objects = {}
         self.lock = Lock()
 
-        for name, thread in threads.items():
+        for thread_name, thread in threads.items():
             if issubclass(thread, Thread):
                 thread = thread()
                 thread.start()
@@ -20,9 +20,9 @@ class ThreadsManager:
                 if not thread.is_alive():
                     thread.start()
             else:
-                raise Exception(f"Expected thread or thread class ({name}): {thread}")
+                raise Exception(f"Expected thread or thread class ({thread_name}): {thread}")
 
-            self.objects[name] = thread
+            self.objects[thread_name] = thread
 
     def register(self, thread_name, daemon=True):
         def decorator(f):

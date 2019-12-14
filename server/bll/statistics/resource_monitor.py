@@ -59,6 +59,8 @@ class ResourceMonitor(Thread):
 
     def run(self):
         while True:
+            sleep(self.sample_interval_sec)
+
             sample = self._get_sample()
 
             with self._lock:
@@ -67,21 +69,20 @@ class ResourceMonitor(Thread):
                 self._avg = self._avg.avg(sample, self._count)
                 self._count += 1
 
-            sleep(self.sample_interval_sec)
-
     def get_stats(self) -> dict:
         """ Returns current resource statistics and clears internal resource statistics """
         with self._lock:
             min_ = attr.asdict(self._min)
             max_ = attr.asdict(self._max)
             avg = attr.asdict(self._avg)
-            res = {
-                "interval_sec": (datetime.utcnow() - self._clear_time).total_seconds(),
-                "num_cores": psutil.cpu_count(),
-                **{
-                    k: {"min": v, "max": max_[k], "avg": avg[k]}
-                    for k, v in min_.items()
-                }
-            }
+            interval = datetime.utcnow() - self._clear_time
             self._clear()
-        return res
+
+        return {
+            "interval_sec": interval.total_seconds(),
+            "num_cores": psutil.cpu_count(),
+            **{
+                k: {"min": v, "max": max_[k], "avg": avg[k]}
+                for k, v in min_.items()
+            }
+        }

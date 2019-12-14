@@ -40,10 +40,6 @@ class Settings(DbModelMixin, Document):
         """ Sets a new value or adds a new key/value setting (if key does not exist) """
         key = key.strip(sep)
         res = Settings.objects(key=key).update(key=key, value=value, upsert=True)
-        # if Settings.objects(key=key).only("key"):
-        #
-        # else:
-        #     res = Settings(key=key, value=value).save()
         return bool(res)
 
     @classmethod

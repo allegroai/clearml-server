@@ -87,7 +87,8 @@ def report_stats(call: APICall, company: str, request: ReportStatsOptionRequest)
                     raise errors.server_error.InternalError(
                         f"Failed setting report_stats to {enabled}"
                     )
-
-        result = ReportStatsOptionResponse(**stats_option.to_mongo())
+        data = stats_option.to_mongo()
+        data["current_version"] = current_version
+        result = ReportStatsOptionResponse(**data)
 
     call.result.data_model = result
