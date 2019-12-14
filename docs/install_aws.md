@@ -49,22 +49,40 @@ The following sections provide a list containing AMI Image ID per region for eac
 ### Latest Version AMI <a name="autoupdate"></a>
 **For easier upgrades: The following AMI automatically update to the latest release every reboot**
 
-* **eu-north-1** : ami-0f7143452870e197d
-* **ap-south-1** : ami-00f60bfe490d9297f
-* **eu-west-3** : ami-0b799332e68b1c86c
-* **eu-west-2** : ami-0e95d8b0cdc6793d0
-* **eu-west-1** : ami-0966fc5fcc10e062a
-* **ap-northeast-2** : ami-078596a467da3f374
-* **ap-northeast-1** : ami-0df18f63956fa7409
-* **sa-east-1** : ami-0ce4d1c2690899bd2
-* **ca-central-1** : ami-05a00e7227f549424
-* **ap-southeast-1** : ami-09dc3190e96d8ba11
-* **ap-southeast-2** : ami-09ab27f2b0184b914
-* **eu-central-1** : ami-0e90bd89c06eaf0b9
-* **us-east-2** : ami-0fb772f2c16bf9d75
-* **us-west-1** : ami-0f15ed52e09f9d8e0
-* **us-west-2** : ami-0d0228cfdb51e94a1
-* **us-east-1** : ami-0962199df7969f981
+* **eu-north-1** : ami-055909c1b9471451d
+* **ap-south-1** : ami-0476123cc77226faf
+* **eu-west-3** : ami-01df7d35ab63cca70
+* **eu-west-2** : ami-00e8004c11fd0228e
+* **eu-west-1** : ami-04293fbba6d3acad1
+* **ap-northeast-2** : ami-004331f9c5eb13e94
+* **ap-northeast-1** : ami-08cc80e2049b30e61
+* **sa-east-1** : ami-06d814a0b6ffa3153
+* **ca-central-1** : ami-069210ff757e9c1b7
+* **ap-southeast-1** : ami-0d12cc70d6e9c0f39
+* **ap-southeast-2** : ami-0b4615aa76c055267
+* **eu-central-1** : ami-06537f431e52e4763
+* **us-east-2** : ami-0c3cfbcb8e72ecfc5
+* **us-west-1** : ami-0d83de031b83b6880
+* **us-west-2** : ami-06968633c4f7187c4
+* **us-east-1** : ami-07ff2f5f7ef99e8f6
+
+### v0.12.1
+* **eu-north-1** : ami-003118a8103286d84
+* **ap-south-1** : ami-02dfe86baa48e096f
+* **eu-west-3** : ami-0cc1f01267d2a780d
+* **eu-west-2** : ami-0e4c8332e5ce09585
+* **eu-west-1** : ami-03459a2f0b0a3b1ab
+* **ap-northeast-2** : ami-08f6c2aed3a53f24c
+* **ap-northeast-1** : ami-0b798eab95a7c5435
+* **sa-east-1** : ami-0d3ee166c09f0d1b2
+* **ca-central-1** : ami-00a758c56bd63acd5
+* **ap-southeast-1** : ami-0be64d4988cd03fbb
+* **ap-southeast-2** : ami-02087310d43a63f31
+* **eu-central-1** : ami-097bbefeac0c74225
+* **us-east-2** : ami-07eda256712b90f4d
+* **us-west-1** : ami-02ef2b55cbd01c7df
+* **us-west-2** : ami-037c6176ef4735360
+* **us-east-1** : ami-08715c20c0e3f1c15
 
 ### v0.12.0
 * **eu-north-1** : ami-03ff8ab48cd43e77e
