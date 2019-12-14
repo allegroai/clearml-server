@@ -4,6 +4,7 @@ from typing import Sequence, Set, Optional
 
 import attr
 import elasticsearch.helpers
+
 import es_factory
 from apierrors import APIError
 from apierrors.errors import bad_request, server_error
@@ -22,10 +23,9 @@ from database.model.auth import User
 from database.model.company import Company
 from database.model.queue import Queue
 from database.model.task.task import Task
-from service_repo.redis_manager import redman
+from redis_manager import redman
 from timing_context import TimingContext
 from tools import safe_get
-
 from .stats import WorkerStats
 
 log = config.logger(__file__)
@@ -33,9 +33,9 @@ log = config.logger(__file__)
 
 class WorkerBLL:
     def __init__(self, es=None, redis=None):
-        self.es = es if es is not None else es_factory.connect("workers")
+        self.es_client = es if es is not None else es_factory.connect("workers")
         self.redis = redis if redis is not None else redman.connection("workers")
-        self._stats = WorkerStats(self.es)
+        self._stats = WorkerStats(self.es_client)
 
     @property
     def stats(self) -> WorkerStats:
@@ -396,7 +396,7 @@ class WorkerBLL:
                     for i, val in enumerate(value)
                 )
 
-        es_res = elasticsearch.helpers.bulk(self.es, actions)
+        es_res = elasticsearch.helpers.bulk(self.es_client, actions)
         added, errors = es_res[:2]
         return (added == len(actions)) and not errors
 
