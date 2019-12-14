@@ -394,7 +394,7 @@ def get_task_plots_v1_7(call, company_id, req_model):
 
     task_bll.assert_exists(call.identity.company, task_id, allow_public=True)
     # events, next_scroll_id, total_events = event_bll.get_task_events(
-    #     company_id, task_id,
+    #     company, task_id,
     #     event_type="plot",
     #     sort=[{"iter": {"order": "desc"}}],
     #     last_iter_count=iters,
@@ -453,7 +453,7 @@ def get_debug_images_v1_7(call, company_id, req_model):
 
     task_bll.assert_exists(call.identity.company, task_id, allow_public=True)
     # events, next_scroll_id, total_events = event_bll.get_task_events(
-    #     company_id, task_id,
+    #     company, task_id,
     #     event_type="training_debug_image",
     #     sort=[{"iter": {"order": "desc"}}],
     #     last_iter_count=iters,
