@@ -29,7 +29,7 @@ from .utils import ChangeStatusRequest, validate_status_change
 
 
 class TaskBLL(object):
-    threads = ThreadsManager()
+    threads = ThreadsManager("TaskBLL")
 
     def __init__(self, events_es=None):
         self.events_es = (

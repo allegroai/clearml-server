@@ -1,7 +1,9 @@
+import functools
 from operator import itemgetter
 from typing import Sequence, Optional, Callable, Tuple, Dict, Any, Set
 
 from database.model import AttributedDocument
+from database.model.settings import Settings
 
 
 def extract_properties_to_lists(
@@ -64,3 +66,8 @@ class SetFieldsResolver:
         in the format suitable for projection (dot separated)
         """
         return set(name.replace("__", ".") for name in self.fields.values())
+
+
+@functools.lru_cache()
+def get_server_uuid() -> Optional[str]:
+    return Settings.get_by_key("server.uuid")
