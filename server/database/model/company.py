@@ -1,23 +1,36 @@
-from mongoengine import Document, EmbeddedDocument, EmbeddedDocumentField, StringField, Q
+from mongoengine import (
+    Document,
+    EmbeddedDocument,
+    EmbeddedDocumentField,
+    StringField,
+    Q,
+    BooleanField,
+    DateTimeField,
+)
 
 from database import Database, strict
 from database.fields import StrippedStringField
 from database.model import DbModelMixin
 
 
+class ReportStatsOption(EmbeddedDocument):
+    enabled = BooleanField(default=False)  # opt-in for statistics reporting
+    enabled_version = StringField()  # server version when enabled
+    enabled_time = DateTimeField()  # time when enabled
+    enabled_user = StringField()  # ID of user who enabled
+
+
 class CompanyDefaults(EmbeddedDocument):
     cluster = StringField()
+    stats_option = EmbeddedDocumentField(ReportStatsOption, default=ReportStatsOption)
 
 
 class Company(DbModelMixin, Document):
-    meta = {
-        'db_alias': Database.backend,
-        'strict': strict,
-    }
+    meta = {"db_alias": Database.backend, "strict": strict}
 
     id = StringField(primary_key=True)
     name = StrippedStringField(unique=True, min_length=3)
-    defaults = EmbeddedDocumentField(CompanyDefaults)
+    defaults = EmbeddedDocumentField(CompanyDefaults, default=CompanyDefaults)
 
     @classmethod
     def _prepare_perm_query(cls, company, allow_public=False):

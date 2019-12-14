@@ -1,8 +1,24 @@
+from datetime import datetime
+
 from pyhocon.config_tree import NoneValue
 
+from apierrors import errors
+from apimodels.server import ReportStatsOptionRequest, ReportStatsOptionResponse
+from bll.statistics.stats_reporter import StatisticsReporter
 from config import config
 from config.info import get_version, get_build_number, get_commit_number
+from database.errors import translate_errors_context
+from database.model import Company
+from database.model.company import ReportStatsOption
 from service_repo import ServiceRepo, APICall, endpoint
+from version import __version__ as current_version
+
+
+@endpoint("server.get_stats")
+def get_stats(call: APICall):
+    call.result.data = StatisticsReporter.get_statistics(
+        company_id=call.identity.company
+    )
 
 
 @endpoint("server.config")
@@ -43,3 +59,35 @@ def info(call: APICall):
         "build": get_build_number(),
         "commit": get_commit_number(),
     }
+
+
+@endpoint(
+    "server.report_stats_option",
+    request_data_model=ReportStatsOptionRequest,
+    response_data_model=ReportStatsOptionResponse,
+)
+def report_stats(call: APICall, company: str, request: ReportStatsOptionRequest):
+    if not StatisticsReporter.supported:
+        result = ReportStatsOptionResponse(supported=False)
+    else:
+        enabled = request.enabled
+        with translate_errors_context():
+            query = Company.objects(id=company)
+            if enabled is None:
+                stats_option = query.first().defaults.stats_option
+            else:
+                stats_option = ReportStatsOption(
+                    enabled=enabled,
+                    enabled_time=datetime.utcnow(),
+                    enabled_version=current_version,
+                    enabled_user=call.identity.user,
+                )
+                updated = query.update(defaults__stats_option=stats_option)
+                if not updated:
+                    raise errors.server_error.InternalError(
+                        f"Failed setting report_stats to {enabled}"
+                    )
+
+        result = ReportStatsOptionResponse(**stats_option.to_mongo())
+
+    call.result.data_model = result

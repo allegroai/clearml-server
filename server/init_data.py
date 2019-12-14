@@ -1,6 +1,7 @@
 import importlib.util
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 import attr
 from furl import furl
@@ -15,6 +16,7 @@ from database.model.auth import Role
 from database.model.auth import User as AuthUser, Credentials
 from database.model.company import Company
 from database.model.queue import Queue
+from database.model.settings import Settings
 from database.model.user import User
 from database.model.version import Version as DatabaseVersion
 from elastic.apply_mappings import apply_mappings_to_host
@@ -109,10 +111,7 @@ def _ensure_user(user: FixedUser, company_id: str):
     data["email"] = f"{user.user_id}@example.com"
     data["role"] = Role.user
 
-    _ensure_auth_user(
-        user_data=data,
-        company_id=company_id,
-    )
+    _ensure_auth_user(user_data=data, company_id=company_id)
 
     given_name, _, family_name = user.name.partition(" ")
 
@@ -142,9 +141,7 @@ def _apply_migrations():
     try:
         new_scripts = {
             ver: path
-            for ver, path in (
-                (Version(f.stem), f) for f in migration_dir.glob("*.py")
-            )
+            for ver, path in ((Version(f.stem), f) for f in migration_dir.glob("*.py"))
             if ver > last_version
         }
     except ValueError as ex:
@@ -179,16 +176,30 @@ def _apply_migrations():
         ).save()
 
 
+def _ensure_uuid():
+    Settings.add_value("server.uuid", str(uuid4()))
+
+
 def init_mongo_data():
     try:
         _apply_migrations()
+
+        _ensure_uuid()
 
         company_id = _ensure_company()
         _ensure_default_queue(company_id)
 
         users = [
-            {"name": "apiserver", "role": Role.system, "email": "apiserver@example.com"},
-            {"name": "webserver", "role": Role.system, "email": "webserver@example.com"},
+            {
+                "name": "apiserver",
+                "role": Role.system,
+                "email": "apiserver@example.com",
+            },
+            {
+                "name": "webserver",
+                "role": Role.system,
+                "email": "webserver@example.com",
+            },
             {"name": "tests", "role": Role.user, "email": "tests@example.com"},
         ]
 

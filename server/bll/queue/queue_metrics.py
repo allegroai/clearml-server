@@ -161,7 +161,7 @@ class QueueMetrics:
         In case no queue ids are specified the avg across all the
         company queues is calculated for each metric
         """
-        # self._log_current_metrics(company_id, queue_ids=queue_ids)
+        # self._log_current_metrics(company, queue_ids=queue_ids)
 
         if from_date >= to_date:
             raise bad_request.FieldsValueError("from_date must be less than to_date")

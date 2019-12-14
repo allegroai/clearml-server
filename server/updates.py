@@ -8,6 +8,7 @@ import requests
 from semantic_version import Version
 
 from config import config
+from database.model.settings import Settings
 from version import __version__ as current_version
 
 log = config.logger(__name__)
@@ -39,12 +40,15 @@ class CheckUpdatesThread(Thread):
 
     def _check_new_version_available(self) -> Optional[_VersionResponse]:
         url = config.get(
-            "apiserver.check_for_updates.url", "https://updates.trains.allegro.ai/updates"
+            "apiserver.check_for_updates.url",
+            "https://updates.trains.allegro.ai/updates",
         )
+
+        uid = Settings.get_by_key("server.uuid")
 
         response = requests.get(
             url,
-            json={"versions": {self.component_name: str(current_version)}},
+            json={"versions": {self.component_name: str(current_version)}, "uid": uid},
             timeout=float(
                 config.get("apiserver.check_for_updates.request_timeout_sec", 3.0)
             ),

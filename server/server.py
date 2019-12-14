@@ -7,15 +7,15 @@ from werkzeug.exceptions import BadRequest
 
 import database
 from apierrors.base import BaseError
+from bll.statistics.stats_reporter import StatisticsReporter
 from config import config
+from init_data import init_es_data, init_mongo_data
 from service_repo import ServiceRepo, APICall
 from service_repo.auth import AuthType
 from service_repo.errors import PathParsingError
 from timing_context import TimingContext
-from utilities import json
-from init_data import init_es_data, init_mongo_data
 from updates import check_updates_thread
-
+from utilities import json
 
 app = Flask(__name__, static_url_path="/static")
 CORS(app, **config.get("apiserver.cors"))
@@ -38,6 +38,7 @@ log.info(f"Exposed Services: {' '.join(ServiceRepo.endpoint_names())}")
 
 
 check_updates_thread.start()
+StatisticsReporter.start()
 
 
 @app.before_first_request
@@ -57,7 +58,9 @@ def before_request():
         content, content_type = ServiceRepo.handle_call(call)
         headers = {}
         if call.result.filename:
-            headers["Content-Disposition"] = f"attachment; filename={call.result.filename}"
+            headers[
+                "Content-Disposition"
+            ] = f"attachment; filename={call.result.filename}"
 
         if call.result.headers:
             headers.update(call.result.headers)
@@ -71,7 +74,9 @@ def before_request():
                 if value is None:
                     response.set_cookie(key, "", expires=0)
                 else:
-                    response.set_cookie(key, value, **config.get("apiserver.auth.cookies"))
+                    response.set_cookie(
+                        key, value, **config.get("apiserver.auth.cookies")
+                    )
 
         return response
     except Exception as ex:
