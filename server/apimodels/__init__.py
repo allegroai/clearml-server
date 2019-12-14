@@ -78,6 +78,9 @@ class DictField(fields.BaseField):
         if not self.value_types:
             return
 
+        if not value:
+            return
+
         for item in value.values():
             self.validate_single_value(item)
 

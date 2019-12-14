@@ -211,7 +211,7 @@ def vector_metrics_iter_histogram(call, company_id, req_model):
 @endpoint("events.get_task_events", required_fields=["task"])
 def get_task_events(call, company_id, _):
     task_id = call.data["task"]
-    batch_size = call.data.get("batch_size")
+    batch_size = call.data.get("batch_size", 500)
     event_type = call.data.get("event_type")
     scroll_id = call.data.get("scroll_id")
     order = call.data.get("order") or "asc"

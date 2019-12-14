@@ -1,5 +1,6 @@
+from enum import Enum
 from typing import Callable, Sequence, Text
-
+from boltons.iterutils import remap
 from jsonmodels import models
 from jsonmodels.errors import FieldNotSupported
 
@@ -87,7 +88,14 @@ class Endpoint(object):
             Provided data_model schema if available
             """
             try:
-                return data_model.to_json_schema()
+                res = data_model.to_json_schema()
+
+                def visit(path, key, value):
+                    if isinstance(value, Enum):
+                        value = str(value)
+                    return key, value
+
+                return remap(res, visit=visit)
             except (FieldNotSupported, TypeError):
                 return str(data_model.__name__)
 
