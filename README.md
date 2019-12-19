@@ -11,23 +11,18 @@
 
 The **trains-server** is the backend service infrastructure for [TRAINS](https://github.com/allegroai/trains).
 It allows multiple users to collaborate and manage their experiments.
-By default, TRAINS is set up to work with the TRAINS demo server, which is open to anyone and resets periodically.
-In order to host your own server, you will need to install **trains-server** and point TRAINS to it.
+By default, **TRAINS** is set up to work with the **TRAINS** demo server, which is open to anyone and resets periodically.
+In order to host your own server, you will need to launch **trains-server** and point **TRAINS** to it.
 
 **trains-server** contains the following components:
 
-* The TRAINS Web-App, a single-page UI for experiment management and browsing
+* The **TRAINS** Web-App, a single-page UI for experiment management and browsing
 * RESTful API for:
     * Documenting and logging experiment information, statistics and results
     * Querying experiments history, logs and results
 * Locally-hosted file server for storing images and models making them easily accessible using the Web-App
 
-You can quickly setup your **trains-server** using:
- - [Docker Installation](#installation)
- - Pre-built Amazon [AWS image](#aws)
- - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#trains-server-for-kubernetes-clusters-using-helm)
- or manual [Kubernetes installation](https://github.com/allegroai/trains-server-k8s#trains-server-for-kubernetes-clusters)
-
+You can quickly [deploy](#launching-trains-server)  your **trains-server** using Docker, AWS EC2 AMI, or Kubernetes. 
 
 ## System design
 
@@ -44,136 +39,42 @@ You can quickly setup your **trains-server** using:
     - Web application on sub-domain: app.\*.\*
     - API service on sub-domain: api.\*.\*
     - File storage service on sub-domain: files.\*.\*
+    
+## Launching trains-server
 
-## Install / Upgrade - AWS <a name="aws"></a>
+### Prerequisites
 
-Use one of our pre-installed Amazon Machine Images for easy deployment in AWS.
-
-For details and instructions, see [TRAINS-server: AWS pre-installed images](docs/install_aws.md).
-
-## Docker Installation - Linux, macOS, and Windows <a name="installation"></a>
-
-Use our pre-built Docker image for easy deployment in Linux and macOS. <br>
-For [Windows](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10), please see detailed docker-compose installation instructions on our [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#docker_compose_win10).<br>
-Latest docker images can be found [here](https://hub.docker.com/r/allegroai/trains).
-
-1. Setup Docker (docker-compose installation details: [Ubuntu](docs/faq.md#ubuntu) / [macOS](docs/faq.md#mac-osx))
-
-    <details>
-    <summary>Make sure ports 8080/8081/8008 are available for the TRAINS-server services:</summary>
+The ports 8080/8081/8008 must be available for the **trains-server** services.
    
-    For example, to see if port `8080` is in use: 
+For example, to see if port `8080` is in use:
 
-    ```bash
-    $ sudo lsof -Pn -i4 | grep :8080 | grep LISTEN
-    ```
+* Linux or Mac OS X: 
+   
+        sudo lsof -Pn -i4 | grep :8080 | grep LISTEN
+
+* Windows:
+
+        netstat -an |find /i "8080"
+   
+### Launching   
     
-    </details>
-    
-    Increase vm.max_map_count for `ElasticSearch` docker
+Launch **trains-server** in any of the following formats:
 
-    - Linux
-        ```bash
-        $ echo "vm.max_map_count=262144" > /tmp/99-trains.conf
-        $ sudo mv /tmp/99-trains.conf /etc/sysctl.d/99-trains.conf
-        $ sudo sysctl -w vm.max_map_count=262144
-        $ sudo service docker restart
-        ```
-      
-    - macOS
-        ```bash
-        $ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
-        $ sysctl -w vm.max_map_count=262144
-        ```    
+- Pre-built [AWS EC2 AMI](https://github.com/allegroai/trains-server/blob/master/docs/install_aws.md)
+- Pre-built Docker Image
+    - [Linux](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
+    - [Mac OS X](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
+    - [Windows 10](https://github.com/allegroai/trains-server/blob/master/docs/install_win.md)
+- Kubernetes    
+    - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#prerequisites)
+    - Manual [Kubernetes installation](https://github.com/allegroai/trains-server-k8s#prerequisites)
 
-1. Create local directories for the databases and storage.
+## Connecting TRAINS to your trains-server
 
-    ```bash
-    $ sudo mkdir -p /opt/trains/data/elastic
-    $ sudo mkdir -p /opt/trains/data/mongo/db
-    $ sudo mkdir -p /opt/trains/data/mongo/configdb
-    $ sudo mkdir -p /opt/trains/data/redis
-    $ sudo mkdir -p /opt/trains/logs
-    $ sudo mkdir -p /opt/trains/data/fileserver
-    $ sudo mkdir -p /opt/trains/config
-    ```
-
-    Set folder permissions
-      
-    - Linux
-      ```bash
-      $ sudo chown -R 1000:1000 /opt/trains
-      ```
-    - macOS
-      ```bash
-      $ sudo chown -R $(whoami):staff /opt/trains
-      ```
-
-1. Download the `docker-compose.yml` file, either download [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
-
-    ```bash
-    $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
-    ```
-
-1. Launch the Docker containers <a name="launch-docker"></a>
-
-    ```bash
-    $ docker-compose -f docker-compose.yml up
-    ```
-
-1. Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
-
-    * Web server on port `8080`
-    * API server on port `8008`
-    * File server on port `8081`
-
-**\* If something went wrong along the way, check our FAQ: [Docker Setup](docs/docker_setup.md#setup-docker), [Ubuntu Support](docs/faq.md#ubuntu), [macOS Support](docs/faq.md#mac-osx)**
-
-## Optional Configuration
-
-The **trains-server** default configuration can be easily overridden using external configuration files. By default, the server will look for these files in `/opt/trains/config`.
-
-In order to apply the new configuration, you must restart the server (see [Restarting trains-server](#restart-server)).
-
-### Adding Web Login Authentication
-
-By default anyone can login to the **trains-server** Web-App.
-You can configure the **trains-server** to allow only a specific set of users to access the system.
-
-Enable this feature by placing `apiserver.conf` file under `/opt/trains/config`.
-
-Sample `apiserver.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/apiserver.conf)
-
-To apply the changes, you must [restart the *trains-server*](#restart-server).
-
-### Configuring the Non-Responsive Experiments Watchdog
-
-The non-responsive experiment watchdog, monitors experiments that were not updated for a given period of time,
-and marks them as `aborted`. The watchdog is always active with a default of 7200 seconds (2 hours) of inactivity threshold.
-
-To change the watchdog's timeouts, place a `services.conf` file under `/opt/trains/config`.
-
-Sample watchdog `services.conf` configuration file can be found [here](https://github.com/allegroai/trains-server/blob/master/docs/services.conf)
-
-To apply the changes, you must [restart the *trains-server*](#restart-server).
-
-### Restarting trains-server <a name="restart-server"></a>
-
-To restart the **trains-server**, you must first stop the containers, and then restart them.
-   ```bash
-   $ docker-compose down
-   $ docker-compose -f docker-compose.yml up
-   ```
-
-
-## Configuring **TRAINS** client
-
-Once you have installed the **trains-server**, make sure to configure **TRAINS** [client](https://github.com/allegroai/trains)
-to use your locally installed server (and not the demo server).
-
-- Run the `trains-init` command for an interactive setup
-
-- Or manually edit `~/trains.conf` file, making sure the `api_server` value is configured correctly, for example:
+By default, the **TRAINS** client is set up to work with the [**TRAINS** demo server](https://demoapp.trains.allegro.ai/).  
+To have the **TRAINS** client use your **trains-server** instead:
+- Run the `trains-init` command for an interactive setup.
+- Or manually edit `~/trains.conf` file, making sure the server settings (`api_server`, `web_server`, `file_server`) are configured correctly, for example:
 
         api {
             # API server on port 8008
@@ -186,26 +87,42 @@ to use your locally installed server (and not the demo server).
             files_server: "http://localhost:8081"
         }
 
-* Notice that if you setup **trains-server** in a sub-domain configuration, there is no need to specify a port number,
+**Note**: If you have set up **trains-server** in a sub-domain configuration, then there is no need to specify a port number,
 it will be inferred from the http/s scheme.
 
-See [Installing and Configuring TRAINS](https://github.com/allegroai/trains#configuration) for more details.
+After launching the **trains-server** and configuring the **TRAINS** client to use the **trains-server**,
+you can [use](https://github.com/allegroai/trains#using-trains) **TRAINS** in your experiments and view them in your **trains-server** web server,
+for example http://localhost:8080.  
+For more information about the TRAINS client, see [**TRAINS**](https://github.com/allegroai/trains).
 
-## What next?
+## Advanced Functionality
 
-Now that the **trains-server** is installed, and TRAINS is configured to use it,
-you can [use](https://github.com/allegroai/trains#using-trains) TRAINS in your experiments and view them in the web server,
-for example http://localhost:8080
+**trains-server** provides a few additional useful features, which can be manually enabled:
+ 
+* [Web login authentication](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#web-auth)
+* [Non-responsive experiments watchdog](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#watchdog-the-non-responsive-task-watchdog-settings)  
+
+## Restarting trains-server
+
+To restart the **trains-server**, you must first stop the containers, and then restart them.
+
+   ```bash
+   docker-compose down
+   docker-compose -f docker-compose-unified.yml up
+   ```
 
 ## Upgrading <a name="upgrade"></a>
 
-We are constantly updating, improving and adding to the **trains-server**.
-New releases will include new pre-built Docker images.
-When we release a new version and include a new pre-built Docker image for it, upgrade as follows:
+**trains-server** releases are also reflected in the [docker compose configuration file](https://github.com/allegroai/trains-server/blob/master/docker-compose-unified.yml).  
+We strongly encourage you to keep your **trains-server** up to date, by keeping up with the current release.
+
+**Note**: The following upgrade instructions use the Linux OS as an example.
+
+To upgrade your existing **trains-server** deployment:
 
 1. Shut down the docker containers
    ```bash
-   $ docker-compose down
+   docker-compose down
    ```
 
 1. We highly recommend backing up your data directory before upgrading.
@@ -213,7 +130,7 @@ When we release a new version and include a new pre-built Docker image for it, u
    Assuming your data directory is `/opt/trains`, to archive all data into `~/trains_backup.tgz` execute:
 
    ```bash
-   $ sudo tar czvf ~/trains_backup.tgz /opt/trains/data
+   sudo tar czvf ~/trains_backup.tgz /opt/trains/data
    ```    
 
    <details>
@@ -221,24 +138,24 @@ When we release a new version and include a new pre-built Docker image for it, u
 
    To restore this example backup, execute:
    ```bash
-   $ sudo rm -R /opt/trains/data
-   $ sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
+   sudo rm -R /opt/trains/data
+   sudo tar -xzf ~/trains_backup.tgz -C /opt/trains/data
    ```
    </details>
 
-1. Download the latest `docker-compose.yml` file, either [manually](https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml) or execute:
+1. Download the latest `docker-compose-unified.yml` file.
 
    ```bash
-   $ curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
+   curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose-unified.yml -o docker-compose-unified.yml 
    ```
 
-1. Spin up the docker containers, it will automatically pull the latest trains-server build    
+1. Spin up the docker containers, it will automatically pull the latest **trains-server** build    
    ```bash
-   $ docker-compose -f docker-compose.yml pull
-   $ docker-compose -f docker-compose.yml up
+   docker-compose -f docker-compose-unified.yml pull
+   docker-compose -f docker-compose-unified.yml up
    ```
 
-**\* If something went wrong along the way, check our FAQ: [Docker Upgrade](docs/docker_setup.md#common-docker-upgrade-errors)**
+**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#common-docker-upgrade-errors).**
 
 
 ## Community & Support
