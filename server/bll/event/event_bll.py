@@ -16,6 +16,7 @@ import es_factory
 from apierrors import errors
 from bll.event.event_metrics import EventMetrics
 from bll.task import TaskBLL
+from config import config
 from database.errors import translate_errors_context
 from database.model.task.task import Task, TaskStatus
 from timing_context import TimingContext
@@ -50,6 +51,7 @@ class EventBLL(object):
     def __init__(self, events_es=None):
         self.es = events_es or es_factory.connect("events")
         self._metrics = EventMetrics(self.es)
+        self._skip_iteration_for_metric = set(config.get("services.events.ignore_iteration.metrics", []))
 
     @property
     def metrics(self) -> EventMetrics:
@@ -121,7 +123,7 @@ class EventBLL(object):
             if task_id is not None:
                 es_action["_routing"] = task_id
                 task_ids.add(task_id)
-                if iter is not None:
+                if iter is not None and event.get("metric") not in self._skip_iteration_for_metric:
                     task_iteration[task_id] = max(iter, task_iteration[task_id])
 
                 if event_type == EventType.metrics_scalar.value:
