@@ -8,8 +8,8 @@ import requests
 from semantic_version import Version
 
 from config import config
+from config.info import get_version
 from database.model.settings import Settings
-from version import __version__ as current_version
 
 log = config.logger(__name__)
 
@@ -48,7 +48,7 @@ class CheckUpdatesThread(Thread):
 
         response = requests.get(
             url,
-            json={"versions": {self.component_name: str(current_version)}, "uid": uid},
+            json={"versions": {self.component_name: str(get_version())}, "uid": uid},
             timeout=float(
                 config.get("apiserver.check_for_updates.request_timeout_sec", 3.0)
             ),
@@ -65,7 +65,7 @@ class CheckUpdatesThread(Thread):
         if not latest_version:
             return
 
-        cur_version = Version(current_version)
+        cur_version = Version(get_version())
         latest_version = Version(latest_version)
         if cur_version >= latest_version:
             return

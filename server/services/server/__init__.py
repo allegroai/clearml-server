@@ -11,7 +11,6 @@ from database.errors import translate_errors_context
 from database.model import Company
 from database.model.company import ReportStatsOption
 from service_repo import ServiceRepo, APICall, endpoint
-from version import __version__ as current_version
 
 
 @endpoint("server.get_stats")
@@ -79,7 +78,7 @@ def report_stats(call: APICall, company: str, request: ReportStatsOptionRequest)
                 stats_option = ReportStatsOption(
                     enabled=enabled,
                     enabled_time=datetime.utcnow(),
-                    enabled_version=current_version,
+                    enabled_version=get_version(),
                     enabled_user=call.identity.user,
                 )
                 updated = query.update(defaults__stats_option=stats_option)
@@ -88,7 +87,7 @@ def report_stats(call: APICall, company: str, request: ReportStatsOptionRequest)
                         f"Failed setting report_stats to {enabled}"
                     )
         data = stats_option.to_mongo()
-        data["current_version"] = current_version
+        data["current_version"] = get_version()
         result = ReportStatsOptionResponse(**data)
 
     call.result.data_model = result

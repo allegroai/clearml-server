@@ -1,43 +1,37 @@
 from functools import lru_cache
-from pathlib import Path
 from os import getenv
+from pathlib import Path
+from version import __version__
 
 root = Path(__file__).parent.parent
 
 
-@lru_cache()
-def get_build_number():
-    try:
-        return (root / "BUILD").read_text().strip()
-    except FileNotFoundError:
-        return ""
-
-
-@lru_cache()
-def get_version():
-    try:
-        return (root / "VERSION").read_text().strip()
-    except FileNotFoundError:
-        return ""
-
-
-@lru_cache()
-def get_commit_number():
-    try:
-        return (root / "COMMIT").read_text().strip()
-    except FileNotFoundError:
-        return ""
-
-
-@lru_cache()
-def get_deployment_type() -> str:
-    value = getenv("TRAINS_SERVER_DEPLOYMENT_TYPE")
+def _get(prop_name, env_suffix=None, default=""):
+    value = getenv(f"TRAINS_SERVER_{env_suffix or prop_name}")
     if value:
         return value
 
     try:
-        value = (root / "DEPLOY").read_text().strip()
+        return (root / prop_name).read_text().strip()
     except FileNotFoundError:
-        pass
+        return default
 
-    return value or "manual"
+
+@lru_cache()
+def get_build_number():
+    return _get("BUILD")
+
+
+@lru_cache()
+def get_version():
+    return _get("VERSION", default=__version__)
+
+
+@lru_cache()
+def get_commit_number():
+    return _get("COMMIT")
+
+
+@lru_cache()
+def get_deployment_type() -> str:
+    return _get("DEPLOY", env_suffix="DEPLOYMENT_TYPE", default="manual")
