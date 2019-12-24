@@ -24,10 +24,13 @@ from database.model.task.task import (
     TaskStatus,
     TaskStatusMessage,
     TaskSystemTags,
+    ArtifactModes,
+    Artifact,
 )
 from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
 from timing_context import TimingContext
+from utilities.dicts import deep_merge
 from utilities.threads_manager import ThreadsManager
 from .utils import ChangeStatusRequest, validate_status_change
 
@@ -152,6 +155,51 @@ class TaskBLL(object):
         return model
 
     @classmethod
+    def clone_task(
+        cls,
+        company_id,
+        user_id,
+        task_id,
+        name: Optional[str] = None,
+        comment: Optional[str] = None,
+        parent: Optional[str] = None,
+        project: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        system_tags: Optional[Sequence[str]] = None,
+        execution_overrides: Optional[dict] = None,
+    ) -> Task:
+        task = cls.get_by_id(company_id=company_id, task_id=task_id)
+        execution_dict = task.execution.to_proper_dict() if task.execution else {}
+        if execution_overrides:
+            execution_dict = deep_merge(execution_dict, execution_overrides)
+        artifacts = execution_dict.get("artifacts")
+        if artifacts:
+            execution_dict["artifacts"] = [
+                a for a in artifacts if a.get("mode") != ArtifactModes.output
+            ]
+        now = datetime.utcnow()
+        new_task = Task(
+            id=create_id(),
+            user=user_id,
+            company=company_id,
+            created=now,
+            last_update=now,
+            name=name or task.name,
+            comment=comment or task.comment,
+            parent=parent or task.parent,
+            project=project or task.project,
+            tags=tags or task.tags,
+            system_tags=system_tags or [],
+            type=task.type,
+            script=task.script,
+            output=Output(destination=task.output.destination) if task.output else None,
+            execution=execution_dict,
+        )
+        cls.validate(new_task)
+        new_task.save()
+        return new_task
+
+    @classmethod
     def validate(cls, task: Task):
         assert isinstance(task, Task)
 
@@ -160,8 +208,10 @@ class TaskBLL(object):
         ):
             raise errors.bad_request.InvalidTaskId("invalid parent", parent=task.parent)
 
-        if task.project:
-            Project.get_for_writing(company=task.company, id=task.project)
+        if task.project and not Project.get_for_writing(
+            company=task.company, id=task.project
+        ):
+            raise errors.bad_request.InvalidProjectId(id=task.project)
 
         cls.validate_execution_model(task)
 

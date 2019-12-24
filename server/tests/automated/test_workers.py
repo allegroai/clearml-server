@@ -108,7 +108,7 @@ class TestWorkersService(TestService):
         from_date = to_date - timedelta(days=1)
 
         # no variants
-        res = self.api.workers.get_statistics(
+        res = self.api.workers.get_stats(
             items=[
                 dict(key="cpu_usage", aggregation="avg"),
                 dict(key="cpu_usage", aggregation="max"),
@@ -142,7 +142,7 @@ class TestWorkersService(TestService):
         )
 
         # split by variants
-        res = self.api.workers.get_statistics(
+        res = self.api.workers.get_stats(
             items=[dict(key="cpu_usage", aggregation="avg")],
             from_date=from_date.timestamp(),
             to_date=to_date.timestamp(),
@@ -165,7 +165,7 @@ class TestWorkersService(TestService):
 
         assert all(_check_metric_and_variants(worker) for worker in res["workers"])
 
-        res = self.api.workers.get_statistics(
+        res = self.api.workers.get_stats(
             items=[dict(key="cpu_usage", aggregation="avg")],
             from_date=from_date.timestamp(),
             to_date=to_date.timestamp(),

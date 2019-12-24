@@ -12,7 +12,7 @@ from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
 
 from apierrors import errors, APIError
-from apimodels.base import UpdateResponse
+from apimodels.base import UpdateResponse, IdResponse
 from apimodels.tasks import (
     StartedResponse,
     ResetResponse,
@@ -281,7 +281,9 @@ def validate(call: APICall, company_id, req_model: CreateRequest):
     _validate_and_get_task_from_call(call)
 
 
-@endpoint("tasks.create", request_data_model=CreateRequest)
+@endpoint(
+    "tasks.create", request_data_model=CreateRequest, response_data_model=IdResponse
+)
 def create(call: APICall, company_id, req_model: CreateRequest):
     task = _validate_and_get_task_from_call(call)
 
@@ -289,7 +291,26 @@ def create(call: APICall, company_id, req_model: CreateRequest):
         task.save()
         update_project_time(task.project)
 
-    call.result.data = {"id": task.id}
+    call.result.data_model = IdResponse(id=task.id)
+
+
+@endpoint(
+    "tasks.clone", request_data_model=CloneRequest, response_data_model=IdResponse
+)
+def clone_task(call: APICall, company_id, request: CloneRequest):
+    task = task_bll.clone_task(
+        company_id=company_id,
+        user_id=call.identity.user,
+        task_id=request.task,
+        name=request.new_task_name,
+        comment=request.new_task_comment,
+        parent=request.new_task_parent,
+        project=request.new_task_project,
+        tags=request.new_task_tags,
+        system_tags=request.new_task_system_tags,
+        execution_overrides=request.execution_overrides,
+    )
+    call.result.data_model = IdResponse(id=task.id)
 
 
 def prepare_update_fields(call: APICall, task, call_data):

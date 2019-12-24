@@ -6,6 +6,9 @@ log = config.logger(__file__)
 
 
 class TestTasksEdit(TestService):
+    def setUp(self, **kwargs):
+        super().setUp(version=2.5)
+
     def new_task(self, **kwargs):
         return self.create_temp(
             "tasks", type="testing", name="test", input=dict(view=dict()), **kwargs
@@ -34,3 +37,39 @@ class TestTasksEdit(TestService):
         self.api.models.edit(model=not_ready_model, ready=False)
         self.assertFalse(self.api.models.get_by_id(model=not_ready_model).model.ready)
         self.api.tasks.edit(task=task, execution=dict(model=not_ready_model))
+
+    def test_clone_task(self):
+        script = dict(
+            binary="python",
+            requirements=dict(pip=["six"]),
+            repository="https://example.come/foo/bar",
+            entry_point="test.py",
+            diff="foo",
+        )
+        execution = dict(parameters=dict(test="Test"))
+        tags = ["hello"]
+        system_tags = ["development", "test"]
+        task = self.new_task(
+            script=script, execution=execution, tags=tags, system_tags=system_tags
+        )
+
+        new_name = "new test"
+        new_tags = ["by"]
+        execution_overrides = dict(framework="Caffe")
+        new_task_id = self.api.tasks.clone(
+            task=task,
+            new_task_name=new_name,
+            new_task_tags=new_tags,
+            execution_overrides=execution_overrides,
+            new_task_parent=task,
+        ).id
+        new_task = self.api.tasks.get_by_id(task=new_task_id).task
+        self.assertEqual(new_task.name, new_name)
+        self.assertEqual(new_task.type, "testing")
+        self.assertEqual(new_task.tags, new_tags)
+        self.assertEqual(new_task.status, "created")
+        self.assertEqual(new_task.script, script)
+        self.assertEqual(new_task.parent, task)
+        self.assertEqual(new_task.execution.parameters, execution["parameters"])
+        self.assertEqual(new_task.execution.framework, execution_overrides["framework"])
+        self.assertEqual(new_task.system_tags, [])

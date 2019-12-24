@@ -67,10 +67,15 @@ class ArtifactTypeData(EmbeddedDocument):
     data_hash = StringField()
 
 
+class ArtifactModes:
+    input = "input"
+    output = "output"
+
+
 class Artifact(EmbeddedDocument):
     key = StringField(required=True)
     type = StringField(required=True)
-    mode = StringField(choices=("input", "output"), default="output")
+    mode = StringField(choices=get_options(ArtifactModes), default=ArtifactModes.output)
     uri = StringField()
     hash = StringField()
     content_size = LongField()
