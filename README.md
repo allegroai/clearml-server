@@ -1,4 +1,4 @@
-# TRAINS Server
+# Trains Server
 
 ##  Auto-Magical Experiment Manager & Version Control for AI
 
@@ -9,14 +9,14 @@
 
 ## Introduction
 
-The **trains-server** is the backend service infrastructure for [TRAINS](https://github.com/allegroai/trains).
+The **trains-server** is the backend service infrastructure for [Trains](https://github.com/allegroai/trains).
 It allows multiple users to collaborate and manage their experiments.
-By default, **TRAINS** is set up to work with the **TRAINS** demo server, which is open to anyone and resets periodically.
-In order to host your own server, you will need to launch **trains-server** and point **TRAINS** to it.
+By default, **Trains** is set up to work with the **Trains** demo server, which is open to anyone and resets periodically.
+In order to host your own server, you will need to launch **trains-server** and point **Trains** to it.
 
 **trains-server** contains the following components:
 
-* The **TRAINS** Web-App, a single-page UI for experiment management and browsing
+* The **Trains** Web-App, a single-page UI for experiment management and browsing
 * RESTful API for:
     * Documenting and logging experiment information, statistics and results
     * Querying experiments history, logs and results
@@ -69,10 +69,10 @@ Launch **trains-server** in any of the following formats:
     - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#prerequisites)
     - Manual [Kubernetes installation](https://github.com/allegroai/trains-server-k8s#prerequisites)
 
-## Connecting TRAINS to your trains-server
+## Connecting Trains to your trains-server
 
-By default, the **TRAINS** client is set up to work with the [**TRAINS** demo server](https://demoapp.trains.allegro.ai/).  
-To have the **TRAINS** client use your **trains-server** instead:
+By default, the **Trains** client is set up to work with the [**Trains** demo server](https://demoapp.trains.allegro.ai/).  
+To have the **Trains** client use your **trains-server** instead:
 - Run the `trains-init` command for an interactive setup.
 - Or manually edit `~/trains.conf` file, making sure the server settings (`api_server`, `web_server`, `file_server`) are configured correctly, for example:
 
@@ -90,10 +90,10 @@ To have the **TRAINS** client use your **trains-server** instead:
 **Note**: If you have set up **trains-server** in a sub-domain configuration, then there is no need to specify a port number,
 it will be inferred from the http/s scheme.
 
-After launching the **trains-server** and configuring the **TRAINS** client to use the **trains-server**,
-you can [use](https://github.com/allegroai/trains#using-trains) **TRAINS** in your experiments and view them in your **trains-server** web server,
+After launching the **trains-server** and configuring the **Trains** client to use the **trains-server**,
+you can [use](https://github.com/allegroai/trains#using-trains) **Trains** in your experiments and view them in your **trains-server** web server,
 for example http://localhost:8080.  
-For more information about the TRAINS client, see [**TRAINS**](https://github.com/allegroai/trains).
+For more information about the Trains client, see [**Trains**](https://github.com/allegroai/trains).
 
 ## Advanced Functionality
 
@@ -160,7 +160,7 @@ To upgrade your existing **trains-server** deployment:
 
 ## Community & Support
 
-If you have any questions, look to the TRAINS-server [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md), or
+If you have any questions, look to the Trains server [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md), or
 tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/trains) with '**trains**' tag.
 
 For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/trains-server/issues).
