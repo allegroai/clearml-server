@@ -215,6 +215,6 @@ def init_mongo_data():
                 try:
                     _ensure_user(user, company_id)
                 except Exception as ex:
-                    log.error(f"Failed creating fixed user {user['name']}: {ex}")
+                    log.error(f"Failed creating fixed user {user.name}: {ex}")
     except Exception as ex:
         log.exception("Failed initializing mongodb")

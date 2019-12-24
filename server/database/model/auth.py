@@ -52,7 +52,7 @@ class User(DbModelMixin, AuthDocument):
     meta = {"db_alias": Database.auth, "strict": strict}
 
     id = StringField(primary_key=True)
-    name = StringField(unique_with="company")
+    name = StringField()
 
     created = DateTimeField()
     """ User auth entry creation time """
