@@ -27,6 +27,9 @@ from apimodels.tasks import (
     EnqueueRequest,
     EnqueueResponse,
     DequeueResponse,
+    CloneRequest,
+    AddOrUpdateArtifactsRequest,
+    AddOrUpdateArtifactsResponse,
 )
 from bll.event import EventBLL
 from bll.queue import QueueBLL
@@ -837,3 +840,18 @@ def ping(_, company_id, request: PingRequest):
     TaskBLL.set_last_update(
         task_ids=[request.task], company_id=company_id, last_update=datetime.utcnow()
     )
+
+
+@endpoint(
+    "tasks.add_or_update_artifacts",
+    min_version="2.6",
+    request_data_model=AddOrUpdateArtifactsRequest,
+    response_data_model=AddOrUpdateArtifactsResponse,
+)
+def add_or_update_artifacts(
+    call: APICall, company_id, request: AddOrUpdateArtifactsRequest
+):
+    added, updated = TaskBLL.add_or_update_artifacts(
+        task_id=request.task, company_id=company_id, artifacts=request.artifacts
+    )
+    call.result.data_model = AddOrUpdateArtifactsResponse(added=added, updated=updated)

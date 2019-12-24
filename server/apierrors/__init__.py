@@ -121,6 +121,7 @@ _error_codes = {
         100: ('data_error', 'general data error'),
         101: ('inconsistent_data', 'inconsistent data encountered in document'),
         102: ('database_unavailable', 'database is temporarily unavailable'),
+        110: ('update_failed', 'update failed'),
 
         # Index-related issues
         201: ('missing_index', 'missing internal index'),

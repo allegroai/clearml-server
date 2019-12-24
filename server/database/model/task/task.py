@@ -18,6 +18,7 @@ from database.fields import (
     SafeSortedListField,
 )
 from database.model import AttributedDocument
+from database.model.base import ProperDictMixin
 from database.model.model_labels import ModelLabels
 from database.model.project import Project
 from database.utils import get_options
@@ -78,7 +79,7 @@ class Artifact(EmbeddedDocument):
     display_data = SafeSortedListField(ListField(UnionField((int, float, str))))
 
 
-class Execution(EmbeddedDocument):
+class Execution(EmbeddedDocument, ProperDictMixin):
     test_split = IntField(default=0)
     parameters = SafeDictField(default=dict)
     model = StringField(reference_field="Model")
