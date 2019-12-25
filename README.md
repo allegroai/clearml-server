@@ -100,7 +100,7 @@ For more information about the Trains client, see [**Trains**](https://github.co
 **trains-server** provides a few additional useful features, which can be manually enabled:
  
 * [Web login authentication](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#web-auth)
-* [Non-responsive experiments watchdog](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#watchdog-the-non-responsive-task-watchdog-settings)  
+* [Non-responsive experiments watchdog](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#watchdog)  
 
 ## Restarting trains-server
 
