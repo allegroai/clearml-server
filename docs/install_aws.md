@@ -1,22 +1,22 @@
 # Deploying **trains-server** on AWS
 
-To deploy **trains-server** on AWS, use one of the Amazon Machine Images (AMIs) listed in the [Released versions](#released-versions) section of this page. 
+To easily deploy **trains-server** on AWS, use one of our pre-built Amazon Machine Images (AMIs).  
+We provide AMIs per region for each released version of **trains-server**, see [Released versions](#released-versions) below. 
 
-Service port numbers on these AMIs are:
+Once the AMI is up and running, [configure the Trains client](https://github.com/allegroai/trains/blob/master/README.md#configuration) to use your **trains-server**.  
+The service port numbers on our **trains-server** AMIs:
 
-- Web: `8080`
-- API: `8008`
+- Web application: `8080`
+- API Server: `8008`
 - File Server: `8081`
 
-Persistent storage configuration:
+The persistent storage configuration:
 
 - MongoDB: `/opt/trains/data/mongo/`
 - ElasticSearch: `/opt/trains/data/elastic/`
 - File Server: `/mnt/fileserver/`
- 
-## Installing
 
-We provide AMIs per region for each released version of **trains-server**, see [Released versions](#released-versions) on this page. 
+For examples and use cases, check the [Trains usage examples](https://github.com/allegroai/trains/blob/master/docs/trains_examples.md).
 
 For instructions on launching a custom AMI from the EC2 console, see the [AWS Knowledge Center](https://aws.amazon.com/premiumsupport/knowledge-center/launch-instance-custom-ami/) or detailed instructions in the [AWS Documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/launching-instance.html).
 
@@ -26,7 +26,7 @@ The minimum recommended amount of RAM is 8GB. For example, **t3.large** or **t3a
 
 To upgrade **trains-server** on an existing EC2 instance based on one of these AMIs, SSH into the instance and follow the [upgrade instructions](../README.md#upgrade) for **trains-server**.
 
-### Upgrading AMI's to v0.12 
+### Upgrading AMIs to v0.12 
 
 This upgrade includes the automatically updated AMI in Version 0.12. It also includes an additional REDIS docker to the **trains-server** setup.
 
@@ -185,6 +185,3 @@ For easier upgrades, the following AMIs automatically update to the latest relea
 * **us-west-1** : ami-0cf4768e9d47ed076
 * **us-west-2** : ami-0b145f37da31eb9fb
 
-## Next Step
-
-Configure the [TRAINS client for trains-server](https://github.com/allegroai/trains-server/blob/master/README#configuring-the-trains-client-for-trains-server).

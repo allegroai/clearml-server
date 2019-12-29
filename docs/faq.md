@@ -47,7 +47,7 @@ To launch **trains-server** on a stand alone Linux Ubuntu:
 
 1. Remove the previous installation of **trains-server**.
 
-    **WARNING**: This clears all existing **TRAINS** databases.
+    **WARNING**: This clears all existing **Trains** databases.
 
         sudo rm -R /opt/trains/
 

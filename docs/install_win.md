@@ -20,7 +20,7 @@ To launch **trains-server** on Windows 10:
     
 1. Remove any previous installation of **trains-server**.
 
-    **WARNING**: This clears all existing **TRAINS** databases.
+    **WARNING**: This clears all existing **Trains** databases.
 
         rmdir c:\opt\trains /s
 
@@ -47,4 +47,4 @@ To launch **trains-server** on Windows 10:
 
 ## Next Step
 
-Configure the [TRAINS client for trains-server](https://github.com/allegroai/trains-server/blob/master/README#configuring-the-trains-client-for-trains-server).
+Configure the [Trains client for trains-server](https://github.com/allegroai/trains/blob/master/README.md#configuration).
