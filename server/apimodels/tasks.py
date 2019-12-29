@@ -1,12 +1,30 @@
 import six
 from jsonmodels import models
-from jsonmodels.fields import StringField, BoolField, IntField
+from jsonmodels.fields import StringField, BoolField, IntField, EmbeddedField
 from jsonmodels.validators import Enum
 
 from apimodels import DictField, ListField
 from apimodels.base import UpdateResponse
 from database.model.task.task import TaskType
 from database.utils import get_options
+
+
+class ArtifactTypeData(models.Base):
+    preview = StringField()
+    content_type = StringField()
+    data_hash = StringField()
+
+
+class Artifact(models.Base):
+    key = StringField(required=True)
+    type = StringField(required=True)
+    mode = StringField(validators=Enum("input", "output"), default="output")
+    uri = StringField()
+    hash = StringField()
+    content_size = IntField()
+    timestamp = IntField()
+    type_data = EmbeddedField(ArtifactTypeData)
+    display_data = ListField([list])
 
 
 class StartedResponse(UpdateResponse):
@@ -72,3 +90,22 @@ class CreateRequest(TaskData):
 
 class PingRequest(TaskRequest):
     pass
+
+
+class CloneRequest(TaskRequest):
+    new_task_name = StringField()
+    new_task_comment = StringField()
+    new_task_tags = ListField([str])
+    new_task_system_tags = ListField([str])
+    new_task_parent = StringField()
+    new_task_project = StringField()
+    execution_overrides = DictField()
+
+
+class AddOrUpdateArtifactsRequest(TaskRequest):
+    artifacts = ListField([Artifact], required=True)
+
+
+class AddOrUpdateArtifactsResponse(models.Base):
+    added = ListField([str])
+    updated = ListField([str])

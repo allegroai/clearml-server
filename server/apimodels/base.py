@@ -58,3 +58,7 @@ class UpdateResponse(models.Base):
 class PagedRequest(models.Base):
     page = fields.IntField()
     page_size = fields.IntField()
+
+
+class IdResponse(models.Base):
+    id = fields.StringField(required=True)

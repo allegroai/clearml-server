@@ -105,7 +105,6 @@ _error_codes = {
 
     (403, 'forbidden'): {
         10: ('routing_error', 'forbidden (routing error)'),
-        11: ('missing_routing_header', 'forbidden (missing routing header)'),
         12: ('blocked_internal_endpoint', 'forbidden (blocked internal endpoint)'),
         20: ('role_not_allowed', 'forbidden (not allowed for role)'),
         21: ('no_write_permission', 'forbidden (modification not allowed)'),
