@@ -21,6 +21,8 @@ JSON_CONTENT_TYPE = "application/json"
 class DataContainer(object):
     """ Data container that supports raw data (dict or a list of batched dicts) and a data model """
 
+    null_schema_validator: SchemaValidator = SchemaValidator(None)
+
     def __init__(self, data=None, batched_data=None):
         if data and batched_data:
             raise ValueError("data and batched data are not supported simultaneously")
@@ -28,7 +30,7 @@ class DataContainer(object):
         self._data = None
         self._data_model = None
         self._data_model_cls = None
-        self._schema_validator: SchemaValidator = SchemaValidator(None)
+        self._schema_validator: SchemaValidator = self.null_schema_validator
         # use setter to properly initialize data
         self.data = data
         self.batched_data = batched_data
