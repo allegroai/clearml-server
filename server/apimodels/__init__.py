@@ -155,7 +155,7 @@ class EnumField(fields.StringField):
 class ActualEnumField(fields.StringField):
     @property
     def types(self):
-        return (self.__enum,)
+        return self.__enum,
 
     def __init__(
         self,

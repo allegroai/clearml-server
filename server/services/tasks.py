@@ -726,7 +726,7 @@ def cleanup_task(task, force=False):
     else:
         updated_models = 0
 
-    event_bll.delete_task_events(task.company, task.id)
+    event_bll.delete_task_events(task.company, task.id, allow_locked=force)
 
     return CleanupResult(
         deleted_models=deleted_models,
