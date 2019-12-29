@@ -6,6 +6,8 @@ from time import sleep
 import attr
 import psutil
 
+from utilities.threads_manager import ThreadsManager
+
 
 class ResourceMonitor(Thread):
     @attr.s(auto_attribs=True)
@@ -58,7 +60,7 @@ class ResourceMonitor(Thread):
         )
 
     def run(self):
-        while True:
+        while not ThreadsManager.terminating:
             sleep(self.sample_interval_sec)
 
             sample = self._get_sample()

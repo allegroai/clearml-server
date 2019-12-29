@@ -10,6 +10,7 @@ from semantic_version import Version
 from config import config
 from config.info import get_version
 from database.model.settings import Settings
+from utilities.threads_manager import ThreadsManager
 
 log = config.logger(__name__)
 
@@ -80,7 +81,16 @@ class CheckUpdatesThread(Thread):
         )
 
     def _check_updates(self):
-        while True:
+        update_interval_sec = max(
+            float(
+                config.get(
+                    "apiserver.check_for_updates.check_interval_sec",
+                    60 * 60 * 24,
+                )
+            ),
+            60 * 5,
+        )
+        while not ThreadsManager.terminating:
             # noinspection PyBroadException
             try:
                 response = self._check_new_version_available()
@@ -98,17 +108,7 @@ class CheckUpdatesThread(Thread):
             except Exception:
                 log.exception("Failed obtaining updates")
 
-            sleep(
-                max(
-                    float(
-                        config.get(
-                            "apiserver.check_for_updates.check_interval_sec",
-                            60 * 60 * 24,
-                        )
-                    ),
-                    60 * 5,
-                )
-            )
+            sleep(update_interval_sec)
 
 
 check_updates_thread = CheckUpdatesThread()

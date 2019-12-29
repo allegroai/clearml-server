@@ -53,11 +53,8 @@ class StatisticsReporter:
         report_interval = timedelta(
             hours=config.get("apiserver.statistics.report_interval_hours", 24)
         )
-
-        while True:
-
-            sleep(report_interval.total_seconds())
-
+        sleep(report_interval.total_seconds())
+        while not ThreadsManager.terminating:
             try:
                 for company in Company.objects(
                     defaults__stats_option__enabled=True
@@ -67,6 +64,8 @@ class StatisticsReporter:
 
             except Exception as ex:
                 log.exception(f"Failed collecting stats: {str(ex)}")
+
+            sleep(report_interval.total_seconds())
 
     @classmethod
     @threads.register("sender", daemon=True)
@@ -86,7 +85,7 @@ class StatisticsReporter:
 
         WarningFilter.attach()
 
-        while True:
+        while not ThreadsManager.terminating:
             try:
                 report = cls.send_queue.get()
 

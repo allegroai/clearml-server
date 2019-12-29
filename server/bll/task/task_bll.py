@@ -569,13 +569,11 @@ class TaskBLL(object):
                 "services.tasks.non_responsive_tasks_watchdog.threshold_sec", 7200
             )
         )
-        while True:
-            sleep(
-                config.get(
-                    "services.tasks.non_responsive_tasks_watchdog.watch_interval_sec",
-                    900,
-                )
-            )
+        watch_interval = config.get(
+            "services.tasks.non_responsive_tasks_watchdog.watch_interval_sec", 900
+        )
+        sleep(watch_interval)
+        while not ThreadsManager.terminating:
             try:
 
                 ref_time = datetime.utcnow() - threshold
@@ -610,6 +608,8 @@ class TaskBLL(object):
 
             except Exception as ex:
                 log.exception(f"Failed stopping tasks: {str(ex)}")
+
+            sleep(watch_interval)
 
     @staticmethod
     def get_aggregated_project_execution_parameters(

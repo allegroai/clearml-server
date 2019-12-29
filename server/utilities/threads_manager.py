@@ -1,10 +1,12 @@
 from functools import wraps
 from threading import Lock, Thread
+from typing import ClassVar
 
 
 class ThreadsManager:
     objects = {}
     lock = Lock()
+    terminating: ClassVar[bool] = False
 
     def __init__(self, name=None, **threads):
         super(ThreadsManager, self).__init__()

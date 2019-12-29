@@ -1,3 +1,4 @@
+import atexit
 from argparse import ArgumentParser
 
 from flask import Flask, request, Response
@@ -16,6 +17,7 @@ from service_repo.errors import PathParsingError
 from timing_context import TimingContext
 from updates import check_updates_thread
 from utilities import json
+from utilities.threads_manager import ThreadsManager
 
 app = Flask(__name__, static_url_path="/static")
 CORS(app, **config.get("apiserver.cors"))
@@ -39,6 +41,13 @@ log.info(f"Exposed Services: {' '.join(ServiceRepo.endpoint_names())}")
 
 check_updates_thread.start()
 StatisticsReporter.start()
+
+
+def graceful_shutdown():
+    ThreadsManager.terminating = True
+
+
+atexit.register(graceful_shutdown)
 
 
 @app.before_first_request
