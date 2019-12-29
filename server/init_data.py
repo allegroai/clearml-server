@@ -25,7 +25,7 @@ from service_repo.auth.fixed_user import FixedUser
 
 log = config.logger(__file__)
 
-migration_dir = (Path(__file__) / "../../migration/mongodb").resolve()
+migration_dir = Path(__file__).resolve().parent / "mongo" / "migrations"
 
 
 class MissingElasticConfiguration(Exception):
