@@ -11,6 +11,7 @@ from semantic_version import Version
 import database.utils
 from bll.queue import QueueBLL
 from config import config
+from config.info import get_default_company
 from database import Database
 from database.model.auth import Role
 from database.model.auth import User as AuthUser, Credentials
@@ -49,7 +50,7 @@ def init_es_data():
 
 
 def _ensure_company():
-    company_id = config.get("apiserver.default_company")
+    company_id = get_default_company()
     company = Company.objects(id=company_id).only("id").first()
     if company:
         return company_id
@@ -211,6 +212,7 @@ def init_mongo_data():
 
         if FixedUser.enabled():
             log.info("Fixed users mode is enabled")
+            FixedUser.validate()
             for user in FixedUser.from_config():
                 try:
                     _ensure_user(user, company_id)

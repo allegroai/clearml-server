@@ -3,6 +3,8 @@ from os import getenv
 from pathlib import Path
 from version import __version__
 
+from config import config
+
 root = Path(__file__).parent.parent
 
 
@@ -35,3 +37,7 @@ def get_commit_number():
 @lru_cache()
 def get_deployment_type() -> str:
     return _get("DEPLOY", env_suffix="DEPLOYMENT_TYPE", default="manual")
+
+
+def get_default_company():
+    return config.get("apiserver.default_company")
