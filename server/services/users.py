@@ -7,10 +7,7 @@ from mongoengine import Q
 
 from apierrors import errors
 from apimodels.base import UpdateResponse
-from apimodels.users import (
-    CreateRequest,
-    SetPreferencesRequest,
-)
+from apimodels.users import CreateRequest, SetPreferencesRequest
 from bll.user import UserBLL
 from config import config
 from database.errors import translate_errors_context
@@ -19,6 +16,7 @@ from database.model.company import Company
 from database.model.user import User
 from database.utils import parse_from_call
 from service_repo import APICall, endpoint
+from utilities.json import loads, dumps
 
 log = config.logger(__file__)
 get_all_query_options = User.QueryParameterOptions(list_fields=("id",))
@@ -160,7 +158,10 @@ def update(call, company_id, _):
 
 def get_user_preferences(call):
     user_id = call.identity.user
-    return get_user(call, user_id, ["preferences"]).get("preferences", {})
+    preferences = get_user(call, user_id, ["preferences"]).get("preferences")
+    if preferences and isinstance(preferences, str):
+        preferences = loads(preferences)
+    return preferences or {}
 
 
 @endpoint("users.get_preferences")
@@ -169,9 +170,7 @@ def get_preferences(call):
     return {"preferences": get_user_preferences(call)}
 
 
-@endpoint(
-    "users.set_preferences", request_data_model=SetPreferencesRequest
-)
+@endpoint("users.set_preferences", request_data_model=SetPreferencesRequest)
 def set_preferences(call, company_id, req_model):
     # type: (APICall, str, SetPreferencesRequest) -> Dict
     assert isinstance(call, APICall)
@@ -205,9 +204,11 @@ def set_preferences(call, company_id, req_model):
         updated, fields = 0, {}
     else:
         with translate_errors_context("updating user preferences"):
-            fields = dict(preferences=new_preferences)
             updated = User.objects(id=call.identity.user, company=company_id).update(
-                upsert=False, **fields
+                upsert=False, preferences=dumps(new_preferences)
             )
 
-    return {"updated": updated, "fields": fields if updated else {}}
+    return {
+        "updated": updated,
+        "fields": {"preferences": new_preferences} if updated else {},
+    }

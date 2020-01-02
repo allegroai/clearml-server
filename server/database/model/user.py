@@ -1,7 +1,6 @@
-from mongoengine import Document, StringField
+from mongoengine import Document, StringField, DynamicField
 
 from database import Database, strict
-from database.fields import SafeDictField
 from database.model import DbModelMixin
 from database.model.company import Company
 
@@ -18,4 +17,4 @@ class User(DbModelMixin, Document):
     family_name = StringField(user_set_allowed=True)
     given_name = StringField(user_set_allowed=True)
     avatar = StringField()
-    preferences = SafeDictField(default=dict, exclude_by_default=True)
+    preferences = DynamicField(default="", exclude_by_default=True)
