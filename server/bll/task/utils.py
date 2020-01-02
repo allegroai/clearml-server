@@ -3,6 +3,7 @@ from typing import TypeVar, Callable, Tuple, Sequence
 
 import attr
 import six
+from boltons.dictutils import OneToOne
 
 from apierrors import errors
 from database.errors import translate_errors_context
@@ -171,3 +172,26 @@ def split_by(
         [item for cond, item in applied if cond],
         [item for cond, item in applied if not cond],
     )
+
+
+class ParameterKeyEscaper:
+    _mapping = OneToOne({".": "%2E", "$": "%24"})
+
+    @classmethod
+    def escape(cls, value):
+        """ Quote a parameter key """
+        value = value.strip().replace("%", "%%")
+        for c, r in cls._mapping.items():
+            value = value.replace(c, r)
+        return value
+
+    @classmethod
+    def _unescape(cls, value):
+        for c, r in cls._mapping.inv.items():
+            value = value.replace(c, r)
+        return value
+
+    @classmethod
+    def unescape(cls, value):
+        """ Unquote a quoted parameter key """
+        return "%".join(map(cls._unescape, value.split("%%")))

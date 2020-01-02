@@ -52,7 +52,7 @@ class TestEntityOrdering(TestService):
     def _get_page_tasks(self, order_by, page: int, page_size: int) -> Sequence:
         return self.api.tasks.get_all_ex(
             only_fields=self.only_fields,
-            order_by=order_by,
+            order_by=[order_by] if order_by else None,
             comment=self.test_comment,
             page=page,
             page_size=page_size,
@@ -79,7 +79,7 @@ class TestEntityOrdering(TestService):
     def _assertGetTasksWithOrdering(self, order_by: str = None, **kwargs):
         tasks = self.api.tasks.get_all_ex(
             only_fields=self.only_fields,
-            order_by=order_by,
+            order_by=[order_by] if order_by else None,
             comment=self.test_comment,
             **kwargs,
         ).tasks

@@ -1,12 +1,11 @@
 from copy import deepcopy
 from datetime import datetime
 from operator import attrgetter
-from typing import Sequence, Callable, Type, TypeVar
+from typing import Sequence, Callable, Type, TypeVar, Union
 
 import attr
 import dpath
 import mongoengine
-import six
 from mongoengine import EmbeddedDocument, Q
 from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
@@ -33,7 +32,13 @@ from apimodels.tasks import (
 )
 from bll.event import EventBLL
 from bll.queue import QueueBLL
-from bll.task import TaskBLL, ChangeStatusRequest, update_project_time, split_by
+from bll.task import (
+    TaskBLL,
+    ChangeStatusRequest,
+    update_project_time,
+    split_by,
+    ParameterKeyEscaper,
+)
 from bll.util import SetFieldsResolver
 from database.errors import translate_errors_context
 from database.model.model import Model
@@ -97,13 +102,37 @@ def get_by_id(call: APICall, company_id, req_model: TaskRequest):
         req_model.task, company_id=company_id, allow_public=True
     )
     task_dict = task.to_proper_dict()
-    conform_output_tags(call, task_dict)
+    unprepare_from_saved(call, task_dict)
     call.result.data = {"task": task_dict}
+
+
+def escape_execution_parameters(call: APICall):
+    default_prefix = "execution.parameters."
+
+    def escape_paths(paths, prefix=default_prefix):
+        return [
+            prefix + ParameterKeyEscaper.escape(path[len(prefix) :])
+            if path.startswith(prefix)
+            else path
+            for path in paths
+        ]
+
+    projection = Task.get_projection(call.data)
+    if projection:
+        Task.set_projection(call.data, escape_paths(projection))
+
+    ordering = Task.get_ordering(call.data)
+    if ordering:
+        ordering = Task.set_ordering(call.data, escape_paths(ordering, default_prefix))
+        Task.set_ordering(call.data, escape_paths(ordering, "-" + default_prefix))
 
 
 @endpoint("tasks.get_all_ex", required_fields=[])
 def get_all_ex(call: APICall):
     conform_tag_fields(call, call.data)
+
+    escape_execution_parameters(call)
+
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all_ex"):
             tasks = Task.get_many_with_join(
@@ -112,13 +141,16 @@ def get_all_ex(call: APICall):
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
-        conform_output_tags(call, tasks)
+        unprepare_from_saved(call, tasks)
         call.result.data = {"tasks": tasks}
 
 
 @endpoint("tasks.get_all", required_fields=[])
 def get_all(call: APICall):
     conform_tag_fields(call, call.data)
+
+    escape_execution_parameters(call)
+
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all"):
             tasks = Task.get_many(
@@ -128,7 +160,7 @@ def get_all(call: APICall):
                 query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
-        conform_output_tags(call, tasks)
+        unprepare_from_saved(call, tasks)
         call.result.data = {"tasks": tasks}
 
 
@@ -223,6 +255,45 @@ create_fields = {
 }
 
 
+def prepare_for_save(call: APICall, fields: dict):
+    conform_tag_fields(call, fields)
+
+    # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
+    for field in task_script_fields:
+        try:
+            path = f"script/{field}"
+            value = dpath.get(fields, path)
+            if isinstance(value, str):
+                value = value.strip()
+            dpath.set(fields, path, value)
+        except KeyError:
+            pass
+
+    parameters = safe_get(fields, "execution/parameters")
+    if parameters is not None:
+        # Escape keys to make them mongo-safe
+        parameters = {ParameterKeyEscaper.escape(k): v for k, v in parameters.items()}
+        dpath.set(fields, "execution/parameters", parameters)
+
+    return fields
+
+
+def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict]):
+    if isinstance(tasks_data, dict):
+        tasks_data = [tasks_data]
+
+    conform_output_tags(call, tasks_data)
+
+    for task_data in tasks_data:
+        parameters = safe_get(task_data, "execution/parameters")
+        if parameters is not None:
+            # Escape keys to make them mongo-safe
+            parameters = {
+                ParameterKeyEscaper.unescape(k): v for k, v in parameters.items()
+            }
+            dpath.set(task_data, "execution/parameters", parameters)
+
+
 def prepare_create_fields(
     call: APICall, valid_fields=None, output=None, previous_task: Task = None
 ):
@@ -242,25 +313,7 @@ def prepare_create_fields(
             output = Output(destination=output_dest)
         fields["output"] = output
 
-    conform_tag_fields(call, fields)
-
-    # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
-    for field in task_script_fields:
-        try:
-            path = "script/%s" % field
-            value = dpath.get(fields, path)
-            if isinstance(value, six.string_types):
-                value = value.strip()
-            dpath.set(fields, path, value)
-        except KeyError:
-            pass
-
-    parameters = safe_get(fields, "execution/parameters")
-    if parameters is not None:
-        parameters = {k.strip(): v for k, v in parameters.items()}
-        dpath.set(fields, "execution/parameters", parameters)
-
-    return fields
+    return prepare_for_save(call, fields)
 
 
 def _validate_and_get_task_from_call(call: APICall, **kwargs):
@@ -320,8 +373,7 @@ def prepare_update_fields(call: APICall, task, call_data):
     t_fields = task_fields
     t_fields.add("output__error")
     fields = parse_from_call(call_data, update_fields, t_fields)
-    conform_tag_fields(call, fields)
-    return fields, valid_fields
+    return prepare_for_save(call, fields), valid_fields
 
 
 @endpoint(
@@ -348,7 +400,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
         )
 
         update_project_time(updated_fields.get("project"))
-        conform_output_tags(call, updated_fields)
+        unprepare_from_saved(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 
@@ -473,7 +525,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             fixed_fields.update(last_update=now)
             updated = task.update(upsert=False, **fixed_fields)
             update_project_time(fields.get("project"))
-            conform_output_tags(call, fields)
+            unprepare_from_saved(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)

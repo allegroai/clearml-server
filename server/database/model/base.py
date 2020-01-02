@@ -1,7 +1,7 @@
 import re
 from collections import namedtuple
 from functools import reduce
-from typing import Collection, Sequence, Union
+from typing import Collection, Sequence, Union, Optional
 
 from boltons.iterutils import first
 from dateutil.parser import parse as parse_datetime
@@ -60,7 +60,7 @@ class ProperDictMixin(object):
 
 class GetMixin(PropsMixin):
     _text_score = "$text_score"
-
+    _projection_key = "projection"
     _ordering_key = "order_by"
     _search_text_key = "search_text"
 
@@ -270,11 +270,26 @@ class GetMixin(PropsMixin):
             return override_projection
         if not parameters:
             return []
-        return parameters.get("projection") or parameters.get("only_fields", [])
+        return parameters.get(cls._projection_key) or parameters.get("only_fields", [])
 
     @classmethod
-    def set_default_ordering(cls, parameters, value):
-        parameters[cls._ordering_key] = parameters.get(cls._ordering_key) or value
+    def set_projection(cls, parameters: dict, value: Sequence[str]) -> Sequence[str]:
+        parameters.pop("only_fields", None)
+        parameters[cls._projection_key] = value
+        return value
+
+    @classmethod
+    def get_ordering(cls, parameters: dict) -> Optional[Sequence[str]]:
+        return parameters.get(cls._ordering_key)
+
+    @classmethod
+    def set_ordering(cls, parameters: dict, value: Sequence[str]) -> Sequence[str]:
+        parameters[cls._ordering_key] = value
+        return value
+
+    @classmethod
+    def set_default_ordering(cls, parameters: dict, value: Sequence[str]) -> None:
+        cls.set_ordering(parameters, cls.get_ordering(parameters) or value)
 
     @classmethod
     def get_many_with_join(

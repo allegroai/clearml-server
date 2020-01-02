@@ -5,12 +5,12 @@ from typing import Union, Type, Iterable
 
 import jsonmodels.errors
 import six
-import validators
 from jsonmodels import fields
 from jsonmodels.fields import _LazyType, NotSet
 from jsonmodels.models import Base as ModelBase
 from jsonmodels.validators import Enum as EnumValidator
 from luqum.parser import parser, ParseError
+from validators import email as email_validator, domain as domain_validator
 
 from apierrors import errors
 
@@ -66,9 +66,7 @@ class DictField(fields.BaseField):
             value_types = tuple()
 
         return tuple(
-            _LazyType(type_)
-            if isinstance(type_, six.string_types)
-            else type_
+            _LazyType(type_) if isinstance(type_, six.string_types) else type_
             for type_ in value_types
         )
 
@@ -107,7 +105,7 @@ class IntField(fields.IntField):
 
 
 def validate_lucene_query(value):
-    if value == '':
+    if value == "":
         return
     try:
         parser.parse(value)
@@ -125,6 +123,7 @@ class LuceneQueryField(fields.StringField):
 
 class NullableEnumValidator(EnumValidator):
     """Validator for enums that allows a None value."""
+
     def validate(self, value):
         if value is not None:
             super(NullableEnumValidator, self).validate(value)
@@ -153,10 +152,6 @@ class EnumField(fields.StringField):
 
 
 class ActualEnumField(fields.StringField):
-    @property
-    def types(self):
-        return self.__enum,
-
     def __init__(
         self,
         enum_class: Type[Enum],
@@ -167,6 +162,7 @@ class ActualEnumField(fields.StringField):
         **kwargs
     ):
         self.__enum = enum_class
+        self.types = (enum_class,)
         # noinspection PyTypeChecker
         choices = list(enum_class)
         validator_cls = EnumValidator if required else NullableEnumValidator
@@ -197,7 +193,7 @@ class EmailField(fields.StringField):
         super().validate(value)
         if value is None:
             return
-        if validators.email(value) is not True:
+        if email_validator(value) is not True:
             raise errors.bad_request.InvalidEmailAddress()
 
 
@@ -206,7 +202,7 @@ class DomainField(fields.StringField):
         super().validate(value)
         if value is None:
             return
-        if validators.domain(value) is not True:
+        if domain_validator(value) is not True:
             raise errors.bad_request.InvalidDomainName()
 
 
