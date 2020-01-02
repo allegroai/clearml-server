@@ -1,18 +1,18 @@
-# Launching the **trains-server** Docker in Linux or Mac OS X
+# Launching the **trains-server** Docker in Linux or macOS
 
-For Linux or Mac OS X, use our pre-built Docker image for easy deployment. The latest Docker images can be found [here](https://hub.docker.com/r/allegroai/trains). 
+For Linux or macOS, use our pre-built Docker image for easy deployment. The latest Docker images can be found [here](https://hub.docker.com/r/allegroai/trains). 
 
 For Linux users:
 
 * You must be logged in as a user with sudo privileges.
 * Use `bash` for all command-line instructions in this installation.
 
-To launch **trains-server** on Linux or Mac OS X:
+To launch **trains-server** on Linux or macOS:
 
 1. Install Docker.
 
     * Linux - see [Docker for Ubuntu](https://docs.docker.com/install/linux/docker-ce/ubuntu/).
-    * Mac OS X - see [Docker for OS X](https://docs.docker.com/docker-for-mac/install/).
+    * macOS - see [Docker for macOS](https://docs.docker.com/docker-for-mac/install/).
 
 1. Verify the Docker CE installation. Execute the command:
 
@@ -43,7 +43,7 @@ To launch **trains-server** on Linux or Mac OS X:
         sudo sysctl -w vm.max_map_count=262144
         sudo service docker restart
         
-    Mac OS X:
+    macOS:
     
         screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
         sysctl -w vm.max_map_count=262144
@@ -65,7 +65,7 @@ To launch **trains-server** on Linux or Mac OS X:
         sudo mkdir -p /opt/trains/config
         sudo mkdir -p /opt/trains/data/fileserver
         
-1. For Mac OS X only, open the Docker app, select **Preferences**, and then on the **File Sharing** tab, add `/opt/trains`.
+1. For macOS only, open the Docker app, select **Preferences**, and then on the **File Sharing** tab, add `/opt/trains`.
           
 1. Grant access to the Dockers.
 
@@ -73,7 +73,7 @@ To launch **trains-server** on Linux or Mac OS X:
 
         sudo chown -R 1000:1000 /opt/trains
         
-    Mac OS X:
+    macOS:
     
         sudo chown -R $(whoami):staff /opt/trains
 

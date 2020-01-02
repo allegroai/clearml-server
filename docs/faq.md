@@ -6,7 +6,7 @@ Launching **trains-server**
 
     * [Stand alone Linux Ubuntu systems?](#ubuntu)
     
-    * [Mac OS X?](#mac-osx)
+    * [macOS?](#mac-osx)
     
     * [Windows 10?](#docker_compose_win10)
 
@@ -72,11 +72,11 @@ To launch **trains-server** on a stand alone Linux Ubuntu:
 
     Your server is now running on [http://localhost:8080](http://localhost:8080)
     
-### How do I launch trains-server on Mac OS X? <a name="mac-osx"></a>
+### How do I launch trains-server on macOS? <a name="mac-osx"></a>
 
-To launch **trains-server** on Mac OS X:
+To launch **trains-server** on macOS:
 
-1. Install [docker for OS X](https://docs.docker.com/docker-for-mac/install/).
+1. Install [docker for macOS](https://docs.docker.com/docker-for-mac/install/).
 
 1. Configure [Docker](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html#docker-cli-run-prod-mode).
 

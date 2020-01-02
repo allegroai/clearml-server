@@ -48,7 +48,7 @@ The ports 8080/8081/8008 must be available for the **trains-server** services.
    
 For example, to see if port `8080` is in use:
 
-* Linux or Mac OS X: 
+* Linux or macOS: 
    
         sudo lsof -Pn -i4 | grep :8080 | grep LISTEN
 
@@ -63,7 +63,7 @@ Launch **trains-server** in any of the following formats:
 - Pre-built [AWS EC2 AMI](https://github.com/allegroai/trains-server/blob/master/docs/install_aws.md)
 - Pre-built Docker Image
     - [Linux](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
-    - [Mac OS X](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
+    - [macOS](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
     - [Windows 10](https://github.com/allegroai/trains-server/blob/master/docs/install_win.md)
 - Kubernetes    
     - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#prerequisites)
