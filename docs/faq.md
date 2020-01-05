@@ -101,9 +101,9 @@ To launch **trains-server** on macOS:
         git clone https://github.com/allegroai/trains-server.git
         cd trains-server
 
-1. Run `docker-compose` with the unified docker image.
+1. Run `docker-compose` with the docker compose file.
 
-        docker-compose -f docker-compose-unified.yml up
+        docker-compose -f docker-compose.yml up
 
     Your server is now running on [http://localhost:8080](http://localhost:8080)
 
@@ -146,7 +146,7 @@ Restart *trains-server* by first stopping the Docker containers and then restart
 
    ```bash
    docker-compose down
-   docker-compose up -f docker-compose-unified.yml
+   docker-compose up -f docker-compose.yml
    ```
    
    **Note**: If you are using a different docker-compose YAML file, specify that file.
@@ -287,12 +287,12 @@ from working correctly.
 
 You can check for port conflicts in the logs in `/opt/trains/log`.
 
-If a port conflict occurs, change the MongoDB and / or Elastic ports in the `docker-compose-unified.yml`,
+If a port conflict occurs, change the MongoDB and / or Elastic ports in the `docker-compose.yml`,
 and then run the Docker compose commands to restart the **trains-server** instance.
 
 To change the MongoDB and / or Elastic ports for **trains-server**:
 
-1. Edit the `docker-compose-unified.yml` file.
+1. Edit the `docker-compose.yml` file.
 
 1. In the `services/trainsserver/environment` section, add the following environment variable(s):
 

@@ -108,12 +108,12 @@ To restart the **trains-server**, you must first stop the containers, and then r
 
    ```bash
    docker-compose down
-   docker-compose -f docker-compose-unified.yml up
+   docker-compose -f docker-compose.yml up
    ```
 
 ## Upgrading <a name="upgrade"></a>
 
-**trains-server** releases are also reflected in the [docker compose configuration file](https://github.com/allegroai/trains-server/blob/master/docker-compose-unified.yml).  
+**trains-server** releases are also reflected in the [docker compose configuration file](https://github.com/allegroai/trains-server/blob/master/docker-compose.yml).  
 We strongly encourage you to keep your **trains-server** up to date, by keeping up with the current release.
 
 **Note**: The following upgrade instructions use the Linux OS as an example.
@@ -143,16 +143,16 @@ To upgrade your existing **trains-server** deployment:
    ```
    </details>
 
-1. Download the latest `docker-compose-unified.yml` file.
+1. Download the latest `docker-compose.yml` file.
 
    ```bash
-   curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose-unified.yml -o docker-compose-unified.yml 
+   curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
    ```
 
 1. Spin up the docker containers, it will automatically pull the latest **trains-server** build    
    ```bash
-   docker-compose -f docker-compose-unified.yml pull
-   docker-compose -f docker-compose-unified.yml up
+   docker-compose -f docker-compose.yml pull
+   docker-compose -f docker-compose.yml up
    ```
 
 **\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#common-docker-upgrade-errors).**

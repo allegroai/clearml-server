@@ -80,11 +80,11 @@ To launch **trains-server** on Linux or macOS:
 1. Download the **trains-server** docker-compose YAML file.
 
         cd /opt/trains
-        curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose-unified.yml -o docker-compose-unified.yml
+        curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml
     
 1. Run `docker-compose` with the downloaded configuration file.
 
-        sudo docker-compose -f docker-compose-unified.yml up
+        sudo docker-compose -f docker-compose.yml up
    
     Your server is now running on [http://localhost:8080](http://localhost:8080) and the following ports are available:
 
