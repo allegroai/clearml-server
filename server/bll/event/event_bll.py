@@ -1,3 +1,4 @@
+import hashlib
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
@@ -46,7 +47,7 @@ class TaskEventsResult(object):
 
 
 class EventBLL(object):
-    id_fields = ["task", "iter", "metric", "variant", "key"]
+    id_fields = ("task", "iter", "metric", "variant", "key")
 
     def __init__(self, events_es=None):
         self.es = events_es or es_factory.connect("events")
@@ -247,7 +248,7 @@ class EventBLL(object):
 
     def _get_event_id(self, event):
         id_values = (str(event[field]) for field in self.id_fields if field in event)
-        return "-".join(id_values)
+        return hashlib.md5("-".join(id_values).encode()).hexdigest()
 
     def scroll_task_events(
         self,
