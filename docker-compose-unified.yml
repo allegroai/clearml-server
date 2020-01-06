@@ -20,9 +20,6 @@ services:
       - mongo
       - elasticsearch
     environment:
-      ELASTIC_SERVICE_HOST: elasticsearch
-      MONGODB_SERVICE_HOST: mongo
-      REDIS_SERVICE_HOST: redis
       TRAINS_ELASTIC_SERVICE_HOST: elasticsearch
       TRAINS_ELASTIC_SERVICE_PORT: 9200
       TRAINS_MONGODB_SERVICE_HOST: mongo
