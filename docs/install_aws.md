@@ -50,27 +50,45 @@ To upgrade the AMI:
 
 The following sections contain lists of AMI Image IDs, per region, for each released **trains-server** version.
 
-### Latest version AMI - v0.12.1 (auto update)<a name="autoupdate"></a>
+### Latest version AMI - v0.13.0 (auto update)<a name="autoupdate"></a>
 
 For easier upgrades, the following AMIs automatically update to the latest release every reboot:
 
-* **eu-north-1** : ami-055909c1b9471451d 
-* **ap-south-1** : ami-0476123cc77226faf 
-* **eu-west-3** : ami-01df7d35ab63cca70 
-* **eu-west-2** : ami-00e8004c11fd0228e 
-* **eu-west-1** : ami-04293fbba6d3acad1 
-* **ap-northeast-2** : ami-004331f9c5eb13e94 
-* **ap-northeast-1** : ami-08cc80e2049b30e61 
-* **sa-east-1** : ami-06d814a0b6ffa3153 
-* **ca-central-1** : ami-069210ff757e9c1b7 
-* **ap-southeast-1** : ami-0d12cc70d6e9c0f39 
-* **ap-southeast-2** : ami-0b4615aa76c055267 
-* **eu-central-1** : ami-06537f431e52e4763 
-* **us-east-2** : ami-0c3cfbcb8e72ecfc5 
-* **us-west-1** : ami-0d83de031b83b6880 
-* **us-west-2** : ami-06968633c4f7187c4 
-* **us-east-1** : ami-07ff2f5f7ef99e8f6 
- 
+* **eu-north-1** : ami-003024b7b575d3f2a 
+* **ap-south-1** : ami-0d784c7ac2ab4cc72 
+* **eu-west-3** : ami-091d745be445b69db 
+* **eu-west-2** : ami-0a4ebf5d45c672411 
+* **eu-west-1** : ami-021e3421c50d1482c 
+* **ap-northeast-2** : ami-0d0a25ec610d6d122 
+* **ap-northeast-1** : ami-01d896f9ae5d87890 
+* **sa-east-1** : ami-09bcb93835428a412 
+* **ca-central-1** : ami-077fa58c9f73690c7 
+* **ap-southeast-1** : ami-046fe4832b077b517 
+* **ap-southeast-2** : ami-0ab9acb41f8abbba7 
+* **eu-central-1** : ami-079be664aae12db00 
+* **us-east-2** : ami-0d48555f80cb7993a 
+* **us-west-1** : ami-0ed85ab91a7bb5a8a 
+* **us-west-2** : ami-0b4fe4ca18e9b1227 
+* **us-east-1** : ami-043b95dd034e581e6 
+
+### v0.13.0 (static update)
+* **eu-north-1** : ami-0e26c3af1663428dc 
+* **ap-south-1** : ami-07451eb44f51380a8 
+* **eu-west-3** : ami-0108e506c6e0be8d8 
+* **eu-west-2** : ami-0fc1fdbc7699f0dde 
+* **eu-west-1** : ami-0efbf8d2f580a9cee 
+* **ap-northeast-2** : ami-08f0bbd7e08d0603e 
+* **ap-northeast-1** : ami-024522bea34dbe3ce 
+* **sa-east-1** : ami-0fe5b6e0ddc1553d9 
+* **ca-central-1** : ami-0037c26178a584ade 
+* **ap-southeast-1** : ami-049dbcc0f0a6dba20 
+* **ap-southeast-2** : ami-02d1ce8d31c27f187 
+* **eu-central-1** : ami-0550b14b40371182a 
+* **us-east-2** : ami-040a1f16ceda8f255 
+* **us-west-1** : ami-003b5673c08d68cdb 
+* **us-west-2** : ami-0fec951d8043da62d 
+* **us-east-1** : ami-049694de0137fdea4 
+
 ### v0.12.1 (static update)
 * **eu-north-1** : ami-003118a8103286d84 
 * **ap-south-1** : ami-02dfe86baa48e096f 
