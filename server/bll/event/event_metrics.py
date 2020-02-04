@@ -4,8 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from operator import itemgetter
 
+from boltons.iterutils import bucketize
 from elasticsearch import Elasticsearch
-from typing import Sequence, Tuple, Callable
+from typing import Sequence, Tuple, Callable, Iterable
 
 from mongoengine import Q
 
@@ -21,9 +22,10 @@ log = config.logger(__file__)
 
 
 class EventMetrics:
-    MAX_TASKS_COUNT = 100
+    MAX_TASKS_COUNT = 50
     MAX_METRICS_COUNT = 200
     MAX_VARIANTS_COUNT = 500
+    MAX_AGGS_ELEMENTS_COUNT = 50
 
     def __init__(self, es: Elasticsearch):
         self.es = es
@@ -62,6 +64,11 @@ class EventMetrics:
         Compare scalar metrics for different tasks per metric and variant
         The amount of points in each histogram should not exceed the requested samples
         """
+        if len(task_ids) > self.MAX_TASKS_COUNT:
+            raise errors.BadRequest(
+                f"Up to {self.MAX_TASKS_COUNT} tasks supported for comparison", len(task_ids)
+            )
+
         task_name_by_id = {}
         with translate_errors_context():
             task_objs = Task.get_many(
@@ -97,6 +104,31 @@ class EventMetrics:
     MetricInterval = Tuple[int, Sequence[TaskMetric]]
     MetricData = Tuple[str, dict]
 
+    def _split_metrics_by_max_aggs_count(
+        self, task_metrics: Sequence[TaskMetric]
+    ) -> Iterable[Sequence[TaskMetric]]:
+        """
+        Return task metrics in groups where amount of task metrics in each group
+        is roughly limited by MAX_AGGS_ELEMENTS_COUNT. The split is done on metrics and
+        variants while always preserving all their tasks in the same group
+        """
+        if len(task_metrics) < self.MAX_AGGS_ELEMENTS_COUNT:
+            yield task_metrics
+            return
+
+        tm_grouped = bucketize(task_metrics, key=itemgetter(1, 2))
+        groups = []
+        for group in tm_grouped.values():
+            groups.append(group)
+            if sum(map(len, groups)) >= self.MAX_AGGS_ELEMENTS_COUNT:
+                yield list(itertools.chain(*groups))
+                groups = []
+
+        if groups:
+            yield list(itertools.chain(*groups))
+
+        return
+
     def _run_get_scalar_metrics_as_parallel(
         self,
         company_id: str,
@@ -126,21 +158,27 @@ class EventMetrics:
         if not intervals:
             return {}
 
-        with ThreadPoolExecutor(len(intervals)) as pool:
-            metrics = list(
-                itertools.chain.from_iterable(
-                    pool.map(
-                        partial(
-                            get_func, task_ids=task_ids, es_index=es_index, key=key
-                        ),
-                        intervals,
-                    )
+        intervals = list(
+            itertools.chain.from_iterable(
+                zip(itertools.repeat(i), self._split_metrics_by_max_aggs_count(tms))
+                for i, tms in intervals
+            )
+        )
+        max_concurrency = config.get("services.events.max_metrics_concurrency", 4)
+        with ThreadPoolExecutor(max_workers=max_concurrency) as pool:
+            metrics = itertools.chain.from_iterable(
+                pool.map(
+                    partial(
+                        get_func, task_ids=task_ids, es_index=es_index, key=key
+                    ),
+                    intervals,
                 )
             )
 
         ret = defaultdict(dict)
         for metric_key, metric_values in metrics:
             ret[metric_key].update(metric_values)
+
         return ret
 
     def _get_metric_intervals(
@@ -310,7 +348,13 @@ class EventMetrics:
                     "variants": {
                         "terms": {"field": "variant", "size": self.MAX_VARIANTS_COUNT},
                         "aggs": {
-                            "tasks": {"terms": {"field": "task"}, "aggs": aggregation}
+                            "tasks": {
+                                "terms": {
+                                    "field": "task",
+                                    "size": self.MAX_TASKS_COUNT,
+                                },
+                                "aggs": aggregation,
+                            }
                         },
                     }
                 },

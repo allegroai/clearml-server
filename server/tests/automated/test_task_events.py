@@ -2,8 +2,11 @@
 Comprehensive test of all(?) use cases of datasets and frames
 """
 import json
+import time
 import unittest
 from statistics import mean
+
+from typing import Sequence
 
 import es_factory
 from config import config
@@ -16,69 +19,56 @@ class TestTaskEvents(TestService):
     def setUp(self, version="1.7"):
         super().setUp(version=version)
 
-        self.created_tasks = []
-
-        self.task = dict(
-            name="test task events",
-            type="training",
-            input=dict(mapping={}, view=dict(entries=[])),
+    def _temp_task(self, name="test task events"):
+        task_input = dict(
+            name=name, type="training", input=dict(mapping={}, view=dict(entries=[])),
         )
-        res, self.task_id = self.api.send("tasks.create", self.task, extract="id")
-        assert res.meta.result_code == 200
-        self.created_tasks.append(self.task_id)
+        return self.create_temp("tasks", **task_input)
 
-    def tearDown(self):
-        log.info("Cleanup...")
-        for task_id in self.created_tasks:
-            try:
-                self.api.send("tasks.delete", dict(task=task_id, force=True))
-            except Exception as ex:
-                log.exception(ex)
-
-    def create_task_event(self, type, iteration):
+    def _create_task_event(self, type_, task, iteration):
         return {
             "worker": "test",
-            "type": type,
-            "task": self.task_id,
+            "type": type_,
+            "task": task,
             "iter": iteration,
-            "timestamp": es_factory.get_timestamp_millis()
+            "timestamp": es_factory.get_timestamp_millis(),
         }
 
-    def copy_and_update(self, src_obj, new_data):
+    def _copy_and_update(self, src_obj, new_data):
         obj = src_obj.copy()
         obj.update(new_data)
         return obj
 
     def test_task_logs(self):
         events = []
-        for iter in range(10):
-            log_event = self.create_task_event("log", iteration=iter)
+        task = self._temp_task()
+        for iter_ in range(10):
+            log_event = self._create_task_event("log", task, iteration=iter_)
             events.append(
-                self.copy_and_update(
+                self._copy_and_update(
                     log_event,
-                    {"msg": "This is a log message from test task iter " + str(iter)},
+                    {"msg": "This is a log message from test task iter " + str(iter_)},
                 )
             )
             # sleep so timestamp is not the same
-            import time
-
             time.sleep(0.01)
         self.send_batch(events)
 
-        data = self.api.events.get_task_log(task=self.task_id)
+        data = self.api.events.get_task_log(task=task)
         assert len(data["events"]) == 10
 
-        self.api.tasks.reset(task=self.task_id)
-        data = self.api.events.get_task_log(task=self.task_id)
+        self.api.tasks.reset(task=task)
+        data = self.api.events.get_task_log(task=task)
         assert len(data["events"]) == 0
 
     def test_task_metric_value_intervals_keys(self):
         metric = "Metric1"
         variant = "Variant1"
         iter_count = 100
+        task = self._temp_task()
         events = [
             {
-                **self.create_task_event("training_stats_scalar", iteration),
+                **self._create_task_event("training_stats_scalar", task, iteration),
                 "metric": metric,
                 "variant": variant,
                 "value": iteration,
@@ -88,19 +78,65 @@ class TestTaskEvents(TestService):
         self.send_batch(events)
         for key in None, "iter", "timestamp", "iso_time":
             with self.subTest(key=key):
-                data = self.api.events.scalar_metrics_iter_histogram(task=self.task_id, key=key)
+                data = self.api.events.scalar_metrics_iter_histogram(task=task, key=key)
                 self.assertIn(metric, data)
                 self.assertIn(variant, data[metric])
                 self.assertIn("x", data[metric][variant])
                 self.assertIn("y", data[metric][variant])
 
+    def test_multitask_events_many_metrics(self):
+        tasks = [
+            self._temp_task(name="test events1"),
+            self._temp_task(name="test events2"),
+        ]
+        iter_count = 10
+        metrics_count = 10
+        variants_count = 10
+        events = [
+            {
+                **self._create_task_event("training_stats_scalar", task, iteration),
+                "metric": f"Metric{metric_idx}",
+                "variant": f"Variant{variant_idx}",
+                "value": iteration,
+            }
+            for iteration in range(iter_count)
+            for task in tasks
+            for metric_idx in range(metrics_count)
+            for variant_idx in range(variants_count)
+        ]
+        self.send_batch(events)
+        data = self.api.events.multi_task_scalar_metrics_iter_histogram(tasks=tasks)
+        self._assert_metrics_and_variants(
+            data.metrics,
+            metrics=metrics_count,
+            variants=variants_count,
+            tasks=tasks,
+            iterations=iter_count,
+        )
+
+    def _assert_metrics_and_variants(
+        self, data: dict, metrics: int, variants: int, tasks: Sequence, iterations: int
+    ):
+        self.assertEqual(len(data), metrics)
+        for m in range(metrics):
+            metric_data = data[f"Metric{m}"]
+            self.assertEqual(len(metric_data), variants)
+            for v in range(variants):
+                variant_data = metric_data[f"Variant{v}"]
+                self.assertEqual(len(variant_data), len(tasks))
+                for t in tasks:
+                    task_data = variant_data[t]
+                    self.assertEqual(len(task_data["x"]), iterations)
+                    self.assertEqual(len(task_data["y"]), iterations)
+
     def test_task_metric_value_intervals(self):
         metric = "Metric1"
         variant = "Variant1"
         iter_count = 100
+        task = self._temp_task()
         events = [
             {
-                **self.create_task_event("training_stats_scalar", iteration),
+                **self._create_task_event("training_stats_scalar", task, iteration),
                 "metric": metric,
                 "variant": variant,
                 "value": iteration,
@@ -109,13 +145,13 @@ class TestTaskEvents(TestService):
         ]
         self.send_batch(events)
 
-        data = self.api.events.scalar_metrics_iter_histogram(task=self.task_id)
+        data = self.api.events.scalar_metrics_iter_histogram(task=task)
         self._assert_metrics_histogram(data[metric][variant], iter_count, 100)
 
-        data = self.api.events.scalar_metrics_iter_histogram(task=self.task_id, samples=100)
+        data = self.api.events.scalar_metrics_iter_histogram(task=task, samples=100)
         self._assert_metrics_histogram(data[metric][variant], iter_count, 100)
 
-        data = self.api.events.scalar_metrics_iter_histogram(task=self.task_id, samples=10)
+        data = self.api.events.scalar_metrics_iter_histogram(task=task, samples=10)
         self._assert_metrics_histogram(data[metric][variant], iter_count, 10)
 
     def _assert_metrics_histogram(self, data, iters, samples):
@@ -130,7 +166,8 @@ class TestTaskEvents(TestService):
             )
 
     def test_task_plots(self):
-        event = self.create_task_event("plot", 0)
+        task = self._temp_task()
+        event = self._create_task_event("plot", task, 0)
         event["metric"] = "roc"
         event.update(
             {
@@ -179,7 +216,7 @@ class TestTaskEvents(TestService):
         )
         self.send(event)
 
-        event = self.create_task_event("plot", 100)
+        event = self._create_task_event("plot", task, 100)
         event["metric"] = "confusion"
         event.update(
             {
@@ -222,11 +259,11 @@ class TestTaskEvents(TestService):
         )
         self.send(event)
 
-        data = self.api.events.get_task_plots(task=self.task_id)
+        data = self.api.events.get_task_plots(task=task)
         assert len(data["plots"]) == 2
 
-        self.api.tasks.reset(task=self.task_id)
-        data = self.api.events.get_task_plots(task=self.task_id)
+        self.api.tasks.reset(task=task)
+        data = self.api.events.get_task_plots(task=task)
         assert len(data["plots"]) == 0
 
     def send_batch(self, events):
