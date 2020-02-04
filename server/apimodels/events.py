@@ -17,4 +17,4 @@ class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
 
 
 class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
-    tasks: Sequence[str] = ListField(items_types=str)
+    tasks: Sequence[str] = ListField(items_types=str, required=True)
