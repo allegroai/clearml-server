@@ -52,7 +52,9 @@ class EventBLL(object):
     def __init__(self, events_es=None):
         self.es = events_es or es_factory.connect("events")
         self._metrics = EventMetrics(self.es)
-        self._skip_iteration_for_metric = set(config.get("services.events.ignore_iteration.metrics", []))
+        self._skip_iteration_for_metric = set(
+            config.get("services.events.ignore_iteration.metrics", [])
+        )
 
     @property
     def metrics(self) -> EventMetrics:
@@ -124,7 +126,10 @@ class EventBLL(object):
             if task_id is not None:
                 es_action["_routing"] = task_id
                 task_ids.add(task_id)
-                if iter is not None and event.get("metric") not in self._skip_iteration_for_metric:
+                if (
+                    iter is not None
+                    and event.get("metric") not in self._skip_iteration_for_metric
+                ):
                     task_iteration[task_id] = max(iter, task_iteration[task_id])
 
                 if event_type == EventType.metrics_scalar.value:
@@ -297,10 +302,16 @@ class EventBLL(object):
             "size": 0,
             "aggs": {
                 "metrics": {
-                    "terms": {"field": "metric"},
+                    "terms": {
+                        "field": "metric",
+                        "size": EventMetrics.MAX_METRICS_COUNT,
+                    },
                     "aggs": {
                         "variants": {
-                            "terms": {"field": "variant"},
+                            "terms": {
+                                "field": "variant",
+                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                            },
                             "aggs": {
                                 "iters": {
                                     "terms": {
@@ -499,8 +510,18 @@ class EventBLL(object):
             "size": 0,
             "aggs": {
                 "metrics": {
-                    "terms": {"field": "metric", "size": 200},
-                    "aggs": {"variants": {"terms": {"field": "variant", "size": 200}}},
+                    "terms": {
+                        "field": "metric",
+                        "size": EventMetrics.MAX_METRICS_COUNT,
+                    },
+                    "aggs": {
+                        "variants": {
+                            "terms": {
+                                "field": "variant",
+                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                            }
+                        }
+                    },
                 }
             },
             "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
@@ -540,14 +561,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": 1000,
+                        "size": EventMetrics.MAX_METRICS_COUNT,
                         "order": {"_term": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": 1000,
+                                "size": EventMetrics.MAX_VARIANTS_COUNT,
                                 "order": {"_term": "asc"},
                             },
                             "aggs": {
