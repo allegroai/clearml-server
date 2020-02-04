@@ -61,7 +61,7 @@ def get_by_id(call):
 def make_projects_get_all_pipelines(project_ids, specific_state=None):
     archived = EntityVisibility.archived.value
 
-    def ensure_system_tags():
+    def ensure_valid_fields():
         """
         Make sure system tags is always an array (required by subsequent $in in archived_tasks_cond
         """
@@ -73,6 +73,9 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
                         "then": [],
                         "else": "$system_tags",
                     }
+                },
+                "status": {
+                    "$ifNull": ["$status", "unknown"]
                 }
             }
         }
@@ -80,7 +83,7 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
     status_count_pipeline = [
         # count tasks per project per status
         {"$match": {"project": {"$in": project_ids}}},
-        ensure_system_tags(),
+        ensure_valid_fields(),
         {
             "$group": {
                 "_id": {
@@ -153,7 +156,7 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
                 "project": {"$in": project_ids},
             }
         },
-        ensure_system_tags(),
+        ensure_valid_fields(),
         {
             # for each project
             "$group": group_step
