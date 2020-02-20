@@ -9,8 +9,11 @@ import es_factory
 from apierrors import errors
 from bll.queue.queue_metrics import QueueMetrics
 from bll.workers import WorkerBLL
+from config import config
 from database.errors import translate_errors_context
 from database.model.queue import Queue, Entry
+
+log = config.logger(__file__)
 
 
 class QueueBLL(object):
@@ -189,9 +192,7 @@ class QueueBLL(object):
         """
         with translate_errors_context():
             query = dict(id=queue_id, company=company_id)
-            queue = Queue.objects(**query).modify(
-                pop__entries=-1, last_update=datetime.utcnow(), upsert=False
-            )
+            queue = Queue.objects(**query).modify(pop__entries=-1, upsert=False)
             if not queue:
                 raise errors.bad_request.InvalidQueueId(**query)
 
@@ -199,6 +200,11 @@ class QueueBLL(object):
 
             if not queue.entries:
                 return
+
+            try:
+                Queue.objects(**query).update(last_update=datetime.utcnow())
+            except Exception:
+                log.exception("Error while updating Queue.last_update")
 
             return queue.entries[0]
 
