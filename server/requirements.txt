@@ -22,7 +22,7 @@ related>=0.7.2
 validators>=0.12.4
 fastjsonschema>=2.8
 boltons>=19.1.0
-semantic_version>=2.6.0,<3
+semantic_version>=2.8.0,<3
 furl>=2.0.0
 redis>=2.10.5
 humanfriendly==4.18
