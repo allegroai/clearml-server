@@ -14,6 +14,9 @@ app = Flask(__name__)
 CORS(app, **config.get("fileserver.cors"))
 Compress(app)
 
+if os.environ.get("TRAINS_UPLOAD_FOLDER"):
+    app.config["UPLOAD_FOLDER"] = os.environ.get("TRAINS_UPLOAD_FOLDER")
+
 
 @app.route("/", methods=["POST"])
 def upload():
