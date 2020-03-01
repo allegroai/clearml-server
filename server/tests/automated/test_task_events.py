@@ -4,19 +4,16 @@ Comprehensive test of all(?) use cases of datasets and frames
 import json
 import time
 import unittest
+from functools import partial
 from statistics import mean
-
 from typing import Sequence
 
 import es_factory
-from config import config
 from tests.automated import TestService
-
-log = config.logger(__file__)
 
 
 class TestTaskEvents(TestService):
-    def setUp(self, version="1.7"):
+    def setUp(self, version="2.7"):
         super().setUp(version=version)
 
     def _temp_task(self, name="test task events"):
@@ -25,19 +22,148 @@ class TestTaskEvents(TestService):
         )
         return self.create_temp("tasks", **task_input)
 
-    def _create_task_event(self, type_, task, iteration):
+    def _create_task_event(self, type_, task, iteration, **kwargs):
         return {
             "worker": "test",
             "type": type_,
             "task": task,
             "iter": iteration,
             "timestamp": es_factory.get_timestamp_millis(),
+            **kwargs,
         }
 
     def _copy_and_update(self, src_obj, new_data):
         obj = src_obj.copy()
         obj.update(new_data)
         return obj
+
+    def test_task_metrics(self):
+        tasks = {
+            self._temp_task(): {
+                "Metric1": ["training_debug_image"],
+                "Metric2": ["training_debug_image", "log"],
+            },
+            self._temp_task(): {"Metric3": ["training_debug_image"]},
+        }
+        events = [
+            self._create_task_event(
+                event_type,
+                task=task,
+                iteration=1,
+                metric=metric,
+                variant="Test variant",
+            )
+            for task, metrics in tasks.items()
+            for metric, event_types in metrics.items()
+            for event_type in event_types
+        ]
+        self.send_batch(events)
+        self._assert_task_metrics(tasks, "training_debug_image")
+        self._assert_task_metrics(tasks, "log")
+        self._assert_task_metrics(tasks, "training_stats_scalar")
+
+    def _assert_task_metrics(self, tasks: dict, event_type: str):
+        res = self.api.events.get_task_metrics(tasks=list(tasks), event_type=event_type)
+        for task, metrics in tasks.items():
+            res_metrics = next(
+                (tm.metrics for tm in res.metrics if tm.task == task), ()
+            )
+            self.assertEqual(
+                set(res_metrics),
+                set(
+                    metric for metric, events in metrics.items() if event_type in events
+                ),
+            )
+
+    def test_task_debug_images(self):
+        task = self._temp_task()
+        metric = "Metric1"
+        variants = [("Variant1", 7), ("Variant2", 4)]
+        iterations = 10
+
+        # test empty
+        res = self.api.events.debug_images(
+            metrics=[{"task": task, "metric": metric}],
+            iters=5,
+        )
+        self.assertFalse(res.metrics)
+
+        # create events
+        events = [
+            self._create_task_event(
+                "training_debug_image",
+                task=task,
+                iteration=n,
+                metric=metric,
+                variant=variant,
+                url=f"{metric}_{variant}_{n % unique_images}",
+            )
+            for n in range(iterations)
+            for (variant, unique_images) in variants
+        ]
+        self.send_batch(events)
+
+        # init testing
+        unique_images = [unique for (_, unique) in variants]
+        scroll_id = None
+        assert_debug_images = partial(
+            self._assertDebugImages,
+            task=task,
+            metric=metric,
+            max_iter=iterations - 1,
+            unique_images=unique_images,
+        )
+
+        # test forward navigation
+        for page in range(3):
+            scroll_id = assert_debug_images(scroll_id=scroll_id, page=page)
+
+        # test backwards navigation
+        scroll_id = assert_debug_images(
+            scroll_id=scroll_id, page=0, navigate_earlier=False
+        )
+
+        # beyond the latest iteration and back
+        res = self.api.events.debug_images(
+            metrics=[{"task": task, "metric": metric}],
+            iters=5,
+            scroll_id=scroll_id,
+            navigate_earlier=False,
+        )
+        self.assertEqual(len(res["metrics"][0]["iterations"]), 0)
+        assert_debug_images(scroll_id=scroll_id, page=1)
+
+        # refresh
+        assert_debug_images(scroll_id=scroll_id, page=0, refresh=True)
+
+    def _assertDebugImages(
+        self,
+        task,
+        metric,
+        max_iter: int,
+        unique_images: Sequence[int],
+        scroll_id,
+        page: int,
+        iters: int = 5,
+        **extra_params,
+    ):
+        res = self.api.events.debug_images(
+            metrics=[{"task": task, "metric": metric}],
+            iters=iters,
+            scroll_id=scroll_id,
+            **extra_params,
+        )
+        data = res["metrics"][0]
+        self.assertEqual(data["task"], task)
+        self.assertEqual(data["metric"], metric)
+        left_iterations = max(0, max(unique_images) - page * iters)
+        self.assertEqual(len(data["iterations"]), min(iters, left_iterations))
+        for it in data["iterations"]:
+            events_per_iter = sum(
+                1 for unique in unique_images if unique > max_iter - it["iter"]
+            )
+            self.assertEqual(len(it["events"]), events_per_iter)
+        return res.scroll_id
 
     def test_task_logs(self):
         events = []

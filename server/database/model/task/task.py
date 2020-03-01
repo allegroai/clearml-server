@@ -22,7 +22,7 @@ from database.model.base import ProperDictMixin
 from database.model.model_labels import ModelLabels
 from database.model.project import Project
 from database.utils import get_options
-from .metrics import MetricEvent
+from .metrics import MetricEvent, MetricEventStats
 from .output import Output
 
 DEFAULT_LAST_ITERATION = 0
@@ -162,3 +162,4 @@ class Task(AttributedDocument):
     last_update = DateTimeField()
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
+    metric_stats = SafeMapField(field=EmbeddedDocumentField(MetricEventStats))

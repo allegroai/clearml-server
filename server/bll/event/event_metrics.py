@@ -1,13 +1,13 @@
 import itertools
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
 from functools import partial
 from operator import itemgetter
+from typing import Sequence, Tuple, Callable, Iterable
 
 from boltons.iterutils import bucketize
 from elasticsearch import Elasticsearch
-from typing import Sequence, Tuple, Callable, Iterable
-
 from mongoengine import Q
 
 from apierrors import errors
@@ -19,6 +19,14 @@ from timing_context import TimingContext
 from utilities import safe_get
 
 log = config.logger(__file__)
+
+
+class EventType(Enum):
+    metrics_scalar = "training_stats_scalar"
+    metrics_vector = "training_stats_vector"
+    metrics_image = "training_debug_image"
+    metrics_plot = "plot"
+    task_log = "log"
 
 
 class EventMetrics:
@@ -66,7 +74,8 @@ class EventMetrics:
         """
         if len(task_ids) > self.MAX_TASKS_COUNT:
             raise errors.BadRequest(
-                f"Up to {self.MAX_TASKS_COUNT} tasks supported for comparison", len(task_ids)
+                f"Up to {self.MAX_TASKS_COUNT} tasks supported for comparison",
+                len(task_ids),
             )
 
         task_name_by_id = {}
@@ -168,9 +177,7 @@ class EventMetrics:
         with ThreadPoolExecutor(max_workers=max_concurrency) as pool:
             metrics = itertools.chain.from_iterable(
                 pool.map(
-                    partial(
-                        get_func, task_ids=task_ids, es_index=es_index, key=key
-                    ),
+                    partial(get_func, task_ids=task_ids, es_index=es_index, key=key),
                     intervals,
                 )
             )
@@ -440,3 +447,50 @@ class EventMetrics:
                 ]
             }
         }
+
+    def get_tasks_metrics(
+        self, company_id, task_ids: Sequence, event_type: EventType
+    ) -> Sequence:
+        """
+        For the requested tasks return all the metrics that
+        reported events of the requested types
+        """
+        es_index = EventMetrics.get_index_name(company_id, event_type.value)
+        if not self.es.indices.exists(es_index):
+            return {}
+
+        max_concurrency = config.get("services.events.max_metrics_concurrency", 4)
+        with ThreadPoolExecutor(max_concurrency) as pool:
+            res = pool.map(
+                partial(
+                    self._get_task_metrics, es_index=es_index, event_type=event_type,
+                ),
+                task_ids,
+            )
+        return list(zip(task_ids, res))
+
+    def _get_task_metrics(self, task_id, es_index, event_type: EventType) -> Sequence:
+        es_req = {
+            "size": 0,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"task": task_id}},
+                        {"term": {"type": event_type.value}},
+                    ]
+                }
+            },
+            "aggs": {
+                "metrics": {
+                    "terms": {"field": "metric", "size": self.MAX_METRICS_COUNT}
+                }
+            },
+        }
+
+        with translate_errors_context(), TimingContext("es", "_get_task_metrics"):
+            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+
+        return [
+            metric["key"]
+            for metric in safe_get(es_res, "aggregations/metrics/buckets", default=[])
+        ]

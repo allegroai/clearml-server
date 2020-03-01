@@ -2,12 +2,15 @@ import itertools
 from collections import defaultdict
 from operator import itemgetter
 
-import six
-
 from apierrors import errors
 from apimodels.events import (
     MultiTaskScalarMetricsIterHistogramRequest,
     ScalarMetricsIterHistogramRequest,
+    DebugImagesRequest,
+    DebugImageResponse,
+    MetricEvents,
+    IterationEvents,
+    TaskMetricsRequest,
 )
 from bll.event import EventBLL
 from bll.event.event_metrics import EventMetrics
@@ -299,7 +302,7 @@ def multi_task_scalar_metrics_iter_histogram(
     call, company_id, req_model: MultiTaskScalarMetricsIterHistogramRequest
 ):
     task_ids = req_model.tasks
-    if isinstance(task_ids, six.string_types):
+    if isinstance(task_ids, str):
         task_ids = [s.strip() for s in task_ids.split(",")]
     # Note, bll already validates task ids as it needs their names
     call.result.data = dict(
@@ -481,7 +484,7 @@ def get_debug_images_v1_7(call, company_id, req_model):
 
 
 @endpoint("events.debug_images", min_version="1.8", required_fields=["task"])
-def get_debug_images(call, company_id, req_model):
+def get_debug_images_v1_8(call, company_id, req_model):
     task_id = call.data["task"]
     iters = call.data.get("iters") or 1
     scroll_id = call.data.get("scroll_id")
@@ -505,6 +508,53 @@ def get_debug_images(call, company_id, req_model):
         total=result.total_events,
         scroll_id=result.next_scroll_id,
     )
+
+
+@endpoint(
+    "events.debug_images",
+    min_version="2.7",
+    request_data_model=DebugImagesRequest,
+    response_data_model=DebugImageResponse,
+)
+def get_debug_images(call, company_id, req_model: DebugImagesRequest):
+    tasks = set(m.task for m in req_model.metrics)
+    task_bll.assert_exists(call.identity.company, task_ids=tasks, allow_public=True)
+    result = event_bll.debug_images_iterator.get_task_events(
+        company_id=company_id,
+        metrics=[(m.task, m.metric) for m in req_model.metrics],
+        iter_count=req_model.iters,
+        navigate_earlier=req_model.navigate_earlier,
+        refresh=req_model.refresh,
+        state_id=req_model.scroll_id,
+    )
+
+    call.result.data_model = DebugImageResponse(
+        scroll_id=result.next_scroll_id,
+        metrics=[
+            MetricEvents(
+                task=task,
+                metric=metric,
+                iterations=[
+                    IterationEvents(iter=iteration["iter"], events=iteration["events"])
+                    for iteration in iterations
+                ],
+            )
+            for (task, metric, iterations) in result.metric_events
+        ],
+    )
+
+
+@endpoint("events.get_task_metrics", request_data_model=TaskMetricsRequest)
+def get_tasks_metrics(call: APICall, company_id, req_model: TaskMetricsRequest):
+    task_bll.assert_exists(
+        call.identity.company, task_ids=req_model.tasks, allow_public=True
+    )
+    res = event_bll.metrics.get_tasks_metrics(
+        company_id, task_ids=req_model.tasks, event_type=req_model.event_type
+    )
+    call.result.data = {
+        "metrics": [{"task": task, "metrics": metrics} for (task, metrics) in res]
+    }
 
 
 @endpoint("events.delete_for_task", required_fields=["task"])

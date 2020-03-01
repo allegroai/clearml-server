@@ -2,7 +2,6 @@ import hashlib
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
-from enum import Enum
 from operator import attrgetter
 from typing import Sequence
 
@@ -15,46 +14,39 @@ from nested_dict import nested_dict
 import database.utils as dbutils
 import es_factory
 from apierrors import errors
-from bll.event.event_metrics import EventMetrics
+from bll.event.debug_images_iterator import DebugImagesIterator
+from bll.event.event_metrics import EventMetrics, EventType
 from bll.task import TaskBLL
 from config import config
 from database.errors import translate_errors_context
 from database.model.task.task import Task, TaskStatus
+from redis_manager import redman
 from timing_context import TimingContext
 from utilities.dicts import flatten_nested_items
 
-
-class EventType(Enum):
-    metrics_scalar = "training_stats_scalar"
-    metrics_vector = "training_stats_vector"
-    metrics_image = "training_debug_image"
-    metrics_plot = "plot"
-    task_log = "log"
-
-
 # noinspection PyTypeChecker
 EVENT_TYPES = set(map(attrgetter("value"), EventType))
-
-
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 
 
-@attr.s
+@attr.s(auto_attribs=True)
 class TaskEventsResult(object):
-    events = attr.ib(type=list, default=attr.Factory(list))
-    total_events = attr.ib(type=int, default=0)
-    next_scroll_id = attr.ib(type=str, default=None)
+    total_events: int = 0
+    next_scroll_id: str = None
+    events: list = attr.ib(factory=list)
 
 
 class EventBLL(object):
     id_fields = ("task", "iter", "metric", "variant", "key")
 
-    def __init__(self, events_es=None):
+    def __init__(self, events_es=None, redis=None):
         self.es = events_es or es_factory.connect("events")
         self._metrics = EventMetrics(self.es)
         self._skip_iteration_for_metric = set(
             config.get("services.events.ignore_iteration.metrics", [])
         )
+        self.redis = redis or redman.connection("apiserver")
+        self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
 
     @property
     def metrics(self) -> EventMetrics:
@@ -64,9 +56,12 @@ class EventBLL(object):
         actions = []
         task_ids = set()
         task_iteration = defaultdict(lambda: 0)
-        task_last_events = nested_dict(
+        task_last_scalar_events = nested_dict(
             3, dict
         )  # task_id -> metric_hash -> variant_hash -> MetricEvent
+        task_last_events = nested_dict(
+            3, dict
+        )  # task_id -> metric_hash -> event_type -> MetricEvent
 
         for event in events:
             # remove spaces from event type
@@ -108,6 +103,9 @@ class EventBLL(object):
                 event["value"] = event["values"]
                 del event["values"]
 
+            event["metric"] = event.get("metric") or ""
+            event["variant"] = event.get("variant") or ""
+
             index_name = EventMetrics.get_index_name(company_id, event_type)
             es_action = {
                 "_op_type": "index",  # overwrite if exists with same ID
@@ -132,9 +130,12 @@ class EventBLL(object):
                 ):
                     task_iteration[task_id] = max(iter, task_iteration[task_id])
 
+                self._update_last_metric_events_for_task(
+                    last_events=task_last_events[task_id], event=event,
+                )
                 if event_type == EventType.metrics_scalar.value:
-                    self._update_last_metric_event_for_task(
-                        task_last_events=task_last_events, task_id=task_id, event=event
+                    self._update_last_scalar_events_for_task(
+                        last_events=task_last_scalar_events[task_id], event=event
                     )
             else:
                 es_action["_routing"] = task_id
@@ -187,6 +188,7 @@ class EventBLL(object):
                     task_id=task_id,
                     now=now,
                     iter_max=task_iteration.get(task_id),
+                    last_scalar_events=task_last_scalar_events.get(task_id),
                     last_events=task_last_events.get(task_id),
                 )
 
@@ -202,12 +204,12 @@ class EventBLL(object):
 
         return added, errors_in_bulk
 
-    def _update_last_metric_event_for_task(self, task_last_events, task_id, event):
+    def _update_last_scalar_events_for_task(self, last_events, event):
         """
-        Update task_last_events structure for the provided task_id with the provided event details if this event is more
+        Update last_events structure with the provided event details if this event is more
         recent than the currently stored event for its metric/variant combination.
 
-        task_last_events contains [hashed_metric_name -> hashed_variant_name -> event]. Keys are hashed to avoid mongodb
+        last_events contains [hashed_metric_name -> hashed_variant_name -> event]. Keys are hashed to avoid mongodb
         key conflicts due to invalid characters and/or long field names.
         """
         metric = event.get("metric")
@@ -218,13 +220,34 @@ class EventBLL(object):
         metric_hash = dbutils.hash_field_name(metric)
         variant_hash = dbutils.hash_field_name(variant)
 
-        last_events = task_last_events[task_id]
-
         timestamp = last_events[metric_hash][variant_hash].get("timestamp", None)
         if timestamp is None or timestamp < event["timestamp"]:
             last_events[metric_hash][variant_hash] = event
 
-    def _update_task(self, company_id, task_id, now, iter_max=None, last_events=None):
+    def _update_last_metric_events_for_task(self, last_events, event):
+        """
+        Update last_events structure with the provided event details if this event is more
+        recent than the currently stored event for its metric/event_type combination.
+        last_events contains [metric_name -> event_type -> event]
+        """
+        metric = event.get("metric")
+        event_type = event.get("type")
+        if not (metric and event_type):
+            return
+
+        timestamp = last_events[metric][event_type].get("timestamp", None)
+        if timestamp is None or timestamp < event["timestamp"]:
+            last_events[metric][event_type] = event
+
+    def _update_task(
+        self,
+        company_id,
+        task_id,
+        now,
+        iter_max=None,
+        last_scalar_events=None,
+        last_events=None,
+    ):
         """
         Update task information in DB with aggregated results after handling event(s) related to this task.
 
@@ -237,14 +260,17 @@ class EventBLL(object):
         if iter_max is not None:
             fields["last_iteration_max"] = iter_max
 
-        if last_events:
-            fields["last_values"] = list(
+        if last_scalar_events:
+            fields["last_scalar_values"] = list(
                 flatten_nested_items(
-                    last_events,
+                    last_scalar_events,
                     nesting=2,
                     include_leaves=["value", "metric", "variant"],
                 )
             )
+
+        if last_events:
+            fields["last_events"] = last_events
 
         if not fields:
             return False

@@ -89,6 +89,8 @@ _error_codes = {
         1003: ('worker_registered', 'worker is already registered'),
         1004: ('worker_not_registered', 'worker is not registered'),
         1005: ('worker_stats_not_found', 'worker stats not found'),
+
+        1104: ('invalid_scroll_id', 'Invalid scroll id'),
     },
 
     (401, 'unauthorized'): {

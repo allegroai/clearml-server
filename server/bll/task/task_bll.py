@@ -3,13 +3,14 @@ from datetime import datetime, timedelta
 from operator import attrgetter
 from random import random
 from time import sleep
-from typing import Collection, Sequence, Tuple, Any, Optional, List
+from typing import Collection, Sequence, Tuple, Any, Optional, List, Dict
 
 import pymongo.results
 import six
 from mongoengine import Q
 from six import string_types
 
+import database.utils as dbutils
 import es_factory
 from apierrors import errors
 from apimodels.tasks import Artifact as ApiArtifact
@@ -17,6 +18,7 @@ from config import config
 from database.errors import translate_errors_context
 from database.model.model import Model
 from database.model.project import Project
+from database.model.task.metrics import EventStats, MetricEventStats
 from database.model.task.output import Output
 from database.model.task.task import (
     Task,
@@ -197,7 +199,9 @@ class TaskBLL(object):
                 system_tags=system_tags or [],
                 type=task.type,
                 script=task.script,
-                output=Output(destination=task.output.destination) if task.output else None,
+                output=Output(destination=task.output.destination)
+                if task.output
+                else None,
                 execution=execution_dict,
             )
             cls.validate(new_task)
@@ -277,7 +281,8 @@ class TaskBLL(object):
         last_update: datetime = None,
         last_iteration: int = None,
         last_iteration_max: int = None,
-        last_values: Sequence[Tuple[Tuple[str, ...], Any]] = None,
+        last_scalar_values: Sequence[Tuple[Tuple[str, ...], Any]] = None,
+        last_events: Dict[str, Dict[str, dict]] = None,
         **extra_updates,
     ):
         """
@@ -289,7 +294,8 @@ class TaskBLL(object):
             task's last iteration value.
         :param last_iteration_max: Last reported iteration. Use this to conditionally set a value only
             if the current task's last iteration value is smaller than the provided value.
-        :param last_values: Last reported metrics summary (value, metric, variant).
+        :param last_scalar_values: Last reported metrics summary for scalar events (value, metric, variant).
+        :param last_events: Last reported metrics summary (value, metric, event type).
         :param extra_updates: Extra task updates to include in this update call.
         :return:
         """
@@ -300,16 +306,32 @@ class TaskBLL(object):
         elif last_iteration_max is not None:
             extra_updates.update(max__last_iteration=last_iteration_max)
 
-        if last_values is not None:
+        if last_scalar_values is not None:
 
             def op_path(op, *path):
                 return "__".join((op, "last_metrics") + path)
 
-            for path, value in last_values:
+            for path, value in last_scalar_values:
                 extra_updates[op_path("set", *path)] = value
                 if path[-1] == "value":
                     extra_updates[op_path("min", *path[:-1], "min_value")] = value
                     extra_updates[op_path("max", *path[:-1], "max_value")] = value
+
+        if last_events is not None:
+
+            def events_per_type(metric_data: Dict[str, dict]) -> Dict[str, EventStats]:
+                return {
+                    event_type: EventStats(last_update=event["timestamp"])
+                    for event_type, event in metric_data.items()
+                }
+
+            metric_stats = {
+                dbutils.hash_field_name(metric_key): MetricEventStats(
+                    metric=metric_key, event_stats_by_type=events_per_type(metric_data),
+                )
+                for metric_key, metric_data in last_events.items()
+            }
+            extra_updates["metric_stats"] = metric_stats
 
         Task.objects(id=task_id, company=company_id).update(
             upsert=False, last_update=last_update, **extra_updates
