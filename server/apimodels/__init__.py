@@ -168,7 +168,7 @@ class ActualEnumField(fields.StringField):
         validator_cls = EnumValidator if required else NullableEnumValidator
         validators = [*(validators or []), validator_cls(*choices)]
         super().__init__(
-            default=default and self.parse_value(default),
+            default=self.parse_value(default) if default else NotSet,
             *args,
             required=required,
             validators=validators,
