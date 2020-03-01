@@ -9,6 +9,7 @@ import jsonmodels.models
 import timing_context
 from apierrors import APIError
 from apierrors.errors.bad_request import RequestPathHasInvalidVersion
+from api_version import __version__ as _api_version_
 from config import config
 from service_repo.base import PartialVersion
 from .apicall import APICall
@@ -34,7 +35,7 @@ class ServiceRepo(object):
     """If the check is set, parsing will fail for endpoint request with the version that is grater than the current 
     maximum """
 
-    _max_version = PartialVersion("2.6")
+    _max_version = PartialVersion(".".join(_api_version_.split(".")[:2]))
     """ Maximum version number (the highest min_version value across all endpoints) """
 
     _endpoint_exp = (
@@ -166,7 +167,7 @@ class ServiceRepo(object):
             return
 
         assert isinstance(endpoint, Endpoint)
-        call.actual_endpoint_version: PartialVersion = endpoint.min_version
+        call.actual_endpoint_version = endpoint.min_version
         call.requires_authorization = endpoint.authorize
         return endpoint
 
