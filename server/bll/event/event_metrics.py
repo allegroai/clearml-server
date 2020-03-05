@@ -450,14 +450,14 @@ class EventMetrics:
 
     def get_tasks_metrics(
         self, company_id, task_ids: Sequence, event_type: EventType
-    ) -> Sequence:
+    ) -> Sequence[Tuple]:
         """
         For the requested tasks return all the metrics that
         reported events of the requested types
         """
         es_index = EventMetrics.get_index_name(company_id, event_type.value)
         if not self.es.indices.exists(es_index):
-            return {}
+            return [(tid, []) for tid in task_ids]
 
         max_concurrency = config.get("services.events.max_metrics_concurrency", 4)
         with ThreadPoolExecutor(max_concurrency) as pool:
