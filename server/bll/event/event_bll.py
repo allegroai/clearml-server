@@ -310,7 +310,9 @@ class EventBLL(object):
             }
 
             with translate_errors_context(), TimingContext("es", "scroll_task_events"):
-                es_res = self.es.search(index=es_index, body=es_req, scroll="1h")
+                es_res = self.es.search(
+                    index=es_index, body=es_req, scroll="1h", routing=task_id
+                )
 
         events = [hit["_source"] for hit in es_res["hits"]["hits"]]
         next_scroll_id = es_res["_scroll_id"]
