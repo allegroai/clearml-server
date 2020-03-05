@@ -22,6 +22,8 @@ services:
       TRAINS_MONGODB_SERVICE_PORT: 27017
       TRAINS_REDIS_SERVICE_HOST: redis
       TRAINS_REDIS_SERVICE_PORT: 6379
+      TRAINS__apiserver__mongo__pre_populate__enabled: "true"
+      TRAINS__apiserver__mongo__pre_populate__zip_file: "/opt/trains/db-pre-populate/export.zip"
     ports:
     - "8008:8008"
     networks:

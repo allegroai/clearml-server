@@ -47,7 +47,7 @@ class BasicConfig:
     def logger(self, name):
         if Path(name).is_file():
             name = Path(name).stem
-        path = ".".join((self.prefix, Path(name).stem))
+        path = ".".join((self.prefix, name))
         return logging.getLogger(path)
 
     def _read_extra_env_config_values(self):

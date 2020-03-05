@@ -10,7 +10,8 @@ import database
 from apierrors.base import BaseError
 from bll.statistics.stats_reporter import StatisticsReporter
 from config import config
-from init_data import init_es_data, init_mongo_data
+from elastic.initialize import init_es_data
+from mongo.initialize import init_mongo_data
 from service_repo import ServiceRepo, APICall
 from service_repo.auth import AuthType
 from service_repo.errors import PathParsingError
