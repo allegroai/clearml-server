@@ -61,6 +61,7 @@ For example, to see if port `8080` is in use:
 Launch **trains-server** in any of the following formats:
 
 - Pre-built [AWS EC2 AMI](https://github.com/allegroai/trains-server/blob/master/docs/install_aws.md)
+- Pre-built [GCP Custom Image](https://github.com/allegroai/trains-server/blob/master/docs/install_gcp.md)
 - Pre-built Docker Image
     - [Linux](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
     - [macOS](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
