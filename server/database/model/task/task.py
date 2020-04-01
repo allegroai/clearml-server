@@ -110,6 +110,12 @@ class Task(AttributedDocument):
             "created",
             "started",
             "completed",
+            "parent",
+            "project",
+            ("company", "name"),
+            ("company", "type", "system_tags", "status"),
+            ("company", "project", "type", "system_tags", "status"),
+            ("status", "last_update"),  # for maintenance tasks
             {
                 "name": "%s.task.main_text_index" % Database.backend,
                 "fields": [

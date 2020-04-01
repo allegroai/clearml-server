@@ -33,8 +33,7 @@ create_fields = {
 }
 
 get_all_query_options = Project.QueryParameterOptions(
-    pattern_fields=("name", "description"),
-    list_fields=("tags", "system_tags", "id"),
+    pattern_fields=("name", "description"), list_fields=("tags", "system_tags", "id"),
 )
 
 
@@ -58,7 +57,7 @@ def get_by_id(call):
         call.result.data = {"project": project_dict}
 
 
-def make_projects_get_all_pipelines(project_ids, specific_state=None):
+def make_projects_get_all_pipelines(company_id, project_ids, specific_state=None):
     archived = EntityVisibility.archived.value
 
     def ensure_valid_fields():
@@ -74,15 +73,18 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
                         "else": "$system_tags",
                     }
                 },
-                "status": {
-                    "$ifNull": ["$status", "unknown"]
-                }
+                "status": {"$ifNull": ["$status", "unknown"]},
             }
         }
 
     status_count_pipeline = [
         # count tasks per project per status
-        {"$match": {"project": {"$in": project_ids}}},
+        {
+            "$match": {
+                "company": {"$in": [None, "", company_id]},
+                "project": {"$in": project_ids},
+            }
+        },
         ensure_valid_fields(),
         {
             "$group": {
@@ -153,7 +155,10 @@ def make_projects_get_all_pipelines(project_ids, specific_state=None):
         {
             "$match": {
                 "type": {"$in": ["training", "testing", "annotation"]},
-                "project": {"$in": project_ids},
+                "project": {
+                    "company": {"$in": [None, "", company_id]},
+                    "$in": project_ids,
+                },
             }
         },
         ensure_valid_fields(),
@@ -195,7 +200,7 @@ def get_all_ex(call: APICall):
 
         ids = [project["id"] for project in projects]
         status_count_pipeline, runtime_pipeline = make_projects_get_all_pipelines(
-            ids, specific_state=specific_state
+            call.identity.company, ids, specific_state=specific_state
         )
 
         default_counts = dict.fromkeys(get_options(TaskStatus), 0)
@@ -205,7 +210,7 @@ def get_all_ex(call: APICall):
 
         status_count = defaultdict(lambda: {})
         key = itemgetter(EntityVisibility.archived.value)
-        for result in Task.aggregate(*status_count_pipeline):
+        for result in Task.aggregate(status_count_pipeline):
             for k, group in groupby(sorted(result["counts"], key=key), key):
                 section = (
                     EntityVisibility.archived if k else EntityVisibility.active
@@ -219,7 +224,7 @@ def get_all_ex(call: APICall):
 
         runtime = {
             result["_id"]: {k: v for k, v in result.items() if k != "_id"}
-            for result in Task.aggregate(*runtime_pipeline)
+            for result in Task.aggregate(runtime_pipeline)
         }
 
     def safe_get(obj, path, default=None):

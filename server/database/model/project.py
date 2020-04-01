@@ -17,12 +17,13 @@ class Project(AttributedDocument):
         "db_alias": Database.backend,
         "strict": strict,
         "indexes": [
+            ("company", "name"),
             {
                 "name": "%s.project.main_text_index" % Database.backend,
                 "fields": ["$name", "$id", "$description"],
                 "default_language": "english",
                 "weights": {"name": 10, "id": 10, "description": 10},
-            }
+            },
         ],
     }
 

@@ -750,8 +750,7 @@ class CleanupResult(object):
     deleted_models = attr.ib(type=int)
 
 
-def cleanup_task(task, force=False):
-    # type: (Task, bool) -> CleanupResult
+def cleanup_task(task: Task, force: bool = False):
     """
     Validate task deletion and delete/modify all its output.
     :param task: task object
