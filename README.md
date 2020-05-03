@@ -7,6 +7,8 @@
 [![GitHub version](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)](https://img.shields.io/github/release-pre/allegroai/trains-server.svg)
 [![PyPI status](https://img.shields.io/badge/status-beta-yellow.svg)](https://img.shields.io/badge/status-beta-yellow.svg)
 
+### Help improve Trains by filling our 2-min [user survey](https://allegro.ai/lp/trains-user-survey/)
+
 ## Introduction
 
 The **trains-server** is the backend service infrastructure for [Trains](https://github.com/allegroai/trains).
