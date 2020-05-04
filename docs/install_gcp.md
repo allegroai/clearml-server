@@ -30,8 +30,8 @@ To import the image to your custom images list:
 1. In the **Name** field, specify a unique name for the image.
 1. Optionally, specify an image family for your new image, or configure specific encryption settings for the image.
 1. Click the **Source** menu and select **Cloud Storage file**.
-1. Enter the [Trains Server GCP Custom Image](#released-versions) URL, for example:
-    `https://storage.googleapis.com/allegro-files/trains-server/trains-server.vmdk`
+1. Enter the Trains Server image bucket path (see [Trains Server GCP Custom Image](#released-versions)), for example:
+    `allegro-files/trains-server/trains-server.tar.gz`
 1. Click the **Create** button to import the image. The process can take several minutes depending on the size of the boot disk image.
 
 For more information see [Import the image to your custom images list](https://cloud.google.com/compute/docs/import/import-existing-image#import_image) in the [Compute Engine Documentation](https://cloud.google.com/compute/docs).
@@ -53,9 +53,6 @@ To upgrade **trains-server** on an existing GCP instance based on one of these C
 
 The following sections contain lists of Custom Image URLs (exported in different formats) for each released **trains-server** version.
 
-### Latest version Custom Images - v0.14.1
+### Latest version image (v0.14.1)
 
-- https://storage.googleapis.com/allegro-files/trains-server/trains-server.qcow2
-- https://storage.googleapis.com/allegro-files/trains-server/trains-server.vhd
-- https://storage.googleapis.com/allegro-files/trains-server/trains-server.vhdx
-- https://storage.googleapis.com/allegro-files/trains-server/trains-server.vmdk
+- https://storage.googleapis.com/allegro-files/trains-server/trains-server.tar.gz
