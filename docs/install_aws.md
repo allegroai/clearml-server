@@ -26,7 +26,7 @@ The minimum recommended amount of RAM is 8GB. For example, **t3.large** or **t3a
 
 To upgrade **trains-server** on an existing EC2 instance based on one of these AMIs, SSH into the instance and follow the [upgrade instructions](../README.md#upgrade) for **trains-server**.
 
-### Upgrading AMIs to v0.12 
+### Note on upgrading AMIs to v0.12 
 
 This upgrade includes the automatically updated AMI in Version 0.12. It also includes an additional REDIS docker to the **trains-server** setup.
 
@@ -50,26 +50,45 @@ To upgrade the AMI:
 
 The following sections contain lists of AMI Image IDs, per region, for each released **trains-server** version.
 
-### Latest version AMI - v0.14.1 (auto update)<a name="autoupdate"></a>
+### Latest version AMI - v0.14.2 (auto update)<a name="autoupdate"></a>
 
 For easier upgrades, the following AMIs automatically update to the latest release every reboot:
 
-* **eu-north-1** : ami-01453918ab5def77a 
-* **ap-south-1** : ami-0b0271525ba460a74 
-* **eu-west-3** : ami-08587f7fed13f11d7 
-* **eu-west-2** : ami-00fc4878823ffe4a6 
-* **eu-west-1** : ami-0e469a109747b3ba9 
-* **ap-northeast-2** : ami-001d512f13fdeb036 
-* **ap-northeast-1** : ami-007e8da27bd419b30 
-* **sa-east-1** : ami-0f1722631d6526b34 
-* **ca-central-1** : ami-0e207c553a2ec3820 
-* **ap-southeast-1** : ami-015524eaf0ff2c7bf 
-* **ap-southeast-2** : ami-0ef830886ec4916f1 
-* **eu-central-1** : ami-0d8cffba1d9e6db55 
-* **us-east-2** : ami-06e73febc3bf5f444 
-* **us-west-1** : ami-00efa5e6b29c7d474 
-* **us-west-2** : ami-0ae16625f59ebe94b 
-* **us-east-1** : ami-0f95255edff19eb4d 
+* **eu-north-1** : ami-095cc888970c06e09 
+* **ap-south-1** : ami-07019e7b3febea37e 
+* **eu-west-3** : ami-0433d76badf430c16 
+* **eu-west-2** : ami-05794c2b23ff79990 
+* **eu-west-1** : ami-03e3bcabd1863d666 
+* **ap-northeast-2** : ami-00f14188b66a5803e 
+* **ap-northeast-1** : ami-005c93e30c99dab0c 
+* **sa-east-1** : ami-0d819231779e7d264 
+* **ca-central-1** : ami-0eff2fd400939d960 
+* **ap-southeast-1** : ami-049b21bfa0d35c21c 
+* **ap-southeast-2** : ami-0318b96a72d5da068 
+* **eu-central-1** : ami-0cdb9d794340b9704 
+* **us-east-2** : ami-0d846a080fc5a9345 
+* **us-west-1** : ami-0ef970342625159bf 
+* **us-west-2** : ami-04f3d13b75c642506 
+* **us-east-1** : ami-01bef4da91280a322 
+
+### v0.14.2 (static update)
+
+* **eu-north-1** : ami-006d491e9e8869248 
+* **ap-south-1** : ami-0e55ec221687f98e7 
+* **eu-west-3** : ami-06ad9cf3c05c83e91 
+* **eu-west-2** : ami-0d05839268e748cff 
+* **eu-west-1** : ami-0d14c297789ce0d7a 
+* **ap-northeast-2** : ami-0d7fd775f0e76cc6f 
+* **ap-northeast-1** : ami-0c0a6e1daeb3f7a9c 
+* **sa-east-1** : ami-01e0c5e30e94ec887 
+* **ca-central-1** : ami-07a31896832734897 
+* **ap-southeast-1** : ami-0886d5b2d4b7fccd5 
+* **ap-southeast-2** : ami-0397d5a2db3c356fe 
+* **eu-central-1** : ami-0629f26eea22f5c17 
+* **us-east-2** : ami-0499c3d7bb45a1a6e 
+* **us-west-1** : ami-02fa8a961a4daf9f0 
+* **us-west-2** : ami-05c711cfab4342468 
+* **us-east-1** : ami-0b97d99a08012c726 
 
 ### v0.14.1 (static update)
 
