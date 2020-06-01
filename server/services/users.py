@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict, Tuple
+from typing import Tuple
 
 import dpath
 from boltons.iterutils import remap
@@ -8,6 +8,7 @@ from mongoengine import Q
 from apierrors import errors
 from apimodels.base import UpdateResponse
 from apimodels.users import CreateRequest, SetPreferencesRequest
+from bll.project import ProjectBLL
 from bll.user import UserBLL
 from config import config
 from database.errors import translate_errors_context
@@ -19,10 +20,10 @@ from service_repo import APICall, endpoint
 from utilities.json import loads, dumps
 
 log = config.logger(__file__)
-get_all_query_options = User.QueryParameterOptions(list_fields=("id",))
+project_bll = ProjectBLL()
 
 
-def get_user(call, user_id, only=None):
+def get_user(call, company_id, user_id, only=None):
     """
     Get user object by the user's ID
     :param call: API call
@@ -34,7 +35,7 @@ def get_user(call, user_id, only=None):
         # allow system users to get info for all users
         query = dict(id=user_id)
     else:
-        query = dict(id=user_id, company=call.identity.company)
+        query = dict(id=user_id, company=company_id)
 
     with translate_errors_context("retrieving user"):
         user = User.objects(**query)
@@ -48,47 +49,53 @@ def get_user(call, user_id, only=None):
 
 
 @endpoint("users.get_by_id", required_fields=["user"])
-def get_by_id(call):
-    assert isinstance(call, APICall)
+def get_by_id(call: APICall, company_id, _):
     user_id = call.data["user"]
-    call.result.data = {"user": get_user(call, user_id)}
+    call.result.data = {"user": get_user(call, company_id, user_id)}
 
 
 @endpoint("users.get_all_ex", required_fields=[])
-def get_all_ex(call):
-    assert isinstance(call, APICall)
-
+def get_all_ex(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
-        res = User.get_many_with_join(
-            company=call.identity.company,
-            query_dict=call.data,
-            query_options=get_all_query_options,
-        )
+        res = User.get_many_with_join(company=company_id, query_dict=call.data)
+
+        call.result.data = {"users": res}
+
+
+@endpoint("users.get_all_ex", min_version="2.8", required_fields=[])
+def get_all_ex2_8(call: APICall, company_id, _):
+    with translate_errors_context("retrieving users"):
+        data = call.data
+        active_in_projects = call.data.get("active_in_projects", None)
+        if active_in_projects is not None:
+            active_users = project_bll.get_active_users(
+                company_id, active_in_projects, call.data.get("id")
+            )
+            active_users.discard(None)
+            if not active_users:
+                call.result.data = {"users": []}
+                return
+            data = data.copy()
+            data["id"] = list(active_users)
+
+        res = User.get_many_with_join(company=company_id, query_dict=data)
 
         call.result.data = {"users": res}
 
 
 @endpoint("users.get_all", required_fields=[])
-def get_all(call):
-    assert isinstance(call, APICall)
-
+def get_all(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
         res = User.get_many(
-            company=call.identity.company,
-            parameters=call.data,
-            query_dict=call.data,
-            query_options=get_all_query_options,
+            company=company_id, parameters=call.data, query_dict=call.data
         )
 
         call.result.data = {"users": res}
 
 
 @endpoint("users.get_current_user")
-def get_current_user(call):
-    assert isinstance(call, APICall)
-
+def get_current_user(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
-
         projection = (
             {"company.name"}
             .union(User.get_fields())
@@ -96,7 +103,7 @@ def get_current_user(call):
         )
         res = User.get_many_with_join(
             query=Q(id=call.identity.user),
-            company=call.identity.company,
+            company=company_id,
             override_projection=projection,
         )
 
@@ -126,13 +133,11 @@ def create(call: APICall):
 
 
 @endpoint("users.delete", required_fields=["user"])
-def delete(call):
-    assert isinstance(call, APICall)
+def delete(call: APICall):
     UserBLL.delete(call.data["user"])
 
 
-def update_user(user_id, company_id, data):
-    # type: (str, str, Dict) -> Tuple[int, Dict]
+def update_user(user_id, company_id, data: dict) -> Tuple[int, dict]:
     """
     Update user.
     :param user_id: user ID to update
@@ -150,31 +155,29 @@ def update_user(user_id, company_id, data):
 
 @endpoint("users.update", required_fields=["user"], response_data_model=UpdateResponse)
 def update(call, company_id, _):
-    assert isinstance(call, APICall)
     user_id = call.data["user"]
     update_count, updated_fields = update_user(user_id, company_id, call.data)
     call.result.data_model = UpdateResponse(updated=update_count, fields=updated_fields)
 
 
-def get_user_preferences(call):
+def get_user_preferences(call: APICall, company_id):
     user_id = call.identity.user
-    preferences = get_user(call, user_id, ["preferences"]).get("preferences")
+    preferences = get_user(call, company_id, user_id, only=["preferences"]).get(
+        "preferences"
+    )
     if preferences and isinstance(preferences, str):
         preferences = loads(preferences)
     return preferences or {}
 
 
 @endpoint("users.get_preferences")
-def get_preferences(call):
-    assert isinstance(call, APICall)
-    return {"preferences": get_user_preferences(call)}
+def get_preferences(call: APICall, company_id, _):
+    return {"preferences": get_user_preferences(call, company_id)}
 
 
 @endpoint("users.set_preferences", request_data_model=SetPreferencesRequest)
-def set_preferences(call, company_id, req_model):
-    # type: (APICall, str, SetPreferencesRequest) -> Dict
-    assert isinstance(call, APICall)
-    changes = req_model.preferences
+def set_preferences(call: APICall, company_id, request: SetPreferencesRequest):
+    changes = request.preferences
 
     def invalid_key(_, key, __):
         if not isinstance(key, str):
@@ -187,7 +190,7 @@ def set_preferences(call, company_id, req_model):
 
     remap(changes, visit=invalid_key)
 
-    base_preferences = get_user_preferences(call)
+    base_preferences = get_user_preferences(call, company_id)
     new_preferences = deepcopy(base_preferences)
     for key, value in changes.items():
         try:

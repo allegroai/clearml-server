@@ -3,6 +3,7 @@ from mongoengine import Document, StringField, DateTimeField, ListField, Boolean
 from database import Database, strict
 from database.fields import StrippedStringField, SafeDictField
 from database.model import DbModelMixin
+from database.model.base import GetMixin
 from database.model.model_labels import ModelLabels
 from database.model.company import Company
 from database.model.project import Project
@@ -19,6 +20,7 @@ class Model(DbModelMixin, Document):
             "project",
             "task",
             ("company", "name"),
+            ("company", "user"),
             {
                 "name": "%s.model.main_text_index" % Database.backend,
                 "fields": ["$name", "$id", "$comment", "$parent", "$task", "$project"],
@@ -34,6 +36,21 @@ class Model(DbModelMixin, Document):
             },
         ],
     }
+    get_all_query_options = GetMixin.QueryParameterOptions(
+        pattern_fields=("name", "comment"),
+        fields=("ready",),
+        list_fields=(
+            "tags",
+            "system_tags",
+            "framework",
+            "uri",
+            "id",
+            "user",
+            "project",
+            "task",
+            "parent",
+        ),
+    )
 
     id = StringField(primary_key=True)
     name = StrippedStringField(user_set_allowed=True, min_length=3)

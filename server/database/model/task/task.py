@@ -18,7 +18,7 @@ from database.fields import (
     SafeSortedListField,
 )
 from database.model import AttributedDocument
-from database.model.base import ProperDictMixin
+from database.model.base import ProperDictMixin, GetMixin
 from database.model.model_labels import ModelLabels
 from database.model.project import Project
 from database.utils import get_options
@@ -113,6 +113,7 @@ class Task(AttributedDocument):
             "parent",
             "project",
             ("company", "name"),
+            ("company", "user"),
             ("company", "type", "system_tags", "status"),
             ("company", "project", "type", "system_tags", "status"),
             ("status", "last_update"),  # for maintenance tasks
@@ -140,6 +141,12 @@ class Task(AttributedDocument):
             },
         ],
     }
+    get_all_query_options = GetMixin.QueryParameterOptions(
+        list_fields=("id", "user", "tags", "system_tags", "type", "status", "project"),
+        datetime_fields=("status_changed",),
+        pattern_fields=("name", "comment"),
+        fields=("parent",),
+    )
 
     id = StringField(primary_key=True)
     name = StrippedStringField(

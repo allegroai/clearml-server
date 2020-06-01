@@ -38,29 +38,20 @@ def init_mongo_data():
 
                 PrePopulate.import_from_zip(zip_file, user_id=user_id)
 
-        users = [
-            {
-                "name": "apiserver",
-                "role": Role.system,
-                "email": "apiserver@example.com",
-            },
-            {
-                "name": "webserver",
-                "role": Role.system,
-                "email": "webserver@example.com",
-                "revoke_in_fixed_mode": True,
-            },
-            {"name": "tests", "role": Role.user, "email": "tests@example.com"},
-        ]
-
         fixed_mode = FixedUser.enabled()
 
-        for user in users:
-            revoke = fixed_mode and user.pop("revoke_in_fixed_mode", False)
-            credentials = config.get(f"secure.credentials.{user['name']}")
-            user["key"] = credentials.user_key
-            user["secret"] = credentials.user_secret
-            _ensure_auth_user(user, company_id, log=log, revoke=revoke)
+        for user, credentials in config.get("secure.credentials", {}).items():
+            user_data = {
+                "name": user,
+                "role": credentials.role,
+                "email": f"{user}@example.com",
+                "key": credentials.user_key,
+                "secret": credentials.user_secret,
+            }
+            revoke = fixed_mode and credentials.get("revoke_in_fixed_mode", False)
+            user_id = _ensure_auth_user(user_data, company_id, log=log, revoke=revoke)
+            if credentials.role == Role.user:
+                _ensure_backend_user(user_id, company_id, credentials.display_name)
 
         if fixed_mode:
             log.info("Fixed users mode is enabled")

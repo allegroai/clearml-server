@@ -29,20 +29,6 @@ from services.utils import conform_tag_fields, conform_output_tags
 from timing_context import TimingContext
 
 log = config.logger(__file__)
-get_all_query_options = Model.QueryParameterOptions(
-    pattern_fields=("name", "comment"),
-    fields=("ready",),
-    list_fields=(
-        "tags",
-        "system_tags",
-        "framework",
-        "uri",
-        "id",
-        "project",
-        "task",
-        "parent",
-    ),
-)
 
 
 @endpoint("models.get_by_id", required_fields=["model"])
@@ -103,10 +89,7 @@ def get_all_ex(call: APICall):
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all_ex"):
             models = Model.get_many_with_join(
-                company=call.identity.company,
-                query_dict=call.data,
-                allow_public=True,
-                query_options=get_all_query_options,
+                company=call.identity.company, query_dict=call.data, allow_public=True
             )
         conform_output_tags(call, models)
         call.result.data = {"models": models}
@@ -122,7 +105,6 @@ def get_all(call: APICall):
                 parameters=call.data,
                 query_dict=call.data,
                 allow_public=True,
-                query_options=get_all_query_options,
             )
         conform_output_tags(call, models)
         call.result.data = {"models": models}

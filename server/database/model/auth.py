@@ -43,6 +43,7 @@ class Role(object):
 
 
 class Credentials(EmbeddedDocument):
+    meta = {"strict": False}
     key = StringField(required=True)
     secret = StringField(required=True)
     last_used = DateTimeField()

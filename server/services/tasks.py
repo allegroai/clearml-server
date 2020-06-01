@@ -59,12 +59,6 @@ from utilities import safe_get
 
 task_fields = set(Task.get_fields())
 task_script_fields = set(get_fields(Script))
-get_all_query_options = Task.QueryParameterOptions(
-    list_fields=("id", "user", "tags", "system_tags", "type", "status", "project"),
-    datetime_fields=("status_changed",),
-    pattern_fields=("name", "comment"),
-    fields=("parent",),
-)
 
 task_bll = TaskBLL()
 event_bll = EventBLL()
@@ -145,7 +139,6 @@ def get_all_ex(call: APICall):
             tasks = Task.get_many_with_join(
                 company=call.identity.company,
                 query_dict=call.data,
-                query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
         unprepare_from_saved(call, tasks)
@@ -164,7 +157,6 @@ def get_all(call: APICall):
                 company=call.identity.company,
                 parameters=call.data,
                 query_dict=call.data,
-                query_options=get_all_query_options,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
         unprepare_from_saved(call, tasks)
