@@ -115,6 +115,43 @@ services:
     ports:
     - "8080:80"
 
+  agent-services:
+    container_name: trains-agent-services
+    image: allegroai/trains-agent:latest
+    entrypoint: ["/bin/bash", "-c", "if [ -z \"$$TRAINS_API_HOST\" ]; then TRAINS_HOST_IP=$${TRAINS_HOST_IP:-$$(curl -s https://ifconfig.me/ip)} ; fi ; \
+    TRAINS_FILES_HOST=$${TRAINS_FILES_HOST:-\"http://$$TRAINS_HOST_IP:8081\"} ; \
+    TRAINS_WEB_HOST=$${TRAINS_WEB_HOST:-\"http://$$TRAINS_HOST_IP:8080\"} ; \
+    TRAINS_API_HOST=$${TRAINS_API_HOST:-\"http://$$TRAINS_HOST_IP:8008\"} ; \
+    echo $$TRAINS_FILES_HOST $$TRAINS_WEB_HOST $$TRAINS_API_HOST 1>&2 ; \
+    python3 -m pip install -q -U \"trains-agent$${TRAINS_AGENT_UPDATE_VERSION}\" \
+    && trains-agent daemon --services-mode --queue services --create-queue --docker $$TRAINS_AGENT_DEFAULT_BASE_DOCKER --cpu-only"]
+    restart: unless-stopped
+    privileged: true
+    environment:
+      TRAINS_HOST_IP: ${TRAINS_HOST_IP}
+      TRAINS_WEB_HOST: ${TRAINS_WEB_HOST:-}
+      TRAINS_API_HOST: ${TRAINS_API_HOST:-}
+      TRAINS_FILES_HOST: ${TRAINS_FILES_HOST:-}
+      TRAINS_API_ACCESS_KEY: ${TRAINS_API_ACCESS_KEY:-}
+      TRAINS_API_SECRET_KEY: ${TRAINS_API_SECRET_KEY:-}
+      TRAINS_AGENT_GIT_USER: ${TRAINS_AGENT_GIT_USER}
+      TRAINS_AGENT_GIT_PASS: ${TRAINS_AGENT_GIT_PASS}
+      TRAINS_AGENT_UPDATE_VERSION: ${TRAINS_AGENT_UPDATE_VERSION:->=0.15.0}
+      TRAINS_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-}
+      AZURE_STORAGE_KEY: ${AZURE_STORAGE_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      TRAINS_WORKER_ID: "trains-services"
+      TRAINS_AGENT_DOCKER_HOST_MOUNT: "/opt/trains/agent:/root/.trains"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/trains/agent:/root/.trains
+    depends_on:
+      - apiserver
+
 networks:
   backend:
     driver: bridge
