@@ -4,7 +4,7 @@ Module for polymorphism over different types of X axes in scalar aggregations
 from abc import ABC, abstractmethod
 from enum import auto
 
-from apimodels import StringEnum
+from utilities.stringenum import StringEnum
 from bll.util import extract_properties_to_lists
 from config import config
 

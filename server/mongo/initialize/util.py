@@ -6,7 +6,7 @@ from config import config
 from config.info import get_default_company
 from database.model.company import Company
 from database.model.queue import Queue
-from database.model.settings import Settings
+from database.model.settings import Settings, SettingKeys
 
 log = config.logger(__file__)
 
@@ -37,4 +37,4 @@ def _ensure_default_queue(company):
 
 
 def _ensure_uuid():
-    Settings.add_value("server.uuid", str(uuid4()))
+    Settings.add_value(SettingKeys.server__uuid, str(uuid4()))

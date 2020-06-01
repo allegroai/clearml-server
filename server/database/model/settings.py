@@ -7,6 +7,10 @@ from database import Database, strict
 from database.model import DbModelMixin
 
 
+class SettingKeys:
+    server__uuid = "server.uuid"
+
+
 class Settings(DbModelMixin, Document):
     meta = {
         "db_alias": Database.backend,
@@ -47,7 +51,7 @@ class Settings(DbModelMixin, Document):
         """ Adds a new key/value settings. Fails if key already exists. """
         key = key.strip(sep)
         try:
-            res = Settings(key=key, value=value).save(force_insert=True)
+            res = cls(key=key, value=value).save(force_insert=True)
             return bool(res)
         except NotUniqueError:
             return False

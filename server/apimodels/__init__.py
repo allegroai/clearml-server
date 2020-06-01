@@ -207,15 +207,6 @@ class DomainField(fields.StringField):
             raise errors.bad_request.InvalidDomainName()
 
 
-class StringEnum(Enum):
-    def __str__(self):
-        return self.value
-
-    # noinspection PyMethodParameters
-    def _generate_next_value_(name, start, count, last_values):
-        return name
-
-
 class JsonSerializableMixin:
     def to_json(self: ModelBase):
         return dumps(self.to_struct())

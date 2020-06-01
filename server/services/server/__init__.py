@@ -10,6 +10,7 @@ from config.info import get_version, get_build_number, get_commit_number
 from database.errors import translate_errors_context
 from database.model import Company
 from database.model.company import ReportStatsOption
+from database.model.settings import Settings, SettingKeys
 from service_repo import ServiceRepo, APICall, endpoint
 
 
@@ -58,6 +59,12 @@ def info(call: APICall):
         "build": get_build_number(),
         "commit": get_commit_number(),
     }
+
+
+@endpoint("server.info", min_version="2.8")
+def info_2_8(call: APICall):
+    info(call)
+    call.result.data["uid"] = Settings.get_by_key(SettingKeys.server__uuid)
 
 
 @endpoint(
