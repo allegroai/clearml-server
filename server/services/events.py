@@ -27,10 +27,10 @@ event_bll = EventBLL()
 def add(call: APICall, company_id, req_model):
     data = call.data.copy()
     allow_locked = data.pop("allow_locked", False)
-    added, batch_errors = event_bll.add_events(
+    added, err_count, err_info = event_bll.add_events(
         company_id, [data], call.worker, allow_locked_tasks=allow_locked
     )
-    call.result.data = dict(added=added, errors=len(batch_errors))
+    call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
     call.kpis["events"] = 1
 
 
@@ -40,8 +40,8 @@ def add_batch(call: APICall, company_id, req_model):
     if events is None or len(events) == 0:
         raise errors.bad_request.BatchContainsNoItems()
 
-    added, batch_errors = event_bll.add_events(company_id, events, call.worker)
-    call.result.data = dict(added=added, errors=len(batch_errors))
+    added, err_count, err_info = event_bll.add_events(company_id, events, call.worker)
+    call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
     call.kpis["events"] = len(events)
 
 

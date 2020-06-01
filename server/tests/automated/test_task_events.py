@@ -9,6 +9,7 @@ from statistics import mean
 from typing import Sequence
 
 import es_factory
+from apierrors.errors.bad_request import EventsNotAdded
 from tests.automated import TestService
 
 
@@ -159,6 +160,30 @@ class TestTaskEvents(TestService):
             )
             self.assertEqual(len(it["events"]), events_per_iter)
         return res.scroll_id
+
+    def test_error_events(self):
+        task = self._temp_task()
+        events = [
+            self._create_task_event("unknown type", task, iteration=1),
+            self._create_task_event("training_debug_image", task=None, iteration=1),
+            self._create_task_event(
+                "training_debug_image", task="Invalid task", iteration=1
+            ),
+        ]
+        # failure if no events added
+        with self.api.raises(EventsNotAdded):
+            self.send_batch(events)
+
+        events.append(
+            self._create_task_event("training_debug_image", task=task, iteration=1)
+        )
+        # success if at least one event added
+        res = self.send_batch(events)
+        self.assertEqual(res["added"], 1)
+        self.assertEqual(res["errors"], 3)
+        self.assertEqual(len(res["errors_info"]), 3)
+        res = self.api.events.get_task_events(task=task)
+        self.assertEqual(len(res.events), 1)
 
     def test_task_logs(self):
         task = self._temp_task()
@@ -429,7 +454,8 @@ class TestTaskEvents(TestService):
         assert len(data["plots"]) == 0
 
     def send_batch(self, events):
-        self.api.send_batch("events.add_batch", events)
+        _, data = self.api.send_batch("events.add_batch", events)
+        return data
 
     def send(self, event):
         self.api.send("events.add", event)

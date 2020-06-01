@@ -47,6 +47,7 @@ _error_codes = {
         128: ('invalid_task_output', 'invalid task output'),
         129: ('task_publish_in_progress', 'Task publish in progress'),
         130: ('task_not_found', 'task not found'),
+        131: ('events_not_added', 'events not added'),
 
         # Models
         200: ('model_error', 'general task error'),
