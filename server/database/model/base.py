@@ -34,7 +34,12 @@ class AuthDocument(Document):
 
 
 class ProperDictMixin(object):
-    def to_proper_dict(self, strip_private=True, only=None, extra_dict=None) -> dict:
+    def to_proper_dict(
+        self: Union["ProperDictMixin", Document],
+        strip_private=True,
+        only=None,
+        extra_dict=None,
+    ) -> dict:
         return self.properize_dict(
             self.to_mongo(use_db_field=False).to_dict(),
             strip_private=strip_private,
@@ -95,7 +100,13 @@ class GetMixin(PropsMixin):
 
     @classmethod
     def get(
-        cls, company, id, *, _only=None, include_public=False, **kwargs
+        cls: Union["GetMixin", Document],
+        company,
+        id,
+        *,
+        _only=None,
+        include_public=False,
+        **kwargs,
     ) -> "GetMixin":
         q = cls.objects(
             cls._prepare_perm_query(company, allow_public=include_public)
@@ -409,7 +420,12 @@ class GetMixin(PropsMixin):
         )
 
     @classmethod
-    def _get_many_no_company(cls, query, parameters=None, override_projection=None):
+    def _get_many_no_company(
+        cls: Union["GetMixin", Document],
+        query,
+        parameters=None,
+        override_projection=None,
+    ):
         """
         Fetch all documents matching a provided query.
         This is a company-less version for internal uses. We assume the caller has either added any necessary
@@ -593,7 +609,13 @@ class UpdateMixin(object):
         return update_dict
 
     @classmethod
-    def safe_update(cls, company_id, id, partial_update_dict, injected_update=None):
+    def safe_update(
+        cls: Union["UpdateMixin", Document],
+        company_id,
+        id,
+        partial_update_dict,
+        injected_update=None,
+    ):
         update_dict = cls.get_safe_update_dict(partial_update_dict)
         if not update_dict:
             return 0, {}
@@ -610,7 +632,10 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
 
     @classmethod
     def aggregate(
-        cls: Document, *pipeline: dict, allow_disk_use=None, **kwargs
+        cls: Union["DbModelMixin", Document],
+        pipeline: Sequence[dict],
+        allow_disk_use=None,
+        **kwargs,
     ) -> CommandCursor:
         """
         Aggregate objects of this document class according to the provided pipeline.
@@ -625,7 +650,7 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
             if allow_disk_use is not None
             else config.get("apiserver.mongo.aggregate.allow_disk_use", True)
         )
-        return cls.objects.aggregate(*pipeline, **kwargs)
+        return cls.objects.aggregate(pipeline, **kwargs)
 
 
 def validate_id(cls, company, **kwargs):

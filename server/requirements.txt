@@ -14,12 +14,12 @@ Jinja2==2.10
 jsonmodels>=2.3
 jsonschema>=2.6.0
 luqum>=0.7.2
-mongoengine==0.16.2
+mongoengine==0.19.1
 nested_dict>=1.61
 psutil>=5.6.5
 pyhocon>=0.3.35
 pyjwt>=1.3.0
-pymongo==3.6.1  # 3.7 has a bug multiple users logged in
+pymongo==3.10.1
 python-rapidjson>=0.6.3
 redis>=2.10.5
 related>=0.7.2

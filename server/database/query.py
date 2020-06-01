@@ -1,8 +1,14 @@
 import copy
 import re
+from typing import Union
 
 from mongoengine import Q
-from mongoengine.queryset.visitor import QueryCompilerVisitor, SimplificationVisitor, QCombination
+from mongoengine.queryset.visitor import (
+    QueryCompilerVisitor,
+    SimplificationVisitor,
+    QCombination,
+    QNode,
+)
 
 
 class RegexWrapper(object):
@@ -17,17 +23,16 @@ class RegexWrapper(object):
 
 
 class RegexMixin(object):
-
-    def to_query(self, document):
+    def to_query(self: Union["RegexMixin", QNode], document):
         query = self.accept(SimplificationVisitor())
         query = query.accept(RegexQueryCompilerVisitor(document))
         return query
 
-    def _combine(self, other, operation):
+    def _combine(self: Union["RegexMixin", QNode], other, operation):
         """Combine this node with another node into a QCombination
         object.
         """
-        if getattr(other, 'empty', True):
+        if getattr(other, "empty", True):
             return self
 
         if self.empty:

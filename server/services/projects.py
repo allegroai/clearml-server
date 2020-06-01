@@ -210,7 +210,7 @@ def get_all_ex(call: APICall):
 
         status_count = defaultdict(lambda: {})
         key = itemgetter(EntityVisibility.archived.value)
-        for result in Task.aggregate(*status_count_pipeline):
+        for result in Task.aggregate(status_count_pipeline):
             for k, group in groupby(sorted(result["counts"], key=key), key):
                 section = (
                     EntityVisibility.archived if k else EntityVisibility.active
@@ -224,7 +224,7 @@ def get_all_ex(call: APICall):
 
         runtime = {
             result["_id"]: {k: v for k, v in result.items() if k != "_id"}
-            for result in Task.aggregate(*runtime_pipeline)
+            for result in Task.aggregate(runtime_pipeline)
         }
 
     def safe_get(obj, path, default=None):

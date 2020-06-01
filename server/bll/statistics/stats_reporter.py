@@ -280,7 +280,7 @@ class StatisticsReporter:
         ]
         return {
             group["_id"]: {k: v for k, v in group.items() if k != "_id"}
-            for group in Task.aggregate(*pipeline)
+            for group in Task.aggregate(pipeline)
         }
 
 

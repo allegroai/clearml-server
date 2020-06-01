@@ -95,26 +95,18 @@ def parse_from_call(call_data, fields, cls_fields, discard_none_values=True):
                     res[field] = None
                 continue
             if desc:
-                if callable(desc):
+                if issubclass(desc, Document):
+                    if not desc.objects(id=value).only("id"):
+                        raise ParseCallError(
+                            "expecting %s id" % desc.__name__, id=value, field=field
+                        )
+                elif callable(desc):
                     try:
                         desc(value)
                     except TypeError:
                         raise ParseCallError(f"expecting {desc.__name__}", field=field)
                     except Exception as ex:
                         raise ParseCallError(str(ex), field=field)
-                else:
-                    if issubclass(desc, (list, tuple, dict)) and not isinstance(
-                        value, desc
-                    ):
-                        raise ParseCallError(
-                            "expecting %s" % desc.__name__, field=field
-                        )
-                    if issubclass(desc, Document) and not desc.objects(id=value).only(
-                        "id"
-                    ):
-                        raise ParseCallError(
-                            "expecting %s id" % desc.__name__, id=value, field=field
-                        )
             res[field] = value
         return res
 

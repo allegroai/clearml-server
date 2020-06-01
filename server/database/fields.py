@@ -14,6 +14,9 @@ from mongoengine import (
     DictField,
     DynamicField,
 )
+from mongoengine.fields import key_not_string, key_starts_with_dollar
+
+NoneType = type(None)
 
 
 class LengthRangeListField(ListField):
@@ -125,17 +128,39 @@ def contains_empty_key(d):
             return True
 
 
-class SafeMapField(MapField):
+class DictValidationMixin:
+    """
+    DictField validation in MongoEngine requires default alias and permissions to access DB version:
+    https://github.com/MongoEngine/mongoengine/issues/2239
+    This is a stripped down implementation that does not require any of the above and implies Mongo ver 3.6+
+    """
+
+    def _safe_validate(self: DictField, value):
+        if not isinstance(value, dict):
+            self.error("Only dictionaries may be used in a DictField")
+
+        if key_not_string(value):
+            msg = "Invalid dictionary key - documents must have only string keys"
+            self.error(msg)
+
+        if key_starts_with_dollar(value):
+            self.error(
+                'Invalid dictionary key name - keys may not startswith "$" characters'
+            )
+        super(DictField, self).validate(value)
+
+
+class SafeMapField(MapField, DictValidationMixin):
     def validate(self, value):
-        super(SafeMapField, self).validate(value)
+        self._safe_validate(value)
 
         if contains_empty_key(value):
             self.error("Empty keys are not allowed in a MapField")
 
 
-class SafeDictField(DictField):
+class SafeDictField(DictField, DictValidationMixin):
     def validate(self, value):
-        super(SafeDictField, self).validate(value)
+        self._safe_validate(value)
 
         if contains_empty_key(value):
             self.error("Empty keys are not allowed in a DictField")
@@ -146,6 +171,7 @@ class SafeSortedListField(SortedListField):
     SortedListField that does not raise an error in case items are not comparable
     (in which case they will be sorted by their string representation)
     """
+
     def to_mongo(self, *args, **kwargs):
         try:
             return super(SafeSortedListField, self).to_mongo(*args, **kwargs)
@@ -155,7 +181,10 @@ class SafeSortedListField(SortedListField):
     def _safe_to_mongo(self, value, use_db_field=True, fields=None):
         value = super(SortedListField, self).to_mongo(value, use_db_field, fields)
         if self._ordering is not None:
-            def key(v): return str(itemgetter(self._ordering)(v))
+
+            def key(v):
+                return str(itemgetter(self._ordering)(v))
+
         else:
             key = str
         return sorted(value, key=key, reverse=self._order_reverse)

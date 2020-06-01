@@ -212,7 +212,9 @@ def get_queue_metrics(
                 dates=data["date"],
                 avg_waiting_times=data["avg_waiting_time"],
                 queue_lengths=data["queue_length"],
-            ) if data else QueueMetrics(queue=queue)
+            )
+            if data
+            else QueueMetrics(queue=queue)
             for queue, data in queue_dicts.items()
         ]
     )

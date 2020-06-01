@@ -223,7 +223,7 @@ class WorkerBLL:
                 },
             ]
             queues_info = {
-                res["_id"]: res for res in Queue.objects.aggregate(*projection)
+                res["_id"]: res for res in Queue.objects.aggregate(projection)
             }
             task_ids = task_ids.union(
                 filter(

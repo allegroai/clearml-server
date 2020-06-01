@@ -290,11 +290,15 @@ def prepare_update_fields(call, fields):
 
         invalid_keys = find_other_types(labels.keys(), str)
         if invalid_keys:
-            raise errors.bad_request.ValidationError("labels keys must be strings", keys=invalid_keys)
+            raise errors.bad_request.ValidationError(
+                "labels keys must be strings", keys=invalid_keys
+            )
 
         invalid_values = find_other_types(labels.values(), int)
         if invalid_values:
-            raise errors.bad_request.ValidationError("labels values must be integers", values=invalid_values)
+            raise errors.bad_request.ValidationError(
+                "labels values must be integers", values=invalid_values
+            )
 
     conform_tag_fields(call, fields)
     return fields
@@ -331,7 +335,7 @@ def edit(call: APICall):
                 fields[key] = d
 
         iteration = call.data.get("iteration")
-        task_id = model.task or fields.get('task')
+        task_id = model.task or fields.get("task")
         if task_id and iteration is not None:
             TaskBLL.update_statistics(
                 task_id=task_id,
@@ -393,14 +397,14 @@ def set_ready(call: APICall, company, req_model: PublishModelRequest):
         model_id=req_model.model,
         company_id=company,
         publish_task=req_model.publish_task,
-        force_publish_task=req_model.force_publish_task
+        force_publish_task=req_model.force_publish_task,
     )
 
     call.result.data_model = PublishModelResponse(
         updated=updated,
-        published_task=ModelTaskPublishResponse(
-            **published_task_data
-        ) if published_task_data else None
+        published_task=ModelTaskPublishResponse(**published_task_data)
+        if published_task_data
+        else None,
     )
 
 

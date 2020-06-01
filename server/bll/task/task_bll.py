@@ -263,7 +263,7 @@ class TaskBLL(object):
         ]
 
         with translate_errors_context():
-            result = Task.aggregate(*pipeline)
+            result = Task.aggregate(pipeline)
             return [r["metrics"][0] for r in result]
 
     @staticmethod
@@ -666,7 +666,7 @@ class TaskBLL(object):
         ]
 
         with translate_errors_context():
-            result = next(Task.aggregate(*pipeline), None)
+            result = next(Task.aggregate(pipeline), None)
 
         total = 0
         remaining = 0
