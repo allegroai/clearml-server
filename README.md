@@ -1,6 +1,6 @@
 # Trains Server
 
-##  Auto-Magical Experiment Manager & Version Control for AI
+##  Auto-Magical Experiment Manager & Version Control for AI - ε Devops Included!
 
 [![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
 [![Python versions](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)
@@ -8,6 +8,8 @@
 [![PyPI status](https://img.shields.io/badge/status-beta-yellow.svg)](https://img.shields.io/badge/status-beta-yellow.svg)
 
 ### Help improve Trains by filling our 2-min [user survey](https://allegro.ai/lp/trains-user-survey/)
+
+## :rocket: Trains-Agent Services is now included, for more information see [services](https://github.com/allegroai/trains-server#services)
 
 ## Introduction
 
@@ -98,6 +100,20 @@ you can [use](https://github.com/allegroai/trains#using-trains) **Trains** in yo
 for example http://localhost:8080.  
 For more information about the Trains client, see [**Trains**](https://github.com/allegroai/trains).
 
+## Trains-Agent Services  <a name="services"></a> 
+
+*Trains-Agent Services* provides the ability to launch long lasting jobs that previously had to be 
+executed on local / dedicated machines. To name a few use cases, auto-scaler service (spinning instances 
+when the need arises and the budget allows), Controllers (Implementing pipelines and more sophisticated DevOps logic),
+Optimizer (such as Hyper-parameter Optimization or sweeping), and Application (such as interactive Bokeh apps for 
+increased data transparency)
+
+Technically speaking *Trains-Agent Services* is an extension of *Trains-Agent* that adds the ability to 
+launch multiple dockers (Tasks) from the same running agent. 
+Every launched Task will be registered as a new Node in the system and will track its own progress.  
+**Notice!** *Trains-Agent Services* will spin **any** Task enqueued into the `services` queue, 
+it is the users responsibility to make sure the proper Tasks are pushed into the services queue. 
+ 
 ## Advanced Functionality
 
 **trains-server** provides a few additional useful features, which can be manually enabled:
@@ -150,6 +166,17 @@ To upgrade your existing **trains-server** deployment:
 
    ```bash
    curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
+   ```
+
+1. Configure the [Trains-Agent](https://github.com/allegroai/trains-agent) services (not supported on Windows installation). 
+   If `TRAINS_HOST_IP` is not provided, *trains-agent services* will use the external 
+   public address of the *trains-server*. If `TRAINS_AGENT_GIT_USER` / `TRAINS_AGENT_GIT_PASS` are not provided, 
+   the *trains-agent services* will not be able to access any private repositories for running services.
+   
+   ```bash
+   export TRAINS_HOST_IP=server_host_ip_here
+   export TRAINS_AGENT_GIT_USER=git_username_here
+   export TRAINS_AGENT_GIT_PASS=git_password_here
    ```
 
 1. Spin up the docker containers, it will automatically pull the latest **trains-server** build    
