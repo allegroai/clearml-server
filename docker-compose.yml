@@ -116,6 +116,8 @@ services:
     - "8080:80"
 
   agent-services:
+    networks:
+      - backend
     container_name: trains-agent-services
     image: allegroai/trains-agent-services:latest
     restart: unless-stopped
@@ -123,7 +125,7 @@ services:
     environment:
       TRAINS_HOST_IP: ${TRAINS_HOST_IP}
       TRAINS_WEB_HOST: ${TRAINS_WEB_HOST:-}
-      TRAINS_API_HOST: ${TRAINS_API_HOST:-}
+      TRAINS_API_HOST: http://apiserver:8008
       TRAINS_FILES_HOST: ${TRAINS_FILES_HOST:-}
       TRAINS_API_ACCESS_KEY: ${TRAINS_API_ACCESS_KEY:-}
       TRAINS_API_SECRET_KEY: ${TRAINS_API_SECRET_KEY:-}
