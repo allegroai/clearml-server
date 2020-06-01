@@ -33,8 +33,8 @@ log = config.logger(__file__)
 
 class WorkerBLL:
     def __init__(self, es=None, redis=None):
-        self.es_client = es if es is not None else es_factory.connect("workers")
-        self.redis = redis if redis is not None else redman.connection("workers")
+        self.es_client = es or es_factory.connect("workers")
+        self.redis = redis or redman.connection("workers")
         self._stats = WorkerStats(self.es_client)
 
     @property

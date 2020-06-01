@@ -58,7 +58,9 @@ def get_all(call: APICall):
 
 @endpoint("queues.create", min_version="2.4", request_data_model=CreateRequest)
 def create(call: APICall, company_id, request: CreateRequest):
-    tags, system_tags = conform_tags(call, request.tags, request.system_tags)
+    tags, system_tags = conform_tags(
+        call, request.tags, request.system_tags, validate=True
+    )
     queue = queue_bll.create(
         company_id=company_id, name=request.name, tags=tags, system_tags=system_tags
     )
@@ -73,7 +75,7 @@ def create(call: APICall, company_id, request: CreateRequest):
 )
 def update(call: APICall, company_id, req_model: UpdateRequest):
     data = call.data_model_for_partial_update
-    conform_tag_fields(call, data)
+    conform_tag_fields(call, data, validate=True)
     updated, fields = queue_bll.update(
         company_id=company_id, queue_id=req_model.queue, **data
     )

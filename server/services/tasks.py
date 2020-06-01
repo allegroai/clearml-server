@@ -1,7 +1,7 @@
 from copy import deepcopy
 from datetime import datetime
 from operator import attrgetter
-from typing import Sequence, Callable, Type, TypeVar, Union
+from typing import Sequence, Callable, Type, TypeVar, Union, Tuple
 
 import attr
 import dpath
@@ -31,6 +31,7 @@ from apimodels.tasks import (
     AddOrUpdateArtifactsResponse,
 )
 from bll.event import EventBLL
+from bll.organization import OrgBLL
 from bll.queue import QueueBLL
 from bll.task import (
     TaskBLL,
@@ -63,7 +64,7 @@ task_script_fields = set(get_fields(Script))
 task_bll = TaskBLL()
 event_bll = EventBLL()
 queue_bll = QueueBLL()
-
+org_bll = OrgBLL()
 
 NonResponsiveTasksWatchdog.start()
 
@@ -129,7 +130,7 @@ def escape_execution_parameters(call: APICall):
 
 
 @endpoint("tasks.get_all_ex", required_fields=[])
-def get_all_ex(call: APICall):
+def get_all_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
 
     escape_execution_parameters(call)
@@ -137,7 +138,7 @@ def get_all_ex(call: APICall):
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all_ex"):
             tasks = Task.get_many_with_join(
-                company=call.identity.company,
+                company=company_id,
                 query_dict=call.data,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
@@ -146,7 +147,7 @@ def get_all_ex(call: APICall):
 
 
 @endpoint("tasks.get_all", required_fields=[])
-def get_all(call: APICall):
+def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
 
     escape_execution_parameters(call)
@@ -154,7 +155,7 @@ def get_all(call: APICall):
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all"):
             tasks = Task.get_many(
-                company=call.identity.company,
+                company=company_id,
                 parameters=call.data,
                 query_dict=call.data,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
@@ -255,7 +256,7 @@ create_fields = {
 
 
 def prepare_for_save(call: APICall, fields: dict):
-    conform_tag_fields(call, fields)
+    conform_tag_fields(call, fields, validate=True)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_fields:
@@ -315,7 +316,7 @@ def prepare_create_fields(
     return prepare_for_save(call, fields)
 
 
-def _validate_and_get_task_from_call(call: APICall, **kwargs):
+def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dict]:
     with translate_errors_context(
         field_does_not_exist_cls=errors.bad_request.ValidationError
     ), TimingContext("code", "parse_call"):
@@ -325,7 +326,7 @@ def _validate_and_get_task_from_call(call: APICall, **kwargs):
     with TimingContext("code", "validate"):
         task_bll.validate(task)
 
-    return task
+    return task, fields
 
 
 @endpoint("tasks.validate", request_data_model=CreateRequest)
@@ -333,14 +334,21 @@ def validate(call: APICall, company_id, req_model: CreateRequest):
     _validate_and_get_task_from_call(call)
 
 
+def _update_org_tags(company, fields: dict):
+    org_bll.update_org_tags(
+        company, tags=fields.get("tags"), system_tags=fields.get("system_tags")
+    )
+
+
 @endpoint(
     "tasks.create", request_data_model=CreateRequest, response_data_model=IdResponse
 )
 def create(call: APICall, company_id, req_model: CreateRequest):
-    task = _validate_and_get_task_from_call(call)
+    task, fields = _validate_and_get_task_from_call(call)
 
     with translate_errors_context(), TimingContext("mongo", "save_task"):
         task.save()
+        _update_org_tags(company_id, fields)
         update_project_time(task.project)
 
     call.result.data_model = IdResponse(id=task.id)
@@ -398,8 +406,9 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             partial_update_dict=partial_update_dict,
             injected_update=dict(last_update=datetime.utcnow()),
         )
-
-        update_project_time(updated_fields.get("project"))
+        if updated_count:
+            _update_org_tags(company_id, updated_fields)
+            update_project_time(updated_fields.get("project"))
         unprepare_from_saved(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
@@ -431,9 +440,7 @@ def set_requirements(call: APICall, company_id, req_model: SetRequirementsReques
 
 
 @endpoint("tasks.update_batch")
-def update_batch(call: APICall):
-    identity = call.identity
-
+def update_batch(call: APICall, company_id, _):
     items = call.batched_data
     if items is None:
         raise errors.bad_request.BatchContainsNoItems()
@@ -443,7 +450,7 @@ def update_batch(call: APICall):
         tasks = {
             t.id: t
             for t in Task.get_many_for_writing(
-                company=identity.company, query=Q(id__in=list(items))
+                company=company_id, query=Q(id__in=list(items))
             )
         }
 
@@ -461,7 +468,7 @@ def update_batch(call: APICall):
                 continue
             partial_update_dict.update(last_update=now)
             update_op = UpdateOne(
-                {"_id": id, "company": identity.company}, {"$set": partial_update_dict}
+                {"_id": id, "company": company_id}, {"$set": partial_update_dict}
             )
             bulk_ops.append(update_op)
 
@@ -469,7 +476,8 @@ def update_batch(call: APICall):
         if bulk_ops:
             res = Task._get_collection().bulk_write(bulk_ops)
             updated = res.modified_count
-
+        if updated:
+            org_bll.update_org_tags(company_id, reset=True)
         call.result.data = {"updated": updated}
 
 
@@ -524,7 +532,9 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             fields.update(last_update=now)
             fixed_fields.update(last_update=now)
             updated = task.update(upsert=False, **fixed_fields)
-            update_project_time(fields.get("project"))
+            if updated:
+                _update_org_tags(company_id, fixed_fields)
+                update_project_time(fields.get("project"))
             unprepare_from_saved(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
@@ -877,7 +887,7 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
             task.switch_collection(collection_name)
 
         task.delete()
-
+        org_bll.update_org_tags(company_id, reset=True)
         call.result.data = dict(deleted=True, **attr.asdict(result))
 
 

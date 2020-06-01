@@ -12,6 +12,7 @@ from apimodels.models import (
     PublishModelResponse,
     ModelTaskPublishResponse,
 )
+from bll.organization import OrgBLL
 from bll.task import TaskBLL
 from config import config
 from database.errors import translate_errors_context
@@ -29,37 +30,34 @@ from services.utils import conform_tag_fields, conform_output_tags
 from timing_context import TimingContext
 
 log = config.logger(__file__)
+org_bll = OrgBLL()
 
 
 @endpoint("models.get_by_id", required_fields=["model"])
-def get_by_id(call):
-    assert isinstance(call, APICall)
+def get_by_id(call: APICall, company_id, _):
     model_id = call.data["model"]
 
     with translate_errors_context():
         models = Model.get_many(
-            company=call.identity.company,
+            company=company_id,
             query_dict=call.data,
             query=Q(id=model_id),
             allow_public=True,
         )
         if not models:
             raise errors.bad_request.InvalidModelId(
-                "no such public or company model",
-                id=model_id,
-                company=call.identity.company,
+                "no such public or company model", id=model_id, company=company_id,
             )
         conform_output_tags(call, models[0])
         call.result.data = {"model": models[0]}
 
 
 @endpoint("models.get_by_task_id", required_fields=["task"])
-def get_by_task_id(call):
-    assert isinstance(call, APICall)
+def get_by_task_id(call: APICall, company_id, _):
     task_id = call.data["task"]
 
     with translate_errors_context():
-        query = dict(id=task_id, company=call.identity.company)
+        query = dict(id=task_id, company=company_id)
         task = Task.get(_only=["output"], **query)
         if not task:
             raise errors.bad_request.InvalidTaskId(**query)
@@ -70,13 +68,11 @@ def get_by_task_id(call):
 
         model_id = task.output.model
         model = Model.objects(
-            Q(id=model_id) & get_company_or_none_constraint(call.identity.company)
+            Q(id=model_id) & get_company_or_none_constraint(company_id)
         ).first()
         if not model:
             raise errors.bad_request.InvalidModelId(
-                "no such public or company model",
-                id=model_id,
-                company=call.identity.company,
+                "no such public or company model", id=model_id, company=company_id,
             )
         model_dict = model.to_proper_dict()
         conform_output_tags(call, model_dict)
@@ -84,24 +80,24 @@ def get_by_task_id(call):
 
 
 @endpoint("models.get_all_ex", required_fields=[])
-def get_all_ex(call: APICall):
+def get_all_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all_ex"):
             models = Model.get_many_with_join(
-                company=call.identity.company, query_dict=call.data, allow_public=True
+                company=company_id, query_dict=call.data, allow_public=True
             )
         conform_output_tags(call, models)
         call.result.data = {"models": models}
 
 
 @endpoint("models.get_all", required_fields=[])
-def get_all(call: APICall):
+def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all"):
             models = Model.get_many(
-                company=call.identity.company,
+                company=company_id,
                 parameters=call.data,
                 query_dict=call.data,
                 allow_public=True,
@@ -128,13 +124,18 @@ create_fields = {
 
 def parse_model_fields(call, valid_fields):
     fields = parse_from_call(call.data, valid_fields, Model.get_fields())
-    conform_tag_fields(call, fields)
+    conform_tag_fields(call, fields, validate=True)
     return fields
 
 
+def _update_org_tags(company, fields: dict):
+    org_bll.update_org_tags(
+        company, tags=fields.get("tags"), system_tags=fields.get("system_tags")
+    )
+
+
 @endpoint("models.update_for_task", required_fields=["task"])
-def update_for_task(call, company_id, _):
-    assert isinstance(call, APICall)
+def update_for_task(call: APICall, company_id, _):
     task_id = call.data["task"]
     uri = call.data.get("uri")
     iteration = call.data.get("iteration")
@@ -177,7 +178,9 @@ def update_for_task(call, company_id, _):
 
             if task.output and task.output.model:
                 # model exists, update
-                res = _update_model(call, model_id=task.output.model).to_struct()
+                res = _update_model(
+                    call, company_id, model_id=task.output.model
+                ).to_struct()
                 res.update({"id": task.output.model, "created": False})
                 call.result.data = res
                 return
@@ -200,6 +203,7 @@ def update_for_task(call, company_id, _):
                 **fields,
             )
             model.save()
+            _update_org_tags(company_id, fields)
 
         TaskBLL.update_statistics(
             task_id=task_id,
@@ -216,48 +220,46 @@ def update_for_task(call, company_id, _):
     request_data_model=CreateModelRequest,
     response_data_model=CreateModelResponse,
 )
-def create(call, company, req_model):
-    assert isinstance(call, APICall)
-    assert isinstance(req_model, CreateModelRequest)
-    identity = call.identity
+def create(call: APICall, company_id, req_model: CreateModelRequest):
 
     if req_model.public:
-        company = ""
+        company_id = ""
 
     with translate_errors_context():
 
         project = req_model.project
         if project:
-            validate_id(Project, company=company, project=project)
+            validate_id(Project, company=company_id, project=project)
 
         task = req_model.task
         req_data = req_model.to_struct()
         if task:
-            validate_task(call, req_data)
+            validate_task(company_id, req_data)
 
         fields = filter_fields(Model, req_data)
-        conform_tag_fields(call, fields)
+        conform_tag_fields(call, fields, validate=True)
 
         # create and save model
         model = Model(
             id=database.utils.id(),
-            user=identity.user,
-            company=company,
+            user=call.identity.user,
+            company=company_id,
             created=datetime.utcnow(),
             **fields,
         )
         model.save()
+        _update_org_tags(company_id, fields)
 
         call.result.data_model = CreateModelResponse(id=model.id, created=True)
 
 
-def prepare_update_fields(call, fields):
+def prepare_update_fields(call, company_id, fields: dict):
     fields = fields.copy()
     if "uri" in fields:
         # clear UI cache if URI is provided (model updated)
         fields["ui_cache"] = fields.pop("ui_cache", {})
     if "task" in fields:
-        validate_task(call, fields)
+        validate_task(company_id, fields)
 
     if "labels" in fields:
         labels = fields["labels"]
@@ -282,27 +284,26 @@ def prepare_update_fields(call, fields):
                 "labels values must be integers", values=invalid_values
             )
 
-    conform_tag_fields(call, fields)
+    conform_tag_fields(call, fields, validate=True)
     return fields
 
 
-def validate_task(call, fields):
-    Task.get_for_writing(company=call.identity.company, id=fields["task"], _only=["id"])
+def validate_task(company_id, fields: dict):
+    Task.get_for_writing(company=company_id, id=fields["task"], _only=["id"])
 
 
 @endpoint("models.edit", required_fields=["model"], response_data_model=UpdateResponse)
-def edit(call: APICall):
-    identity = call.identity
+def edit(call: APICall, company_id, _):
     model_id = call.data["model"]
 
     with translate_errors_context():
-        query = dict(id=model_id, company=identity.company)
+        query = dict(id=model_id, company=company_id)
         model = Model.objects(**query).first()
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
 
         fields = parse_model_fields(call, create_fields)
-        fields = prepare_update_fields(call, fields)
+        fields = prepare_update_fields(call, company_id, fields)
 
         for key in fields:
             field = getattr(model, key, None)
@@ -320,44 +321,41 @@ def edit(call: APICall):
         task_id = model.task or fields.get("task")
         if task_id and iteration is not None:
             TaskBLL.update_statistics(
-                task_id=task_id,
-                company_id=identity.company,
-                last_iteration_max=iteration,
+                task_id=task_id, company_id=company_id, last_iteration_max=iteration,
             )
 
         if fields:
             updated = model.update(upsert=False, **fields)
+            if updated:
+                _update_org_tags(company_id, fields)
             conform_output_tags(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)
 
 
-def _update_model(call: APICall, model_id=None):
-    identity = call.identity
+def _update_model(call: APICall, company_id, model_id=None):
     model_id = model_id or call.data["model"]
 
     with translate_errors_context():
         # get model by id
-        query = dict(id=model_id, company=identity.company)
+        query = dict(id=model_id, company=company_id)
         model = Model.objects(**query).first()
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
 
-        data = prepare_update_fields(call, call.data)
+        data = prepare_update_fields(call, company_id, call.data)
 
         task_id = data.get("task")
         iteration = data.get("iteration")
         if task_id and iteration is not None:
             TaskBLL.update_statistics(
-                task_id=task_id,
-                company_id=identity.company,
-                last_iteration_max=iteration,
+                task_id=task_id, company_id=company_id, last_iteration_max=iteration,
             )
 
-        updated_count, updated_fields = Model.safe_update(
-            call.identity.company, model.id, data
-        )
+        updated_count, updated_fields = Model.safe_update(company_id, model.id, data)
+        if updated_count:
+            _update_org_tags(company_id, updated_fields)
         conform_output_tags(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
@@ -365,8 +363,8 @@ def _update_model(call: APICall, model_id=None):
 @endpoint(
     "models.update", required_fields=["model"], response_data_model=UpdateResponse
 )
-def update(call):
-    call.result.data_model = _update_model(call)
+def update(call, company_id, _):
+    call.result.data_model = _update_model(call, company_id)
 
 
 @endpoint(
@@ -374,10 +372,10 @@ def update(call):
     request_data_model=PublishModelRequest,
     response_data_model=PublishModelResponse,
 )
-def set_ready(call: APICall, company, req_model: PublishModelRequest):
+def set_ready(call: APICall, company_id, req_model: PublishModelRequest):
     updated, published_task_data = TaskBLL.model_set_ready(
         model_id=req_model.model,
-        company_id=company,
+        company_id=company_id,
         publish_task=req_model.publish_task,
         force_publish_task=req_model.force_publish_task,
     )
@@ -391,14 +389,12 @@ def set_ready(call: APICall, company, req_model: PublishModelRequest):
 
 
 @endpoint("models.delete", required_fields=["model"])
-def update(call):
-    assert isinstance(call, APICall)
-    identity = call.identity
+def update(call: APICall, company_id, _):
     model_id = call.data["model"]
     force = call.data.get("force", False)
 
     with translate_errors_context():
-        query = dict(id=model_id, company=identity.company)
+        query = dict(id=model_id, company=company_id)
         model = Model.objects(**query).only("id", "task").first()
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
@@ -431,4 +427,6 @@ def update(call):
                 )
 
         del_count = Model.objects(**query).delete()
+        if del_count:
+            org_bll.update_org_tags(company_id, reset=True)
         call.result.data = dict(deleted=del_count > 0)

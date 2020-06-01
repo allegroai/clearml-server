@@ -155,10 +155,8 @@ def make_projects_get_all_pipelines(company_id, project_ids, specific_state=None
         {
             "$match": {
                 "type": {"$in": ["training", "testing", "annotation"]},
-                "project": {
-                    "company": {"$in": [None, "", company_id]},
-                    "$in": project_ids,
-                },
+                "project": {"$in": project_ids},
+                "company": {"$in": [None, "", company_id]},
             }
         },
         ensure_valid_fields(),
@@ -276,7 +274,7 @@ def create(call):
 
     with translate_errors_context():
         fields = parse_from_call(call.data, create_fields, Project.get_fields())
-        conform_tag_fields(call, fields)
+        conform_tag_fields(call, fields, validate=True)
         now = datetime.utcnow()
         project = Project(
             id=database.utils.id(),
@@ -313,7 +311,7 @@ def update(call: APICall):
         fields = parse_from_call(
             call.data, create_fields, Project.get_fields(), discard_none_values=False
         )
-        conform_tag_fields(call, fields)
+        conform_tag_fields(call, fields, validate=True)
         fields["last_update"] = datetime.utcnow()
         with TimingContext("mongo", "projects_update"):
             updated = project.update(upsert=False, **fields)

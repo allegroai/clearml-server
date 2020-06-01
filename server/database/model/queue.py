@@ -4,11 +4,10 @@ from mongoengine import (
     StringField,
     DateTimeField,
     EmbeddedDocumentListField,
-    ListField,
 )
 
 from database import Database, strict
-from database.fields import StrippedStringField
+from database.fields import StrippedStringField, SafeSortedListField
 from database.model import DbModelMixin
 from database.model.base import ProperDictMixin, GetMixin
 from database.model.company import Company
@@ -41,7 +40,7 @@ class Queue(DbModelMixin, Document):
     )
     company = StringField(required=True, reference_field=Company)
     created = DateTimeField(required=True)
-    tags = ListField(StringField(required=True), default=list, user_set_allowed=True)
-    system_tags = ListField(StringField(required=True), user_set_allowed=True)
+    tags = SafeSortedListField(StringField(required=True), default=list, user_set_allowed=True)
+    system_tags = SafeSortedListField(StringField(required=True), user_set_allowed=True)
     entries = EmbeddedDocumentListField(Entry, default=list)
     last_update = DateTimeField()

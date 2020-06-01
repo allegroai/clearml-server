@@ -3,7 +3,7 @@ from collections import namedtuple
 from functools import reduce
 from typing import Collection, Sequence, Union, Optional
 
-from boltons.iterutils import first
+from boltons.iterutils import first, bucketize
 from dateutil.parser import parse as parse_datetime
 from mongoengine import Q, Document, ListField, StringField
 from pymongo.command_cursor import CommandCursor
@@ -98,6 +98,37 @@ class GetMixin(PropsMixin):
             self.list_fields = list_fields
             self.pattern_fields = pattern_fields
 
+    class ListFieldBucketHelper:
+        op_prefix = "__$"
+        legacy_exclude_prefix = "-"
+
+        _default = "in"
+        _ops = {"not": "nin"}
+        _next = _default
+
+        def __init__(self, legacy=False):
+            self._legacy = legacy
+
+        def key(self, v):
+            if v is None:
+                self._next = self._default
+                return self._default
+            elif self._legacy and v.startswith(self.legacy_exclude_prefix):
+                self._next = self._default
+                return self._ops["not"]
+            elif v.startswith(self.op_prefix):
+                self._next = self._ops.get(v[len(self.op_prefix) :], self._default)
+                return None
+
+            next_ = self._next
+            self._next = self._default
+            return next_
+
+        def value_transform(self, v):
+            if self._legacy and v and v.startswith(self.legacy_exclude_prefix):
+                return v[len(self.legacy_exclude_prefix) :]
+            return v
+
     get_all_query_options = QueryParameterOptions()
 
     @classmethod
@@ -175,17 +206,7 @@ class GetMixin(PropsMixin):
             for field in tuple(opts.list_fields or ()):
                 data = parameters.pop(field, None)
                 if data:
-                    if not isinstance(data, (list, tuple)):
-                        raise MakeGetAllQueryError("expected list", field)
-                    exclude = [t for t in data if t.startswith("-")]
-                    include = list(set(data).difference(exclude))
-                    mongoengine_field = field.replace(".", "__")
-                    if include:
-                        dict_query[f"{mongoengine_field}__in"] = include
-                    if exclude:
-                        dict_query[f"{mongoengine_field}__nin"] = [
-                            t[1:] for t in exclude
-                        ]
+                    query &= cls.get_list_field_query(field, data)
 
             for field in opts.fields or []:
                 data = parameters.pop(field, None)
@@ -228,6 +249,47 @@ class GetMixin(PropsMixin):
                     query = query & q
 
         return query & RegexQ(**dict_query)
+
+    @classmethod
+    def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> Q:
+        """
+        Get a proper mongoengine Q object that represents an "or" query for the provided values
+        with respect to the given list field, with support for "none of empty" in case a None value
+        is included.
+
+        - Exclusion can be specified by a leading "-" for each value (API versions <2.8)
+            or by a preceding "__$not" value (operator)
+        """
+        if not isinstance(data, (list, tuple)):
+            raise MakeGetAllQueryError("expected list", field)
+
+        # TODO: backwards compatibility only for older API versions
+        helper = cls.ListFieldBucketHelper(legacy=True)
+        actions = bucketize(
+            data, key=helper.key, value_transform=helper.value_transform
+        )
+
+        allow_empty = None in actions.get("in", {})
+        mongoengine_field = field.replace(".", "__")
+
+        q = RegexQ()
+        for action in filter(None, actions):
+            q &= RegexQ(
+                **{
+                    f"{mongoengine_field}__{action}": list(
+                        set(filter(None, actions[action]))
+                    )
+                }
+            )
+
+        if not allow_empty:
+            return q
+
+        return (
+            q
+            | Q(**{f"{mongoengine_field}__exists": False})
+            | Q(**{mongoengine_field: []})
+        )
 
     @classmethod
     def _prepare_perm_query(cls, company, allow_public=False):

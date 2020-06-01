@@ -14,6 +14,7 @@ import database.utils as dbutils
 import es_factory
 from apierrors import errors
 from apimodels.tasks import Artifact as ApiArtifact
+from bll.organization import OrgBLL
 from config import config
 from database.errors import translate_errors_context
 from database.model.model import Model
@@ -30,11 +31,13 @@ from database.model.task.task import (
 )
 from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
+from services.utils import validate_tags
 from timing_context import TimingContext
 from utilities.dicts import deep_merge
 from .utils import ChangeStatusRequest, validate_status_change, ParameterKeyEscaper
 
 log = config.logger(__file__)
+org_bll = OrgBLL()
 
 
 class TaskBLL(object):
@@ -166,6 +169,7 @@ class TaskBLL(object):
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
     ) -> Task:
+        validate_tags(tags, system_tags)
         task = cls.get_by_id(company_id=company_id, task_id=task_id)
         execution_dict = task.execution.to_proper_dict() if task.execution else {}
         execution_model_overriden = False
@@ -212,7 +216,7 @@ class TaskBLL(object):
                 validate_project=validate_references or project,
             )
             new_task.save()
-
+            org_bll.update_org_tags(company_id, tags=tags, system_tags=system_tags)
         return new_task
 
     @classmethod
@@ -344,7 +348,7 @@ class TaskBLL(object):
 
             metric_stats = {
                 dbutils.hash_field_name(metric_key): MetricEventStats(
-                    metric=metric_key, event_stats_by_type=events_per_type(metric_data),
+                    metric=metric_key, event_stats_by_type=events_per_type(metric_data)
                 )
                 for metric_key, metric_data in last_events.items()
             }

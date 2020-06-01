@@ -1,7 +1,7 @@
-from mongoengine import Document, StringField, DateTimeField, ListField, BooleanField
+from mongoengine import Document, StringField, DateTimeField, BooleanField
 
 from database import Database, strict
-from database.fields import StrippedStringField, SafeDictField
+from database.fields import StrippedStringField, SafeDictField, SafeSortedListField
 from database.model import DbModelMixin
 from database.model.base import GetMixin
 from database.model.model_labels import ModelLabels
@@ -61,8 +61,8 @@ class Model(DbModelMixin, Document):
     created = DateTimeField(required=True, user_set_allowed=True)
     task = StringField(reference_field=Task)
     comment = StringField(user_set_allowed=True)
-    tags = ListField(StringField(required=True), user_set_allowed=True)
-    system_tags = ListField(StringField(required=True), user_set_allowed=True)
+    tags = SafeSortedListField(StringField(required=True), user_set_allowed=True)
+    system_tags = SafeSortedListField(StringField(required=True), user_set_allowed=True)
     uri = StrippedStringField(default="", user_set_allowed=True)
     framework = StringField()
     design = SafeDictField()

@@ -1,7 +1,7 @@
-from mongoengine import StringField, DateTimeField, ListField
+from mongoengine import StringField, DateTimeField
 
 from database import Database, strict
-from database.fields import StrippedStringField
+from database.fields import StrippedStringField, SafeSortedListField
 from database.model import AttributedDocument
 from database.model.base import GetMixin
 
@@ -36,7 +36,7 @@ class Project(AttributedDocument):
     )
     description = StringField(required=True)
     created = DateTimeField(required=True)
-    tags = ListField(StringField(required=True))
-    system_tags = ListField(StringField(required=True))
+    tags = SafeSortedListField(StringField(required=True))
+    system_tags = SafeSortedListField(StringField(required=True))
     default_output_destination = StrippedStringField()
     last_update = DateTimeField()
