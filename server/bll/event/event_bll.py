@@ -74,7 +74,9 @@ class EventBLL(object):
         errors_per_type = defaultdict(int)
         valid_tasks = self._get_valid_tasks(
             company_id,
-            task_ids={event["task"] for event in events if event.get("task")},
+            task_ids={
+                event["task"] for event in events if event.get("task") is not None
+            },
             allow_locked_tasks=allow_locked_tasks,
         )
         for event in events:

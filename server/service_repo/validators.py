@@ -52,7 +52,7 @@ def validate_all(call: APICall, endpoint: Endpoint):
 
 def validate_role(endpoint, call):
     try:
-        if not endpoint.allows(call.identity.role):
+        if endpoint.authorize and not endpoint.allows(call.identity.role):
             raise errors.forbidden.RoleNotAllowed(role=call.identity.role, allowed=endpoint.allow_roles)
     except MissingIdentity:
         pass
