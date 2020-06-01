@@ -61,7 +61,7 @@ class TestEntityOrdering(TestService):
             page_size=page_size,
         ).tasks
 
-    def _assertSorted(self, vals: Sequence, ascending=True):
+    def _assertSorted(self, vals: Sequence, ascending=True, is_numeric=False):
         """
         Assert that vals are sorted in the ascending or descending order
         with None values are always coming from the end
@@ -79,6 +79,9 @@ class TestEntityOrdering(TestService):
             vals = vals[:idx]
             self.assertTrue(all(val == empty_value for val in none_tail))
             self.assertTrue(all(val != empty_value for val in vals))
+
+        if is_numeric:
+            vals = list(map(int, vals))
 
         if ascending:
             cmp = operator.le
@@ -106,14 +109,18 @@ class TestEntityOrdering(TestService):
             # test that the output is correctly ordered
             field_name = order_by if not order_by.startswith("-") else order_by[1:]
             field_vals = [self._get_value_for_path(t, field_name.split(".")) for t in tasks]
-            self._assertSorted(field_vals, ascending=not order_by.startswith("-"))
+            self._assertSorted(
+                field_vals,
+                ascending=not order_by.startswith("-"),
+                is_numeric=field_name.startswith("execution.parameters.")
+            )
 
     def _create_tasks(self):
         tasks = [
             self._temp_task(
                 **(dict(execution={"parameters": {"test": f"{i}"} if i >= 5 else {}}))
             )
-            for i in range(10)
+            for i in range(20)
         ]
         for idx, task in zip(range(5), tasks):
             self.api.tasks.started(task=task)

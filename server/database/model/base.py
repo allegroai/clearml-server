@@ -76,6 +76,8 @@ class GetMixin(PropsMixin):
     }
     MultiFieldParameters = namedtuple("MultiFieldParameters", "pattern fields")
 
+    _field_collation_overrides = {}
+
     class QueryParameterOptions(object):
         def __init__(
             self,
@@ -476,6 +478,8 @@ class GetMixin(PropsMixin):
         """
         Fetch all documents matching a provided query. For the first order by field
         the None values are sorted in the end regardless of the sorting order.
+        If the first order field is a user defined parameter (either from execution.parameters,
+        or from last_metrics) then the collation is set that sorts strings in numeric order where possible.
         This is a company-less version for internal uses. We assume the caller has either added any necessary
         constraints to the query or that no constraints are required.
 
@@ -516,6 +520,16 @@ class GetMixin(PropsMixin):
                 query_sets = [cls.objects(non_empty), cls.objects(empty)]
 
             query_sets = [qs.order_by(*order_by) for qs in query_sets]
+            if order_field:
+                collation_override = first(
+                    v
+                    for k, v in cls._field_collation_overrides.items()
+                    if order_field.startswith(k)
+                )
+                if collation_override:
+                    query_sets = [
+                        qs.collation(collation=collation_override) for qs in query_sets
+                    ]
 
         if search_text:
             query_sets = [qs.search_text(search_text) for qs in query_sets]
@@ -672,5 +686,5 @@ def validate_id(cls, company, **kwargs):
         id_to_name.setdefault(obj_id, []).append(name)
     raise errors.bad_request.ValidationError(
         "Invalid {} ids".format(cls.__name__.lower()),
-        **{name: obj_id for obj_id in missing for name in id_to_name[obj_id]}
+        **{name: obj_id for obj_id in missing for name in id_to_name[obj_id]},
     )

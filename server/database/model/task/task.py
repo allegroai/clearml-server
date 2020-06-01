@@ -103,6 +103,11 @@ class TaskType(object):
 
 
 class Task(AttributedDocument):
+    _field_collation_overrides = {
+        "execution.parameters.": {"locale": "en_US", "numericOrdering": True},
+        "last_metrics.": {"locale": "en_US", "numericOrdering": True}
+    }
+
     meta = {
         "db_alias": Database.backend,
         "strict": strict,
