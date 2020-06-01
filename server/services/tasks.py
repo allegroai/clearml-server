@@ -111,12 +111,18 @@ def escape_execution_parameters(call: APICall):
     default_prefix = "execution.parameters."
 
     def escape_paths(paths, prefix=default_prefix):
-        return [
-            prefix + ParameterKeyEscaper.escape(path[len(prefix) :])
-            if path.startswith(prefix)
-            else path
-            for path in paths
-        ]
+        escaped_paths = []
+        for path in paths:
+            if path == prefix:
+                raise errors.bad_request.ValidationError(
+                    "invalid task field", path=path
+                )
+            escaped_paths.append(
+                prefix + ParameterKeyEscaper.escape(path[len(prefix) :])
+                if path.startswith(prefix)
+                else path
+            )
+        return escaped_paths
 
     projection = Task.get_projection(call.data)
     if projection:
