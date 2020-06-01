@@ -186,6 +186,7 @@ class TestTaskEvents(TestService):
         self.assertEqual(len(res.events), 1)
 
     def test_task_logs(self):
+        # this test will fail until the new api is uncommented
         task = self._temp_task()
         timestamp = es_factory.get_timestamp_millis()
         events = [

@@ -74,13 +74,13 @@ class TestTasksEdit(TestService):
         new_name = "new test"
         new_tags = ["by"]
         execution_overrides = dict(framework="Caffe")
-        new_task_id = self.api.tasks.clone(
+        new_task_id = self._clone_task(
             task=task,
             new_task_name=new_name,
             new_task_tags=new_tags,
             execution_overrides=execution_overrides,
             new_task_parent=task,
-        ).id
+        )
         new_task = self.api.tasks.get_by_id(task=new_task_id).task
         self.assertEqual(new_task.name, new_name)
         self.assertEqual(new_task.type, "testing")
@@ -91,3 +91,32 @@ class TestTasksEdit(TestService):
         self.assertEqual(new_task.execution.parameters, execution["parameters"])
         self.assertEqual(new_task.execution.framework, execution_overrides["framework"])
         self.assertEqual(new_task.system_tags, [])
+
+    def test_model_check_in_clone(self):
+        model = self.new_model()
+        task = self.new_task(execution=dict(model=model))
+
+        # task with deleted model still can be copied
+        self.api.models.delete(model=model, force=True)
+        self._clone_task(task=task, new_task_name="clone test")
+
+        # unless check for refs is done
+        with self.api.raises(InvalidModelId):
+            self._clone_task(
+                task=task, new_task_name="clone test2", validate_references=True
+            )
+
+        # if the model is overriden then it is always checked
+        with self.api.raises(InvalidModelId):
+            self._clone_task(
+                task=task,
+                new_task_name="clone test3",
+                execution_overrides=dict(model="not existing"),
+            )
+
+    def _clone_task(self, task, **kwargs):
+        new_task = self.api.tasks.clone(task=task, **kwargs).id
+        self.defer(
+            self.api.tasks.delete, task=new_task, move_to_trash=False, force=True
+        )
+        return new_task

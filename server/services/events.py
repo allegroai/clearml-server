@@ -94,26 +94,27 @@ def get_task_log_v1_7(call, company_id, req_model):
     )
 
 
-@endpoint("events.get_task_log", min_version="2.7", request_data_model=LogEventsRequest)
-def get_task_log(call, company_id, req_model: LogEventsRequest):
-    task_id = req_model.task
-    task_bll.assert_exists(company_id, task_id, allow_public=True)
-
-    res = event_bll.log_events_iterator.get_task_events(
-        company_id=company_id,
-        task_id=task_id,
-        batch_size=req_model.batch_size,
-        navigate_earlier=req_model.navigate_earlier,
-        refresh=req_model.refresh,
-        state_id=req_model.scroll_id,
-    )
-
-    call.result.data = dict(
-        events=res.events,
-        returned=len(res.events),
-        total=res.total_events,
-        scroll_id=res.next_scroll_id,
-    )
+# uncomment this once the front end is ready
+# @endpoint("events.get_task_log", min_version="2.7", request_data_model=LogEventsRequest)
+# def get_task_log(call, company_id, req_model: LogEventsRequest):
+#     task_id = req_model.task
+#     task_bll.assert_exists(company_id, task_id, allow_public=True)
+#
+#     res = event_bll.log_events_iterator.get_task_events(
+#         company_id=company_id,
+#         task_id=task_id,
+#         batch_size=req_model.batch_size,
+#         navigate_earlier=req_model.navigate_earlier,
+#         refresh=req_model.refresh,
+#         state_id=req_model.scroll_id,
+#     )
+#
+#     call.result.data = dict(
+#         events=res.events,
+#         returned=len(res.events),
+#         total=res.total_events,
+#         scroll_id=res.next_scroll_id,
+#     )
 
 
 @endpoint("events.download_task_log", required_fields=["task"])

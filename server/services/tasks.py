@@ -361,6 +361,7 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
         tags=request.new_task_tags,
         system_tags=request.new_task_system_tags,
         execution_overrides=request.execution_overrides,
+        validate_references=request.validate_references,
     )
     call.result.data_model = IdResponse(id=task.id)
 

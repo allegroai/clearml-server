@@ -100,6 +100,7 @@ class CloneRequest(TaskRequest):
     new_task_parent = StringField()
     new_task_project = StringField()
     execution_overrides = DictField()
+    validate_references = BoolField(default=False)
 
 
 class AddOrUpdateArtifactsRequest(TaskRequest):
