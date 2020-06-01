@@ -1,3 +1,4 @@
+from apierrors.errors.bad_request import InvalidModelId
 from config import config
 from tests.automated import TestService
 
@@ -37,6 +38,23 @@ class TestTasksEdit(TestService):
         self.api.models.edit(model=not_ready_model, ready=False)
         self.assertFalse(self.api.models.get_by_id(model=not_ready_model).model.ready)
         self.api.tasks.edit(task=task, execution=dict(model=not_ready_model))
+
+    def test_task_with_model_reset(self):
+        # on task reset output model deleted
+        task = self.new_task()
+        self.api.tasks.started(task=task)
+        model_id = self.api.models.update_for_task(task=task, uri="file:///b")["id"]
+        self.api.tasks.reset(task=task)
+        with self.api.raises(InvalidModelId):
+            self.api.models.get_by_id(model=model_id)
+
+        # unless it is input of some task
+        task = self.new_task()
+        self.api.tasks.started(task=task)
+        model_id = self.api.models.update_for_task(task=task, uri="file:///b")["id"]
+        task_2 = self.new_task(execution=dict(model=model_id))
+        self.api.tasks.reset(task=task)
+        self.api.models.get_by_id(model=model_id)
 
     def test_clone_task(self):
         script = dict(

@@ -815,6 +815,15 @@ def get_outputs_for_deletion(task, force=False):
             else:
                 models.draft.append(output_model)
 
+    if models.draft:
+        with TimingContext("mongo", "get_execution_models"):
+            model_ids = [m.id for m in models.draft]
+            dependent_tasks = Task.objects(execution__model__in=model_ids).only(
+                "id", "execution.model"
+            )
+            busy_models = [t.execution.model for t in dependent_tasks]
+            models.draft[:] = [m for m in models.draft if m.id not in busy_models]
+
     with TimingContext("mongo", "get_task_children"):
         tasks = Task.objects(parent=task.id).only("id", "parent", "status")
         published_tasks = [
