@@ -30,6 +30,7 @@ from apimodels.tasks import (
     AddOrUpdateArtifactsRequest,
     AddOrUpdateArtifactsResponse,
     GetTypesRequest,
+    ResetRequest,
 )
 from bll.event import EventBLL
 from bll.organization import OrgBLL
@@ -669,14 +670,14 @@ def _dequeue(task: Task, company_id: str, silent_fail=False):
 
 
 @endpoint(
-    "tasks.reset", request_data_model=UpdateRequest, response_data_model=ResetResponse
+    "tasks.reset", request_data_model=ResetRequest, response_data_model=ResetResponse
 )
-def reset(call: APICall, company_id, req_model: UpdateRequest):
+def reset(call: APICall, company_id, request: ResetRequest):
     task = TaskBLL.get_task_with_access(
-        req_model.task, company_id=company_id, requires_write_access=True
+        request.task, company_id=company_id, requires_write_access=True
     )
 
-    force = req_model.force
+    force = request.force
 
     if not force and task.status == TaskStatus.published:
         raise errors.bad_request.InvalidTaskStatus(task_id=task.id, status=task.status)
@@ -692,7 +693,6 @@ def reset(call: APICall, company_id, req_model: UpdateRequest):
     else:
         if dequeued:
             api_results.update(dequeued=dequeued)
-        updates.update(unset__execution__queue=1)
 
     cleaned_up = cleanup_task(task, force)
     api_results.update(attr.asdict(cleaned_up))
@@ -700,10 +700,24 @@ def reset(call: APICall, company_id, req_model: UpdateRequest):
     updates.update(
         set__last_iteration=DEFAULT_LAST_ITERATION,
         set__last_metrics={},
+        set__metric_stats={},
         unset__output__result=1,
         unset__output__model=1,
-        __raw__={"$pull": {"execution.artifacts": {"mode": {"$ne": "input"}}}},
+        unset__output__error=1,
+        unset__last_worker=1,
+        unset__last_worker_report=1,
     )
+
+    if request.clear_all:
+        updates.update(
+            set__execution=Execution(),
+            unset__script=1,
+        )
+    else:
+        updates.update(unset__execution__queue=1)
+        updates.update(
+            __raw__={"$pull": {"execution.artifacts": {"mode": {"$ne": "input"}}}},
+        )
 
     res = ResetResponse(
         **ChangeStatusRequest(

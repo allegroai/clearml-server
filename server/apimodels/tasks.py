@@ -114,3 +114,7 @@ class AddOrUpdateArtifactsRequest(TaskRequest):
 class AddOrUpdateArtifactsResponse(models.Base):
     added = ListField([str])
     updated = ListField([str])
+
+
+class ResetRequest(UpdateRequest):
+    clear_all = BoolField(default=False)
