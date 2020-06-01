@@ -102,22 +102,22 @@ For more information about the Trains client, see [**Trains**](https://github.co
 
 ## Trains-Agent Services  <a name="services"></a> 
 
-Starting v0.15 *trains-server* deployment includes a *trains-agent services* container running as 
-part of the docker container collection on the machine.
+As of version 0.15 of **trains-server**, dockerized deployment includes a **Trains-Agent Services** container running as 
+part of the docker container collection.
 
-*Trains-Agent Services* is an extension of *Trains-Agent* that provides the ability to launch long-lasting jobs 
+Trains-Agent Services is an extension of Trains-Agent that provides the ability to launch long-lasting jobs 
 that previously had to be executed on local / dedicated machines. It allows a single agent to 
-launch multiple dockers (Tasks) for different use cases.  To name a few use cases, auto-scaler service (spinning instances 
+launch multiple dockers (Tasks) for different use cases. To name a few use cases, auto-scaler service (spinning instances 
 when the need arises and the budget allows), Controllers (Implementing pipelines and more sophisticated DevOps logic),
 Optimizer (such as Hyper-parameter Optimization or sweeping), and Application (such as interactive Bokeh apps for 
 increased data transparency)
 
-*Trains-Agent Services* container will spin **any** Task enqueued into the dedicated `services` queue. 
-Every Task launched by *Trains-Agent Services*  will be registered as a new Node in the system, 
+Trains-Agent Services container will spin **any** task enqueued into the dedicated `services` queue. 
+Every task launched by Trains-Agent Services  will be registered as a new node in the system, 
 providing tracking and transparency capabilities.  
 
-**Note**: It is the user's responsibility to make sure the proper Tasks are pushed into the `services` queue. 
-Do not enqueue training / inference Tasks into the `services` queue, it will put unnecessary load on the server.
+**Note**: It is the user's responsibility to make sure the proper tasks are pushed into the `services` queue. 
+Do not enqueue training / inference tasks into the `services` queue, as it will put unnecessary load on the server.
 
 ## Advanced Functionality
 
@@ -173,10 +173,10 @@ To upgrade your existing **trains-server** deployment:
    curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
    ```
 
-1. Configure the [Trains-Agent](https://github.com/allegroai/trains-agent) services (not supported on Windows installation). 
-   If `TRAINS_HOST_IP` is not provided, *trains-agent services* will use the external 
-   public address of the *trains-server*. If `TRAINS_AGENT_GIT_USER` / `TRAINS_AGENT_GIT_PASS` are not provided, 
-   the *trains-agent services* will not be able to access any private repositories for running services.
+1. Configure the Trains-Agent Services (not supported on Windows installation). 
+   If `TRAINS_HOST_IP` is not provided, Trains-Agent Services will use the external 
+   public address of the **trains-server**. If `TRAINS_AGENT_GIT_USER` / `TRAINS_AGENT_GIT_PASS` are not provided, 
+   the Trains-Agent Services will not be able to access any private repositories for running service tasks.
    
    ```bash
    export TRAINS_HOST_IP=server_host_ip_here
