@@ -57,7 +57,7 @@ class BasicConfig:
 
         keys = sorted(k for k in os.environ if k.startswith(prefix))
         for key in keys:
-            path = key[len(prefix) :].replace(EXTRA_CONFIG_VALUES_ENV_KEY_SEP, ".")
+            path = key[len(prefix) :].replace(EXTRA_CONFIG_VALUES_ENV_KEY_SEP, ".").lower()
             result = ConfigTree.merge_configs(
                 result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
             )
@@ -77,7 +77,7 @@ class BasicConfig:
             if not path.is_dir() and str(path) != DEFAULT_EXTRA_CONFIG_PATH
         ]
         if invalid:
-            print(f"WARNING: Invalid paths in {key} env var: {' '.join(invalid)}")
+            print(f"WARNING: Invalid paths in {key} env var: {' '.join(map(str, invalid))}")
         return [path for path in paths if path.is_dir()]
 
     def _load(self, verbose=True):
