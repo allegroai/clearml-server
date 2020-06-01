@@ -40,6 +40,14 @@ class DebugImagesRequest(Base):
     scroll_id: str = StringField()
 
 
+class LogEventsRequest(Base):
+    task: str = StringField(required=True)
+    batch_size: int = IntField(default=500)
+    navigate_earlier: bool = BoolField(default=True)
+    refresh: bool = BoolField(default=False)
+    scroll_id: str = StringField()
+
+
 class IterationEvents(Base):
     iter: int = IntField()
     events: Sequence[dict] = ListField(items_types=dict)

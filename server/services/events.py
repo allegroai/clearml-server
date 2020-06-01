@@ -11,6 +11,7 @@ from apimodels.events import (
     MetricEvents,
     IterationEvents,
     TaskMetricsRequest,
+    LogEventsRequest,
 )
 from bll.event import EventBLL
 from bll.event.event_metrics import EventMetrics
@@ -45,7 +46,7 @@ def add_batch(call: APICall, company_id, req_model):
 
 
 @endpoint("events.get_task_log", required_fields=["task"])
-def get_task_log(call, company_id, req_model):
+def get_task_log_v1_5(call, company_id, req_model):
     task_id = call.data["task"]
     task_bll.assert_exists(company_id, task_id, allow_public=True)
     order = call.data.get("order") or "desc"
@@ -90,6 +91,28 @@ def get_task_log_v1_7(call, company_id, req_model):
 
     call.result.data = dict(
         events=events, returned=len(events), total=total_events, scroll_id=scroll_id
+    )
+
+
+@endpoint("events.get_task_log", min_version="2.7", request_data_model=LogEventsRequest)
+def get_task_log(call, company_id, req_model: LogEventsRequest):
+    task_id = req_model.task
+    task_bll.assert_exists(company_id, task_id, allow_public=True)
+
+    res = event_bll.log_events_iterator.get_task_events(
+        company_id=company_id,
+        task_id=task_id,
+        batch_size=req_model.batch_size,
+        navigate_earlier=req_model.navigate_earlier,
+        refresh=req_model.refresh,
+        state_id=req_model.scroll_id,
+    )
+
+    call.result.data = dict(
+        events=res.events,
+        returned=len(res.events),
+        total=res.total_events,
+        scroll_id=res.next_scroll_id,
     )
 
 

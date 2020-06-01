@@ -2,7 +2,7 @@
 Comprehensive test of all(?) use cases of datasets and frames
 """
 import json
-import time
+import operator
 import unittest
 from functools import partial
 from statistics import mean
@@ -22,20 +22,16 @@ class TestTaskEvents(TestService):
         )
         return self.create_temp("tasks", **task_input)
 
-    def _create_task_event(self, type_, task, iteration, **kwargs):
+    @staticmethod
+    def _create_task_event(type_, task, iteration, **kwargs):
         return {
             "worker": "test",
             "type": type_,
             "task": task,
             "iter": iteration,
-            "timestamp": es_factory.get_timestamp_millis(),
+            "timestamp": kwargs.get("timestamp") or es_factory.get_timestamp_millis(),
             **kwargs,
         }
-
-    def _copy_and_update(self, src_obj, new_data):
-        obj = src_obj.copy()
-        obj.update(new_data)
-        return obj
 
     def test_task_metrics(self):
         tasks = {
@@ -83,8 +79,7 @@ class TestTaskEvents(TestService):
 
         # test empty
         res = self.api.events.debug_images(
-            metrics=[{"task": task, "metric": metric}],
-            iters=5,
+            metrics=[{"task": task, "metric": metric}], iters=5,
         )
         self.assertFalse(res.metrics)
 
@@ -116,11 +111,11 @@ class TestTaskEvents(TestService):
 
         # test forward navigation
         for page in range(3):
-            scroll_id = assert_debug_images(scroll_id=scroll_id, page=page)
+            scroll_id = assert_debug_images(scroll_id=scroll_id, expected_page=page)
 
         # test backwards navigation
         scroll_id = assert_debug_images(
-            scroll_id=scroll_id, page=0, navigate_earlier=False
+            scroll_id=scroll_id, expected_page=0, navigate_earlier=False
         )
 
         # beyond the latest iteration and back
@@ -131,10 +126,10 @@ class TestTaskEvents(TestService):
             navigate_earlier=False,
         )
         self.assertEqual(len(res["metrics"][0]["iterations"]), 0)
-        assert_debug_images(scroll_id=scroll_id, page=1)
+        assert_debug_images(scroll_id=scroll_id, expected_page=1)
 
         # refresh
-        assert_debug_images(scroll_id=scroll_id, page=0, refresh=True)
+        assert_debug_images(scroll_id=scroll_id, expected_page=0, refresh=True)
 
     def _assertDebugImages(
         self,
@@ -143,7 +138,7 @@ class TestTaskEvents(TestService):
         max_iter: int,
         unique_images: Sequence[int],
         scroll_id,
-        page: int,
+        expected_page: int,
         iters: int = 5,
         **extra_params,
     ):
@@ -156,7 +151,7 @@ class TestTaskEvents(TestService):
         data = res["metrics"][0]
         self.assertEqual(data["task"], task)
         self.assertEqual(data["metric"], metric)
-        left_iterations = max(0, max(unique_images) - page * iters)
+        left_iterations = max(0, max(unique_images) - expected_page * iters)
         self.assertEqual(len(data["iterations"]), min(iters, left_iterations))
         for it in data["iterations"]:
             events_per_iter = sum(
@@ -166,26 +161,67 @@ class TestTaskEvents(TestService):
         return res.scroll_id
 
     def test_task_logs(self):
-        events = []
         task = self._temp_task()
-        for iter_ in range(10):
-            log_event = self._create_task_event("log", task, iteration=iter_)
-            events.append(
-                self._copy_and_update(
-                    log_event,
-                    {"msg": "This is a log message from test task iter " + str(iter_)},
-                )
+        timestamp = es_factory.get_timestamp_millis()
+        events = [
+            self._create_task_event(
+                "log",
+                task=task,
+                iteration=iter_,
+                timestamp=timestamp + iter_ * 1000,
+                msg=f"This is a log message from test task iter {iter_}",
             )
-            # sleep so timestamp is not the same
-            time.sleep(0.01)
+            for iter_ in range(10)
+        ]
         self.send_batch(events)
 
-        data = self.api.events.get_task_log(task=task)
-        assert len(data["events"]) == 10
+        # test forward navigation
+        scroll_id = None
+        for page in range(3):
+            scroll_id = self._assert_log_events(
+                task=task, scroll_id=scroll_id, expected_page=page
+            )
 
-        self.api.tasks.reset(task=task)
-        data = self.api.events.get_task_log(task=task)
-        assert len(data["events"]) == 0
+        # test backwards navigation
+        scroll_id = self._assert_log_events(
+            task=task, scroll_id=scroll_id, navigate_earlier=False
+        )
+
+        # refresh
+        self._assert_log_events(task=task, scroll_id=scroll_id)
+        self._assert_log_events(task=task, scroll_id=scroll_id, refresh=True)
+
+    def _assert_log_events(
+        self,
+        task,
+        scroll_id,
+        batch_size: int = 5,
+        expected_total: int = 10,
+        expected_page: int = 0,
+        **extra_params,
+    ):
+        res = self.api.events.get_task_log(
+            task=task, batch_size=batch_size, scroll_id=scroll_id, **extra_params,
+        )
+        self.assertEqual(res.total, expected_total)
+        expected_events = max(
+            0, batch_size - max(0, (expected_page + 1) * batch_size - expected_total)
+        )
+        self.assertEqual(res.returned, expected_events)
+        self.assertEqual(len(res.events), expected_events)
+        unique_events = len({ev.iter for ev in res.events})
+        self.assertEqual(len(res.events), unique_events)
+        if res.events:
+            cmp_operator = operator.ge
+            if not extra_params.get("navigate_earlier", True):
+                cmp_operator = operator.le
+            self.assertTrue(
+                all(
+                    cmp_operator(first.timestamp, second.timestamp)
+                    for first, second in zip(res.events, res.events[1:])
+                )
+            )
+        return res.scroll_id
 
     def test_task_metric_value_intervals_keys(self):
         metric = "Metric1"

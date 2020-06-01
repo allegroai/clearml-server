@@ -5,7 +5,6 @@ from datetime import datetime
 from operator import attrgetter
 from typing import Sequence
 
-import attr
 import six
 from elasticsearch import helpers
 from mongoengine import Q
@@ -16,6 +15,7 @@ import es_factory
 from apierrors import errors
 from bll.event.debug_images_iterator import DebugImagesIterator
 from bll.event.event_metrics import EventMetrics, EventType
+from bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
 from bll.task import TaskBLL
 from config import config
 from database.errors import translate_errors_context
@@ -29,13 +29,6 @@ EVENT_TYPES = set(map(attrgetter("value"), EventType))
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 
 
-@attr.s(auto_attribs=True)
-class TaskEventsResult(object):
-    total_events: int = 0
-    next_scroll_id: str = None
-    events: list = attr.ib(factory=list)
-
-
 class EventBLL(object):
     id_fields = ("task", "iter", "metric", "variant", "key")
 
@@ -47,6 +40,7 @@ class EventBLL(object):
         )
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
+        self.log_events_iterator = LogEventsIterator(es=self.es, redis=self.redis)
 
     @property
     def metrics(self) -> EventMetrics:

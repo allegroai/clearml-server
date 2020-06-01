@@ -1,4 +1,3 @@
-import json
 from enum import Enum
 
 import six
@@ -13,7 +12,7 @@ from jsonmodels.fields import (
 )
 from jsonmodels.models import Base
 
-from apimodels import make_default, ListField, EnumField
+from apimodels import make_default, ListField, EnumField, JsonSerializableMixin
 
 DEFAULT_TIMEOUT = 10 * 60
 
@@ -61,7 +60,7 @@ class IdNameEntry(Base):
     name = StringField()
 
 
-class WorkerEntry(Base):
+class WorkerEntry(Base, JsonSerializableMixin):
     key = StringField()  # not required due to migration issues
     id = StringField(required=True)
     user = EmbeddedField(IdNameEntry)
@@ -74,13 +73,6 @@ class WorkerEntry(Base):
     register_timeout = IntField(required=True)
     last_activity_time = DateTimeField(required=True)
     last_report_time = DateTimeField()
-
-    def to_json(self):
-        return json.dumps(self.to_struct())
-
-    @classmethod
-    def from_json(cls, s):
-        return cls(**json.loads(s))
 
 
 class CurrentTaskEntry(IdNameEntry):

@@ -3,27 +3,25 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from itertools import chain
 from operator import attrgetter, itemgetter
+from typing import Sequence, Tuple, Optional, Mapping
 
 import attr
 import dpath
 from boltons.iterutils import bucketize
 from elasticsearch import Elasticsearch
+from jsonmodels.fields import StringField, ListField, IntField
+from jsonmodels.models import Base
 from redis import StrictRedis
-from typing import Sequence, Tuple, Optional, Mapping
 
-import database
 from apierrors import errors
-from bll.redis_cache_manager import RedisCacheManager
+from apimodels import JsonSerializableMixin
 from bll.event.event_metrics import EventMetrics
+from bll.redis_cache_manager import RedisCacheManager
 from config import config
 from database.errors import translate_errors_context
-from jsonmodels.models import Base
-from jsonmodels.fields import StringField, ListField, IntField
-
 from database.model.task.metrics import MetricEventStats
 from database.model.task.task import Task
 from timing_context import TimingContext
-from utilities.json import loads, dumps
 
 
 class VariantScrollState(Base):
@@ -45,16 +43,9 @@ class MetricScrollState(Base):
         self.last_min_iter = self.last_max_iter = None
 
 
-class DebugImageEventsScrollState(Base):
+class DebugImageEventsScrollState(Base, JsonSerializableMixin):
     id: str = StringField(required=True)
     metrics: Sequence[MetricScrollState] = ListField([MetricScrollState])
-
-    def to_json(self):
-        return dumps(self.to_struct())
-
-    @classmethod
-    def from_json(cls, s):
-        return cls(**loads(s))
 
 
 @attr.s(auto_attribs=True)
@@ -65,7 +56,12 @@ class DebugImagesResult(object):
 
 class DebugImagesIterator:
     EVENT_TYPE = "training_debug_image"
-    STATE_EXPIRATION_SECONDS = 3600
+
+    @property
+    def state_expiration_sec(self):
+        return config.get(
+            f"services.events.events_retrieval.state_expiration_sec", 3600
+        )
 
     @property
     def _max_workers(self):
@@ -76,7 +72,7 @@ class DebugImagesIterator:
         self.cache_manager = RedisCacheManager(
             state_class=DebugImageEventsScrollState,
             redis=redis,
-            expiration_interval=self.STATE_EXPIRATION_SECONDS,
+            expiration_interval=self.state_expiration_sec,
         )
 
     def get_task_events(
@@ -92,27 +88,31 @@ class DebugImagesIterator:
         if not self.es.indices.exists(es_index):
             return DebugImagesResult()
 
-        unique_metrics = set(metrics)
-        state = self.cache_manager.get_state(state_id) if state_id else None
-        if not state:
-            state = DebugImageEventsScrollState(
-                id=database.utils.id(),
-                metrics=self._init_metric_states(es_index, list(unique_metrics)),
-            )
-        else:
-            state_metrics = set((m.task, m.name) for m in state.metrics)
-            if state_metrics != unique_metrics:
-                raise errors.bad_request.InvalidScrollId(
-                    "while getting debug images events", scroll_id=state_id
-                )
+        def init_state(state_: DebugImageEventsScrollState):
+            unique_metrics = set(metrics)
+            state_.metrics = self._init_metric_states(es_index, list(unique_metrics))
 
+        def validate_state(state_: DebugImageEventsScrollState):
+            """
+            Validate that the metrics stored in the state are the same
+            as requested in the current call.
+            Refresh the state if requested
+            """
+            state_metrics = set((m.task, m.name) for m in state_.metrics)
+            if state_metrics != set(metrics):
+                raise errors.bad_request.InvalidScrollId(
+                    "Task metrics stored in the state do not match the passed ones",
+                    scroll_id=state_.id,
+                )
             if refresh:
-                self._reinit_outdated_metric_states(company_id, es_index, state)
-                for metric_state in state.metrics:
+                self._reinit_outdated_metric_states(company_id, es_index, state_)
+                for metric_state in state_.metrics:
                     metric_state.reset()
 
-        res = DebugImagesResult(next_scroll_id=state.id)
-        try:
+        with self.cache_manager.get_or_create_state(
+            state_id=state_id, init_state=init_state, validate_state=validate_state
+        ) as state:
+            res = DebugImagesResult(next_scroll_id=state.id)
             with ThreadPoolExecutor(self._max_workers) as pool:
                 res.metric_events = list(
                     pool.map(
@@ -125,10 +125,8 @@ class DebugImagesIterator:
                         state.metrics,
                     )
                 )
-        finally:
-            self.cache_manager.set_state(state)
 
-        return res
+            return res
 
     def _reinit_outdated_metric_states(
         self, company_id, es_index, state: DebugImageEventsScrollState

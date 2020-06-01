@@ -13,6 +13,7 @@ from luqum.parser import parser, ParseError
 from validators import email as email_validator, domain as domain_validator
 
 from apierrors import errors
+from utilities.json import loads, dumps
 
 
 def make_default(field_cls, default_value):
@@ -213,3 +214,12 @@ class StringEnum(Enum):
     # noinspection PyMethodParameters
     def _generate_next_value_(name, start, count, last_values):
         return name
+
+
+class JsonSerializableMixin:
+    def to_json(self: ModelBase):
+        return dumps(self.to_struct())
+
+    @classmethod
+    def from_json(cls: Type[ModelBase], s):
+        return cls(**loads(s))
