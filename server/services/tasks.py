@@ -39,6 +39,7 @@ from bll.task import (
     split_by,
     ParameterKeyEscaper,
 )
+from bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
 from bll.util import SetFieldsResolver
 from database.errors import translate_errors_context
 from database.model.model import Model
@@ -70,7 +71,7 @@ event_bll = EventBLL()
 queue_bll = QueueBLL()
 
 
-TaskBLL.start_non_responsive_tasks_watchdog()
+NonResponsiveTasksWatchdog.start()
 
 
 def set_task_status_from_call(

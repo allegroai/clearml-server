@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from datetime import datetime, timedelta
+from datetime import datetime
 from operator import attrgetter
 from random import random
 from time import sleep
@@ -32,15 +32,12 @@ from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
 from timing_context import TimingContext
 from utilities.dicts import deep_merge
-from utilities.threads_manager import ThreadsManager
 from .utils import ChangeStatusRequest, validate_status_change, ParameterKeyEscaper
 
 log = config.logger(__file__)
 
 
 class TaskBLL(object):
-    threads = ThreadsManager("TaskBLL")
-
     def __init__(self, events_es=None):
         self.events_es = (
             events_es if events_es is not None else es_factory.connect("events")
@@ -574,58 +571,6 @@ class TaskBLL(object):
                 )
 
             return [a.key for a in added], [a.key for a in updated]
-
-    @classmethod
-    @threads.register("non_responsive_tasks_watchdog", daemon=True)
-    def start_non_responsive_tasks_watchdog(cls):
-        log = config.logger("non_responsive_tasks_watchdog")
-        relevant_status = (TaskStatus.in_progress,)
-        threshold = timedelta(
-            seconds=config.get(
-                "services.tasks.non_responsive_tasks_watchdog.threshold_sec", 7200
-            )
-        )
-        watch_interval = config.get(
-            "services.tasks.non_responsive_tasks_watchdog.watch_interval_sec", 900
-        )
-        sleep(watch_interval)
-        while not ThreadsManager.terminating:
-            try:
-
-                ref_time = datetime.utcnow() - threshold
-
-                log.info(
-                    f"Starting cleanup cycle for running tasks last updated before {ref_time}"
-                )
-
-                tasks = list(
-                    Task.objects(
-                        status__in=relevant_status, last_update__lt=ref_time
-                    ).only("id", "name", "status", "project", "last_update")
-                )
-
-                if tasks:
-
-                    log.info(f"Stopping {len(tasks)} non-responsive tasks")
-
-                    for task in tasks:
-                        log.info(
-                            f"Stopping {task.id} ({task.name}), last updated at {task.last_update}"
-                        )
-                        ChangeStatusRequest(
-                            task=task,
-                            new_status=TaskStatus.stopped,
-                            status_reason="Forced stop (non-responsive)",
-                            status_message="Forced stop (non-responsive)",
-                            force=True,
-                        ).execute()
-
-                log.info(f"Done")
-
-            except Exception as ex:
-                log.exception(f"Failed stopping tasks: {str(ex)}")
-
-            sleep(watch_interval)
 
     @staticmethod
     def get_aggregated_project_execution_parameters(

@@ -10,7 +10,7 @@ class ThreadsManager:
 
     def __init__(self, name=None, **threads):
         super(ThreadsManager, self).__init__()
-        self.name = name or self.__class__.name
+        self.name = name or self.__class__.__name__
         self.objects = {}
         self.lock = Lock()
 
