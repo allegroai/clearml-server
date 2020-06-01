@@ -10,12 +10,13 @@ from flask_cors import CORS
 
 from config import config
 
+DEFAULT_UPLOAD_FOLDER = "/mnt/fileserver"
+
 app = Flask(__name__)
 CORS(app, **config.get("fileserver.cors"))
 Compress(app)
 
-if os.environ.get("TRAINS_UPLOAD_FOLDER"):
-    app.config["UPLOAD_FOLDER"] = os.environ.get("TRAINS_UPLOAD_FOLDER")
+app.config["UPLOAD_FOLDER"] = os.environ.get("TRAINS_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
 
 
 @app.route("/", methods=["POST"])
@@ -57,12 +58,13 @@ def main():
     parser.add_argument(
         "--upload-folder",
         "-u",
-        default="/mnt/fileserver",
+        default=DEFAULT_UPLOAD_FOLDER,
         help="Upload folder (default %(default)s)",
     )
     args = parser.parse_args()
 
-    app.config["UPLOAD_FOLDER"] = args.upload_folder
+    if app.config.get("UPLOAD_FOLDER") is None:
+        app.config["UPLOAD_FOLDER"] = args.upload_folder
 
     app.run(debug=args.debug, host=args.ip, port=args.port, threaded=True)
 
