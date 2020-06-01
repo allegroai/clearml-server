@@ -208,24 +208,20 @@ class TestTags(TestService):
         self.api.tasks.stopped(task=task_id)
 
     def _temp_queue(self, **kwargs):
-        self._update_missing(kwargs, name="Test tags")
+        self.update_missing(kwargs, name="Test tags")
         return self.create_temp("queues", **kwargs)
 
     def _temp_project(self, **kwargs):
-        self._update_missing(kwargs, name="Test tags", description="test")
+        self.update_missing(kwargs, name="Test tags", description="test")
         return self.create_temp("projects", **kwargs)
 
     def _temp_model(self, **kwargs):
-        self._update_missing(kwargs, name="Test tags", uri="file:///a/b", labels={})
+        self.update_missing(kwargs, name="Test tags", uri="file:///a/b", labels={})
         return self.create_temp("models", **kwargs)
 
     def _temp_task(self, **kwargs):
-        self._update_missing(kwargs, name="Test tags", type="testing", input=dict(view=dict()))
+        self.update_missing(kwargs, name="Test tags", type="testing", input=dict(view=dict()))
         return self.create_temp("tasks", **kwargs)
-
-    @staticmethod
-    def _update_missing(target: dict, **update):
-        target.update({k: v for k, v in update.items() if k not in target})
 
     def _send(self, service, action, **kwargs):
         api = kwargs.pop("api", self.api)

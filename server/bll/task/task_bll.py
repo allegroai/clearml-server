@@ -28,6 +28,7 @@ from database.model.task.task import (
     TaskSystemTags,
     ArtifactModes,
     Artifact,
+    external_task_types,
 )
 from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
@@ -45,6 +46,18 @@ class TaskBLL(object):
         self.events_es = (
             events_es if events_es is not None else es_factory.connect("events")
         )
+
+    @classmethod
+    def get_types(cls, company, project_ids: Optional[Sequence]) -> set:
+        """
+        Return the list of unique task types used by company and public tasks
+        If project ids passed then only tasks from these projects are considered
+        """
+        query = get_company_or_none_constraint(company)
+        if project_ids:
+            query &= Q(project__in=project_ids)
+        res = Task.objects(query).distinct(field="type")
+        return set(res).intersection(external_task_types)
 
     @staticmethod
     def get_task_with_access(

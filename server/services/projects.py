@@ -154,9 +154,9 @@ def make_projects_get_all_pipelines(company_id, project_ids, specific_state=None
         # only count run time for these types of tasks
         {
             "$match": {
-                "type": {"$in": ["training", "testing", "annotation"]},
-                "project": {"$in": project_ids},
+                "type": {"$in": ["training", "testing"]},
                 "company": {"$in": [None, "", company_id]},
+                "project": {"$in": project_ids},
             }
         },
         ensure_valid_fields(),

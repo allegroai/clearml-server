@@ -92,6 +92,10 @@ class PingRequest(TaskRequest):
     pass
 
 
+class GetTypesRequest(models.Base):
+    projects = ListField(items_types=[str])
+
+
 class CloneRequest(TaskRequest):
     new_task_name = StringField()
     new_task_comment = StringField()

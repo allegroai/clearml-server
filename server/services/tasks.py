@@ -29,6 +29,7 @@ from apimodels.tasks import (
     CloneRequest,
     AddOrUpdateArtifactsRequest,
     AddOrUpdateArtifactsResponse,
+    GetTypesRequest,
 )
 from bll.event import EventBLL
 from bll.organization import OrgBLL
@@ -162,6 +163,13 @@ def get_all(call: APICall, company_id, _):
             )
         unprepare_from_saved(call, tasks)
         call.result.data = {"tasks": tasks}
+
+
+@endpoint("tasks.get_types", request_data_model=GetTypesRequest)
+def get_types(call: APICall, company_id, request: GetTypesRequest):
+    call.result.data = {
+        "types": list(task_bll.get_types(company_id, project_ids=request.projects))
+    }
 
 
 @endpoint(

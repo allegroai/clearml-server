@@ -54,6 +54,10 @@ class TestService(TestCase, TestServiceInterface):
         )
         return object_id
 
+    @staticmethod
+    def update_missing(target: dict, **update):
+        target.update({k: v for k, v in update.items() if k not in target})
+
     def create_temp(self, service, *, client=None, delete_params=None, **kwargs) -> str:
         return self._create_temp_helper(
             service=service,

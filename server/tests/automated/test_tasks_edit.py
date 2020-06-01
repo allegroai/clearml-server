@@ -1,4 +1,4 @@
-from apierrors.errors.bad_request import InvalidModelId
+from apierrors.errors.bad_request import InvalidModelId, ValidationError
 from config import config
 from tests.automated import TestService
 
@@ -11,12 +11,37 @@ class TestTasksEdit(TestService):
         super().setUp(version=2.5)
 
     def new_task(self, **kwargs):
-        return self.create_temp(
-            "tasks", type="testing", name="test", input=dict(view=dict()), **kwargs
+        self.update_missing(
+            kwargs, type="testing", name="test", input=dict(view=dict())
         )
+        return self.create_temp("tasks", **kwargs)
 
-    def new_model(self):
-        return self.create_temp("models", name="test", uri="file:///a/b", labels={})
+    def new_model(self, **kwargs):
+        self.update_missing(kwargs, name="test", uri="file:///a/b", labels={})
+        return self.create_temp("models", **kwargs)
+
+    def test_task_types(self):
+        with self.api.raises(ValidationError):
+            task = self.new_task(type="Unsupported")
+
+        types = ["controller", "optimizer"]
+        p1 = self.create_temp("projects", name="Test tasks1", description="test")
+        task1 = self.new_task(project=p1, type=types[0])
+        p2 = self.create_temp("projects", name="Test tasks2", description="test")
+        task2 = self.new_task(project=p2, type=types[1])
+
+        # all company types
+        res = self.api.tasks.get_types()
+        self.assertTrue(set(types).issubset(set(res["types"])))
+
+        # projects array
+        res = self.api.tasks.get_types(projects=[p1, p2])
+        self.assertEqual(set(types), set(res["types"]))
+
+        # single project
+        for p, t in zip((p1, p2), types):
+            res = self.api.tasks.get_types(projects=[p])
+            self.assertEqual([t], res["types"])
 
     def test_edit_model_ready(self):
         task = self.new_task()

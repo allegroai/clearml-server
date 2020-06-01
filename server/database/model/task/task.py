@@ -100,6 +100,18 @@ class Execution(EmbeddedDocument, ProperDictMixin):
 class TaskType(object):
     training = "training"
     testing = "testing"
+    inference = "inference"
+    data_processing = "data_processing"
+    application = "application"
+    monitor = "monitor"
+    controller = "controller"
+    optimizer = "optimizer"
+    service = "service"
+    qc = "qc"
+    custom = "custom"
+
+
+external_task_types = set(get_options(TaskType))
 
 
 class Task(AttributedDocument):
