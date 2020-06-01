@@ -9,7 +9,7 @@ from database.model.user import User
 from service_repo.auth.fixed_user import FixedUser
 
 
-def _ensure_auth_user(user_data: dict, company_id: str, log: Logger):
+def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False):
     ensure_credentials = {"key", "secret"}.issubset(user_data)
     if ensure_credentials:
         user = AuthUser.objects(
@@ -18,17 +18,22 @@ def _ensure_auth_user(user_data: dict, company_id: str, log: Logger):
             )
         ).first()
         if user:
+            if revoke:
+                user.credentials = []
+                user.save()
             return user.id
+
+    user_id = user_data.get("id", f"__{user_data['name']}__")
 
     log.info(f"Creating user: {user_data['name']}")
     user = AuthUser(
-        id=user_data.get("id", f"__{user_data['name']}__"),
+        id=user_id,
         name=user_data["name"],
         company=company_id,
         role=user_data["role"],
         email=user_data["email"],
         created=datetime.utcnow(),
-        credentials=[Credentials(key=user_data["key"], secret=user_data["secret"])]
+        credentials=[Credentials(key=user_data["key"], secret=user_data["secret"])] if not revoke else []
         if ensure_credentials
         else None,
     )

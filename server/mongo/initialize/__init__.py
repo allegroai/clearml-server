@@ -48,17 +48,21 @@ def init_mongo_data():
                 "name": "webserver",
                 "role": Role.system,
                 "email": "webserver@example.com",
+                "revoke_in_fixed_mode": True,
             },
             {"name": "tests", "role": Role.user, "email": "tests@example.com"},
         ]
 
+        fixed_mode = FixedUser.enabled()
+
         for user in users:
+            revoke = fixed_mode and user.pop("revoke_in_fixed_mode", False)
             credentials = config.get(f"secure.credentials.{user['name']}")
             user["key"] = credentials.user_key
             user["secret"] = credentials.user_secret
-            _ensure_auth_user(user, company_id, log=log)
+            _ensure_auth_user(user, company_id, log=log, revoke=revoke)
 
-        if FixedUser.enabled():
+        if fixed_mode:
             log.info("Fixed users mode is enabled")
             FixedUser.validate()
             for user in FixedUser.from_config():
