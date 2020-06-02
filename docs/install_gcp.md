@@ -53,6 +53,11 @@ To upgrade **trains-server** on an existing GCP instance based on one of these C
 
 The following sections contain lists of Custom Image URLs (exported in different formats) for each released **trains-server** version.
 
-### Latest version image (v0.14.1)
+### Latest version image
 
 - https://storage.googleapis.com/allegro-files/trains-server/trains-server.tar.gz
+
+### All released images 
+
+- v0.15.0 - https://storage.googleapis.com/allegro-files/trains-server/trains-server-0-15-0.tar.gz
+- v0.14.1 - https://storage.googleapis.com/allegro-files/trains-server/trains-server-0-14-1.tar.gz
