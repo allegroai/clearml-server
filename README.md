@@ -115,6 +115,7 @@ increased data transparency)
 Trains-Agent Services container will spin **any** task enqueued into the dedicated `services` queue. 
 Every task launched by Trains-Agent Services  will be registered as a new node in the system, 
 providing tracking and transparency capabilities.  
+You can also run the Trains-Agent Services manually, see details in [trains-agent services mode](https://github.com/allegroai/trains-agent#trains-agent-services-mode-)
 
 **Note**: It is the user's responsibility to make sure the proper tasks are pushed into the `services` queue. 
 Do not enqueue training / inference tasks into the `services` queue, as it will put unnecessary load on the server.
