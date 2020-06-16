@@ -87,7 +87,8 @@ services:
     restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
-    - mongodata:/data
+    - c:/opt/trains/data/mongo/db:/data/db
+    - c:/opt/trains/data/mongo/configdb:/data/configdb
     ports:
     - "27017:27017"
 
@@ -118,6 +119,3 @@ services:
 networks:
   backend:
     driver: bridge
-
-volumes:
-  mongodata:
