@@ -8,6 +8,8 @@ from functools import partial
 from statistics import mean
 from typing import Sequence
 
+from boltons.iterutils import first
+
 import es_factory
 from apierrors.errors.bad_request import EventsNotAdded
 from tests.automated import TestService
@@ -71,6 +73,31 @@ class TestTaskEvents(TestService):
                     metric for metric, events in metrics.items() if event_type in events
                 ),
             )
+
+    def test_last_scalar_metrics(self):
+        metric = "Metric1"
+        variant = "Variant1"
+        iter_count = 100
+        task = self._temp_task()
+        events = [
+            {
+                **self._create_task_event("training_stats_scalar", task, iteration),
+                "metric": metric,
+                "variant": variant,
+                "value": iteration,
+            }
+            for iteration in range(iter_count)
+        ]
+        # send 2 batches to check the interaction with already stored db value
+        # each batch contains multiple iterations
+        self.send_batch(events[:50])
+        self.send_batch(events[50:])
+
+        task_data = self.api.tasks.get_by_id(task=task).task
+        metric_data = first(first(task_data.last_metrics.values()).values())
+        self.assertEqual(iter_count - 1, metric_data.value)
+        self.assertEqual(iter_count - 1, metric_data.max_value)
+        self.assertEqual(0, metric_data.min_value)
 
     def test_task_debug_images(self):
         task = self._temp_task()

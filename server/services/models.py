@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Sequence
 
 from mongoengine import Q, EmbeddedDocument
 
@@ -12,7 +13,7 @@ from apimodels.models import (
     PublishModelResponse,
     ModelTaskPublishResponse,
 )
-from bll.organization import OrgBLL
+from bll.organization import OrgBLL, Tags
 from bll.task import TaskBLL
 from config import config
 from database.errors import translate_errors_context
@@ -128,9 +129,19 @@ def parse_model_fields(call, valid_fields):
     return fields
 
 
-def _update_org_tags(company, fields: dict):
-    org_bll.update_org_tags(
-        company, tags=fields.get("tags"), system_tags=fields.get("system_tags")
+def _update_cached_tags(company: str, project: str, fields: dict):
+    org_bll.update_tags(
+        company,
+        Tags.Model,
+        project=project,
+        tags=fields.get("tags"),
+        system_tags=fields.get("system_tags"),
+    )
+
+
+def _reset_cached_tags(company: str, projects: Sequence[str]):
+    org_bll.reset_tags(
+        company, Tags.Model, projects=projects,
     )
 
 
@@ -203,7 +214,7 @@ def update_for_task(call: APICall, company_id, _):
                 **fields,
             )
             model.save()
-            _update_org_tags(company_id, fields)
+            _update_cached_tags(company_id, project=model.project, fields=fields)
 
         TaskBLL.update_statistics(
             task_id=task_id,
@@ -248,7 +259,7 @@ def create(call: APICall, company_id, req_model: CreateModelRequest):
             **fields,
         )
         model.save()
-        _update_org_tags(company_id, fields)
+        _update_cached_tags(company_id, project=model.project, fields=fields)
 
         call.result.data_model = CreateModelResponse(id=model.id, created=True)
 
@@ -327,7 +338,15 @@ def edit(call: APICall, company_id, _):
         if fields:
             updated = model.update(upsert=False, **fields)
             if updated:
-                _update_org_tags(company_id, fields)
+                new_project = fields.get("project", model.project)
+                if new_project != model.project:
+                    _reset_cached_tags(
+                        company_id, projects=[new_project, model.project]
+                    )
+                else:
+                    _update_cached_tags(
+                        company_id, project=model.project, fields=fields
+                    )
             conform_output_tags(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
@@ -355,7 +374,13 @@ def _update_model(call: APICall, company_id, model_id=None):
 
         updated_count, updated_fields = Model.safe_update(company_id, model.id, data)
         if updated_count:
-            _update_org_tags(company_id, updated_fields)
+            new_project = updated_fields.get("project", model.project)
+            if new_project != model.project:
+                _reset_cached_tags(company_id, projects=[new_project, model.project])
+            else:
+                _update_cached_tags(
+                    company_id, project=model.project, fields=updated_fields
+                )
         conform_output_tags(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
@@ -395,7 +420,7 @@ def update(call: APICall, company_id, _):
 
     with translate_errors_context():
         query = dict(id=model_id, company=company_id)
-        model = Model.objects(**query).only("id", "task").first()
+        model = Model.objects(**query).only("id", "task", "project").first()
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
 
@@ -428,5 +453,5 @@ def update(call: APICall, company_id, _):
 
         del_count = Model.objects(**query).delete()
         if del_count:
-            org_bll.update_org_tags(company_id, reset=True)
+            _reset_cached_tags(company_id, projects=[model.project])
         call.result.data = dict(deleted=del_count > 0)

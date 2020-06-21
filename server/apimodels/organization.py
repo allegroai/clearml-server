@@ -2,6 +2,7 @@ from jsonmodels import fields, models
 
 
 class Filter(models.Base):
+    tags = fields.ListField([str])
     system_tags = fields.ListField([str])
 
 

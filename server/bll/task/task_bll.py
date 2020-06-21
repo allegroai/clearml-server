@@ -14,7 +14,7 @@ import database.utils as dbutils
 import es_factory
 from apierrors import errors
 from apimodels.tasks import Artifact as ApiArtifact
-from bll.organization import OrgBLL
+from bll.organization import OrgBLL, Tags
 from config import config
 from database.errors import translate_errors_context
 from database.model.model import Model
@@ -229,7 +229,21 @@ class TaskBLL(object):
                 validate_project=validate_references or project,
             )
             new_task.save()
-            org_bll.update_org_tags(company_id, tags=tags, system_tags=system_tags)
+
+            if task.project == new_task.project:
+                updated_tags = tags
+                updated_system_tags = system_tags
+            else:
+                updated_tags = new_task.tags
+                updated_system_tags = new_task.system_tags
+            org_bll.update_tags(
+                company_id,
+                Tags.Task,
+                project=new_task.project,
+                tags=updated_tags,
+                system_tags=updated_system_tags,
+            )
+
         return new_task
 
     @classmethod
@@ -346,10 +360,12 @@ class TaskBLL(object):
                 return "__".join((op, "last_metrics") + path)
 
             for path, value in last_scalar_values:
-                extra_updates[op_path("set", *path)] = value
-                if path[-1] == "value":
+                if path[-1] == "min_value":
                     extra_updates[op_path("min", *path[:-1], "min_value")] = value
+                elif path[-1] == "max_value":
                     extra_updates[op_path("max", *path[:-1], "max_value")] = value
+                else:
+                    extra_updates[op_path("set", *path)] = value
 
         if last_events is not None:
 

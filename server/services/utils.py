@@ -1,10 +1,26 @@
 from typing import Union, Sequence, Tuple
 
 from apierrors import errors
+from apimodels.organization import Filter
 from database.model.base import GetMixin
 from database.utils import partition_tags
 from service_repo import APICall
 from service_repo.base import PartialVersion
+
+
+def get_tags_filter_dictionary(input_: Filter) -> dict:
+    if not input_:
+        return {}
+
+    return {
+        field: vals
+        for field, vals in (("tags", input_.tags), ("system_tags", input_.system_tags))
+        if vals
+    }
+
+
+def get_tags_response(ret: dict) -> dict:
+    return {field: sorted(vals) for field, vals in ret.items()}
 
 
 def conform_output_tags(call: APICall, documents: Union[dict, Sequence[dict]]):

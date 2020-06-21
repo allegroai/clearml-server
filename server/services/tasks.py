@@ -33,7 +33,7 @@ from apimodels.tasks import (
     ResetRequest,
 )
 from bll.event import EventBLL
-from bll.organization import OrgBLL
+from bll.organization import OrgBLL, Tags
 from bll.queue import QueueBLL
 from bll.task import (
     TaskBLL,
@@ -343,9 +343,19 @@ def validate(call: APICall, company_id, req_model: CreateRequest):
     _validate_and_get_task_from_call(call)
 
 
-def _update_org_tags(company, fields: dict):
-    org_bll.update_org_tags(
-        company, tags=fields.get("tags"), system_tags=fields.get("system_tags")
+def _update_cached_tags(company: str, project: str, fields: dict):
+    org_bll.update_tags(
+        company,
+        Tags.Task,
+        project=project,
+        tags=fields.get("tags"),
+        system_tags=fields.get("system_tags"),
+    )
+
+
+def _reset_cached_tags(company: str, projects: Sequence[str]):
+    org_bll.reset_tags(
+        company, Tags.Task, projects=projects
     )
 
 
@@ -357,7 +367,7 @@ def create(call: APICall, company_id, req_model: CreateRequest):
 
     with translate_errors_context(), TimingContext("mongo", "save_task"):
         task.save()
-        _update_org_tags(company_id, fields)
+        _update_cached_tags(company_id, project=task.project, fields=fields)
         update_project_time(task.project)
 
     call.result.data_model = IdResponse(id=task.id)
@@ -400,7 +410,9 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
     task_id = req_model.task
 
     with translate_errors_context():
-        task = Task.get_for_writing(id=task_id, company=company_id, _only=["id"])
+        task = Task.get_for_writing(
+            id=task_id, company=company_id, _only=["id", "project"]
+        )
         if not task:
             raise errors.bad_request.InvalidTaskId(id=task_id)
 
@@ -416,7 +428,13 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             injected_update=dict(last_update=datetime.utcnow()),
         )
         if updated_count:
-            _update_org_tags(company_id, updated_fields)
+            new_project = updated_fields.get("project", task.project)
+            if new_project != task.project:
+                _reset_cached_tags(company_id, projects=[new_project, task.project])
+            else:
+                _update_cached_tags(
+                    company_id, project=task.project, fields=updated_fields
+                )
             update_project_time(updated_fields.get("project"))
         unprepare_from_saved(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
@@ -470,8 +488,10 @@ def update_batch(call: APICall, company_id, _):
         now = datetime.utcnow()
 
         bulk_ops = []
+        updated_projects = set()
         for id, data in items.items():
-            fields, valid_fields = prepare_update_fields(call, tasks[id], data)
+            task = tasks[id]
+            fields, valid_fields = prepare_update_fields(call, task, data)
             partial_update_dict = Task.get_safe_update_dict(fields)
             if not partial_update_dict:
                 continue
@@ -481,12 +501,20 @@ def update_batch(call: APICall, company_id, _):
             )
             bulk_ops.append(update_op)
 
+            new_project = partial_update_dict.get("project", task.project)
+            if new_project != task.project:
+                updated_projects.update({new_project, task.project})
+            elif any(f in partial_update_dict for f in ("tags", "system_tags")):
+                updated_projects.add(task.project)
+
         updated = 0
         if bulk_ops:
             res = Task._get_collection().bulk_write(bulk_ops)
             updated = res.modified_count
-        if updated:
-            org_bll.update_org_tags(company_id, reset=True)
+
+        if updated and updated_projects:
+            _reset_cached_tags(company_id, projects=list(updated_projects))
+
         call.result.data = {"updated": updated}
 
 
@@ -542,7 +570,15 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             fixed_fields.update(last_update=now)
             updated = task.update(upsert=False, **fixed_fields)
             if updated:
-                _update_org_tags(company_id, fixed_fields)
+                new_project = fixed_fields.get("project", task.project)
+                if new_project != task.project:
+                    _reset_cached_tags(
+                        company_id, projects=[new_project, task.project]
+                    )
+                else:
+                    _update_cached_tags(
+                        company_id, project=task.project, fields=fixed_fields
+                    )
                 update_project_time(fields.get("project"))
             unprepare_from_saved(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
@@ -710,12 +746,11 @@ def reset(call: APICall, company_id, request: ResetRequest):
 
     if request.clear_all:
         updates.update(
-            set__execution=Execution(),
-            unset__script=1,
+            set__execution=Execution(), unset__script=1,
         )
     else:
-        updates.update(unset__execution__queue=1)
         updates.update(
+            unset__execution__queue=1,
             __raw__={"$pull": {"execution.artifacts": {"mode": {"$ne": "input"}}}},
         )
 
@@ -909,7 +944,8 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
             task.switch_collection(collection_name)
 
         task.delete()
-        org_bll.update_org_tags(company_id, reset=True)
+        _reset_cached_tags(company_id, projects=[task.project])
+
         call.result.data = dict(deleted=True, **attr.asdict(result))
 
 
