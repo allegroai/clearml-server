@@ -232,28 +232,22 @@ class EventBLL(object):
 
         last_event = last_events[metric_hash][variant_hash]
         event_iter = event.get("iter", 0)
-        event_timestamp = event["timestamp"]
-        if (event_iter, event_timestamp) >= (
-            last_event.get("iter", event_iter),
-            last_event.get("timestamp", event_timestamp),
+        event_timestamp = event.get("timestamp", 0)
+        value = event.get("value")
+        if value is not None and (
+            (event_iter, event_timestamp)
+            >= (
+                last_event.get("iter", event_iter),
+                last_event.get("timestamp", event_timestamp),
+            )
         ):
             event_data = {
                 k: event[k]
                 for k in ("value", "metric", "variant", "iter", "timestamp")
                 if k in event
             }
-            value = event_data.get("value")
-            if value is not None:
-                event_data["min_value"] = min(value, last_event.get("min_value", value))
-                event_data["max_value"] = max(value, last_event.get("max_value", value))
-            else:
-                event_data.update(
-                    **{
-                        k: last_event[k]
-                        for k in ("value", "min_value", "max_value")
-                        if k in last_event
-                    }
-                )
+            event_data["min_value"] = min(value, last_event.get("min_value", value))
+            event_data["max_value"] = max(value, last_event.get("max_value", value))
             last_events[metric_hash][variant_hash] = event_data
 
     def _update_last_metric_events_for_task(self, last_events, event):
