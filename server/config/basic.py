@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 from functools import reduce
 from os import getenv
 from os.path import expandvars
@@ -15,7 +16,7 @@ from pyparsing import (
 
 DEFAULT_EXTRA_CONFIG_PATH = "/opt/trains/config"
 EXTRA_CONFIG_PATH_ENV_KEY = "TRAINS_CONFIG_DIR"
-EXTRA_CONFIG_PATH_SEP = ":"
+EXTRA_CONFIG_PATH_SEP = ":" if platform.system() != "Windows" else ';'
 
 EXTRA_CONFIG_VALUES_ENV_KEY_SEP = "__"
 EXTRA_CONFIG_VALUES_ENV_KEY_PREFIX = f"TRAINS{EXTRA_CONFIG_VALUES_ENV_KEY_SEP}"

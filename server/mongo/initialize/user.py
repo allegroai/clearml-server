@@ -10,22 +10,25 @@ from service_repo.auth.fixed_user import FixedUser
 
 
 def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False):
-    ensure_credentials = {"key", "secret"}.issubset(user_data)
-    if ensure_credentials:
-        user = AuthUser.objects(
-            credentials__match=Credentials(
-                key=user_data["key"], secret=user_data["secret"]
-            )
-        ).first()
+    key, secret = user_data.get("key"), user_data.get("secret")
+    if not (key and secret):
+        credentials = None
+    else:
+        creds = Credentials(key=key, secret=secret)
+
+        user = AuthUser.objects(credentials__match=creds).first()
         if user:
             if revoke:
                 user.credentials = []
                 user.save()
             return user.id
 
+        credentials = [] if revoke else [creds]
+
     user_id = user_data.get("id", f"__{user_data['name']}__")
 
     log.info(f"Creating user: {user_data['name']}")
+
     user = AuthUser(
         id=user_id,
         name=user_data["name"],
@@ -33,9 +36,7 @@ def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: boo
         role=user_data["role"],
         email=user_data["email"],
         created=datetime.utcnow(),
-        credentials=[Credentials(key=user_data["key"], secret=user_data["secret"])] if not revoke else []
-        if ensure_credentials
-        else None,
+        credentials=credentials,
     )
 
     user.save()
@@ -68,12 +69,4 @@ def ensure_fixed_user(user: FixedUser, company_id: str, log: Logger):
 
     _ensure_auth_user(user_data=data, company_id=company_id, log=log)
 
-    given_name, _, family_name = user.name.partition(" ")
-
-    User(
-        id=user.user_id,
-        company=company_id,
-        name=user.name,
-        given_name=given_name,
-        family_name=family_name,
-    ).save()
+    return _ensure_backend_user(user.user_id, company_id, user.name)
