@@ -76,6 +76,7 @@ services:
     volumes:
     - /opt/trains/logs:/var/log/trains
     - /opt/trains/data/fileserver:/mnt/fileserver
+    - /opt/trains/config:/opt/trains/config
     ports:
     - "8081:8081"
 
@@ -109,8 +110,6 @@ services:
     container_name: trains-webserver
     image: allegroai/trains:latest
     restart: unless-stopped
-    volumes:
-    - /opt/trains/logs:/var/log/trains
     depends_on:
       - apiserver
     ports:

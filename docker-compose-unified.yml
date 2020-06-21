@@ -15,6 +15,8 @@ services:
     volumes:
     - /opt/trains/logs:/var/log/trains
     - /opt/trains/data/fileserver:/mnt/fileserver
+    - /opt/trains/config:/opt/trains/config
+
     depends_on:
       - redis
       - mongo

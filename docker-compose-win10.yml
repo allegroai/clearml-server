@@ -76,6 +76,8 @@ services:
     volumes:
     - c:/opt/trains/logs:/var/log/trains
     - c:/opt/trains/data/fileserver:/mnt/fileserver
+    - c:/opt/trains/config:/opt/trains/config
+
     ports:
     - "8081:8081"
 
