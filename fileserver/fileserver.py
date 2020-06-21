@@ -17,6 +17,7 @@ CORS(app, **config.get("fileserver.cors"))
 Compress(app)
 
 app.config["UPLOAD_FOLDER"] = os.environ.get("TRAINS_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get("fileserver.download.cache_timeout_sec", 5 * 60)
 
 
 @app.route("/", methods=["POST"])
