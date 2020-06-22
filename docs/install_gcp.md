@@ -3,13 +3,16 @@
 To easily deploy Trains Server on GCP, use one of our pre-built GCP Custom Images.  
 We provide Custom Images for each released version of Trains Server, see [Released versions](#released-versions) below. 
 
-Once your GCP instance is up and running using our Custom Image, [configure the Trains client](https://github.com/allegroai/trains/blob/master/README.md#configuration) to use your **trains-server**.  
+Once your GCP instance is up and running using our Custom Image, [configure the Trains client](https://github.com/allegroai/trains/blob/master/README.md#configuration) to use your **trains-server**.
+  
+#### Default Trains Server Service ports
 The service port numbers on our Trains Server GCP Custom Image are:
 
 - Web application: `8080`
 - API Server: `8008`
 - File Server: `8081`
 
+#### Default Trains Server Storage paths
 The persistent storage configuration:
 
 - MongoDB: `/opt/trains/data/mongo/`
@@ -49,6 +52,15 @@ The minimum recommended requirements for Trains Server are:
 
 To upgrade **trains-server** on an existing GCP instance based on one of these Custom Images, SSH into the instance and follow the [upgrade instructions](../README.md#upgrade) for **trains-server**.
 
+## Network and Security
+
+Please make sure your instance is properly secured. 
+
+If not specifically set, a GCP instance will use default firewall rules that allow public access to various ports. 
+If your instance is open for public access, we recommend you follow best practices for access management, including:
+- Allow access only to the specific ports used by Trains Server (see [Default Trains Server Service ports](#default-trains-server-service-ports)). Remember to allow access to port `443` if `https` access is configured for your instance.
+- Configure Trains Server to use fixed user names and passwords (see [Can I add web login authentication to trains-server?](./faq.md#web-auth))    
+
 ## Released versions
 
 The following sections contain lists of Custom Image URLs (exported in different formats) for each released **trains-server** version.
@@ -59,5 +71,6 @@ The following sections contain lists of Custom Image URLs (exported in different
 
 ### All released images 
 
+- v0.15.1 - https://storage.googleapis.com/allegro-files/trains-server/trains-server-0-15-1.tar.gz
 - v0.15.0 - https://storage.googleapis.com/allegro-files/trains-server/trains-server-0-15-0.tar.gz
 - v0.14.1 - https://storage.googleapis.com/allegro-files/trains-server/trains-server-0-14-1.tar.gz
