@@ -54,41 +54,41 @@ The following sections contain lists of AMI Image IDs, per region, for each rele
 
 For easier upgrades, the following AMIs automatically update to the latest release every reboot:
 
-* **eu-north-1** : ami-0f63429f8e5d57315 
-* **ap-south-1** : ami-058a2a70b7fb8ec87 
-* **eu-west-3** : ami-0fc9f9e8e986f39c4 
-* **eu-west-2** : ami-0b0bc1ff2f0239bd9 
-* **eu-west-1** : ami-0056ec5d22b0fac91 
-* **ap-northeast-2** : ami-0898c9aa7f580fec7 
-* **ap-northeast-1** : ami-011036ddcc9398871 
-* **sa-east-1** : ami-04feeded12192438c 
-* **ca-central-1** : ami-02c717776c9e75025 
-* **ap-southeast-1** : ami-05b5866e7029bb9f1 
-* **ap-southeast-2** : ami-0384bd2b69467fff8 
-* **eu-central-1** : ami-01f15be85297d6f06 
-* **us-east-2** : ami-094070ca8aa110180 
-* **us-west-1** : ami-0d08ec5bc29eddb29 
-* **us-west-2** : ami-04715cceedaf6eae7 
-* **us-east-1** : ami-071dbaa1847585c4c 
+* **eu-north-1** : ami-0f30c84b905d354b9 
+* **ap-south-1** : ami-050e7acec52c8c74e 
+* **eu-west-3** : ami-03911c5b5bc77ef75 
+* **eu-west-2** : ami-0a5ed8aa2573ccc70 
+* **eu-west-1** : ami-0a53c65e922ec0611 
+* **ap-northeast-2** : ami-08cd017a37b8e8aab 
+* **ap-northeast-1** : ami-056b3ca1ad5af9322 
+* **sa-east-1** : ami-01ddc9325bafb400c 
+* **ca-central-1** : ami-0fc3cbbd982b18b45 
+* **ap-southeast-1** : ami-04c7a358df7002ef5 
+* **ap-southeast-2** : ami-0eeaf54231b4ae22a 
+* **eu-central-1** : ami-00b8e44041f8175fd 
+* **us-east-2** : ami-0ac7deebb3f738f6d 
+* **us-west-1** : ami-06bc07deb8b8c44d6 
+* **us-west-2** : ami-01ba85ffe79a422f1 
+* **us-east-1** : ami-04cf5a66cb4928ac3 
 
 ### v0.15.1 (static update)
 
-* **eu-north-1** : ami-0bb36c4dbe61f8c46 
-* **ap-south-1** : ami-0ac93ff85a5c770f9 
-* **eu-west-3** : ami-015ebfa846b8de5bb 
-* **eu-west-2** : ami-082aacd59408713d9 
-* **eu-west-1** : ami-066aad8c6b9b9991b 
-* **ap-northeast-2** : ami-0cb47f1c8591c799d 
-* **ap-northeast-1** : ami-005131d3037da9d2a 
-* **sa-east-1** : ami-0f7fdc4e19c8444a3 
-* **ca-central-1** : ami-07c234dad3ece2d78 
-* **ap-southeast-1** : ami-0d8e0475d7d4897e4 
-* **ap-southeast-2** : ami-053e3f25dee0424b9 
-* **eu-central-1** : ami-00d25558c5242708e 
-* **us-east-2** : ami-0bd45f800dfbde456 
-* **us-west-1** : ami-05e79bf1704721148 
-* **us-west-2** : ami-037c328649048409b 
-* **us-east-1** : ami-0a3cafe46bf085200 
+* **eu-north-1** : ami-0cd314e267426d1b7 
+* **ap-south-1** : ami-086182cbe29151f96 
+* **eu-west-3** : ami-0062366012182815b 
+* **eu-west-2** : ami-022b8f2e32a9d18d0 
+* **eu-west-1** : ami-0d8cf60446e09aa3d 
+* **ap-northeast-2** : ami-0d4c168a815b56889 
+* **ap-northeast-1** : ami-0daf7887db1053ae4 
+* **sa-east-1** : ami-020a759a3ba4ff22b 
+* **ca-central-1** : ami-0c10b5e04b707f3e3 
+* **ap-southeast-1** : ami-0f61bb3529a165fcd 
+* **ap-southeast-2** : ami-032dcdc82749c66c5 
+* **eu-central-1** : ami-08f364f32d2eb3bae 
+* **us-east-2** : ami-0b7efc3591803eba4 
+* **us-west-1** : ami-08b2df27b0ada6faf 
+* **us-west-2** : ami-0693029c4bad28816 
+* **us-east-1** : ami-0200954fa9c2819ff 
 
 ### v0.15.0 (static update)
 
