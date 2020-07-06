@@ -84,7 +84,7 @@ class EventMetrics:
                 company=company_id,
                 query=Q(id__in=task_ids),
                 allow_public=allow_public,
-                override_projection=("id", "name"),
+                override_projection=("id", "name", "company"),
                 return_dicts=False,
             )
             if len(task_objs) < len(task_ids):
@@ -93,8 +93,14 @@ class EventMetrics:
 
             task_name_by_id = {t.id: t.name for t in task_objs}
 
+        companies = {t.company for t in task_objs}
+        if len(companies) > 1:
+            raise errors.bad_request.InvalidTaskId(
+                "only tasks from the same company are supported"
+            )
+
         ret = self._run_get_scalar_metrics_as_parallel(
-            company_id,
+            next(iter(companies)),
             task_ids=task_ids,
             samples=samples,
             key=ScalarKey.resolve(key),

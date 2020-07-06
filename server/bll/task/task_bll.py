@@ -85,22 +85,25 @@ class TaskBLL(object):
         company_id,
         task_id,
         required_status=None,
-        required_dataset=None,
         only_fields=None,
+        allow_public=False,
     ):
+        if only_fields:
+            if isinstance(only_fields, string_types):
+                only_fields = [only_fields]
+            else:
+                only_fields = list(only_fields)
+            only_fields = only_fields + ["status"]
 
         with TimingContext("mongo", "task_by_id_all"):
-            qs = Task.objects(id=task_id, company=company_id)
-            if only_fields:
-                qs = (
-                    qs.only(only_fields)
-                    if isinstance(only_fields, string_types)
-                    else qs.only(*only_fields)
-                )
-                qs = qs.only(
-                    "status", "input"
-                )  # make sure all fields we rely on here are also returned
-            task = qs.first()
+            tasks = Task.get_many(
+                company=company_id,
+                query=Q(id=task_id),
+                allow_public=allow_public,
+                override_projection=only_fields,
+                return_dicts=False,
+            )
+            task = None if not tasks else tasks[0]
 
         if not task:
             raise errors.bad_request.InvalidTaskId(id=task_id)
@@ -108,17 +111,12 @@ class TaskBLL(object):
         if required_status and not task.status == required_status:
             raise errors.bad_request.InvalidTaskStatus(expected=required_status)
 
-        if required_dataset and required_dataset not in (
-            entry.dataset for entry in task.input.view.entries
-        ):
-            raise errors.bad_request.InvalidId(
-                "not in input view", dataset=required_dataset
-            )
-
         return task
 
     @staticmethod
-    def assert_exists(company_id, task_ids, only=None, allow_public=False):
+    def assert_exists(
+        company_id, task_ids, only=None, allow_public=False, return_tasks=True
+    ) -> Optional[Sequence[Task]]:
         task_ids = [task_ids] if isinstance(task_ids, six.string_types) else task_ids
         with translate_errors_context(), TimingContext("mongo", "task_exists"):
             ids = set(task_ids)
@@ -128,15 +126,18 @@ class TaskBLL(object):
                 allow_public=allow_public,
                 return_dicts=False,
             )
+            res = None
             if only:
                 res = q.only(*only)
-                count = len(res)
-            else:
-                count = q.count()
-                res = q.first()
+            elif return_tasks:
+                res = list(q)
+
+            count = len(res) if res is not None else q.count()
             if count != len(ids):
                 raise errors.bad_request.InvalidTaskId(ids=task_ids)
-            return res
+
+            if return_tasks:
+                return res
 
     @staticmethod
     def create(call: APICall, fields: dict):
@@ -181,7 +182,7 @@ class TaskBLL(object):
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
     ) -> Task:
-        task = cls.get_by_id(company_id=company_id, task_id=task_id)
+        task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
         execution_dict = task.execution.to_proper_dict() if task.execution else {}
         execution_model_overriden = False
         if execution_overrides:

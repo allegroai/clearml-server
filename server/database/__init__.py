@@ -79,6 +79,10 @@ def get_entries():
     return _entries
 
 
+def get_hosts():
+    return [entry.host for entry in get_entries()]
+
+
 def get_aliases():
     return [entry.alias for entry in get_entries()]
 
