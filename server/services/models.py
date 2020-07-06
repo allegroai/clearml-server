@@ -12,7 +12,9 @@ from apimodels.models import (
     PublishModelRequest,
     PublishModelResponse,
     ModelTaskPublishResponse,
+    GetFrameworksRequest,
 )
+from bll.model import ModelBLL
 from bll.organization import OrgBLL, Tags
 from bll.task import TaskBLL
 from config import config
@@ -32,6 +34,7 @@ from timing_context import TimingContext
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
+model_bll = ModelBLL()
 
 
 @endpoint("models.get_by_id", required_fields=["model"])
@@ -105,6 +108,15 @@ def get_all(call: APICall, company_id, _):
             )
         conform_output_tags(call, models)
         call.result.data = {"models": models}
+
+
+@endpoint("models.get_frameworks", request_data_model=GetFrameworksRequest)
+def get_frameworks(call: APICall, company_id, request: GetFrameworksRequest):
+    call.result.data = {
+        "frameworks": sorted(
+            model_bll.get_frameworks(company_id, project_ids=request.projects)
+        )
+    }
 
 
 create_fields = {

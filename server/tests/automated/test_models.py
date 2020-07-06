@@ -7,6 +7,9 @@ IN_PROGRESS = "in_progress"
 
 
 class TestModelsService(TestService):
+    def setUp(self, version="2.8"):
+        super().setUp(version=version)
+
     def test_publish_output_model_running_task(self):
         task_id, model_id = self._create_task_and_model()
         self._assert_model_ready(model_id, False)
@@ -164,6 +167,36 @@ class TestModelsService(TestService):
             1000
         )
 
+    def test_get_frameworks(self):
+        framework_1 = "Test framework 1"
+        framework_2 = "Test framework 2"
+
+        # create model on top level
+        self._create_model(name="framework model test", framework=framework_1)
+
+        # create model under a project as make it inherit its framework from the task
+        project = self.create_temp("projects", name="Frameworks test", description="")
+        task = self._create_task(project=project, execution=dict(framework=framework_2))
+        self.api.models.update_for_task(
+            task=task,
+            name="framework output model test",
+            uri="file:///b",
+            iteration=999,
+        )
+
+        # get all frameworks
+        res = self.api.models.get_frameworks()
+        self.assertTrue({framework_1, framework_2}.issubset(set(res.frameworks)))
+
+        # get frameworks under the project
+        res = self.api.models.get_frameworks(projects=[project])
+        self.assertEqual([framework_2], res.frameworks)
+
+        # empty result
+        self.api.tasks.delete(task=task, force=True)
+        res = self.api.models.get_frameworks(projects=[project])
+        self.assertEqual([], res.frameworks)
+
     def _assert_task_status(self, task_id, status):
         task = self.api.tasks.get_by_id(task=task_id).task
         assert task.status == status
@@ -178,24 +211,23 @@ class TestModelsService(TestService):
     def _assert_update_task_failure(self):
         return self.api.raises(TASK_CANNOT_BE_UPDATED_CODES)
 
-    def _create_model(self):
-        model_id = self.create_temp(
+    def _create_model(self, **kwargs):
+        return self.create_temp(
             service="models",
-            name='test',
-            uri='file:///a',
-            labels={}
+            delete_params=dict(can_fail=True, force=True),
+            name=kwargs.pop("name", 'test'),
+            uri=kwargs.pop("name", 'file:///a'),
+            labels=kwargs.pop("labels", {}),
+            **kwargs,
         )
 
-        self.defer(self.api.models.delete, can_fail=True, model=model_id, force=True)
-
-        return model_id
-
-    def _create_task(self):
+    def _create_task(self, **kwargs):
         task_id = self.create_temp(
             service="tasks",
-            type='testing',
-            name='server-test',
-            input=dict(view={}),
+            type=kwargs.pop("type", 'testing'),
+            name=kwargs.pop("name", 'server-test'),
+            input=kwargs.pop("input", dict(view={})),
+            **kwargs,
         )
 
         return task_id

@@ -19,6 +19,7 @@ class Model(DbModelMixin, Document):
             "parent",
             "project",
             "task",
+            ("company", "framework"),
             ("company", "name"),
             ("company", "user"),
             {

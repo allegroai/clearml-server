@@ -6,6 +6,10 @@ from apimodels.base import UpdateResponse
 from apimodels.tasks import PublishResponse as TaskPublishResponse
 
 
+class GetFrameworksRequest(models.Base):
+    projects = fields.ListField(items_types=[str])
+
+
 class CreateModelRequest(models.Base):
     name = fields.StringField(required=True)
     uri = fields.StringField(required=True)
