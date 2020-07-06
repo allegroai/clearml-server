@@ -85,6 +85,7 @@ class Artifact(EmbeddedDocument):
 
 
 class Execution(EmbeddedDocument, ProperDictMixin):
+    meta = {"strict": strict}
     test_split = IntField(default=0)
     parameters = SafeDictField(default=dict)
     model = StringField(reference_field="Model")

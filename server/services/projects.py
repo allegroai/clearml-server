@@ -185,6 +185,7 @@ def make_projects_get_all_pipelines(company_id, project_ids, specific_state=None
 def get_all_ex(call: APICall):
     include_stats = call.data.get("include_stats")
     stats_for_state = call.data.get("stats_for_state", EntityVisibility.active.value)
+    allow_public = not call.data.get("non_public", False)
 
     if stats_for_state:
         try:
@@ -200,7 +201,7 @@ def get_all_ex(call: APICall):
             company=call.identity.company,
             query_dict=call.data,
             query_options=get_all_query_options,
-            allow_public=True,
+            allow_public=allow_public,
         )
         conform_output_tags(call, projects)
 

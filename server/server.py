@@ -1,5 +1,6 @@
 import atexit
 from argparse import ArgumentParser
+from hashlib import md5
 
 from flask import Flask, request, Response
 from flask_compress import Compress
@@ -11,10 +12,11 @@ from apierrors.base import BaseError
 from bll.statistics.stats_reporter import StatisticsReporter
 from config import config
 from elastic.initialize import init_es_data
-from mongo.initialize import init_mongo_data
+from mongo.initialize import init_mongo_data, pre_populate_data
 from service_repo import ServiceRepo, APICall
 from service_repo.auth import AuthType
 from service_repo.errors import PathParsingError
+from sync import distributed_lock
 from timing_context import TimingContext
 from updates import check_updates_thread
 from utilities import json
@@ -33,8 +35,16 @@ app.config["JSONIFY_PRETTYPRINT_REGULAR"] = config.get("apiserver.pretty_json")
 
 database.initialize()
 
-init_es_data()
-init_mongo_data()
+# build a key that uniquely identifies specific mongo instance
+hosts_string = ";".join(sorted(database.get_hosts()))
+key = "db_init_" + md5(hosts_string.encode()).hexdigest()
+with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 30)):
+    print(key)
+    init_es_data()
+    empty_db = init_mongo_data()
+if empty_db and config.get("apiserver.pre_populate.enabled", False):
+    pre_populate_data()
+
 
 ServiceRepo.load("services")
 log.info(f"Exposed Services: {' '.join(ServiceRepo.endpoint_names())}")

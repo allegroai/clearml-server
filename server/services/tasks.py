@@ -56,7 +56,7 @@ from database.model.task.task import (
 )
 from database.utils import get_fields, parse_from_call
 from service_repo import APICall, endpoint
-from services.utils import conform_tag_fields, conform_output_tags
+from services.utils import conform_tag_fields, conform_output_tags, validate_tags
 from timing_context import TimingContext
 from utilities import safe_get
 
@@ -377,6 +377,7 @@ def create(call: APICall, company_id, req_model: CreateRequest):
     "tasks.clone", request_data_model=CloneRequest, response_data_model=IdResponse
 )
 def clone_task(call: APICall, company_id, request: CloneRequest):
+    validate_tags(request.new_task_tags, request.new_task_system_tags)
     task = task_bll.clone_task(
         company_id=company_id,
         user_id=call.identity.user,

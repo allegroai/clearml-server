@@ -32,7 +32,6 @@ from database.model.task.task import (
 )
 from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
-from services.utils import validate_tags
 from timing_context import TimingContext
 from utilities.dicts import deep_merge
 from .utils import ChangeStatusRequest, validate_status_change, ParameterKeyEscaper
@@ -182,7 +181,6 @@ class TaskBLL(object):
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
     ) -> Task:
-        validate_tags(tags, system_tags)
         task = cls.get_by_id(company_id=company_id, task_id=task_id)
         execution_dict = task.execution.to_proper_dict() if task.execution else {}
         execution_model_overriden = False

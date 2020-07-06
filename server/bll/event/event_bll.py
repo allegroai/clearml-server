@@ -552,7 +552,7 @@ class EventBLL(object):
                 )
 
         events = [doc["_source"] for doc in es_res.get("hits", {}).get("hits", [])]
-        next_scroll_id = es_res["_scroll_id"]
+        next_scroll_id = es_res.get("_scroll_id")
         total_events = es_res["hits"]["total"]
 
         return TaskEventsResult(

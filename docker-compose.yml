@@ -10,6 +10,7 @@ services:
     volumes:
     - /opt/trains/logs:/var/log/trains
     - /opt/trains/config:/opt/trains/config
+    - /opt/trains/data/fileserver:/mnt/fileserver
     depends_on:
       - redis
       - mongo
@@ -23,8 +24,9 @@ services:
       TRAINS_REDIS_SERVICE_HOST: redis
       TRAINS_REDIS_SERVICE_PORT: 6379
       TRAINS_SERVER_DEPLOYMENT_TYPE: ${TRAINS_SERVER_DEPLOYMENT_TYPE:-linux}
-      TRAINS__apiserver__mongo__pre_populate__enabled: "true"
-      TRAINS__apiserver__mongo__pre_populate__zip_file: "/opt/trains/db-pre-populate/export.zip"
+      TRAINS__apiserver__pre_populate__enabled: "true"
+      TRAINS__apiserver__pre_populate__zip_files: "/opt/trains/db-pre-populate"
+      TRAINS__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
     ports:
     - "8008:8008"
     networks:
