@@ -6,7 +6,7 @@ import operator
 import unittest
 from functools import partial
 from statistics import mean
-from typing import Sequence
+from typing import Sequence, Optional, Tuple
 
 from boltons.iterutils import first
 
@@ -16,7 +16,7 @@ from tests.automated import TestService
 
 
 class TestTaskEvents(TestService):
-    def setUp(self, version="2.7"):
+    def setUp(self, version="2.9"):
         super().setUp(version=version)
 
     def _temp_task(self, name="test task events"):
@@ -213,7 +213,6 @@ class TestTaskEvents(TestService):
         self.assertEqual(len(res.events), 1)
 
     def test_task_logs(self):
-        # this test will fail until the new api is uncommented
         task = self._temp_task()
         timestamp = es_factory.get_timestamp_millis()
         events = [
@@ -229,32 +228,28 @@ class TestTaskEvents(TestService):
         self.send_batch(events)
 
         # test forward navigation
-        scroll_id = None
-        for page in range(3):
-            scroll_id = self._assert_log_events(
-                task=task, scroll_id=scroll_id, expected_page=page
+        ftime, ltime = None, None
+        for page in range(2):
+            ftime, ltime = self._assert_log_events(
+                task=task, timestamp=ltime, expected_page=page
             )
 
         # test backwards navigation
-        scroll_id = self._assert_log_events(
-            task=task, scroll_id=scroll_id, navigate_earlier=False
+        self._assert_log_events(
+            task=task, timestamp=ftime, navigate_earlier=False
         )
-
-        # refresh
-        self._assert_log_events(task=task, scroll_id=scroll_id)
-        self._assert_log_events(task=task, scroll_id=scroll_id, refresh=True)
 
     def _assert_log_events(
         self,
         task,
-        scroll_id,
         batch_size: int = 5,
+        timestamp: Optional[int] = None,
         expected_total: int = 10,
         expected_page: int = 0,
         **extra_params,
-    ):
+    ) -> Tuple[int, int]:
         res = self.api.events.get_task_log(
-            task=task, batch_size=batch_size, scroll_id=scroll_id, **extra_params,
+            task=task, batch_size=batch_size, from_timestamp=timestamp, **extra_params,
         )
         self.assertEqual(res.total, expected_total)
         expected_events = max(
@@ -274,7 +269,8 @@ class TestTaskEvents(TestService):
                     for first, second in zip(res.events, res.events[1:])
                 )
             )
-        return res.scroll_id
+
+        return (res.events[0].timestamp, res.events[-1].timestamp) if res.events else (None, None)
 
     def test_task_metric_value_intervals_keys(self):
         metric = "Metric1"

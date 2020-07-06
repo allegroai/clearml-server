@@ -1,7 +1,6 @@
 from typing import Sequence
 from uuid import uuid4
 
-from apierrors import errors
 from config import config
 from tests.automated import TestService
 

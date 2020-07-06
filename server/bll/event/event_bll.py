@@ -40,7 +40,7 @@ class EventBLL(object):
         )
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
-        self.log_events_iterator = LogEventsIterator(es=self.es, redis=self.redis)
+        self.log_events_iterator = LogEventsIterator(es=self.es)
 
     @property
     def metrics(self) -> EventMetrics:

@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 from jsonmodels import validators
 from jsonmodels.fields import StringField, BoolField
@@ -44,8 +44,7 @@ class LogEventsRequest(Base):
     task: str = StringField(required=True)
     batch_size: int = IntField(default=500)
     navigate_earlier: bool = BoolField(default=True)
-    refresh: bool = BoolField(default=False)
-    scroll_id: str = StringField()
+    from_timestamp: Optional[int] = IntField()
 
 
 class IterationEvents(Base):
