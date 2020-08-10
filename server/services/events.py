@@ -12,6 +12,7 @@ from apimodels.events import (
     IterationEvents,
     TaskMetricsRequest,
     LogEventsRequest,
+    LogOrderEnum,
 )
 from bll.event import EventBLL
 from bll.event.event_metrics import EventMetrics
@@ -24,7 +25,7 @@ event_bll = EventBLL()
 
 
 @endpoint("events.add")
-def add(call: APICall, company_id, req_model):
+def add(call: APICall, company_id, _):
     data = call.data.copy()
     allow_locked = data.pop("allow_locked", False)
     added, err_count, err_info = event_bll.add_events(
@@ -35,7 +36,7 @@ def add(call: APICall, company_id, req_model):
 
 
 @endpoint("events.add_batch")
-def add_batch(call: APICall, company_id, req_model):
+def add_batch(call: APICall, company_id, _):
     events = call.batched_data
     if events is None or len(events) == 0:
         raise errors.bad_request.BatchContainsNoItems()
@@ -46,7 +47,7 @@ def add_batch(call: APICall, company_id, req_model):
 
 
 @endpoint("events.get_task_log", required_fields=["task"])
-def get_task_log_v1_5(call, company_id, req_model):
+def get_task_log_v1_5(call, company_id, _):
     task_id = call.data["task"]
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company",)
@@ -68,7 +69,7 @@ def get_task_log_v1_5(call, company_id, req_model):
 
 
 @endpoint("events.get_task_log", min_version="1.7", required_fields=["task"])
-def get_task_log_v1_7(call, company_id, req_model):
+def get_task_log_v1_7(call, company_id, _):
     task_id = call.data["task"]
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company",)
@@ -99,8 +100,8 @@ def get_task_log_v1_7(call, company_id, req_model):
 
 
 @endpoint("events.get_task_log", min_version="2.9", request_data_model=LogEventsRequest)
-def get_task_log(call, company_id, req_model: LogEventsRequest):
-    task_id = req_model.task
+def get_task_log(call, company_id, request: LogEventsRequest):
+    task_id = request.task
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company",)
     )[0]
@@ -108,10 +109,18 @@ def get_task_log(call, company_id, req_model: LogEventsRequest):
     res = event_bll.log_events_iterator.get_task_events(
         company_id=task.company,
         task_id=task_id,
-        batch_size=req_model.batch_size,
-        navigate_earlier=req_model.navigate_earlier,
-        from_timestamp=req_model.from_timestamp,
+        batch_size=request.batch_size,
+        navigate_earlier=request.navigate_earlier,
+        from_timestamp=request.from_timestamp,
     )
+
+    if (
+        request.order and (
+            (request.navigate_earlier and request.order == LogOrderEnum.asc)
+            or (not request.navigate_earlier and request.order == LogOrderEnum.desc)
+        )
+    ):
+        res.events.reverse()
 
     call.result.data = dict(
         events=res.events, returned=len(res.events), total=res.total_events

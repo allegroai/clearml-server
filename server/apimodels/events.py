@@ -1,3 +1,4 @@
+from enum import auto
 from typing import Sequence, Optional
 
 from jsonmodels import validators
@@ -8,6 +9,7 @@ from jsonmodels.validators import Length, Min, Max
 from apimodels import ListField, IntField, ActualEnumField
 from bll.event.event_metrics import EventType
 from bll.event.scalar_key import ScalarKeyEnum
+from utilities.stringenum import StringEnum
 
 
 class HistogramRequestBase(Base):
@@ -40,11 +42,17 @@ class DebugImagesRequest(Base):
     scroll_id: str = StringField()
 
 
+class LogOrderEnum(StringEnum):
+    asc = auto()
+    desc = auto()
+
+
 class LogEventsRequest(Base):
     task: str = StringField(required=True)
     batch_size: int = IntField(default=500)
     navigate_earlier: bool = BoolField(default=True)
     from_timestamp: Optional[int] = IntField()
+    order: Optional[str] = ActualEnumField(LogOrderEnum)
 
 
 class IterationEvents(Base):

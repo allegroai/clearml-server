@@ -235,9 +235,10 @@ class TestTaskEvents(TestService):
             )
 
         # test backwards navigation
-        self._assert_log_events(
-            task=task, timestamp=ftime, navigate_earlier=False
-        )
+        self._assert_log_events(task=task, timestamp=ftime, navigate_earlier=False)
+
+        # test order
+        self._assert_log_events(task=task, order="asc")
 
     def _assert_log_events(
         self,
@@ -261,7 +262,10 @@ class TestTaskEvents(TestService):
         self.assertEqual(len(res.events), unique_events)
         if res.events:
             cmp_operator = operator.ge
-            if not extra_params.get("navigate_earlier", True):
+            if (
+                not extra_params.get("navigate_earlier", True)
+                or extra_params.get("order", None) == "asc"
+            ):
                 cmp_operator = operator.le
             self.assertTrue(
                 all(
@@ -270,7 +274,11 @@ class TestTaskEvents(TestService):
                 )
             )
 
-        return (res.events[0].timestamp, res.events[-1].timestamp) if res.events else (None, None)
+        return (
+            (res.events[0].timestamp, res.events[-1].timestamp)
+            if res.events
+            else (None, None)
+        )
 
     def test_task_metric_value_intervals_keys(self):
         metric = "Metric1"
