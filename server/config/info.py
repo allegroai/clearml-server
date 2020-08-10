@@ -44,3 +44,4 @@ def get_default_company():
 
 
 missed_es_upgrade = False
+es_connection_error = False

@@ -5,7 +5,7 @@ from config import config
 from config.info import get_default_company
 from database.model.auth import Role
 from service_repo.auth.fixed_user import FixedUser
-from .migration import _apply_migrations
+from .migration import _apply_migrations, check_mongo_empty, get_last_server_version
 from .pre_populate import PrePopulate
 from .user import ensure_fixed_user, _ensure_auth_user, _ensure_backend_user
 from .util import _ensure_company, _ensure_default_queue, _ensure_uuid
@@ -26,10 +26,7 @@ def _pre_populate(company_id: str, zip_file: str):
 
         PrePopulate.import_from_zip(
             zip_file,
-            company_id="",
-            artifacts_path=config.get(
-                "apiserver.pre_populate.artifacts_path", None
-            ),
+            artifacts_path=config.get("apiserver.pre_populate.artifacts_path", None),
         )
 
 
@@ -48,10 +45,12 @@ def pre_populate_data():
     for zip_file in _resolve_zip_files(config.get("apiserver.pre_populate.zip_files")):
         _pre_populate(company_id=get_default_company(), zip_file=zip_file)
 
+    PrePopulate.update_featured_projects_order()
 
-def init_mongo_data() -> bool:
+
+def init_mongo_data():
     try:
-        empty_dbs = _apply_migrations(log)
+        _apply_migrations(log)
 
         _ensure_uuid()
 
@@ -86,7 +85,5 @@ def init_mongo_data() -> bool:
                     ensure_fixed_user(user, log=log)
                 except Exception as ex:
                     log.error(f"Failed creating fixed user {user.name}: {ex}")
-
-        return empty_dbs
     except Exception as ex:
         log.exception("Failed initializing mongodb")

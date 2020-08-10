@@ -176,12 +176,19 @@ def update(call, company_id, _):
 
 @endpoint("auth.fixed_users_mode")
 def fixed_users_mode(call: APICall, *_, **__):
+    server_errors = {
+        name: error
+        for name, error in zip(
+            ("missed_es_upgrade", "es_connection_error"),
+            (info.missed_es_upgrade, info.es_connection_error),
+        )
+        if error
+    }
+
     data = {
         "enabled": FixedUser.enabled(),
-        "migration_warning": info.missed_es_upgrade,
-        "guest": {
-            "enabled": FixedUser.guest_enabled(),
-        }
+        "guest": {"enabled": FixedUser.guest_enabled()},
+        "server_errors": server_errors,
     }
     guest_user = FixedUser.get_guest_user()
     if guest_user:

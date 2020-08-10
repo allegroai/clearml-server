@@ -25,18 +25,26 @@ from typing import (
 from urllib.parse import unquote, urlparse
 from zipfile import ZipFile, ZIP_BZIP2
 
+import dpath
 import mongoengine
 from boltons.iterutils import chunked_iter
 from furl import furl
 from mongoengine import Q
 
 from bll.event import EventBLL
+from bll.task.param_utils import (
+    split_param_name,
+    hyperparams_default_section,
+    hyperparams_legacy_type,
+)
 from config import config
+from config.info import get_default_company
 from database.model import EntityVisibility
 from database.model.model import Model
 from database.model.project import Project
 from database.model.task.task import Task, ArtifactModes, TaskStatus
 from database.utils import get_options
+from tools import safe_get
 from utilities import json
 from .user import _ensure_backend_user
 
@@ -47,6 +55,8 @@ class PrePopulate:
     export_tag_prefix = "Exported:"
     export_tag = f"{export_tag_prefix} %Y-%m-%d %H:%M:%S"
     metadata_filename = "metadata.json"
+    zip_args = dict(mode="w", compression=ZIP_BZIP2)
+    artifacts_ext = ".artifacts"
 
     class JsonLinesWriter:
         def __init__(self, file: BinaryIO):
@@ -192,8 +202,7 @@ class PrePopulate:
             if old_path.is_file():
                 old_path.unlink()
 
-        zip_args = dict(mode="w", compression=ZIP_BZIP2)
-        with ZipFile(file, **zip_args) as zfile:
+        with ZipFile(file, **cls.zip_args) as zfile:
             if metadata:
                 zfile.writestr(cls.metadata_filename, meta_str)
             artifacts = cls._export(
@@ -209,8 +218,8 @@ class PrePopulate:
 
         artifacts = cls._filter_artifacts(artifacts)
         if artifacts and artifacts_path and os.path.isdir(artifacts_path):
-            artifacts_file = file_with_hash.with_suffix(".artifacts")
-            with ZipFile(artifacts_file, **zip_args) as zfile:
+            artifacts_file = file_with_hash.with_suffix(cls.artifacts_ext)
+            with ZipFile(artifacts_file, **cls.zip_args) as zfile:
                 cls._export_artifacts(zfile, artifacts, artifacts_path)
             created_files.append(str(artifacts_file))
 
@@ -227,8 +236,8 @@ class PrePopulate:
     def import_from_zip(
         cls,
         filename: str,
-        company_id: str,
         artifacts_path: str,
+        company_id: Optional[str] = None,
         user_id: str = "",
         user_name: str = "",
     ):
@@ -238,6 +247,11 @@ class PrePopulate:
             try:
                 with zfile.open(cls.metadata_filename) as f:
                     metadata = json.loads(f.read())
+
+                    meta_public = metadata.get("public")
+                    if company_id is None and meta_public is not None:
+                        company_id = "" if meta_public else get_default_company()
+
                     if not user_id:
                         meta_user_id = metadata.get("user_id", "")
                         meta_user_name = metadata.get("user_name", "")
@@ -248,16 +262,100 @@ class PrePopulate:
             if not user_id:
                 user_id, user_name = "__allegroai__", "Allegro.ai"
 
-            user_id = _ensure_backend_user(user_id, company_id, user_name)
+            # Make sure we won't end up with an invalid company ID
+            if company_id is None:
+                company_id = ""
+
+            # Always use a public user for pre-populated data
+            user_id = _ensure_backend_user(
+                user_id=user_id, user_name=user_name, company_id="",
+            )
 
             cls._import(zfile, company_id, user_id, metadata)
 
         if artifacts_path and os.path.isdir(artifacts_path):
-            artifacts_file = Path(filename).with_suffix(".artifacts")
+            artifacts_file = Path(filename).with_suffix(cls.artifacts_ext)
             if artifacts_file.is_file():
                 print(f"Unzipping artifacts into {artifacts_path}")
                 with ZipFile(artifacts_file) as zfile:
                     zfile.extractall(artifacts_path)
+
+    @classmethod
+    def upgrade_zip(cls, filename) -> Sequence:
+        hash_ = hashlib.md5()
+        task_file = cls._get_base_filename(Task) + ".json"
+        temp_file = Path("temp.zip")
+        file = Path(filename)
+        with ZipFile(file) as reader, ZipFile(temp_file, **cls.zip_args) as writer:
+            for file_info in reader.filelist:
+                if file_info.orig_filename == task_file:
+                    with reader.open(file_info) as f:
+                        content = cls._upgrade_tasks(f)
+                else:
+                    content = reader.read(file_info)
+                writer.writestr(file_info, content)
+                hash_.update(content)
+
+        base_file_name, _, old_hash = file.stem.rpartition("_")
+        new_hash = hash_.hexdigest()
+        if old_hash == new_hash:
+            print(f"The file {filename} was not updated")
+            temp_file.unlink()
+            return []
+
+        new_file = file.with_name(f"{base_file_name}_{new_hash}{file.suffix}")
+        temp_file.replace(new_file)
+        upadated = [str(new_file)]
+
+        artifacts_file = file.with_suffix(cls.artifacts_ext)
+        if artifacts_file.is_file():
+            new_artifacts = new_file.with_suffix(cls.artifacts_ext)
+            artifacts_file.replace(new_artifacts)
+            upadated.append(str(new_artifacts))
+
+        print(f"File {str(file)} replaced with {str(new_file)}")
+        file.unlink()
+
+        return upadated
+
+    @staticmethod
+    def _upgrade_task_data(task_data: dict):
+        for old_param_field, new_param_field, default_section in (
+            ("execution/parameters", "hyperparams", hyperparams_default_section),
+            ("execution/model_desc", "configuration", None),
+        ):
+            legacy = safe_get(task_data, old_param_field)
+            if not legacy:
+                continue
+            for full_name, value in legacy.items():
+                section, name = split_param_name(full_name, default_section)
+                new_path = list(filter(None, (new_param_field, section, name)))
+                if not safe_get(task_data, new_path):
+                    new_param = dict(
+                        name=name, type=hyperparams_legacy_type, value=str(value)
+                    )
+                    if section is not None:
+                        new_param["section"] = section
+                    dpath.new(task_data, new_path, new_param)
+            dpath.delete(task_data, old_param_field)
+
+    @classmethod
+    def _upgrade_tasks(cls, f: BinaryIO) -> bytes:
+        """
+        Build content array that contains fixed tasks from the passed file
+        For each task the old execution.parameters and model.design are
+        converted to the new structure.
+        The fix is done on Task objects (not the dictionary) so that
+        the fields are serialized back in the same order as they were in the original file
+        """
+        with BytesIO() as temp:
+            with cls.JsonLinesWriter(temp) as w:
+                for line in cls.json_lines(f):
+                    task_data = Task.from_json(line).to_proper_dict()
+                    cls._upgrade_task_data(task_data)
+                    new_task = Task(**task_data)
+                    w.write(new_task.to_json())
+            return temp.getvalue()
 
     @classmethod
     def update_featured_projects_order(cls):
@@ -474,6 +572,10 @@ class PrePopulate:
             else:
                 print(f"Artifact {full_path} not found")
 
+    @staticmethod
+    def _get_base_filename(cls_: type):
+        return f"{cls_.__module__}.{cls_.__name__}"
+
     @classmethod
     def _export(
         cls, writer: ZipFile, entities: dict, hash_, tag_entities: bool = False
@@ -488,7 +590,7 @@ class PrePopulate:
             items = sorted(entities[cls_], key=attrgetter("id"))
             if not items:
                 continue
-            base_filename = f"{cls_.__module__}.{cls_.__name__}"
+            base_filename = cls._get_base_filename(cls_)
             for item in items:
                 artifacts.extend(
                     cls._export_entity_related_data(

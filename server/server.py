@@ -5,14 +5,20 @@ from hashlib import md5
 from flask import Flask, request, Response
 from flask_compress import Compress
 from flask_cors import CORS
+from semantic_version import Version
 from werkzeug.exceptions import BadRequest
 
 import database
 from apierrors.base import BaseError
 from bll.statistics.stats_reporter import StatisticsReporter
 from config import config, info
-from elastic.initialize import init_es_data
-from mongo.initialize import init_mongo_data, pre_populate_data
+from elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
+from mongo.initialize import (
+    init_mongo_data,
+    pre_populate_data,
+    check_mongo_empty,
+    get_last_server_version,
+)
 from service_repo import ServiceRepo, APICall
 from service_repo.auth import AuthType
 from service_repo.errors import PathParsingError
@@ -38,13 +44,37 @@ database.initialize()
 # build a key that uniquely identifies specific mongo instance
 hosts_string = ";".join(sorted(database.get_hosts()))
 key = "db_init_" + md5(hosts_string.encode()).hexdigest()
-with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 30)):
-    empty_es = init_es_data()
-    empty_db = init_mongo_data()
-if empty_es and not empty_db:
-    log.info(f"ES database seems not migrated")
-    info.missed_es_upgrade = True
-if empty_db and config.get("apiserver.pre_populate.enabled", False):
+with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 120)):
+    upgrade_monitoring = config.get(
+        "apiserver.elastic.upgrade_monitoring.v16_migration_verification", True
+    )
+    try:
+        empty_es = check_elastic_empty()
+    except ElasticConnectionError as err:
+        if not upgrade_monitoring:
+            raise
+        log.error(err)
+        info.es_connection_error = True
+
+    empty_db = check_mongo_empty()
+    if upgrade_monitoring:
+        if not empty_db and (info.es_connection_error or empty_es):
+            if get_last_server_version() < Version("0.16.0"):
+                log.info(f"ES database seems not migrated")
+                info.missed_es_upgrade = True
+        proceed_with_init = not (info.es_connection_error or info.missed_es_upgrade)
+    else:
+        proceed_with_init = True
+
+    if proceed_with_init:
+        init_es_data()
+        init_mongo_data()
+
+if (
+    proceed_with_init
+    and empty_db
+    and config.get("apiserver.pre_populate.enabled", False)
+):
     pre_populate_data()
 
 

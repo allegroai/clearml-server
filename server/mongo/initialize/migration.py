@@ -13,7 +13,26 @@ from database.model.version import Version as DatabaseVersion
 migration_dir = Path(__file__).resolve().parent.with_name("migrations")
 
 
-def _apply_migrations(log: Logger) -> bool:
+def check_mongo_empty() -> bool:
+    return not all(
+        get_db(alias).collection_names()
+        for alias in database.utils.get_options(Database)
+    )
+
+
+def get_last_server_version() -> Version:
+    try:
+        previous_versions = sorted(
+            (Version(ver.num) for ver in DatabaseVersion.objects().only("num")),
+            reverse=True,
+        )
+    except ValueError as ex:
+        raise ValueError(f"Invalid database version number encountered: {ex}")
+
+    return previous_versions[0] if previous_versions else Version("0.0.0")
+
+
+def _apply_migrations(log: Logger):
     """
     Apply migrations as found in the migration dir.
     Returns a boolean indicating whether the database was empty prior to migration.
@@ -25,20 +44,8 @@ def _apply_migrations(log: Logger) -> bool:
     if not migration_dir.is_dir():
         raise ValueError(f"Invalid migration dir {migration_dir}")
 
-    empty_dbs = not any(
-        get_db(alias).collection_names()
-        for alias in database.utils.get_options(Database)
-    )
-
-    try:
-        previous_versions = sorted(
-            (Version(ver.num) for ver in DatabaseVersion.objects().only("num")),
-            reverse=True,
-        )
-    except ValueError as ex:
-        raise ValueError(f"Invalid database version number encountered: {ex}")
-
-    last_version = previous_versions[0] if previous_versions else Version("0.0.0")
+    empty_dbs = check_mongo_empty()
+    last_version = get_last_server_version()
 
     try:
         new_scripts = {
@@ -82,5 +89,3 @@ def _apply_migrations(log: Logger) -> bool:
         ).save()
 
     log.info("Finished mongodb migrations")
-
-    return empty_dbs

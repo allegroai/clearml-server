@@ -1,8 +1,10 @@
-from furl import furl
+from time import sleep
 
+from elasticsearch import Elasticsearch, exceptions
+
+import es_factory
 from config import config
-from elastic.apply_mappings import apply_mappings_to_host, get_template
-from es_factory import get_cluster_config
+from elastic.apply_mappings import apply_mappings_to_cluster
 
 log = config.logger(__file__)
 
@@ -15,22 +17,48 @@ class MissingElasticConfiguration(Exception):
     pass
 
 
-def _url_from_host_conf(conf: dict) -> str:
-    return furl(scheme="http", host=conf["host"], port=conf["port"]).url
+class ElasticConnectionError(Exception):
+    """
+    Exception when could not connect to elastic during init
+    """
+
+    pass
 
 
-def init_es_data() -> bool:
-    """Return True if the db was empty"""
-    hosts_config = get_cluster_config("events").get("hosts")
-    if not hosts_config:
-        raise MissingElasticConfiguration("for cluster 'events'")
+def check_elastic_empty() -> bool:
+    """
+    Check for elasticsearch connection
+    Use probing settings and not the default es cluster ones
+    so that we can handle correctly the connection rejects due to ES not fully started yet
+    :return:
+    """
+    cluster_conf = es_factory.get_cluster_config("events")
+    max_retries = config.get("apiserver.elastic.probing.max_retries", 4)
+    timeout = config.get("apiserver.elastic.probing.timeout", 30)
+    for retry in range(max_retries):
+        try:
+            es = Elasticsearch(hosts=cluster_conf.get("hosts"))
+            return not es.indices.get_template(name="events*")
+        except exceptions.NotFoundError as ex:
+            log.error(ex)
+            return True
+        except exceptions.ConnectionError:
+            if retry >= max_retries - 1:
+                raise ElasticConnectionError()
+            log.warn(
+                f"Could not connect to es server. Retry {retry+1} of {max_retries}. Waiting for {timeout}sec"
+            )
+            sleep(timeout)
 
-    empty_db = not get_template(_url_from_host_conf(hosts_config[0]), "events*")
 
-    for conf in hosts_config:
-        host = _url_from_host_conf(conf)
-        log.info(f"Applying mappings to host: {host}")
-        res = apply_mappings_to_host(host)
+def init_es_data():
+    for name in es_factory.get_all_cluster_names():
+        cluster_conf = es_factory.get_cluster_config(name)
+        hosts_config = cluster_conf.get("hosts")
+        if not hosts_config:
+            raise MissingElasticConfiguration(f"for cluster '{name}'")
+
+        log.info(f"Applying mappings to ES host: {hosts_config}")
+        args = cluster_conf.get("args", {})
+        res = apply_mappings_to_cluster(hosts_config, name, es_args=args)
         log.info(res)
-
-    return empty_db

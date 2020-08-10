@@ -65,6 +65,10 @@ def connect(cluster_name):
     return _instances[cluster_name]
 
 
+def get_all_cluster_names():
+    return list(config.get("hosts.elastic"))
+
+
 def get_cluster_config(cluster_name):
     """
     Returns cluster config for the specified cluster path
