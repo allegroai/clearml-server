@@ -18,7 +18,6 @@ log = config.logger(__file__)
 
 class QueueMetrics:
     class EsKeys:
-        DOC_TYPE = "metrics"
         WAITING_TIME_FIELD = "average_waiting_time"
         QUEUE_LENGTH_FIELD = "queue_length"
         TIMESTAMP_FIELD = "timestamp"
@@ -66,7 +65,6 @@ class QueueMetrics:
             entries = [e for e in queue.entries if e.added]
             return dict(
                 _index=es_index,
-                _type=self.EsKeys.DOC_TYPE,
                 _source={
                     self.EsKeys.TIMESTAMP_FIELD: timestamp,
                     self.EsKeys.QUEUE_FIELD: queue.id,
@@ -93,7 +91,6 @@ class QueueMetrics:
     def _search_company_metrics(self, company_id: str, es_req: dict) -> dict:
         return self.es.search(
             index=f"{self._queue_metrics_prefix_for_company(company_id)}*",
-            doc_type=self.EsKeys.DOC_TYPE,
             body=es_req,
         )
 
@@ -109,7 +106,7 @@ class QueueMetrics:
             "dates": {
                 "date_histogram": {
                     "field": cls.EsKeys.TIMESTAMP_FIELD,
-                    "interval": f"{interval}s",
+                    "fixed_interval": f"{interval}s",
                     "min_doc_count": 1,
                 },
                 "aggs": {

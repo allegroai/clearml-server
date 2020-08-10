@@ -8,7 +8,8 @@ from mongoengine import Q
 
 import database
 from apierrors import errors
-from apimodels.base import UpdateResponse
+from apierrors.errors.bad_request import InvalidProjectId
+from apimodels.base import UpdateResponse, MakePublicRequest
 from apimodels.projects import (
     GetHyperParamReq,
     GetHyperParamResp,
@@ -422,3 +423,23 @@ def get_tags(call: APICall, company, request: ProjectTagsRequest):
         projects=request.projects,
     )
     call.result.data = get_tags_response(ret)
+
+
+@endpoint(
+    "projects.make_public", min_version="2.9", request_data_model=MakePublicRequest
+)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Project.set_public(
+            company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=True
+        )
+
+
+@endpoint(
+    "projects.make_private", min_version="2.9", request_data_model=MakePublicRequest
+)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Project.set_public(
+            company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=False
+        )

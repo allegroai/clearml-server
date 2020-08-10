@@ -1,26 +1,39 @@
 {
-  "template": "events-*",
+  "index_patterns": "events-*",
   "settings": {
     "number_of_shards": 1
   },
   "mappings": {
-    "_default_": {
-      "_source": {
-        "enabled": true
+    "_source": {
+      "enabled": true
+    },
+    "properties": {
+      "@timestamp": {
+        "type": "date"
       },
-      "_routing": {
-        "required": true
+      "task": {
+        "type": "keyword"
       },
-      "properties": {
-        "@timestamp": { "type": "date" },
-        "task":       { "type": "keyword" },
-        "type":       { "type": "keyword" },
-        "worker":     { "type": "keyword" },
-        "timestamp":  { "type": "date" },
-        "iter":       { "type": "long" },
-        "metric":     { "type": "keyword" },
-        "variant":    { "type": "keyword" },
-        "value":      { "type": "float" }
+      "type": {
+        "type": "keyword"
+      },
+      "worker": {
+        "type": "keyword"
+      },
+      "timestamp": {
+        "type": "date"
+      },
+      "iter": {
+        "type": "long"
+      },
+      "metric": {
+        "type": "keyword"
+      },
+      "variant": {
+        "type": "keyword"
+      },
+      "value": {
+        "type": "float"
       }
     }
   }

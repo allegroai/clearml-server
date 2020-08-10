@@ -69,6 +69,10 @@ def authorize_credentials(auth_data, service, action, call_data_items):
         if fixed_user:
             if secret_key != fixed_user.password:
                 raise errors.unauthorized.InvalidCredentials('bad username or password')
+
+            if fixed_user.is_guest and not FixedUser.is_guest_endpoint(service, action):
+                raise errors.unauthorized.InvalidCredentials('endpoint not allowed for guest')
+
             query = Q(id=fixed_user.user_id)
 
     with TimingContext("mongo", "user_by_cred"), translate_errors_context('authorizing request'):

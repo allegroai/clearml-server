@@ -32,6 +32,8 @@ class Role(object):
     """ Company user """
     annotator = "annotator"
     """ Annotator with limited access"""
+    guest = "guest"
+    """ Guest user. Read Only."""
 
     @classmethod
     def get_system_roles(cls) -> set:

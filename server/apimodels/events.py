@@ -3,7 +3,7 @@ from typing import Sequence, Optional
 from jsonmodels import validators
 from jsonmodels.fields import StringField, BoolField
 from jsonmodels.models import Base
-from jsonmodels.validators import Length
+from jsonmodels.validators import Length, Min, Max
 
 from apimodels import ListField, IntField, ActualEnumField
 from bll.event.event_metrics import EventType
@@ -11,7 +11,7 @@ from bll.event.scalar_key import ScalarKeyEnum
 
 
 class HistogramRequestBase(Base):
-    samples: int = IntField(default=10000)
+    samples: int = IntField(default=6000, validators=[Min(1), Max(6000)])
     key: ScalarKeyEnum = ActualEnumField(ScalarKeyEnum, default=ScalarKeyEnum.iter)
 
 
@@ -21,7 +21,7 @@ class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
 
 class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
     tasks: Sequence[str] = ListField(
-        items_types=str, validators=[Length(minimum_value=1)]
+        items_types=str, validators=[Length(minimum_value=1, maximum_value=10)]
     )
 
 

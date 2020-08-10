@@ -41,3 +41,6 @@ def get_deployment_type() -> str:
 
 def get_default_company():
     return config.get("apiserver.default_company")
+
+
+missed_es_upgrade = False

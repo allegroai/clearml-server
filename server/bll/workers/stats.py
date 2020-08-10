@@ -25,7 +25,6 @@ class WorkerStats:
     def _search_company_stats(self, company_id: str, es_req: dict) -> dict:
         return self.es.search(
             index=f"{self.worker_stats_prefix_for_company(company_id)}*",
-            doc_type="stat",
             body=es_req,
         )
 
@@ -53,7 +52,7 @@ class WorkerStats:
 
         res = self._search_company_stats(company_id, es_req)
 
-        if not res["hits"]["total"]:
+        if not res["hits"]["total"]["value"]:
             raise bad_request.WorkerStatsNotFound(
                 f"No statistic metrics found for the company {company_id} and workers {worker_ids}"
             )
@@ -87,7 +86,7 @@ class WorkerStats:
                 "dates": {
                     "date_histogram": {
                         "field": "timestamp",
-                        "interval": f"{request.interval}s",
+                        "fixed_interval": f"{request.interval}s",
                         "min_doc_count": 1,
                     },
                     "aggs": {
@@ -216,7 +215,7 @@ class WorkerStats:
                 "dates": {
                     "date_histogram": {
                         "field": "timestamp",
-                        "interval": f"{interval}s",
+                        "fixed_interval": f"{interval}s",
                     },
                     "aggs": {"workers_count": {"cardinality": {"field": "worker"}}},
                 }

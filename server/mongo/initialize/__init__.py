@@ -24,14 +24,9 @@ def _pre_populate(company_id: str, zip_file: str):
     else:
         log.info(f"Pre-populating using {zip_file}")
 
-        user_id = _ensure_backend_user(
-            "__allegroai__", company_id, "Allegro.ai"
-        )
-
         PrePopulate.import_from_zip(
             zip_file,
             company_id="",
-            user_id=user_id,
             artifacts_path=config.get(
                 "apiserver.pre_populate.artifacts_path", None
             ),
@@ -60,7 +55,7 @@ def init_mongo_data() -> bool:
 
         _ensure_uuid()
 
-        company_id = _ensure_company(log)
+        company_id = _ensure_company(get_default_company(), "trains", log)
 
         _ensure_default_queue(company_id)
 
@@ -82,9 +77,13 @@ def init_mongo_data() -> bool:
         if fixed_mode:
             log.info("Fixed users mode is enabled")
             FixedUser.validate()
+
+            if FixedUser.guest_enabled():
+                _ensure_company(FixedUser.get_guest_user().company, "guests", log)
+
             for user in FixedUser.from_config():
                 try:
-                    ensure_fixed_user(user, company_id, log=log)
+                    ensure_fixed_user(user, log=log)
                 except Exception as ex:
                     log.error(f"Failed creating fixed user {user.name}: {ex}")
 

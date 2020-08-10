@@ -58,15 +58,15 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
     return user_id
 
 
-def ensure_fixed_user(user: FixedUser, company_id: str, log: Logger):
-    if User.objects(id=user.user_id).first():
+def ensure_fixed_user(user: FixedUser, log: Logger):
+    if User.objects(company=user.company, id=user.user_id).first():
         return
 
     data = attr.asdict(user)
     data["id"] = user.user_id
     data["email"] = f"{user.user_id}@example.com"
-    data["role"] = Role.user
+    data["role"] = Role.guest if user.is_guest else Role.user
 
-    _ensure_auth_user(user_data=data, company_id=company_id, log=log)
+    _ensure_auth_user(user_data=data, company_id=user.company, log=log)
 
-    return _ensure_backend_user(user.user_id, company_id, user.name)
+    return _ensure_backend_user(user.user_id, user.company, user.name)

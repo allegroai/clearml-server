@@ -1,7 +1,8 @@
 from jsonmodels import models, fields
+from jsonmodels.validators import Length
 from mongoengine.base import BaseDocument
 
-from apimodels import DictField
+from apimodels import DictField, ListField
 
 
 class MongoengineFieldsDict(DictField):
@@ -12,14 +13,14 @@ class MongoengineFieldsDict(DictField):
     """
 
     mongoengine_update_operators = (
-        'inc',
-        'dec',
-        'push',
-        'push_all',
-        'pop',
-        'pull',
-        'pull_all',
-        'add_to_set',
+        "inc",
+        "dec",
+        "push",
+        "push_all",
+        "pop",
+        "pull",
+        "pull_all",
+        "add_to_set",
     )
 
     @staticmethod
@@ -30,16 +31,16 @@ class MongoengineFieldsDict(DictField):
 
     @classmethod
     def _normalize_mongo_field_path(cls, path, value):
-        parts = path.split('__')
+        parts = path.split("__")
         if len(parts) > 1:
-            if parts[0] == 'set':
+            if parts[0] == "set":
                 parts = parts[1:]
-            elif parts[0] == 'unset':
+            elif parts[0] == "unset":
                 parts = parts[1:]
                 value = None
             elif parts[0] in cls.mongoengine_update_operators:
                 return None, None
-        return '.'.join(parts), cls._normalize_mongo_value(value)
+        return ".".join(parts), cls._normalize_mongo_value(value)
 
     def parse_value(self, value):
         value = super(MongoengineFieldsDict, self).parse_value(value)
@@ -62,3 +63,7 @@ class PagedRequest(models.Base):
 
 class IdResponse(models.Base):
     id = fields.StringField(required=True)
+
+
+class MakePublicRequest(models.Base):
+    ids = ListField(items_types=str, validators=[Length(minimum_value=1)])

@@ -35,14 +35,21 @@ class SetFieldsResolver:
     SET_MODIFIERS = ("min", "max")
 
     def __init__(self, set_fields: Dict[str, Any]):
-        self.orig_fields = set_fields
-        self.fields = {
-            f: fname
-            for f, modifier, dunder, fname in (
-                (f,) + f.partition("__") for f in set_fields.keys()
-            )
-            if dunder and modifier in self.SET_MODIFIERS
-        }
+        self.orig_fields = {}
+        self.fields = {}
+        self.add_fields(**set_fields)
+
+    def add_fields(self, **set_fields: Any):
+        self.orig_fields.update(set_fields)
+        self.fields.update(
+            {
+                f: fname
+                for f, modifier, dunder, fname in (
+                    (f,) + f.partition("__") for f in set_fields.keys()
+                )
+                if dunder and modifier in self.SET_MODIFIERS
+            }
+        )
 
     def _get_updated_name(self, doc: AttributedDocument, name: str) -> str:
         if name in self.fields and doc.get_field_value(self.fields[name]) is None:

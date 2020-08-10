@@ -72,3 +72,4 @@ class Model(DbModelMixin, Document):
     ui_cache = SafeDictField(
         default=dict, user_set_allowed=True, exclude_by_default=True
     )
+    company_origin = StringField(exclude_by_default=True)

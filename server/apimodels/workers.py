@@ -67,6 +67,7 @@ class WorkerEntry(Base, JsonSerializableMixin):
     company = EmbeddedField(IdNameEntry)
     ip = StringField()
     task = EmbeddedField(IdNameEntry)
+    project = EmbeddedField(IdNameEntry)
     queue = StringField()  # queue from which current task was taken
     queues = ListField(str)  # list of queues this worker listens to
     register_time = DateTimeField(required=True)

@@ -16,7 +16,7 @@ from apimodels.auth import (
 )
 from apimodels.base import UpdateResponse
 from bll.auth import AuthBLL
-from config import config
+from config import config, info
 from database.errors import translate_errors_context
 from database.model.auth import User
 from service_repo import APICall, endpoint
@@ -176,4 +176,17 @@ def update(call, company_id, _):
 
 @endpoint("auth.fixed_users_mode")
 def fixed_users_mode(call: APICall, *_, **__):
-    call.result.data = dict(enabled=FixedUser.enabled())
+    data = {
+        "enabled": FixedUser.enabled(),
+        "migration_warning": info.missed_es_upgrade,
+        "guest": {
+            "enabled": FixedUser.guest_enabled(),
+        }
+    }
+    guest_user = FixedUser.get_guest_user()
+    if guest_user:
+        data["guest"]["name"] = guest_user.name
+        data["guest"]["username"] = guest_user.username
+        data["guest"]["password"] = guest_user.password
+
+    call.result.data = data

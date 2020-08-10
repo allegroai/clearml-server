@@ -1,3 +1,4 @@
+from apierrors.errors.bad_request import InvalidModelId
 from tests.automated import TestService
 
 MODEL_CANNOT_BE_UPDATED_CODES = (400, 203)
@@ -7,7 +8,7 @@ IN_PROGRESS = "in_progress"
 
 
 class TestModelsService(TestService):
-    def setUp(self, version="2.8"):
+    def setUp(self, version="2.9"):
         super().setUp(version=version)
 
     def test_publish_output_model_running_task(self):
@@ -196,6 +197,28 @@ class TestModelsService(TestService):
         self.api.tasks.delete(task=task, force=True)
         res = self.api.models.get_frameworks(projects=[project])
         self.assertEqual([], res.frameworks)
+
+    def test_make_public(self):
+        m1 = self._create_model(name="public model test")
+
+        # model with company_origin not set to the current company cannot be converted to private
+        with self.api.raises(InvalidModelId):
+            self.api.models.make_private(ids=[m1])
+
+        # public model can be retrieved but not updated
+        res = self.api.models.make_public(ids=[m1])
+        self.assertEqual(res.updated, 1)
+        res = self.api.models.get_all(id=[m1])
+        self.assertEqual([m.id for m in res.models], [m1])
+        with self.api.raises(InvalidModelId):
+            self.api.models.update(model=m1, name="public model test change 1")
+
+        # task made private again and can be both retrieved and updated
+        res = self.api.models.make_private(ids=[m1])
+        self.assertEqual(res.updated, 1)
+        res = self.api.models.get_all(id=[m1])
+        self.assertEqual([m.id for m in res.models], [m1])
+        self.api.models.update(model=m1, name="public model test change 2")
 
     def _assert_task_status(self, task_id, status):
         task = self.api.tasks.get_by_id(task=task_id).task

@@ -3,7 +3,6 @@ from uuid import uuid4
 
 from bll.queue import QueueBLL
 from config import config
-from config.info import get_default_company
 from database.model.company import Company
 from database.model.queue import Queue
 from database.model.settings import Settings, SettingKeys
@@ -11,13 +10,11 @@ from database.model.settings import Settings, SettingKeys
 log = config.logger(__file__)
 
 
-def _ensure_company(log: Logger):
-    company_id = get_default_company()
+def _ensure_company(company_id, company_name, log: Logger):
     company = Company.objects(id=company_id).only("id").first()
     if company:
         return company_id
 
-    company_name = "trains"
     log.info(f"Creating company: {company_name}")
     company = Company(id=company_id, name=company_name)
     company.save()

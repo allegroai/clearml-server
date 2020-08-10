@@ -21,6 +21,7 @@ from config import config
 from database.errors import translate_errors_context
 from database.model.auth import User
 from database.model.company import Company
+from database.model.project import Project
 from database.model.queue import Queue
 from database.model.task.task import Task
 from redis_manager import redman
@@ -146,6 +147,7 @@ class WorkerBLL:
 
             if not report.task:
                 entry.task = None
+                entry.project = None
             else:
                 with translate_errors_context():
                     query = dict(id=report.task, company=company_id)
@@ -159,6 +161,12 @@ class WorkerBLL:
                     if not task:
                         raise bad_request.InvalidTaskId(**query)
                     entry.task = IdNameEntry(id=task.id, name=task.name)
+
+                    entry.project = None
+                    if task.project:
+                        project = Project.objects(id=task.project).only("name").first()
+                        if project:
+                            entry.project = IdNameEntry(id=project.id, name=project.name)
 
             entry.last_report_time = now
         except APIError:
@@ -369,7 +377,6 @@ class WorkerBLL:
         def make_doc(category, metric, variant, value) -> dict:
             return dict(
                 _index=es_index,
-                _type="stat",
                 _source=dict(
                     timestamp=timestamp,
                     worker=worker,

@@ -10,7 +10,7 @@ from werkzeug.exceptions import BadRequest
 import database
 from apierrors.base import BaseError
 from bll.statistics.stats_reporter import StatisticsReporter
-from config import config
+from config import config, info
 from elastic.initialize import init_es_data
 from mongo.initialize import init_mongo_data, pre_populate_data
 from service_repo import ServiceRepo, APICall
@@ -39,9 +39,11 @@ database.initialize()
 hosts_string = ";".join(sorted(database.get_hosts()))
 key = "db_init_" + md5(hosts_string.encode()).hexdigest()
 with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 30)):
-    print(key)
-    init_es_data()
+    empty_es = init_es_data()
     empty_db = init_mongo_data()
+if empty_es and not empty_db:
+    log.info(f"ES database seems not migrated")
+    info.missed_es_upgrade = True
 if empty_db and config.get("apiserver.pre_populate.enabled", False):
     pre_populate_data()
 

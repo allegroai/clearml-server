@@ -1,11 +1,13 @@
 {
-  "template": "events-training_debug_image-*",
-  "order" : 1,
+  "index_patterns": "events-training_debug_image-*",
+  "order": 1,
   "mappings": {
-    "_default_": {
-      "properties": {
-        "key":      { "type": "keyword" },
-        "url":      { "type": "keyword" }
+    "properties": {
+      "key": {
+        "type": "keyword"
+      },
+      "url": {
+        "type": "keyword"
       }
     }
   }

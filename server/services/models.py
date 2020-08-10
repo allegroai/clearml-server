@@ -5,7 +5,8 @@ from mongoengine import Q, EmbeddedDocument
 
 import database
 from apierrors import errors
-from apimodels.base import UpdateResponse
+from apierrors.errors.bad_request import InvalidModelId
+from apimodels.base import UpdateResponse, MakePublicRequest
 from apimodels.models import (
     CreateModelRequest,
     CreateModelResponse,
@@ -467,3 +468,21 @@ def update(call: APICall, company_id, _):
         if del_count:
             _reset_cached_tags(company_id, projects=[model.project])
         call.result.data = dict(deleted=del_count > 0)
+
+
+@endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Model.set_public(
+            company_id, ids=request.ids, invalid_cls=InvalidModelId, enabled=True
+        )
+
+
+@endpoint(
+    "models.make_private", min_version="2.9", request_data_model=MakePublicRequest
+)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Model.set_public(
+            company_id, request.ids, invalid_cls=InvalidModelId, enabled=False
+        )

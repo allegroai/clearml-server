@@ -1,4 +1,4 @@
-from mongoengine import StringField, DateTimeField
+from mongoengine import StringField, DateTimeField, IntField
 
 from database import Database, strict
 from database.fields import StrippedStringField, SafeSortedListField
@@ -40,3 +40,7 @@ class Project(AttributedDocument):
     system_tags = SafeSortedListField(StringField(required=True))
     default_output_destination = StrippedStringField()
     last_update = DateTimeField()
+    featured = IntField(default=9999)
+    logo_url = StringField()
+    logo_blob = StringField(exclude_by_default=True)
+    company_origin = StringField(exclude_by_default=True)

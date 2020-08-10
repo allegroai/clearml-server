@@ -1,11 +1,14 @@
 {
-  "template": "events-log-*",
-  "order" : 1,
+  "index_patterns": "events-log-*",
+  "order": 1,
   "mappings": {
-    "_default_": {
-      "properties": {
-        "msg":    { "type":"text", "index": false },
-        "level":  { "type":"keyword" }
+    "properties": {
+      "msg": {
+        "type": "text",
+        "index": false
+      },
+      "level": {
+        "type": "keyword"
       }
     }
   }

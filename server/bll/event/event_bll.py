@@ -3,7 +3,7 @@ from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
 from operator import attrgetter
-from typing import Sequence, Set, Tuple
+from typing import Sequence, Set, Tuple, Optional
 
 import six
 from elasticsearch import helpers
@@ -22,6 +22,7 @@ from database.errors import translate_errors_context
 from database.model.task.task import Task, TaskStatus
 from redis_manager import redman
 from timing_context import TimingContext
+from tools import safe_get
 from utilities.dicts import flatten_nested_items
 
 # noinspection PyTypeChecker
@@ -134,7 +135,6 @@ class EventBLL(object):
             es_action = {
                 "_op_type": "index",  # overwrite if exists with same ID
                 "_index": index_name,
-                "_type": "event",
                 "_source": event,
             }
 
@@ -144,7 +144,6 @@ class EventBLL(object):
             else:
                 es_action["_id"] = dbutils.id()
 
-            es_action["_routing"] = task_id
             task_ids.add(task_id)
             if (
                 iter is not None
@@ -342,14 +341,9 @@ class EventBLL(object):
             }
 
             with translate_errors_context(), TimingContext("es", "scroll_task_events"):
-                es_res = self.es.search(
-                    index=es_index, body=es_req, scroll="1h", routing=task_id
-                )
+                es_res = self.es.search(index=es_index, body=es_req, scroll="1h")
 
-        events = [hit["_source"] for hit in es_res["hits"]["hits"]]
-        next_scroll_id = es_res["_scroll_id"]
-        total_events = es_res["hits"]["total"]
-
+        events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
         return events, next_scroll_id, total_events
 
     def get_last_iterations_per_event_metric_variant(
@@ -377,7 +371,7 @@ class EventBLL(object):
                                     "terms": {
                                         "field": "iter",
                                         "size": num_last_iterations,
-                                        "order": {"_term": "desc"},
+                                        "order": {"_key": "desc"},
                                     }
                                 }
                             },
@@ -393,7 +387,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "task_last_iter_metric_variant"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_res = self.es.search(index=es_index, body=es_req)
         if "aggregations" not in es_res:
             return []
 
@@ -422,13 +416,11 @@ class EventBLL(object):
             if not self.es.indices.exists(es_index):
                 return TaskEventsResult()
 
-            query = {"bool": defaultdict(list)}
-
+            must = []
             if last_iterations_per_plot is None:
-                must = query["bool"]["must"]
                 must.append({"terms": {"task": tasks}})
             else:
-                should = query["bool"]["should"]
+                should = []
                 for i, task_id in enumerate(tasks):
                     last_iters = self.get_last_iterations_per_event_metric_variant(
                         es_index, task_id, last_iterations_per_plot, event_type
@@ -451,31 +443,40 @@ class EventBLL(object):
                         )
                 if not should:
                     return TaskEventsResult()
+                must.append({"bool": {"should": should}})
 
             if sort is None:
                 sort = [{"timestamp": {"order": "asc"}}]
 
-            es_req = {"sort": sort, "size": min(size, 10000), "query": query}
-
-            routing = ",".join(tasks)
+            es_req = {
+                "sort": sort,
+                "size": min(size, 10000),
+                "query": {"bool": {"must": must}},
+            }
 
             with translate_errors_context(), TimingContext("es", "get_task_plots"):
                 es_res = self.es.search(
-                    index=es_index,
-                    body=es_req,
-                    ignore=404,
-                    routing=routing,
-                    scroll="1h",
+                    index=es_index, body=es_req, ignore=404, scroll="1h",
                 )
 
-        events = [doc["_source"] for doc in es_res.get("hits", {}).get("hits", [])]
-        # scroll id may be missing when queering a totally empty DB
-        next_scroll_id = es_res.get("_scroll_id")
-        total_events = es_res["hits"]["total"]
-
+        events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
         return TaskEventsResult(
             events=events, next_scroll_id=next_scroll_id, total_events=total_events
         )
+
+    def _get_events_from_es_res(self, es_res: dict) -> Tuple[list, int, Optional[str]]:
+        """
+        Return events and next scroll id from the scrolled query
+        Release the scroll once it is exhausted
+        """
+        total_events = safe_get(es_res, "hits/total/value", default=0)
+        events = [doc["_source"] for doc in safe_get(es_res, "hits/hits", default=[])]
+        next_scroll_id = es_res.get("_scroll_id")
+        if next_scroll_id and not events:
+            self.es.clear_scroll(scroll_id=next_scroll_id)
+            next_scroll_id = None
+
+        return events, total_events, next_scroll_id
 
     def get_task_events(
         self,
@@ -502,20 +503,16 @@ class EventBLL(object):
             if not self.es.indices.exists(es_index):
                 return TaskEventsResult()
 
-            query = {"bool": defaultdict(list)}
-
-            if metric or variant:
-                must = query["bool"]["must"]
-                if metric:
-                    must.append({"term": {"metric": metric}})
-                if variant:
-                    must.append({"term": {"variant": variant}})
+            must = []
+            if metric:
+                must.append({"term": {"metric": metric}})
+            if variant:
+                must.append({"term": {"variant": variant}})
 
             if last_iter_count is None:
-                must = query["bool"]["must"]
                 must.append({"terms": {"task": task_ids}})
             else:
-                should = query["bool"]["should"]
+                should = []
                 for i, task_id in enumerate(task_ids):
                     last_iters = self.get_last_iters(
                         es_index, task_id, event_type, last_iter_count
@@ -534,27 +531,23 @@ class EventBLL(object):
                     )
                 if not should:
                     return TaskEventsResult()
+                must.append({"bool": {"should": should}})
 
             if sort is None:
                 sort = [{"timestamp": {"order": "asc"}}]
 
-            es_req = {"sort": sort, "size": min(size, 10000), "query": query}
-
-            routing = ",".join(task_ids)
+            es_req = {
+                "sort": sort,
+                "size": min(size, 10000),
+                "query": {"bool": {"must": must}},
+            }
 
             with translate_errors_context(), TimingContext("es", "get_task_events"):
                 es_res = self.es.search(
-                    index=es_index,
-                    body=es_req,
-                    ignore=404,
-                    routing=routing,
-                    scroll="1h",
+                    index=es_index, body=es_req, ignore=404, scroll="1h",
                 )
 
-        events = [doc["_source"] for doc in es_res.get("hits", {}).get("hits", [])]
-        next_scroll_id = es_res.get("_scroll_id")
-        total_events = es_res["hits"]["total"]
-
+        events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
         return TaskEventsResult(
             events=events, next_scroll_id=next_scroll_id, total_events=total_events
         )
@@ -590,7 +583,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_res = self.es.search(index=es_index, body=es_req)
 
         metrics = {}
         for metric_bucket in es_res["aggregations"]["metrics"].get("buckets"):
@@ -622,14 +615,14 @@ class EventBLL(object):
                     "terms": {
                         "field": "metric",
                         "size": EventMetrics.MAX_METRICS_COUNT,
-                        "order": {"_term": "asc"},
+                        "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
                                 "size": EventMetrics.MAX_VARIANTS_COUNT,
-                                "order": {"_term": "asc"},
+                                "order": {"_key": "asc"},
                             },
                             "aggs": {
                                 "last_value": {
@@ -659,7 +652,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_res = self.es.search(index=es_index, body=es_req)
 
         metrics = []
         max_timestamp = 0
@@ -706,7 +699,7 @@ class EventBLL(object):
             "sort": ["iter"],
         }
         with translate_errors_context(), TimingContext("es", "task_stats_vector"):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_res = self.es.search(index=es_index, body=es_req)
 
         vectors = []
         iterations = []
@@ -727,7 +720,7 @@ class EventBLL(object):
                     "terms": {
                         "field": "iter",
                         "size": iters,
-                        "order": {"_term": "desc"},
+                        "order": {"_key": "desc"},
                     }
                 }
             },
@@ -737,7 +730,7 @@ class EventBLL(object):
             es_req["query"]["bool"]["must"].append({"term": {"type": event_type}})
 
         with translate_errors_context(), TimingContext("es", "task_last_iter"):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_res = self.es.search(index=es_index, body=es_req)
         if "aggregations" not in es_res:
             return []
 
@@ -759,8 +752,6 @@ class EventBLL(object):
         es_index = EventMetrics.get_index_name(company_id, "*")
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):
-            es_res = self.es.delete_by_query(
-                index=es_index, body=es_req, routing=task_id, refresh=True
-            )
+            es_res = self.es.delete_by_query(index=es_index, body=es_req, refresh=True)
 
         return es_res.get("deleted", 0)

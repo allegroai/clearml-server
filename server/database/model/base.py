@@ -1,7 +1,7 @@
 import re
 from collections import namedtuple
 from functools import reduce
-from typing import Collection, Sequence, Union, Optional
+from typing import Collection, Sequence, Union, Optional, Type
 
 from boltons.iterutils import first, bucketize
 from dateutil.parser import parse as parse_datetime
@@ -9,6 +9,7 @@ from mongoengine import Q, Document, ListField, StringField
 from pymongo.command_cursor import CommandCursor
 
 from apierrors import errors
+from apierrors.base import BaseError
 from config import config
 from database.errors import MakeGetAllQueryError
 from database.projection import project_dict, ProjectionHelper
@@ -484,6 +485,21 @@ class GetMixin(PropsMixin):
         )
 
     @classmethod
+    def get_many_public(
+        cls, query: Q = None, projection: Collection[str] = None,
+    ):
+        """
+        Fetch all public documents matching a provided query.
+        :param query: Optional query object (mongoengine.Q).
+        :param projection: A list of projection fields.
+        :return: A list of documents matching the query.
+        """
+        q = get_company_or_none_constraint()
+        _query = (q & query) if query else q
+
+        return cls._get_many_no_company(query=_query, override_projection=projection)
+
+    @classmethod
     def _get_many_no_company(
         cls: Union["GetMixin", Document],
         query,
@@ -727,6 +743,31 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
             else config.get("apiserver.mongo.aggregate.allow_disk_use", True)
         )
         return cls.objects.aggregate(pipeline, **kwargs)
+
+    @classmethod
+    def set_public(
+        cls: Type[Document],
+        company_id: str,
+        ids: Sequence[str],
+        invalid_cls: Type[BaseError],
+        enabled: bool = True,
+    ):
+        if enabled:
+            items = list(cls.objects(id__in=ids, company=company_id).only("id"))
+            update = dict(set__company_origin=company_id, unset__company=1)
+        else:
+            items = list(
+                cls.objects(
+                    id__in=ids, company__in=(None, ""), company_origin=company_id
+                ).only("id")
+            )
+            update = dict(set__company=company_id, unset__company_origin=1)
+
+        if len(items) < len(ids):
+            missing = tuple(set(ids).difference(i.id for i in items))
+            raise invalid_cls(ids=missing)
+
+        return {"updated": cls.objects(id__in=ids).update(**update)}
 
 
 def validate_id(cls, company, **kwargs):

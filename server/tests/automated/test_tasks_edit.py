@@ -1,4 +1,5 @@
-from apierrors.errors.bad_request import InvalidModelId, ValidationError
+from apierrors.errors.bad_request import InvalidModelId, ValidationError, InvalidTaskId
+from apierrors.errors.forbidden import NoWritePermission
 from config import config
 from tests.automated import TestService
 
@@ -8,7 +9,7 @@ log = config.logger(__file__)
 
 class TestTasksEdit(TestService):
     def setUp(self, **kwargs):
-        super().setUp(version=2.5)
+        super().setUp(version="2.9")
 
     def new_task(self, **kwargs):
         self.update_missing(
@@ -145,3 +146,28 @@ class TestTasksEdit(TestService):
             self.api.tasks.delete, task=new_task, move_to_trash=False, force=True
         )
         return new_task
+
+    def test_make_public(self):
+        task = self.new_task()
+
+        # task is created as private and can be updated
+        self.api.tasks.started(task=task)
+
+        # task with company_origin not set to the current company cannot be converted to private
+        with self.api.raises(InvalidTaskId):
+            self.api.tasks.make_private(ids=[task])
+
+        # public task can be retrieved but not updated
+        res = self.api.tasks.make_public(ids=[task])
+        self.assertEqual(res.updated, 1)
+        res = self.api.tasks.get_all_ex(id=[task])
+        self.assertEqual([t.id for t in res.tasks], [task])
+        with self.api.raises(NoWritePermission):
+            self.api.tasks.stopped(task=task)
+
+        # task made private again and can be both retrieved and updated
+        res = self.api.tasks.make_private(ids=[task])
+        self.assertEqual(res.updated, 1)
+        res = self.api.tasks.get_all_ex(id=[task])
+        self.assertEqual([t.id for t in res.tasks], [task])
+        self.api.tasks.stopped(task=task)

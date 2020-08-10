@@ -111,7 +111,7 @@ class TimestampKey(ScalarKey):
             self.name: {
                 "date_histogram": {
                     "field": "timestamp",
-                    "interval": f"{interval}ms",
+                    "fixed_interval": f"{interval}ms",
                     "min_doc_count": 1,
                 }
             }
@@ -150,7 +150,7 @@ class ISOTimeKey(ScalarKey):
             self.name: {
                 "date_histogram": {
                     "field": "timestamp",
-                    "interval": f"{interval}ms",
+                    "fixed_interval": f"{interval}ms",
                     "min_doc_count": 1,
                     "format": "strict_date_time",
                 }

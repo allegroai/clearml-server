@@ -208,7 +208,11 @@ class DebugImagesIterator:
             "size": 0,
             "query": {
                 "bool": {
-                    "must": [{"term": {"task": task}}, {"terms": {"metric": metrics}}]
+                    "must": [
+                        {"term": {"task": task}},
+                        {"terms": {"metric": metrics}},
+                        {"exists": {"field": "url"}},
+                    ]
                 }
             },
             "aggs": {
@@ -251,7 +255,7 @@ class DebugImagesIterator:
         }
 
         with translate_errors_context(), TimingContext("es", "_init_metric_states"):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task)
+            es_res = self.es.search(index=es_index, body=es_req)
         if "aggregations" not in es_res:
             return []
 
@@ -298,6 +302,7 @@ class DebugImagesIterator:
         must_conditions = [
             {"term": {"task": metric.task}},
             {"term": {"metric": metric.name}},
+            {"exists": {"field": "url"}},
         ]
         must_not_conditions = []
 
@@ -368,7 +373,7 @@ class DebugImagesIterator:
                     "terms": {
                         "field": "iter",
                         "size": iter_count,
-                        "order": {"_term": "desc" if navigate_earlier else "asc"},
+                        "order": {"_key": "desc" if navigate_earlier else "asc"},
                     },
                     "aggs": {
                         "variants": {
@@ -387,7 +392,7 @@ class DebugImagesIterator:
             },
         }
         with translate_errors_context(), TimingContext("es", "get_debug_image_events"):
-            es_res = self.es.search(index=es_index, body=es_req, routing=metric.task)
+            es_res = self.es.search(index=es_index, body=es_req)
         if "aggregations" not in es_res:
             return metric.task, metric.name, []
 

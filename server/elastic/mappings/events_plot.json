@@ -1,10 +1,11 @@
 {
-  "template": "events-plot-*",
-  "order" : 1,
+  "index_patterns": "events-plot-*",
+  "order": 1,
   "mappings": {
-    "_default_": {
-      "properties": {
-        "plot_str": { "type":"text", "index": false }
+    "properties": {
+      "plot_str": {
+        "type": "text",
+        "index": false
       }
     }
   }

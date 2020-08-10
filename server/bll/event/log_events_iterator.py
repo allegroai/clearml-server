@@ -71,9 +71,9 @@ class LogEventsIterator:
             es_req["search_after"] = [from_timestamp]
 
         with translate_errors_context(), TimingContext("es", "get_task_events"):
-            es_result = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_result = self.es.search(index=es_index, body=es_req)
             hits = es_result["hits"]["hits"]
-            hits_total = es_result["hits"]["total"]
+            hits_total = es_result["hits"]["total"]["value"]
             if not hits:
                 return [], hits_total
 
@@ -92,7 +92,7 @@ class LogEventsIterator:
                     }
                 },
             }
-            es_result = self.es.search(index=es_index, body=es_req, routing=task_id)
+            es_result = self.es.search(index=es_index, body=es_req)
             hits = es_result["hits"]["hits"]
             if not hits or len(hits) < 2:
                 # if only one element is returned for the last timestamp

@@ -118,7 +118,7 @@ external_task_types = set(get_options(TaskType))
 class Task(AttributedDocument):
     _field_collation_overrides = {
         "execution.parameters.": {"locale": "en_US", "numericOrdering": True},
-        "last_metrics.": {"locale": "en_US", "numericOrdering": True}
+        "last_metrics.": {"locale": "en_US", "numericOrdering": True},
     }
 
     meta = {
@@ -194,3 +194,5 @@ class Task(AttributedDocument):
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
     metric_stats = SafeMapField(field=EmbeddedDocumentField(MetricEventStats))
+    company_origin = StringField(exclude_by_default=True)
+    duration = IntField()  # task duration in seconds

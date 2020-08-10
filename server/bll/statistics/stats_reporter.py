@@ -237,7 +237,6 @@ class StatisticsReporter:
     def _run_worker_stats_query(cls, company_id, es_req) -> dict:
         return worker_bll.es_client.search(
             index=f"{WorkerStats.worker_stats_prefix_for_company(company_id)}*",
-            doc_type="stat",
             body=es_req,
         )
 

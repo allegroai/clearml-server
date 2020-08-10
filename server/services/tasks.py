@@ -11,7 +11,8 @@ from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
 
 from apierrors import errors, APIError
-from apimodels.base import UpdateResponse, IdResponse
+from apierrors.errors.bad_request import InvalidTaskId
+from apimodels.base import UpdateResponse, IdResponse, MakePublicRequest
 from apimodels.tasks import (
     StartedResponse,
     ResetResponse,
@@ -78,9 +79,23 @@ def set_task_status_from_call(
     task = TaskBLL.get_task_with_access(
         request.task,
         company_id=company_id,
-        only=tuple({"status", "project"} | fields_resolver.get_names()),
+        only=tuple(
+            {"status", "project", "started", "duration"} | fields_resolver.get_names()
+        ),
         requires_write_access=True,
     )
+
+    if "duration" not in fields_resolver.get_names():
+        if new_status == Task.started:
+            fields_resolver.add_fields(min__duration=max(0, task.duration or 0))
+        elif new_status in (
+            TaskStatus.completed,
+            TaskStatus.failed,
+            TaskStatus.stopped,
+        ):
+            fields_resolver.add_fields(
+                duration=int((task.started - datetime.utcnow()).total_seconds())
+            )
 
     status_reason = request.status_reason
     status_message = request.status_message
@@ -354,9 +369,7 @@ def _update_cached_tags(company: str, project: str, fields: dict):
 
 
 def _reset_cached_tags(company: str, projects: Sequence[str]):
-    org_bll.reset_tags(
-        company, Tags.Task, projects=projects
-    )
+    org_bll.reset_tags(company, Tags.Task, projects=projects)
 
 
 @endpoint(
@@ -573,9 +586,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             if updated:
                 new_project = fixed_fields.get("project", task.project)
                 if new_project != task.project:
-                    _reset_cached_tags(
-                        company_id, projects=[new_project, task.project]
-                    )
+                    _reset_cached_tags(company_id, projects=[new_project, task.project])
                 else:
                     _update_cached_tags(
                         company_id, project=task.project, fields=fixed_fields
@@ -1005,3 +1016,19 @@ def add_or_update_artifacts(
         task_id=request.task, company_id=company_id, artifacts=request.artifacts
     )
     call.result.data_model = AddOrUpdateArtifactsResponse(added=added, updated=updated)
+
+
+@endpoint("tasks.make_public", min_version="2.9", request_data_model=MakePublicRequest)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Task.set_public(
+            company_id, request.ids, invalid_cls=InvalidTaskId, enabled=True
+        )
+
+
+@endpoint("tasks.make_private", min_version="2.9", request_data_model=MakePublicRequest)
+def make_public(call: APICall, company_id, request: MakePublicRequest):
+    with translate_errors_context():
+        call.result.data = Task.set_public(
+            company_id, request.ids, invalid_cls=InvalidTaskId, enabled=False
+        )
