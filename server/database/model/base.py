@@ -353,9 +353,12 @@ class GetMixin(PropsMixin):
         cls, projection: Sequence[str]
     ) -> Tuple[Collection[str], Collection[str]]:
         """Return include and exclude lists based on passed projection and class definition"""
-        include, exclude = partition(
-            projection, key=lambda x: x[0] != ProjectionHelper.exclusion_prefix,
-        )
+        if projection:
+            include, exclude = partition(
+                projection, key=lambda x: x[0] != ProjectionHelper.exclusion_prefix,
+            )
+        else:
+            include, exclude = [], []
         exclude = {x.lstrip(ProjectionHelper.exclusion_prefix) for x in exclude}
         return include, set(cls.get_exclude_fields()).union(exclude).difference(include)
 
