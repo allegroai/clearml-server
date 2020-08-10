@@ -64,15 +64,15 @@ For example, to see if port `8080` is in use:
     
 Launch **trains-server** in any of the following formats:
 
-- Pre-built [AWS EC2 AMI](https://github.com/allegroai/trains-server/blob/master/docs/install_aws.md)
-- Pre-built [GCP Custom Image](https://github.com/allegroai/trains-server/blob/master/docs/install_gcp.md)
+- Pre-built [AWS EC2 AMI](https://allegro.ai/docs/deploying_trains/trains_server_aws_ec2_ami/)
+- Pre-built [GCP Custom Image](https://allegro.ai/docs/deploying_trains/trains_server_gcp/)
 - Pre-built Docker Image
-    - [Linux](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
-    - [macOS](https://github.com/allegroai/trains-server/blob/master/docs/install_linux_mac.md)
-    - [Windows 10](https://github.com/allegroai/trains-server/blob/master/docs/install_win.md)
+    - [Linux](https://allegro.ai/docs/deploying_trains/trains_server_linux_mac/)
+    - [macOS](https://allegro.ai/docs/deploying_trains/trains_server_linux_mac/)
+    - [Windows 10](https://allegro.ai/docs/deploying_trains/trains_server_win/)
 - Kubernetes    
-    - [Kubernetes Helm](https://github.com/allegroai/trains-server-helm#prerequisites)
-    - Manual [Kubernetes installation](https://github.com/allegroai/trains-server-k8s#prerequisites)
+    - [Kubernetes Helm](https://allegro.ai/docs/deploying_trains/trains_server_kubernetes_helm/)
+    - Manual [Kubernetes installation](https://allegro.ai/docs/deploying_trains/trains_server_kubernetes/)
 
 ## Connecting Trains to your trains-server
 
@@ -124,8 +124,8 @@ Do not enqueue training / inference tasks into the `services` queue, as it will 
 
 **trains-server** provides a few additional useful features, which can be manually enabled:
  
-* [Web login authentication](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#web-auth)
-* [Non-responsive experiments watchdog](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#watchdog-the-non-responsive-task-watchdog-settings)  
+* [Web login authentication](https://allegro.ai/docs/faq/faq/#web-auth)
+* [Non-responsive experiments watchdog](https://allegro.ai/docs/faq/faq/#watchdog)  
 
 ## Restarting trains-server
 
@@ -191,12 +191,12 @@ To upgrade your existing **trains-server** deployment:
    docker-compose -f docker-compose.yml up
    ```
 
-**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://github.com/allegroai/trains-server/blob/master/docs/faq.md#common-docker-upgrade-errors).**
+**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://allegro.ai/docs/faq/faq/#common-docker-upgrade-errors).**
 
 
 ## Community & Support
 
-If you have any questions, look to the Trains server [FAQ](https://github.com/allegroai/trains-server/blob/master/docs/faq.md), or
+If you have any questions, look to the Trains [FAQ](https://allegro.ai/docs/faq/faq/), or
 tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/trains) with '**trains**' tag.
 
 For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/trains-server/issues).
