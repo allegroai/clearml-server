@@ -1,9 +1,9 @@
 import re
 from collections import namedtuple
 from functools import reduce
-from typing import Collection, Sequence, Union, Optional, Type
+from typing import Collection, Sequence, Union, Optional, Type, Tuple
 
-from boltons.iterutils import first, bucketize
+from boltons.iterutils import first, bucketize, partition
 from dateutil.parser import parse as parse_datetime
 from mongoengine import Q, Document, ListField, StringField
 from pymongo.command_cursor import CommandCursor
@@ -349,6 +349,17 @@ class GetMixin(PropsMixin):
         return parameters.get(cls._projection_key) or parameters.get("only_fields", [])
 
     @classmethod
+    def split_projection(
+        cls, projection: Sequence[str]
+    ) -> Tuple[Collection[str], Collection[str]]:
+        """Return include and exclude lists based on passed projection and class definition"""
+        include, exclude = partition(
+            projection, key=lambda x: x[0] != ProjectionHelper.exclusion_prefix,
+        )
+        exclude = {x.lstrip(ProjectionHelper.exclusion_prefix) for x in exclude}
+        return include, set(cls.get_exclude_fields()).union(exclude).difference(include)
+
+    @classmethod
     def set_projection(cls, parameters: dict, value: Sequence[str]) -> Sequence[str]:
         parameters.pop("only_fields", None)
         parameters[cls._projection_key] = value
@@ -502,7 +513,7 @@ class GetMixin(PropsMixin):
     @classmethod
     def _get_many_no_company(
         cls: Union["GetMixin", Document],
-        query,
+        query: Q,
         parameters=None,
         override_projection=None,
     ):
@@ -525,7 +536,9 @@ class GetMixin(PropsMixin):
         search_text = parameters.get(cls._search_text_key)
         order_by = cls.validate_order_by(parameters=parameters, search_text=search_text)
         page, page_size = cls.validate_paging(parameters=parameters)
-        only = cls.get_projection(parameters, override_projection)
+        include, exclude = cls.split_projection(
+            cls.get_projection(parameters, override_projection)
+        )
 
         qs = cls.objects(query)
         if search_text:
@@ -533,13 +546,14 @@ class GetMixin(PropsMixin):
         if order_by:
             # add ordering
             qs = qs.order_by(*order_by)
-        if only:
+
+        if include:
             # add projection
-            qs = qs.only(*only)
-        else:
-            exclude = set(cls.get_exclude_fields()).difference(only)
-            if exclude:
-                qs = qs.exclude(*exclude)
+            qs = qs.only(*include)
+
+        if exclude:
+            qs = qs.exclude(*exclude)
+
         if page is not None and page_size:
             # add paging
             qs = qs.skip(page * page_size).limit(page_size)
@@ -575,7 +589,9 @@ class GetMixin(PropsMixin):
         search_text = parameters.get(cls._search_text_key)
         order_by = cls.validate_order_by(parameters=parameters, search_text=search_text)
         page, page_size = cls.validate_paging(parameters=parameters)
-        only = cls.get_projection(parameters, override_projection)
+        include, exclude = cls.split_projection(
+            cls.get_projection(parameters, override_projection)
+        )
 
         query_sets = [cls.objects(query)]
         if order_by:
@@ -612,16 +628,15 @@ class GetMixin(PropsMixin):
         if search_text:
             query_sets = [qs.search_text(search_text) for qs in query_sets]
 
-        if only:
+        if include:
             # add projection
-            query_sets = [qs.only(*only) for qs in query_sets]
-        else:
-            exclude = set(cls.get_exclude_fields())
-            if exclude:
-                query_sets = [qs.exclude(*exclude) for qs in query_sets]
+            query_sets = [qs.only(*include) for qs in query_sets]
+
+        if exclude:
+            query_sets = [qs.exclude(*exclude) for qs in query_sets]
 
         if page is None or not page_size:
-            return [obj.to_proper_dict(only=only) for qs in query_sets for obj in qs]
+            return [obj.to_proper_dict(only=include) for qs in query_sets for obj in qs]
 
         # add paging
         ret = []
@@ -632,7 +647,8 @@ class GetMixin(PropsMixin):
                 start -= qs_size
                 continue
             ret.extend(
-                obj.to_proper_dict(only=only) for obj in qs.skip(start).limit(page_size)
+                obj.to_proper_dict(only=include)
+                for obj in qs.skip(start).limit(page_size)
             )
             if len(ret) >= page_size:
                 break

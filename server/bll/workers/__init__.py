@@ -50,6 +50,7 @@ class WorkerBLL:
         ip: str = "",
         queues: Sequence[str] = None,
         timeout: int = 0,
+        tags: Sequence[str] = None,
     ) -> WorkerEntry:
         """
         Register a worker
@@ -59,6 +60,7 @@ class WorkerBLL:
         :param ip: the real ip of the worker
         :param queues: queues reported as being monitored by the worker
         :param timeout: registration expiration timeout in seconds
+        :param tags: a list of tags for this worker
         :raise bad_request.InvalidUserId: in case the calling user or company does not exist
         :return: worker entry instance
         """
@@ -92,6 +94,7 @@ class WorkerBLL:
                 register_time=now,
                 register_timeout=timeout,
                 last_activity_time=now,
+                tags=tags,
             )
 
             self.redis.setex(key, timedelta(seconds=timeout), entry.to_json())
@@ -114,12 +117,15 @@ class WorkerBLL:
             raise bad_request.WorkerNotRegistered(worker=worker)
 
     def status_report(
-        self, company_id: str, user_id: str, ip: str, report: StatusReportRequest
+        self, company_id: str, user_id: str, ip: str, report: StatusReportRequest, tags: Sequence[str] = None,
     ) -> None:
         """
         Write worker status report
         :param company_id: worker's company ID
         :param user_id: user_id ID under which this worker is running
+        :param ip: worker IP
+        :param report: the report itself
+        :param tags: tags for this worker
         :raise bad_request.InvalidTaskId: the reported task was not found
         :return: worker entry instance
         """
@@ -129,6 +135,9 @@ class WorkerBLL:
             entry.ip = ip
             now = datetime.utcnow()
             entry.last_activity_time = now
+
+            if tags is not None:
+                entry.tags = tags
 
             if report.machine_stats:
                 self._log_stats_to_es(

@@ -46,10 +46,10 @@ def get_all(call: APICall, company_id: str, request: GetAllRequest):
 
 
 @endpoint("workers.register", min_version="2.4", request_data_model=RegisterRequest)
-def register(call: APICall, company_id, req_model: RegisterRequest):
-    worker = req_model.worker
-    timeout = req_model.timeout
-    queues = req_model.queues
+def register(call: APICall, company_id, request: RegisterRequest):
+    worker = request.worker
+    timeout = request.timeout
+    queues = request.queues
 
     if not timeout or timeout <= 0:
         raise bad_request.WorkerRegistrationFailed(
@@ -63,6 +63,7 @@ def register(call: APICall, company_id, req_model: RegisterRequest):
         ip=call.real_ip,
         queues=queues,
         timeout=timeout,
+        tags=request.tags,
     )
 
 
@@ -78,6 +79,7 @@ def status_report(call: APICall, company_id, request: StatusReportRequest):
         user_id=call.identity.user,
         ip=call.real_ip,
         report=request,
+        tags=request.tags,
     )
 
 

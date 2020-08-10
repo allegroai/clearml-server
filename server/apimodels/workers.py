@@ -19,6 +19,7 @@ DEFAULT_TIMEOUT = 10 * 60
 
 class WorkerRequest(Base):
     worker = StringField(required=True)
+    tags = ListField(str)
 
 
 class RegisterRequest(WorkerRequest):
@@ -74,6 +75,7 @@ class WorkerEntry(Base, JsonSerializableMixin):
     register_timeout = IntField(required=True)
     last_activity_time = DateTimeField(required=True)
     last_report_time = DateTimeField()
+    tags = ListField(str)
 
 
 class CurrentTaskEntry(IdNameEntry):

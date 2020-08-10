@@ -1,7 +1,9 @@
+from typing import Sequence
+
 import six
 from jsonmodels import models
 from jsonmodels.fields import StringField, BoolField, IntField, EmbeddedField
-from jsonmodels.validators import Enum
+from jsonmodels.validators import Enum, Length
 
 from apimodels import DictField, ListField
 from apimodels.base import UpdateResponse
@@ -103,6 +105,8 @@ class CloneRequest(TaskRequest):
     new_task_system_tags = ListField([str])
     new_task_parent = StringField()
     new_task_project = StringField()
+    new_hyperparams = DictField()
+    new_configuration = DictField()
     execution_overrides = DictField()
     validate_references = BoolField(default=False)
 
@@ -118,3 +122,72 @@ class AddOrUpdateArtifactsResponse(models.Base):
 
 class ResetRequest(UpdateRequest):
     clear_all = BoolField(default=False)
+
+
+class MultiTaskRequest(models.Base):
+    tasks = ListField([str], validators=Length(minimum_value=1))
+
+
+class GetHyperParamsRequest(MultiTaskRequest):
+    pass
+
+
+class HyperParamItem(models.Base):
+    section = StringField(required=True, validators=Length(minimum_value=1))
+    name = StringField(required=True, validators=Length(minimum_value=1))
+    value = StringField(required=True)
+    type = StringField()
+    description = StringField()
+
+
+class ReplaceHyperparams(object):
+    none = "none"
+    section = "section"
+    all = "all"
+
+
+class EditHyperParamsRequest(TaskRequest):
+    hyperparams: Sequence[HyperParamItem] = ListField(
+        [HyperParamItem], validators=Length(minimum_value=1)
+    )
+    replace_hyperparams = StringField(
+        validators=Enum(*get_options(ReplaceHyperparams)),
+        default=ReplaceHyperparams.none,
+    )
+
+
+class HyperParamKey(models.Base):
+    section = StringField(required=True, validators=Length(minimum_value=1))
+    name = StringField(nullable=True)
+
+
+class DeleteHyperParamsRequest(TaskRequest):
+    hyperparams: Sequence[HyperParamKey] = ListField(
+        [HyperParamKey], validators=Length(minimum_value=1)
+    )
+
+
+class GetConfigurationsRequest(MultiTaskRequest):
+    names = ListField([str])
+
+
+class GetConfigurationNamesRequest(MultiTaskRequest):
+    pass
+
+
+class Configuration(models.Base):
+    name = StringField(required=True, validators=Length(minimum_value=1))
+    value = StringField(required=True)
+    type = StringField()
+    description = StringField()
+
+
+class EditConfigurationRequest(TaskRequest):
+    configuration: Sequence[Configuration] = ListField(
+        [Configuration], validators=Length(minimum_value=1)
+    )
+    replace_configuration = BoolField(default=False)
+
+
+class DeleteConfigurationRequest(TaskRequest):
+    configuration: Sequence[str] = ListField([str], validators=Length(minimum_value=1))

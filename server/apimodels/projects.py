@@ -13,11 +13,5 @@ class GetHyperParamReq(ProjectReq):
     page_size = fields.IntField(default=500)
 
 
-class GetHyperParamResp(models.Base):
-    parameters = fields.ListField(str)
-    remaining = fields.IntField()
-    total = fields.IntField()
-
-
 class ProjectTagsRequest(TagsRequest):
     projects = ListField(str)

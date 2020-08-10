@@ -45,7 +45,7 @@ def project_dict(data, projection, separator=SEP):
                         )
 
                     dst[path_part] = [
-                        copy_path(path_parts[depth + 1:], s, d)
+                        copy_path(path_parts[depth + 1 :], s, d)
                         for s, d in zip(src_part, dst[path_part])
                     ]
 
@@ -96,6 +96,7 @@ class _ProxyManager:
 
 class ProjectionHelper(object):
     pool = ThreadPoolExecutor()
+    exclusion_prefix = "-"
 
     @property
     def doc_projection(self):
@@ -128,20 +129,28 @@ class ProjectionHelper(object):
             []
         )  # Projection information for reference fields (used in join queries)
         for field in projection:
+            field_ = field.lstrip(self.exclusion_prefix)
             for ref_field, ref_field_cls in doc_cls.get_reference_fields().items():
-                if not field.startswith(ref_field):
+                if not field_.startswith(ref_field):
                     # Doesn't start with a reference field
                     continue
-                if field == ref_field:
+                if field_ == ref_field:
                     # Field is exactly a reference field. In this case we won't perform any inner projection (for that,
                     # use '<reference field name>.*')
                     continue
-                subfield = field[len(ref_field):]
+                subfield = field_[len(ref_field) :]
                 if not subfield.startswith(SEP):
                     # Starts with something that looks like a reference field, but isn't
                     continue
 
-                ref_projection_info.append((ref_field, ref_field_cls, subfield[1:]))
+                ref_projection_info.append(
+                    (
+                        ref_field,
+                        ref_field_cls,
+                        ("" if field_[0] == field[0] else self.exclusion_prefix)
+                        + subfield[1:],
+                    )
+                )
                 break
             else:
                 # Not a reference field, just add to the top-level projection
@@ -149,7 +158,7 @@ class ProjectionHelper(object):
                 orig_field = field
                 if field.endswith(".*"):
                     field = field[:-2]
-                if not field:
+                if not field.lstrip(self.exclusion_prefix):
                     raise errors.bad_request.InvalidFields(
                         field=orig_field, object=doc_cls.__name__
                     )
@@ -199,7 +208,7 @@ class ProjectionHelper(object):
         # Make sure this doesn't contain any reference field we'll join anyway
         # (i.e. in case only_fields=[project, project.name])
         doc_projection = normalize_cls_projection(
-            doc_cls, doc_projection.difference(ref_projection).union({"id"})
+            doc_cls, doc_projection.difference(ref_projection)
         )
 
         # Make sure that in case one or more field is a subfield of another field, we only use the the top-level field.
@@ -218,7 +227,10 @@ class ProjectionHelper(object):
 
         # Make sure we didn't get any invalid projection fields for this class
         invalid_fields = [
-            f for f in doc_projection if f.split(SEP)[0] not in doc_cls.get_fields()
+            f
+            for f in doc_projection
+            if f.partition(SEP)[0].lstrip(self.exclusion_prefix)
+            not in doc_cls.get_fields()
         ]
         if invalid_fields:
             raise errors.bad_request.InvalidFields(
@@ -233,6 +245,13 @@ class ProjectionHelper(object):
                     continue
                 doc_projection.add(field)
             doc_projection = list(doc_projection)
+
+        # If there are include fields (not only exclude) then add an id field
+        if (
+            not all(p.startswith(self.exclusion_prefix) for p in doc_projection)
+            and "id" not in doc_projection
+        ):
+            doc_projection.append("id")
 
         self._doc_projection = doc_projection
         self._ref_projection = ref_projection
@@ -314,6 +333,7 @@ class ProjectionHelper(object):
             ]
 
             if items:
+
                 def do_projection(item):
                     ref_field_name, data, ids = item
 
