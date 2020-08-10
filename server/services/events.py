@@ -185,7 +185,7 @@ def download_task_log(call, company_id, _):
             if not log_events:
                 break
             for ev in log_events:
-                ev["asctime"] = ev.pop("@timestamp")
+                ev["asctime"] = ev.pop("timestamp")
                 if is_json:
                     ev.pop("type")
                     ev.pop("task")
