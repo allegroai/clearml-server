@@ -32,6 +32,13 @@ from apimodels.tasks import (
     AddOrUpdateArtifactsResponse,
     GetTypesRequest,
     ResetRequest,
+    GetHyperParamsRequest,
+    EditHyperParamsRequest,
+    DeleteHyperParamsRequest,
+    GetConfigurationsRequest,
+    EditConfigurationRequest,
+    DeleteConfigurationRequest,
+    GetConfigurationNamesRequest,
 )
 from bll.event import EventBLL
 from bll.organization import OrgBLL, Tags
@@ -41,9 +48,14 @@ from bll.task import (
     ChangeStatusRequest,
     update_project_time,
     split_by,
-    ParameterKeyEscaper,
 )
+from bll.task.hyperparams import HyperParams
 from bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
+from bll.task.param_utils import (
+    params_prepare_for_save,
+    params_unprepare_from_saved,
+    escape_paths,
+)
 from bll.util import SetFieldsResolver
 from database.errors import translate_errors_context
 from database.model.model import Model
@@ -57,9 +69,9 @@ from database.model.task.task import (
 )
 from database.utils import get_fields, parse_from_call
 from service_repo import APICall, endpoint
+from service_repo.base import PartialVersion
 from services.utils import conform_tag_fields, conform_output_tags, validate_tags
 from timing_context import TimingContext
-from utilities import safe_get
 
 task_fields = set(Task.get_fields())
 task_script_fields = set(get_fields(Script))
@@ -120,30 +132,13 @@ def get_by_id(call: APICall, company_id, req_model: TaskRequest):
 
 
 def escape_execution_parameters(call: APICall):
-    default_prefix = "execution.parameters."
-
-    def escape_paths(paths, prefix=default_prefix):
-        escaped_paths = []
-        for path in paths:
-            if path == prefix:
-                raise errors.bad_request.ValidationError(
-                    "invalid task field", path=path
-                )
-            escaped_paths.append(
-                prefix + ParameterKeyEscaper.escape(path[len(prefix) :])
-                if path.startswith(prefix)
-                else path
-            )
-        return escaped_paths
-
     projection = Task.get_projection(call.data)
     if projection:
         Task.set_projection(call.data, escape_paths(projection))
 
     ordering = Task.get_ordering(call.data)
     if ordering:
-        ordering = Task.set_ordering(call.data, escape_paths(ordering, default_prefix))
-        Task.set_ordering(call.data, escape_paths(ordering, "-" + default_prefix))
+        Task.set_ordering(call.data, escape_paths(ordering))
 
 
 @endpoint("tasks.get_all_ex", required_fields=[])
@@ -275,12 +270,15 @@ create_fields = {
     "input": None,
     "output_dest": None,
     "execution": None,
+    "hyperparams": None,
+    "configuration": None,
     "script": None,
 }
 
 
-def prepare_for_save(call: APICall, fields: dict):
+def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     conform_tag_fields(call, fields, validate=True)
+    params_prepare_for_save(fields, previous_task=previous_task)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_fields:
@@ -293,12 +291,6 @@ def prepare_for_save(call: APICall, fields: dict):
         except KeyError:
             pass
 
-    parameters = safe_get(fields, "execution/parameters")
-    if parameters is not None:
-        # Escape keys to make them mongo-safe
-        parameters = {ParameterKeyEscaper.escape(k): v for k, v in parameters.items()}
-        dpath.set(fields, "execution/parameters", parameters)
-
     return fields
 
 
@@ -308,18 +300,15 @@ def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict])
 
     conform_output_tags(call, tasks_data)
 
-    for task_data in tasks_data:
-        parameters = safe_get(task_data, "execution/parameters")
-        if parameters is not None:
-            # Escape keys to make them mongo-safe
-            parameters = {
-                ParameterKeyEscaper.unescape(k): v for k, v in parameters.items()
-            }
-            dpath.set(task_data, "execution/parameters", parameters)
+    for data in tasks_data:
+        params_unprepare_from_saved(
+            fields=data,
+            copy_to_legacy=call.requested_endpoint_version < PartialVersion("2.9"),
+        )
 
 
 def prepare_create_fields(
-    call: APICall, valid_fields=None, output=None, previous_task: Task = None
+    call: APICall, valid_fields=None, output=None, previous_task: Task = None,
 ):
     valid_fields = valid_fields if valid_fields is not None else create_fields
     t_fields = task_fields
@@ -337,7 +326,7 @@ def prepare_create_fields(
             output = Output(destination=output_dest)
         fields["output"] = output
 
-    return prepare_for_save(call, fields)
+    return prepare_for_save(call, fields, previous_task=previous_task)
 
 
 def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dict]:
@@ -401,6 +390,8 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
         project=request.new_task_project,
         tags=request.new_task_tags,
         system_tags=request.new_task_system_tags,
+        hyperparams=request.new_hyperparams,
+        configuration=request.new_configuration,
         execution_overrides=request.execution_overrides,
         validate_references=request.validate_references,
     )
@@ -596,6 +587,100 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)
+
+
+@endpoint(
+    "tasks.get_hyper_params", request_data_model=GetHyperParamsRequest,
+)
+def get_hyper_params(call: APICall, company_id, request: GetHyperParamsRequest):
+    with translate_errors_context():
+        tasks_params = HyperParams.get_params(company_id, task_ids=request.tasks)
+
+    call.result.data = {
+        "params": [{"task": task, **data} for task, data in tasks_params.items()]
+    }
+
+
+@endpoint("tasks.edit_hyper_params", request_data_model=EditHyperParamsRequest)
+def edit_hyper_params(call: APICall, company_id, request: EditHyperParamsRequest):
+    with translate_errors_context():
+        call.result.data = {
+            "updated": HyperParams.edit_params(
+                company_id,
+                task_id=request.task,
+                hyperparams=request.hyperparams,
+                replace_hyperparams=request.replace_hyperparams,
+            )
+        }
+
+
+@endpoint("tasks.delete_hyper_params", request_data_model=DeleteHyperParamsRequest)
+def delete_hyper_params(call: APICall, company_id, request: DeleteHyperParamsRequest):
+    with translate_errors_context():
+        call.result.data = {
+            "deleted": HyperParams.delete_params(
+                company_id, task_id=request.task, hyperparams=request.hyperparams
+            )
+        }
+
+
+@endpoint(
+    "tasks.get_configurations", request_data_model=GetConfigurationsRequest,
+)
+def get_configurations(call: APICall, company_id, request: GetConfigurationsRequest):
+    with translate_errors_context():
+        tasks_params = HyperParams.get_configurations(
+            company_id, task_ids=request.tasks, names=request.names
+        )
+
+    call.result.data = {
+        "configurations": [
+            {"task": task, **data} for task, data in tasks_params.items()
+        ]
+    }
+
+
+@endpoint(
+    "tasks.get_configuration_names", request_data_model=GetConfigurationNamesRequest,
+)
+def get_configuration_names(
+    call: APICall, company_id, request: GetConfigurationNamesRequest
+):
+    with translate_errors_context():
+        tasks_params = HyperParams.get_configuration_names(
+            company_id, task_ids=request.tasks
+        )
+
+    call.result.data = {
+        "configurations": [
+            {"task": task, **data} for task, data in tasks_params.items()
+        ]
+    }
+
+
+@endpoint("tasks.edit_configuration", request_data_model=EditConfigurationRequest)
+def edit_configuration(call: APICall, company_id, request: EditConfigurationRequest):
+    with translate_errors_context():
+        call.result.data = {
+            "updated": HyperParams.edit_configuration(
+                company_id,
+                task_id=request.task,
+                configuration=request.configuration,
+                replace_configuration=request.replace_configuration,
+            )
+        }
+
+
+@endpoint("tasks.delete_configuration", request_data_model=DeleteConfigurationRequest)
+def delete_configuration(
+    call: APICall, company_id, request: DeleteConfigurationRequest
+):
+    with translate_errors_context():
+        call.result.data = {
+            "deleted": HyperParams.delete_configuration(
+                company_id, task_id=request.task, configuration=request.configuration
+            )
+        }
 
 
 @endpoint(

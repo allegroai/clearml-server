@@ -12,7 +12,6 @@ from apierrors.errors.bad_request import InvalidProjectId
 from apimodels.base import UpdateResponse, MakePublicRequest
 from apimodels.projects import (
     GetHyperParamReq,
-    GetHyperParamResp,
     ProjectReq,
     ProjectTagsRequest,
 )
@@ -377,13 +376,12 @@ def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectR
 
 @endpoint(
     "projects.get_hyper_parameters",
-    min_version="2.2",
+    min_version="2.9",
     request_data_model=GetHyperParamReq,
-    response_data_model=GetHyperParamResp,
 )
 def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamReq):
 
-    total, remaining, parameters = TaskBLL.get_aggregated_project_execution_parameters(
+    total, remaining, parameters = TaskBLL.get_aggregated_project_parameters(
         company_id,
         project_ids=[request.project] if request.project else None,
         page=request.page,

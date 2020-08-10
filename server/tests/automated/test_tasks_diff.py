@@ -5,7 +5,6 @@ log = config.logger(__file__)
 
 
 class TestTasksDiff(TestService):
-
     def setUp(self, version="2.0"):
         super(TestTasksDiff, self).setUp(version=version)
 
@@ -17,7 +16,14 @@ class TestTasksDiff(TestService):
     def _compare_script(self, task_id, script):
         task = self.api.tasks.get_by_id(task=task_id).task
         if not script:
-            self.assertFalse(task.get("script", None))
+            self.assertTrue(
+                task.get(
+                    "script",
+                    dict(
+                        binary="python", repository="", entry_point="", requirements={}
+                    ),
+                )
+            )
         else:
             for key, value in script.items():
                 self.assertEqual(task.script[key], value)

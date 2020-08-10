@@ -5,6 +5,7 @@ from random import random
 from time import sleep
 from typing import Collection, Sequence, Tuple, Any, Optional, List, Dict
 
+import dpath
 import pymongo.results
 import six
 from mongoengine import Q
@@ -34,7 +35,9 @@ from database.utils import get_company_or_none_constraint, id as create_id
 from service_repo import APICall
 from timing_context import TimingContext
 from utilities.dicts import deep_merge
-from .utils import ChangeStatusRequest, validate_status_change, ParameterKeyEscaper
+from utilities.parameter_key_escaper import ParameterKeyEscaper
+from .param_utils import params_prepare_for_save
+from .utils import ChangeStatusRequest, validate_status_change
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -82,11 +85,7 @@ class TaskBLL(object):
 
     @staticmethod
     def get_by_id(
-        company_id,
-        task_id,
-        required_status=None,
-        only_fields=None,
-        allow_public=False,
+        company_id, task_id, required_status=None, only_fields=None, allow_public=False,
     ):
         if only_fields:
             if isinstance(only_fields, string_types):
@@ -126,18 +125,14 @@ class TaskBLL(object):
                 allow_public=allow_public,
                 return_dicts=False,
             )
-            res = None
             if only:
-                res = q.only(*only)
-            elif return_tasks:
-                res = list(q)
+                q = q.only(*only)
 
-            count = len(res) if res is not None else q.count()
-            if count != len(ids):
+            if q.count() != len(ids):
                 raise errors.bad_request.InvalidTaskId(ids=task_ids)
 
             if return_tasks:
-                return res
+                return list(q)
 
     @staticmethod
     def create(call: APICall, fields: dict):
@@ -179,20 +174,31 @@ class TaskBLL(object):
         project: Optional[str] = None,
         tags: Optional[Sequence[str]] = None,
         system_tags: Optional[Sequence[str]] = None,
+        hyperparams: Optional[dict] = None,
+        configuration: Optional[dict] = None,
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
     ) -> Task:
         task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
         execution_dict = task.execution.to_proper_dict() if task.execution else {}
         execution_model_overriden = False
+        params_dict = {
+            field: value
+            for field, value in (
+                ("hyperparams", hyperparams),
+                ("configuration", configuration),
+            )
+            if value is not None
+        }
         if execution_overrides:
-            parameters = execution_overrides.get("parameters")
-            if parameters is not None:
-                execution_overrides["parameters"] = {
-                    ParameterKeyEscaper.escape(k): v for k, v in parameters.items()
-                }
+            params_dict["execution"] = {}
+            for legacy_param in ("parameters", "configuration"):
+                legacy_value = execution_overrides.pop(legacy_param, None)
+                if legacy_value is not None:
+                    params_dict["execution"] = legacy_value
             execution_dict = deep_merge(execution_dict, execution_overrides)
             execution_model_overriden = execution_overrides.get("model") is not None
+        params_prepare_for_save(params_dict, previous_task=task)
 
         artifacts = execution_dict.get("artifacts")
         if artifacts:
@@ -220,6 +226,8 @@ class TaskBLL(object):
                 if task.output
                 else None,
                 execution=execution_dict,
+                configuration=params_dict.get("configuration") or task.configuration,
+                hyperparams=params_dict.get("hyperparams") or task.hyperparams,
             )
             cls.validate(
                 new_task,
@@ -625,28 +633,34 @@ class TaskBLL(object):
             return [a.key for a in added], [a.key for a in updated]
 
     @staticmethod
-    def get_aggregated_project_execution_parameters(
+    def get_aggregated_project_parameters(
         company_id,
         project_ids: Sequence[str] = None,
         page: int = 0,
         page_size: int = 500,
-    ) -> Tuple[int, int, Sequence[str]]:
+    ) -> Tuple[int, int, Sequence[dict]]:
 
         page = max(0, page)
         page_size = max(1, page_size)
-
         pipeline = [
             {
                 "$match": {
                     "company": company_id,
-                    "execution.parameters": {"$exists": True, "$gt": {}},
+                    "hyperparams": {"$exists": True, "$gt": {}},
                     **({"project": {"$in": project_ids}} if project_ids else {}),
                 }
             },
-            {"$project": {"parameters": {"$objectToArray": "$execution.parameters"}}},
-            {"$unwind": "$parameters"},
-            {"$group": {"_id": "$parameters.k"}},
-            {"$sort": {"_id": 1}},
+            {"$project": {"sections": {"$objectToArray": "$hyperparams"}}},
+            {"$unwind": "$sections"},
+            {
+                "$project": {
+                    "section": "$sections.k",
+                    "names": {"$objectToArray": "$sections.v"},
+                }
+            },
+            {"$unwind": "$names"},
+            {"$group": {"_id": {"section": "$section", "name": "$names.k"}}},
+            {"$sort": OrderedDict({"_id.section": 1, "_id.name": 1})},
             {
                 "$group": {
                     "_id": 1,
@@ -672,7 +686,12 @@ class TaskBLL(object):
         if result:
             total = int(result.get("total", -1))
             results = [
-                ParameterKeyEscaper.unescape(r["_id"])
+                {
+                    "section": ParameterKeyEscaper.unescape(
+                        dpath.get(r, "_id/section")
+                    ),
+                    "name": ParameterKeyEscaper.unescape(dpath.get(r, "_id/name")),
+                }
                 for r in result.get("results", [])
             ]
             remaining = max(0, total - (len(results) + page * page_size))
