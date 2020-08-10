@@ -19,7 +19,7 @@ from config.info import get_deployment_type
 from database.model import Company, User
 from database.model.queue import Queue
 from database.model.task.task import Task
-from utilities import safe_get
+from tools import safe_get
 from utilities.json import dumps
 from utilities.threads_manager import ThreadsManager
 from version import __version__ as current_version

@@ -32,6 +32,7 @@ LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 
 class EventBLL(object):
     id_fields = ("task", "iter", "metric", "variant", "key")
+    empty_scroll = "FFFF"
 
     def __init__(self, events_es=None, redis=None):
         self.es = events_es or es_factory.connect("events")
@@ -321,6 +322,9 @@ class EventBLL(object):
         batch_size=10000,
         scroll_id=None,
     ):
+        if scroll_id == self.empty_scroll:
+            return [], scroll_id, 0
+
         if scroll_id:
             with translate_errors_context(), TimingContext("es", "task_log_events"):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
@@ -407,6 +411,9 @@ class EventBLL(object):
         size: int = 500,
         scroll_id: str = None,
     ):
+        if scroll_id == self.empty_scroll:
+            return [], scroll_id, 0
+
         if scroll_id:
             with translate_errors_context(), TimingContext("es", "get_task_events"):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
@@ -474,7 +481,7 @@ class EventBLL(object):
         next_scroll_id = es_res.get("_scroll_id")
         if next_scroll_id and not events:
             self.es.clear_scroll(scroll_id=next_scroll_id)
-            next_scroll_id = None
+            next_scroll_id = self.empty_scroll
 
         return events, total_events, next_scroll_id
 
@@ -490,6 +497,8 @@ class EventBLL(object):
         size=500,
         scroll_id=None,
     ):
+        if scroll_id == self.empty_scroll:
+            return [], scroll_id, 0
 
         if scroll_id:
             with translate_errors_context(), TimingContext("es", "get_task_events"):
