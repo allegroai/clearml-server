@@ -11,6 +11,12 @@
 
 ## :rocket: Trains-Agent Services is now included, for more information see [services](https://github.com/allegroai/trains-server#services)
 
+## v0.16 Upgrade Notice
+
+In v0.16, the Elasticsearch subsystem of Trains Server has been upgraded from version 5.6 to version 7.6. This change necessitates the migration of the database contents to accommodate the change in index structure across the different versions.  
+
+Follow [this procedure](https://allegro.ai/docs/deploying_trains/trains_server_es7_migration/) to migrate existing data.
+
 ## Introduction
 
 The **trains-server** is the backend service infrastructure for [Trains](https://github.com/allegroai/trains).
