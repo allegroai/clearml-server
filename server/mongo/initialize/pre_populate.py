@@ -57,6 +57,10 @@ class PrePopulate:
     metadata_filename = "metadata.json"
     zip_args = dict(mode="w", compression=ZIP_BZIP2)
     artifacts_ext = ".artifacts"
+    img_source_regex = re.compile(
+        r"['\"]source['\"]:\s?['\"](https?://(?:localhost:8081|files.*?)/.*?)['\"]",
+        flags=re.IGNORECASE,
+    )
 
     class JsonLinesWriter:
         def __init__(self, file: BinaryIO):
@@ -360,6 +364,8 @@ class PrePopulate:
     @classmethod
     def update_featured_projects_order(cls):
         featured_order = config.get("services.projects.featured_order", [])
+        if not featured_order:
+            return
 
         def get_index(p: Project):
             for index, entry in enumerate(featured_order):
@@ -502,10 +508,18 @@ class PrePopulate:
                         break
                     scroll_id = res.next_scroll_id
                     for event in res.events:
-                        if event.get("type") == "training_debug_image":
+                        event_type = event.get("type")
+                        if event_type == "training_debug_image":
                             url = cls._get_fixed_url(event.get("url"))
                             if url:
                                 event["url"] = url
+                                artifacts.append(url)
+                        elif event_type == "plot":
+                            plot_str: str = event.get("plot_str", "")
+                            for match in cls.img_source_regex.findall(plot_str):
+                                url = cls._get_fixed_url(match)
+                                if match != url:
+                                    plot_str = plot_str.replace(match, url)
                                 artifacts.append(url)
                         w.write(json.dumps(event))
             data = f.getvalue()
