@@ -1,4 +1,5 @@
 import itertools
+import math
 from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum
@@ -252,11 +253,14 @@ class EventMetrics:
 
         min_index = safe_get(data, "min_index/value", default=0)
         max_index = safe_get(data, "max_index/value", default=min_index)
+        index_range = max_index - min_index + 1
+        interval = max(1, math.ceil(float(index_range) / samples))
+        max_samples = math.ceil(float(index_range) / interval)
         return (
             metric,
             variant,
-            max(1, int(max_index - min_index + 1) // samples),
-            samples,
+            interval,
+            max_samples,
         )
 
     MetricData = Tuple[str, dict]
