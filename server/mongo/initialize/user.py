@@ -59,7 +59,15 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
 
 
 def ensure_fixed_user(user: FixedUser, log: Logger):
-    if User.objects(company=user.company, id=user.user_id).first():
+    db_user = User.objects(company=user.company, id=user.user_id).first()
+    if db_user:
+        # noinspection PyBroadException
+        try:
+            log.info(f"Updating user name: {user.name}")
+            given_name, _, family_name = user.name.partition(" ")
+            db_user.update(name=user.name, given_name=given_name, family_name=family_name)
+        except Exception:
+            pass
         return
 
     data = attr.asdict(user)
