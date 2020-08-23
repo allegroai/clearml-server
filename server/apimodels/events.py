@@ -9,6 +9,7 @@ from jsonmodels.validators import Length, Min, Max
 from apimodels import ListField, IntField, ActualEnumField
 from bll.event.event_metrics import EventType
 from bll.event.scalar_key import ScalarKeyEnum
+from config import config
 from utilities.stringenum import StringEnum
 
 
@@ -23,7 +24,15 @@ class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
 
 class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
     tasks: Sequence[str] = ListField(
-        items_types=str, validators=[Length(minimum_value=1, maximum_value=10)]
+        items_types=str,
+        validators=[
+            Length(
+                minimum_value=1,
+                maximum_value=config.get(
+                    "services.tasks.multi_task_histogram_limit", 10
+                ),
+            )
+        ],
     )
 
 
