@@ -93,21 +93,22 @@ class LogEventsIterator:
                 },
             }
             es_result = self.es.search(index=es_index, body=es_req)
-            hits = es_result["hits"]["hits"]
-            if not hits or len(hits) < 2:
+            last_second_hits = es_result["hits"]["hits"]
+            if not last_second_hits or len(last_second_hits) < 2:
                 # if only one element is returned for the last timestamp
                 # then it is already present in the events
                 return events, hits_total
 
-            last_events = [hit["_source"] for hit in es_result["hits"]["hits"]]
-            already_present_ids = set(ev["_id"] for ev in events)
+            already_present_ids = set(hit["_id"] for hit in hits)
+            last_second_events = [
+                hit["_source"]
+                for hit in last_second_hits
+                if hit["_id"] not in already_present_ids
+            ]
 
             # return the list merged from original query results +
             # leftovers from the last timestamp
             return (
-                [
-                    *events,
-                    *(ev for ev in last_events if ev["_id"] not in already_present_ids),
-                ],
+                [*events, *last_second_events],
                 hits_total,
             )
