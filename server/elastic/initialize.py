@@ -49,16 +49,17 @@ class ConnectionErrorFilter(logging.Filter):
         self.last_blocked = None
 
     def filter(self, record):
-        allow = (
-            (self.err_type is None or record.exc_info[0] != self.err_type)
-            and (self.level is None or record.levelno != self.level)
-            and (self.args is None or record.args[: len(self.args)] != self.args)
-        )
-
-        if not allow:
-            self.last_blocked = record
-
-        return int(allow)
+        try:
+            allow = (
+                (self.err_type is None or record.exc_info[0] != self.err_type)
+                and (self.level is None or record.levelno != self.level)
+                and (self.args is None or record.args[: len(self.args)] != self.args)
+            )
+            if not allow:
+                self.last_blocked = record
+            return allow
+        except Exception:
+            return True
 
 
 def check_elastic_empty() -> bool:

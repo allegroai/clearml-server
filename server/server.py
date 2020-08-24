@@ -57,21 +57,26 @@ with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 120)):
         info.es_connection_error = True
 
     empty_db = check_mongo_empty()
-    if upgrade_monitoring:
-        if not empty_db and (info.es_connection_error or empty_es):
-            if get_last_server_version() < Version("0.16.0"):
-                log.info(f"ES database seems not migrated")
-                info.missed_es_upgrade = True
-        proceed_with_init = not (info.es_connection_error or info.missed_es_upgrade)
-    else:
-        proceed_with_init = True
+    if (
+        upgrade_monitoring
+        and not empty_db
+        and (info.es_connection_error or empty_es)
+        and get_last_server_version() < Version("0.16.0")
+    ):
+        log.info(f"ES database seems not migrated")
+        info.missed_es_upgrade = True
 
-    if proceed_with_init:
+    if info.es_connection_error and not info.missed_es_upgrade:
+        raise Exception(
+            "Error starting server: failed connecting to ElasticSearch service"
+        )
+
+    if not info.missed_es_upgrade:
         init_es_data()
         init_mongo_data()
 
 if (
-    proceed_with_init
+    not info.missed_es_upgrade
     and empty_db
     and config.get("apiserver.pre_populate.enabled", False)
 ):
