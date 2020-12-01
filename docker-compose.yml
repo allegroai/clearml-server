@@ -41,6 +41,9 @@ services:
       bootstrap.memory_lock: "true"
       cluster.name: trains
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+      cluster.routing.allocation.disk.watermark.low: 10gb
+      cluster.routing.allocation.disk.watermark.high: 10gb
+      cluster.routing.allocation.disk.watermark.flood_stage: 10gb
       discovery.zen.minimum_master_nodes: "1"
       discovery.type: "single-node"
       http.compression_level: "7"
@@ -60,8 +63,6 @@ services:
     restart: unless-stopped
     volumes:
     - /opt/trains/data/elastic_7:/usr/share/elasticsearch/data
-    ports:
-    - "9200:9200"
 
   fileserver:
     networks:
@@ -88,8 +89,6 @@ services:
     volumes:
     - /opt/trains/data/mongo/db:/data/db
     - /opt/trains/data/mongo/configdb:/data/configdb
-    ports:
-    - "27017:27017"
 
   redis:
     networks:
@@ -99,8 +98,6 @@ services:
     restart: unless-stopped
     volumes:
     - /opt/trains/data/redis:/data
-    ports:
-    - "6379:6379"
 
   webserver:
     command:
