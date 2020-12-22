@@ -3,7 +3,7 @@
 <img src="docs/clearml_server_logo.png" width="250px">
 
 **ClearML - Auto-Magical Suite of tools to streamline your ML workflow 
-Experiment Manager, ML-Ops and Data-Management**
+</br>Experiment Manager, ML-Ops and Data-Management**
 
 [![GitHub license](https://img.shields.io/badge/license-SSPL-green.svg)](https://img.shields.io/badge/license-SSPL-green.svg)
 [![Python versions](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)](https://img.shields.io/badge/python-3.6%20%7C%203.7-blue.svg)
