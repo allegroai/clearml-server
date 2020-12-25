@@ -45,7 +45,7 @@ You can quickly [deploy](#launching-the-clearml-server)  your **ClearML Server**
 ## System design
 
 
-![Alt Text](https://allegro.ai/clearml/docs/img/ClearML_Server_Diagram.png)
+![Alt Text](https://allegro.ai/clearml/docs/_images/ClearML_Server_Diagram.png)
 
 The **ClearML Server** has two supported configurations:
 - Single IP (domain) with the following open ports
@@ -138,8 +138,8 @@ Do not enqueue training / inference tasks into the `services` queue, as it will 
 
 The **ClearML Server** provides a few additional useful features, which can be manually enabled:
  
-* [Web login authentication](https://allegro.ai/clearml/docs/faq/faq/#web-auth)
-* [Non-responsive experiments watchdog](https://allegro.ai/clearml/docs/faq/faq/#watchdog)  
+* [Web login authentication](https://allegro.ai/clearml/docs/deploying_clearml/clearml_server_config/#web-login-authentication)
+* [Non-responsive experiments watchdog](https://allegro.ai/clearml/docs/deploying_clearml/clearml_server_config/#task_watchdog)  
 
 ## Restarting ClearML Server
 
@@ -205,12 +205,12 @@ To upgrade your existing **ClearML Server** deployment:
    docker-compose -f docker-compose.yml up
    ```
 
-**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://allegro.ai/clearml/docs/faq/faq/#common-docker-upgrade-errors).**
+**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://allegro.ai/clearml/docs/docs/faq/faq.html).**
 
 
 ## Community & Support
 
-If you have any questions, look to the ClearML [FAQ](https://allegro.ai/clearml/docs/faq/faq/), or
+If you have any questions, look to the ClearML [FAQ](https://allegro.ai/clearml/docs/docs/faq/faq.html), or
 tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/trains) with '**trains**' tag.
 
 For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/trains-server/issues).
