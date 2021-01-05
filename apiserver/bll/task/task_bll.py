@@ -29,6 +29,7 @@ from apiserver.database.model.task.task import (
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
 from apiserver.es_factory import es_factory
 from apiserver.service_repo import APICall
+from apiserver.services.utils import validate_tags
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .artifacts import artifacts_prepare_for_save
@@ -179,7 +180,8 @@ class TaskBLL:
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
         new_project_name: str = None,
-    ) -> Task:
+    ) -> Tuple[Task, dict]:
+        validate_tags(tags, system_tags)
         params_dict = {
             field: value
             for field, value in (
@@ -215,18 +217,20 @@ class TaskBLL:
                 if a.get("mode") != ArtifactModes.output
             }
 
+        new_project_data = None
         if not project and new_project_name:
             # Use a project with the provided name, or create a new project
-            project = project_bll.find_or_create(
+            project = ProjectBLL.find_or_create(
                 project_name=new_project_name,
                 user=user_id,
                 company=company_id,
                 description="Auto-generated while cloning",
             )
+            new_project_data = {"id": project, "name": new_project_name}
 
         now = datetime.utcnow()
 
-        with translate_errors_context():
+        with TimingContext("mongo", "clone task"):
             new_task = Task(
                 id=create_id(),
                 user=user_id,
@@ -270,7 +274,7 @@ class TaskBLL:
                 system_tags=updated_system_tags,
             )
 
-        return new_task
+        return new_task, new_project_data
 
     @classmethod
     def validate(
@@ -280,6 +284,11 @@ class TaskBLL:
         validate_parent=True,
         validate_project=True,
     ):
+        """
+        Validate task properties according to the flag
+        Task project is always checked for being writable
+        in order to disable the modification of public projects
+        """
         if (
             validate_parent
             and task.parent
@@ -289,12 +298,10 @@ class TaskBLL:
         ):
             raise errors.bad_request.InvalidTaskId("invalid parent", parent=task.parent)
 
-        if (
-            validate_project
-            and task.project
-            and not Project.get_for_writing(company=task.company, id=task.project)
-        ):
-            raise errors.bad_request.InvalidProjectId(id=task.project)
+        if task.project:
+            project = Project.get_for_writing(company=task.company, id=task.project)
+            if validate_project and not project:
+                raise errors.bad_request.InvalidProjectId(id=task.project)
 
         if validate_model:
             cls.validate_execution_model(task)

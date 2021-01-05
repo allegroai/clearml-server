@@ -87,7 +87,6 @@ from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
-    validate_tags,
 )
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.partial_version import PartialVersion
@@ -415,12 +414,9 @@ def create(call: APICall, company_id, req_model: CreateRequest):
     call.result.data_model = IdResponse(id=task.id)
 
 
-@endpoint(
-    "tasks.clone", request_data_model=CloneRequest, response_data_model=IdResponse
-)
+@endpoint("tasks.clone", request_data_model=CloneRequest)
 def clone_task(call: APICall, company_id, request: CloneRequest):
-    validate_tags(request.new_task_tags, request.new_task_system_tags)
-    task = task_bll.clone_task(
+    task, new_project = task_bll.clone_task(
         company_id=company_id,
         user_id=call.identity.user,
         task_id=request.task,
@@ -430,13 +426,16 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
         project=request.new_task_project,
         tags=request.new_task_tags,
         system_tags=request.new_task_system_tags,
-        hyperparams=request.new_hyperparams,
-        configuration=request.new_configuration,
+        hyperparams=request.new_task_hyperparams,
+        configuration=request.new_task_configuration,
         execution_overrides=request.execution_overrides,
         validate_references=request.validate_references,
         new_project_name=request.new_project_name,
     )
-    call.result.data_model = IdResponse(id=task.id)
+    call.result.data = {
+        "id": task.id,
+        **({"new_project": new_project} if new_project else {}),
+    }
 
 
 def prepare_update_fields(call: APICall, task, call_data):
@@ -468,9 +467,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             return UpdateResponse(updated=0)
 
         updated_count, updated_fields = Task.safe_update(
-            company_id=company_id,
-            id=task_id,
-            partial_update_dict=partial_update_dict,
+            company_id=company_id, id=task_id, partial_update_dict=partial_update_dict,
         )
         if updated_count:
             new_project = updated_fields.get("project", task.project)
@@ -879,7 +876,13 @@ def reset(call: APICall, company_id, request: ResetRequest):
             force=force,
             status_reason="reset",
             status_message="reset",
-        ).execute(started=None, completed=None, published=None, active_duration=None, **updates)
+        ).execute(
+            started=None,
+            completed=None,
+            published=None,
+            active_duration=None,
+            **updates,
+        )
     )
 
     # do not return artifacts since they are not serializable
@@ -906,10 +909,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     for task in tasks:
         try:
             TaskBLL.dequeue_and_change_status(
-                task,
-                company_id,
-                request.status_message,
-                request.status_reason,
+                task, company_id, request.status_message, request.status_reason,
             )
         except APIError:
             # dequeue may fail if the task was not enqueued

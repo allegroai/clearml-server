@@ -18,10 +18,14 @@ class TestMoveUnderProject(TestService):
 
         # task clone
         p2_name = "project_for_clone"
-        task2 = self.api.tasks.clone(task=task, new_project_name=p2_name).id
+        res = self.api.tasks.clone(task=task, new_project_name=p2_name)
+        task2 = res.id
+        project_data = res.new_project
+        self.assertTrue(project_data.id)
+        self.assertEqual(p2_name, project_data.name)
         tasks = self.api.tasks.get_all_ex(id=[task2]).tasks
         project2 = tasks[0].project.id
-        self.assertTrue(project2)
+        self.assertEqual(project_data.id, project2)
         projects = self.api.projects.get_all_ex(id=[project2]).projects
         self.assertEqual(p2_name, projects[0].name)
         self.api.projects.delete(project=project2, force=True)
