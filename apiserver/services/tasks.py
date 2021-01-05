@@ -504,9 +504,7 @@ def set_requirements(call: APICall, company_id, req_model: SetRequirementsReques
             raise errors.bad_request.MissingTaskFields(
                 "Task has no script field", task=task.id
             )
-        res = update_task(
-            task, update_cmds=dict(script__requirements=requirements)
-        )
+        res = update_task(task, update_cmds=dict(script__requirements=requirements))
         call.result.data_model = UpdateResponse(updated=res)
         if res:
             call.result.data_model.fields = {"script.requirements": requirements}
@@ -559,7 +557,9 @@ def update_batch(call: APICall, company_id, _):
             updated = res.modified_count
 
         if updated and updated_projects:
-            _reset_cached_tags(company_id, projects=list(updated_projects))
+            projects = list(updated_projects)
+            _reset_cached_tags(company_id, projects=projects)
+            update_project_time(project_ids=projects)
 
         call.result.data = {"updated": updated}
 
@@ -1110,6 +1110,7 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
 
         task.delete()
         _reset_cached_tags(company_id, projects=[task.project])
+        update_project_time(task.project)
 
         call.result.data = dict(deleted=True, **attr.asdict(result))
 
@@ -1215,14 +1216,20 @@ def move(call: APICall, company_id: str, request: MoveRequest):
             "project or project_name is required"
         )
 
-    with translate_errors_context():
-        return {
-            "project_id": project_bll.move_under_project(
-                entity_cls=Task,
-                user=call.identity.user,
-                company=company_id,
-                ids=request.ids,
-                project=request.project,
-                project_name=request.project_name,
-            )
-        }
+    updated_projects = set(
+        t.project for t in Task.objects(id__in=request.ids).only("project") if t.project
+    )
+    project_id = project_bll.move_under_project(
+        entity_cls=Task,
+        user=call.identity.user,
+        company=company_id,
+        ids=request.ids,
+        project=request.project,
+        project_name=request.project_name,
+    )
+
+    projects = list(updated_projects | {project_id})
+    _reset_cached_tags(company_id, projects=projects)
+    update_project_time(projects)
+
+    return {"project_id": project_id}

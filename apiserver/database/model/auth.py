@@ -52,7 +52,7 @@ class Credentials(EmbeddedDocument):
 
 
 class User(DbModelMixin, AuthDocument):
-    meta = {"db_alias": Database.auth, "strict": strict, "indexes": ["email"]}
+    meta = {"db_alias": Database.auth, "strict": strict}
 
     id = StringField(primary_key=True)
     name = StringField()
@@ -72,5 +72,5 @@ class User(DbModelMixin, AuthDocument):
     credentials = EmbeddedDocumentListField(Credentials, default=list)
     """ Credentials generated for this user """
 
-    email = EmailField(unique=True, required=True)
+    email = EmailField()
     """ Email uniquely identifying the user """

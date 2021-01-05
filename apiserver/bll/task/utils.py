@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TypeVar, Callable, Tuple, Sequence
+from typing import TypeVar, Callable, Tuple, Sequence, Union
 
 import attr
 import six
@@ -153,9 +153,14 @@ def get_possible_status_changes(current_status):
     return possible
 
 
-def update_project_time(project_id):
-    if project_id:
-        Project.objects(id=project_id).update(last_update=datetime.utcnow())
+def update_project_time(project_ids: Union[str, Sequence[str]]):
+    if not project_ids:
+        return
+
+    if isinstance(project_ids, str):
+        project_ids = [project_ids]
+
+    return Project.objects(id__in=project_ids).update(last_update=datetime.utcnow())
 
 
 T = TypeVar("T")

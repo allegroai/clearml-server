@@ -34,7 +34,7 @@ from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
-from .utils import ChangeStatusRequest, validate_status_change
+from .utils import ChangeStatusRequest, validate_status_change, update_project_time
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -275,6 +275,7 @@ class TaskBLL:
                 tags=updated_tags,
                 system_tags=updated_system_tags,
             )
+            update_project_time(new_task.project)
 
         return new_task, new_project_data
 

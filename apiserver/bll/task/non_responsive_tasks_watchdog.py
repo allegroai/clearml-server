@@ -1,8 +1,7 @@
 from datetime import timedelta, datetime
 from time import sleep
 
-from apiserver.apierrors import errors
-from apiserver.bll.task import ChangeStatusRequest
+from apiserver.bll.task import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import TaskStatus, Task
 from apiserver.utilities.threads_manager import ThreadsManager
@@ -71,19 +70,29 @@ class NonResponsiveTasksWatchdog:
             return 0
 
         err_count = 0
+        project_ids = set()
+        now = datetime.utcnow()
         for task in tasks:
             log.info(
                 f"Stopping {task.id} ({task.name}), last updated at {task.last_update}"
             )
+            # noinspection PyBroadException
             try:
-                ChangeStatusRequest(
-                    task=task,
-                    new_status=TaskStatus.stopped,
+                updated = Task.objects(id=task.id, status=task.status).update(
+                    status=TaskStatus.stopped,
                     status_reason="Forced stop (non-responsive)",
                     status_message="Forced stop (non-responsive)",
-                    force=True,
-                ).execute()
-            except errors.bad_request.FailedChangingTaskStatus:
-                err_count += 1
+                    status_changed=now,
+                    last_update=now,
+                    last_change=now,
+                )
+                if updated:
+                    project_ids.add(task.project)
+                else:
+                    err_count += 1
+            except Exception as ex:
+                log.error("Failed setting status: %s", str(ex))
+
+        update_project_time(list(project_ids))
 
         return len(tasks) - err_count
