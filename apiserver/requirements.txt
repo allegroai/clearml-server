@@ -11,7 +11,7 @@ funcsigs==1.0.2
 furl>=2.0.0
 gunicorn>=19.7.1
 humanfriendly==4.18
-jinja2==2.10
+jinja2==2.10.1
 jsonmodels>=2.3
 jsonschema>=2.6.0
 luqum>=0.10.0
