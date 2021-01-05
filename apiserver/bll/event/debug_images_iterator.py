@@ -22,6 +22,7 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.metrics import MetricEventStats
 from apiserver.database.model.task.task import Task
 from apiserver.timing_context import TimingContext
+from apiserver.utilities.dicts import nested_get
 
 
 class VariantScrollState(Base):
@@ -465,3 +466,103 @@ class DebugImagesIterator:
             if events_to_remove:
                 it["events"] = [ev for ev in it["events"] if ev not in events_to_remove]
         return [it for it in iterations if it["events"]]
+
+    def get_debug_image_event(
+        self,
+        company_id: str,
+        task: str,
+        metric: str,
+        variant: str,
+        iteration: Optional[int] = None,
+    ) -> Optional[dict]:
+        """
+        Get the debug image for the requested iteration or the latest before it
+        If the iteration is not passed then get the latest event
+        """
+        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
+        if not self.es.indices.exists(es_index):
+            return None
+
+        must_conditions = [
+            {"term": {"task": task}},
+            {"term": {"metric": metric}},
+            {"term": {"variant": variant}},
+            {"exists": {"field": "url"}},
+        ]
+        if iteration is not None:
+            must_conditions.append({"range": {"iter": {"lte": iteration}}})
+
+        es_req = {
+            "size": 1,
+            "sort": {"iter": "desc"},
+            "query": {"bool": {"must": must_conditions}}
+        }
+
+        with translate_errors_context(), TimingContext("es", "get_debug_image_event"):
+            es_res = self.es.search(index=es_index, body=es_req, routing=task)
+
+        hits = nested_get(es_res, ("hits", "hits"))
+        if not hits:
+            return None
+
+        return hits[0]["_source"]
+
+    def get_debug_image_iterations(
+        self, company_id: str, task: str, metric: str, variant: str
+    ) -> Tuple[int, int]:
+        """
+        Return valid min and max iterations that the task reported images
+        The min iteration is the lowest iteration that contains non-recycled image url
+        """
+        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
+        if not self.es.indices.exists(es_index):
+            return 0, 0
+
+        es_req: dict = {
+            "size": 1,
+            "sort": {"iter": "desc"},
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"task": task}},
+                        {"term": {"metric": metric}},
+                        {"term": {"variant": variant}},
+                        {"exists": {"field": "url"}},
+                    ]
+                }
+            },
+            "aggs": {
+                "url_min": {
+                    "terms": {
+                        "field": "url",
+                        "order": {"max_iter": "asc"},
+                        "size": 1,  # we need only one url from the least recent iteration
+                    },
+                    "aggs": {
+                        "max_iter": {"max": {"field": "iter"}},
+                        "iters": {
+                            "top_hits": {
+                                "sort": {"iter": {"order": "desc"}},
+                                "size": 1,
+                                "_source": "iter",
+                            }
+                        },
+                    }
+                }
+            },
+        }
+
+        with translate_errors_context(), TimingContext("es", "get_debug_image_iterations"):
+            es_res = self.es.search(index=es_index, body=es_req, routing=task)
+
+        hits = nested_get(es_res, ("hits", "hits"))
+        if not hits:
+            return 0, 0
+
+        max_iter = hits[0]["_source"]["iter"]
+        url_min_buckets = nested_get(es_res, ("aggregations", "url_min", "buckets"))
+        if not url_min_buckets:
+            return 0, max_iter
+
+        min_iter = url_min_buckets[0]["max_iter"]["value"]
+        return int(min_iter), max_iter

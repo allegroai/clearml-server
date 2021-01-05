@@ -1,10 +1,6 @@
-"""
-Comprehensive test of all(?) use cases of datasets and frames
-"""
 import json
 import operator
 import unittest
-from functools import partial
 from statistics import mean
 from typing import Sequence, Optional, Tuple
 
@@ -98,95 +94,6 @@ class TestTaskEvents(TestService):
         self.assertEqual(iter_count - 1, metric_data.value)
         self.assertEqual(iter_count - 1, metric_data.max_value)
         self.assertEqual(0, metric_data.min_value)
-
-    def test_task_debug_images(self):
-        task = self._temp_task()
-        metric = "Metric1"
-        variants = [("Variant1", 7), ("Variant2", 4)]
-        iterations = 10
-
-        # test empty
-        res = self.api.events.debug_images(
-            metrics=[{"task": task, "metric": metric}], iters=5,
-        )
-        self.assertFalse(res.metrics)
-
-        # create events
-        events = [
-            self._create_task_event(
-                "training_debug_image",
-                task=task,
-                iteration=n,
-                metric=metric,
-                variant=variant,
-                url=f"{metric}_{variant}_{n % unique_images}",
-            )
-            for n in range(iterations)
-            for (variant, unique_images) in variants
-        ]
-        self.send_batch(events)
-
-        # init testing
-        unique_images = [unique for (_, unique) in variants]
-        scroll_id = None
-        assert_debug_images = partial(
-            self._assertDebugImages,
-            task=task,
-            metric=metric,
-            max_iter=iterations - 1,
-            unique_images=unique_images,
-        )
-
-        # test forward navigation
-        for page in range(3):
-            scroll_id = assert_debug_images(scroll_id=scroll_id, expected_page=page)
-
-        # test backwards navigation
-        scroll_id = assert_debug_images(
-            scroll_id=scroll_id, expected_page=0, navigate_earlier=False
-        )
-
-        # beyond the latest iteration and back
-        res = self.api.events.debug_images(
-            metrics=[{"task": task, "metric": metric}],
-            iters=5,
-            scroll_id=scroll_id,
-            navigate_earlier=False,
-        )
-        self.assertEqual(len(res["metrics"][0]["iterations"]), 0)
-        assert_debug_images(scroll_id=scroll_id, expected_page=1)
-
-        # refresh
-        assert_debug_images(scroll_id=scroll_id, expected_page=0, refresh=True)
-
-    def _assertDebugImages(
-        self,
-        task,
-        metric,
-        max_iter: int,
-        unique_images: Sequence[int],
-        scroll_id,
-        expected_page: int,
-        iters: int = 5,
-        **extra_params,
-    ):
-        res = self.api.events.debug_images(
-            metrics=[{"task": task, "metric": metric}],
-            iters=iters,
-            scroll_id=scroll_id,
-            **extra_params,
-        )
-        data = res["metrics"][0]
-        self.assertEqual(data["task"], task)
-        self.assertEqual(data["metric"], metric)
-        left_iterations = max(0, max(unique_images) - expected_page * iters)
-        self.assertEqual(len(data["iterations"]), min(iters, left_iterations))
-        for it in data["iterations"]:
-            events_per_iter = sum(
-                1 for unique in unique_images if unique > max_iter - it["iter"]
-            )
-            self.assertEqual(len(it["events"]), events_per_iter)
-        return res.scroll_id
 
     def test_error_events(self):
         task = self._temp_task()

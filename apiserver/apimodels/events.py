@@ -51,6 +51,20 @@ class DebugImagesRequest(Base):
     scroll_id: str = StringField()
 
 
+class TaskMetricVariant(Base):
+    task: str = StringField(required=True)
+    metric: str = StringField(required=True)
+    variant: str = StringField(required=True)
+
+
+class DebugImageIterationsRequest(TaskMetricVariant):
+    pass
+
+
+class DebugImageEventRequest(TaskMetricVariant):
+    iteration: Optional[int] = IntField()
+
+
 class LogOrderEnum(StringEnum):
     asc = auto()
     desc = auto()

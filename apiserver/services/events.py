@@ -13,6 +13,8 @@ from apiserver.apimodels.events import (
     TaskMetricsRequest,
     LogEventsRequest,
     LogOrderEnum,
+    DebugImageIterationsRequest,
+    DebugImageEventRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_metrics import EventMetrics
@@ -622,6 +624,49 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
             for (task, metric, iterations) in result.metric_events
         ],
     )
+
+
+@endpoint(
+    "events.get_debug_image_event",
+    min_version="2.11",
+    request_data_model=DebugImageEventRequest,
+)
+def get_debug_image(call, company_id, request: DebugImageEventRequest):
+    task = task_bll.assert_exists(
+        company_id, task_ids=[request.task], allow_public=True, only=("company",)
+    )[0]
+    call.result.data = {
+        "event": event_bll.debug_images_iterator.get_debug_image_event(
+            company_id=task.company,
+            task=request.task,
+            metric=request.metric,
+            variant=request.variant,
+            iteration=request.iteration,
+        )
+    }
+
+
+@endpoint(
+    "events.get_debug_image_iterations",
+    min_version="2.11",
+    request_data_model=DebugImageIterationsRequest,
+)
+def get_debug_image_iterations(call, company_id, request: DebugImageIterationsRequest):
+    task = task_bll.assert_exists(
+        company_id, task_ids=[request.task], allow_public=True, only=("company",)
+    )[0]
+
+    min_iter, max_iter = event_bll.debug_images_iterator.get_debug_image_iterations(
+            company_id=task.company,
+            task=request.task,
+            metric=request.metric,
+            variant=request.variant,
+        )
+
+    call.result.data = {
+        "max_iteration": max_iter,
+        "min_iteration": min_iter,
+    }
 
 
 @endpoint("events.get_task_metrics", request_data_model=TaskMetricsRequest)
