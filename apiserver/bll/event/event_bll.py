@@ -12,6 +12,7 @@ from elasticsearch import helpers
 from mongoengine import Q
 from nested_dict import nested_dict
 
+from apiserver.bll.event.debug_sample_history import DebugSampleHistory
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
@@ -54,6 +55,7 @@ class EventBLL(object):
         )
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
+        self.debug_sample_history = DebugSampleHistory(es=self.es, redis=self.redis)
         self.log_events_iterator = LogEventsIterator(es=self.es)
 
     @property

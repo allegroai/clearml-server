@@ -17,7 +17,10 @@ from apiserver.bll.task.utils import get_task_for_update
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem
 from apiserver.timing_context import TimingContext
-from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
+from apiserver.utilities.parameter_key_escaper import (
+    ParameterKeyEscaper,
+    mongoengine_safe,
+)
 
 log = config.logger(__file__)
 task_bll = TaskBLL()
@@ -65,7 +68,9 @@ class HyperParams:
         with TimingContext("mongo", "delete_hyperparams"):
             properties_only = cls._normalize_params(hyperparams)
             task = get_task_for_update(
-                company_id=company_id, task_id=task_id, allow_all_statuses=properties_only
+                company_id=company_id,
+                task_id=task_id,
+                allow_all_statuses=properties_only,
             )
 
             with_param, without_param = iterutils.partition(
@@ -99,7 +104,9 @@ class HyperParams:
         with TimingContext("mongo", "edit_hyperparams"):
             properties_only = cls._normalize_params(hyperparams)
             task = get_task_for_update(
-                company_id=company_id, task_id=task_id, allow_all_statuses=properties_only
+                company_id=company_id,
+                task_id=task_id,
+                allow_all_statuses=properties_only,
             )
 
             update_cmds = dict()
@@ -108,11 +115,15 @@ class HyperParams:
                 update_cmds["set__hyperparams"] = hyperparams
             elif replace_hyperparams == ReplaceHyperparams.section:
                 for section, value in hyperparams.items():
-                    update_cmds[f"set__hyperparams__{section}"] = value
+                    update_cmds[
+                        f"set__hyperparams__{mongoengine_safe(section)}"
+                    ] = value
             else:
                 for section, section_params in hyperparams.items():
                     for name, value in section_params.items():
-                        update_cmds[f"set__hyperparams__{section}__{name}"] = value
+                        update_cmds[
+                            f"set__hyperparams__{section}__{mongoengine_safe(name)}"
+                        ] = value
 
             return task.update(**update_cmds, last_update=datetime.utcnow())
 
@@ -200,7 +211,7 @@ class HyperParams:
                 update_cmds["set__configuration"] = configuration
             else:
                 for name, value in configuration.items():
-                    update_cmds[f"set__configuration__{name}"] = value
+                    update_cmds[f"set__configuration__{mongoengine_safe(name)}"] = value
 
             return task.update(**update_cmds, last_update=datetime.utcnow())
 

@@ -57,12 +57,15 @@ class TaskMetricVariant(Base):
     variant: str = StringField(required=True)
 
 
-class DebugImageIterationsRequest(TaskMetricVariant):
-    pass
-
-
-class DebugImageEventRequest(TaskMetricVariant):
+class GetDebugImageSampleRequest(TaskMetricVariant):
     iteration: Optional[int] = IntField()
+    scroll_id: Optional[str] = StringField()
+
+
+class NextDebugImageSampleRequest(Base):
+    task: str = StringField(required=True)
+    scroll_id: Optional[str] = StringField()
+    navigate_earlier: bool = BoolField(default=True)
 
 
 class LogOrderEnum(StringEnum):

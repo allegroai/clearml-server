@@ -1,4 +1,5 @@
 from boltons.dictutils import OneToOne
+from mongoengine.queryset.transform import MATCH_OPERATORS
 
 
 class ParameterKeyEscaper:
@@ -39,3 +40,9 @@ class ParameterKeyEscaper:
             value = "_" + value[2:]
 
         return value
+
+
+def mongoengine_safe(field_name):
+    if field_name in MATCH_OPERATORS:
+        return field_name + "__"
+    return field_name

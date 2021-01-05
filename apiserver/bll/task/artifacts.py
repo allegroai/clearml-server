@@ -8,6 +8,7 @@ from apiserver.bll.task.utils import get_task_for_update
 from apiserver.database.model.task.task import DEFAULT_ARTIFACT_MODE, Artifact
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get, nested_set
+from apiserver.utilities.parameter_key_escaper import mongoengine_safe
 
 
 def get_artifact_id(artifact: dict):
@@ -60,7 +61,7 @@ class Artifacts:
             }
 
             update_cmds = {
-                f"set__execution__artifacts__{name}": value
+                f"set__execution__artifacts__{mongoengine_safe(name)}": value
                 for name, value in artifacts.items()
             }
             return task.update(**update_cmds, last_update=datetime.utcnow())
