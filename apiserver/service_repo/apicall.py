@@ -299,41 +299,47 @@ class MissingIdentity(Exception):
     pass
 
 
+def _get_headers(name: str) -> Tuple[str, ...]:
+    return tuple(
+        "-".join(("X", p, name)) for p in ("ClearML", "Trains")
+    )
+
+
 class APICall(DataContainer):
     HEADER_AUTHORIZATION = "Authorization"
     HEADER_REAL_IP = "X-Real-IP"
     HEADER_FORWARDED_FOR = "X-Forwarded-For"
     """ Standard headers """
 
-    _transaction_headers = ("X-Trains-Trx",)
+    _transaction_headers = _get_headers("Trx")
     """ Transaction ID """
 
     @property
     def HEADER_TRANSACTION(self):
         return self._transaction_headers[0]
 
-    _worker_headers = ("X-Trains-Worker",)
+    _worker_headers = _get_headers("Worker")
     """ Worker (machine) ID """
 
     @property
     def HEADER_WORKER(self):
         return self._worker_headers[0]
 
-    _impersonate_as_headers = ("X-Trains-Impersonate-As",)
+    _impersonate_as_headers = _get_headers("Impersonate-As")
     """ Impersonate as someone else (using his identity and permissions) """
 
     @property
     def HEADER_IMPERSONATE_AS(self):
         return self._impersonate_as_headers[0]
 
-    _act_as_headers = ("X-Trains-Act-As",)
+    _act_as_headers = _get_headers("Act-As")
     """ Act as someone else (using his identity, but with your own role and permissions) """
 
     @property
     def HEADER_ACT_AS(self):
         return self._act_as_headers[0]
 
-    _async_headers = ("X-Trains-Async",)
+    _async_headers = _get_headers("Async")
     """ Specifies that this call should be done asynchronously """
 
     @property
