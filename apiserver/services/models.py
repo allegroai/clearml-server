@@ -96,6 +96,18 @@ def get_all_ex(call: APICall, company_id, _):
         call.result.data = {"models": models}
 
 
+@endpoint("models.get_by_id_ex", required_fields=["id"])
+def get_by_id_ex(call: APICall, company_id, _):
+    conform_tag_fields(call, call.data)
+    with translate_errors_context():
+        with TimingContext("mongo", "models_get_by_id_ex"):
+            models = Model.get_many_with_join(
+                company=company_id, query_dict=call.data, allow_public=True
+            )
+        conform_output_tags(call, models)
+        call.result.data = {"models": models}
+
+
 @endpoint("models.get_all", required_fields=[])
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)

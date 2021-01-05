@@ -163,6 +163,24 @@ def get_all_ex(call: APICall, company_id, _):
         call.result.data = {"tasks": tasks}
 
 
+@endpoint("tasks.get_by_id_ex", required_fields=["id"])
+def get_by_id_ex(call: APICall, company_id, _):
+    conform_tag_fields(call, call.data)
+
+    escape_execution_parameters(call)
+
+    with translate_errors_context():
+        with TimingContext("mongo", "task_get_by_id_ex"):
+            tasks = Task.get_many_with_join(
+                company=company_id,
+                query_dict=call.data,
+                allow_public=True,
+            )
+
+        unprepare_from_saved(call, tasks)
+        call.result.data = {"tasks": tasks}
+
+
 @endpoint("tasks.get_all", required_fields=[])
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
