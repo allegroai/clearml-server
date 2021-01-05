@@ -28,7 +28,13 @@ def endpoint(
         # Backwards compatibility: support endpoints with both old-style signature (call) and new-style signature
         #  (call, company, request_model)
         func = f
-        if len(signature(f).parameters) == 1:
+        sig = signature(f)
+        nonlocal request_data_model
+        if len(sig.parameters) == 3 and request_data_model is None:
+            last_arg = list(sig.parameters.items())[-1][1]
+            if last_arg.annotation != last_arg.empty:
+                request_data_model = last_arg.annotation
+        elif len(sig.parameters) == 1:
             # old-style
             def adapter(call, *_, **__):
                 return f(call)
