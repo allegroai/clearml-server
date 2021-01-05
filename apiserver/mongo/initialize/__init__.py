@@ -54,7 +54,7 @@ def init_mongo_data():
 
         _ensure_uuid()
 
-        company_id = _ensure_company(get_default_company(), "trains", log)
+        company_id = _ensure_company(get_default_company(), "clearml", log)
 
         _ensure_default_queue(company_id)
 
