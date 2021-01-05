@@ -78,6 +78,31 @@ class DictField(fields.BaseField):
             for type_ in value_types
         )
 
+    def parse_value(self, values):
+        """Cast value to proper collection."""
+        result = self.get_default_value()
+
+        if not values:
+            return result
+
+        if not isinstance(values, dict):
+            return values
+
+        return {key: self._cast_value(value) for key, value in values.items()}
+
+    def _cast_value(self, value):
+        if isinstance(value, self.value_types):
+            return value
+        else:
+            if len(self.value_types) != 1:
+                tpl = 'Cannot decide which type to choose from "{types}".'
+                raise jsonmodels.errors.ValidationError(
+                    tpl.format(
+                        types=', '.join([t.__name__ for t in self.value_types])
+                    )
+                )
+            return self.value_types[0](**value)
+
     def validate(self, value):
         super(DictField, self).validate(value)
 
@@ -102,6 +127,15 @@ class DictField(fields.BaseField):
                     type=type(item).__name__,
                 )
             )
+
+    def _elem_to_struct(self, value):
+        try:
+            return value.to_struct()
+        except AttributeError:
+            return value
+
+    def to_struct(self, values):
+        return {k: self._elem_to_struct(v) for k, v in values.items()}
 
 
 class IntField(fields.IntField):
