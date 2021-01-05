@@ -15,3 +15,7 @@ class GetHyperParamReq(ProjectReq):
 
 class ProjectTagsRequest(TagsRequest):
     projects = ListField(str)
+
+
+class ProjectTaskParentsRequest(ProjectReq):
+    projects = ListField(str)

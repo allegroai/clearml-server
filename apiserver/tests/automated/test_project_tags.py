@@ -4,8 +4,35 @@ from apiserver.tests.automated import TestService
 
 
 class TestProjectTags(TestService):
-    def setUp(self, version="2.8"):
+    def setUp(self, version="2.12"):
         super().setUp(version=version)
+
+    def test_task_parent(self):
+        # stand alone task
+        parent_sa_name = "Test parent parent standalone"
+        parent_sa = self.new_task(name=parent_sa_name)
+        self.new_task(name="Test parent task standalone", parent=parent_sa)
+
+        # tasks in projects
+        parent_name = "Test parent parent"
+        parent = self.new_task(name=parent_name)
+        p1 = self.create_temp("projects", name="Test parents1", description="test")
+        self.new_task(project=p1, name="Test parent task1", parent=parent)
+        p2 = self.create_temp("projects", name="Test parents2", description="test")
+        self.new_task(project=p1, name="Test parent task2", parent=parent)
+
+        parents = self.api.projects.get_task_parents(projects=[p1, p2]).parents
+        self.assertEqual([{"id": parent, "name": parent_name}], parents)
+
+        res = self.api.projects.get_task_parents()
+        parents = [p for p in res.parents if p.id in (parent, parent_sa)]
+        self.assertEqual(
+            [
+                {"id": parent, "name": parent_name},
+                {"id": parent_sa, "name": parent_sa_name},
+            ],
+            parents,
+        )
 
     def test_project_tags(self):
         tags_1 = ["Test tag 1", "Test tag 2"]

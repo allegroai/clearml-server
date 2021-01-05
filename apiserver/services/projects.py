@@ -13,6 +13,7 @@ from apiserver.apimodels.projects import (
     GetHyperParamReq,
     ProjectReq,
     ProjectTagsRequest,
+    ProjectTaskParentsRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -22,7 +23,11 @@ from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus
-from apiserver.database.utils import parse_from_call, get_options, get_company_or_none_constraint
+from apiserver.database.utils import (
+    parse_from_call,
+    get_options,
+    get_company_or_none_constraint,
+)
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
@@ -438,3 +443,16 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
         call.result.data = Project.set_public(
             company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=False
         )
+
+
+@endpoint(
+    "projects.get_task_parents",
+    min_version="2.12",
+    request_data_model=ProjectTaskParentsRequest,
+)
+def get_task_parents(
+    call: APICall, company_id: str, request: ProjectTaskParentsRequest
+):
+    call.result.data = {
+        "parents": org_bll.get_parent_tasks(company_id, projects=request.projects)
+    }
