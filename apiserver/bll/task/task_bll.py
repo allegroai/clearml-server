@@ -289,7 +289,7 @@ class TaskBLL(object):
         pipeline = [
             {
                 "$match": dict(
-                    company=company_id,
+                    company={"$in": [None, "", company_id]},
                     **({"project": {"$in": project_ids}} if project_ids else {}),
                 )
             },
@@ -558,7 +558,7 @@ class TaskBLL(object):
         pipeline = [
             {
                 "$match": {
-                    "company": company_id,
+                    "company": {"$in": [None, "", company_id]},
                     "hyperparams": {"$exists": True, "$gt": {}},
                     **({"project": {"$in": project_ids}} if project_ids else {}),
                 }
