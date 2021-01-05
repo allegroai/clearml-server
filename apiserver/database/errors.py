@@ -1,6 +1,7 @@
 import re
 from contextlib import contextmanager
 from functools import wraps
+from textwrap import shorten
 
 import dpath
 from dpath.exceptions import InvalidKeyName
@@ -33,7 +34,7 @@ class ParseCallError(Exception):
         self.params = kwargs
 
 
-def throws_default_error(err_cls):
+def throws_default_error(err_cls, shorten_width: int = None):
     """
     Used to make functions (Exception, str) -> Optional[str] searching for specialized error messages raise those
     messages in ``err_cls``. If the decorated function does not find a suitable error message,
@@ -45,25 +46,49 @@ def throws_default_error(err_cls):
         @wraps(func)
         def wrapper(self, e, message, **kwargs):
             extra_info = func(self, e, message, **kwargs)
-            raise err_cls(message, err=e, extra_info=extra_info)
+            err = str(e)
+            if shorten_width:
+                err = shorten(err, shorten_width, placeholder="...")
+            raise err_cls(message, err=err, extra_info=extra_info)
 
         return wrapper
 
     return decorator
 
 
+# noinspection RegExpRedundantEscape
 class ElasticErrorsHandler(object):
     @classmethod
-    @throws_default_error(errors.server_error.DataError)
+    def _bulk_meta_error(cls, error):
+        try:
+            _, err_type = next(dpath.search(error, "*/error/type", yielded=True))
+            _, reason = next(dpath.search(error, "*/error/reason", yielded=True))
+            if err_type == "cluster_block_exception":
+                raise errors.server_error.LowDiskSpace(
+                    "metrics, logs and all indexed data is in read-only mode!",
+                    reason=re.sub(r"^index\s\[.*?\]\s", "", reason) if reason else ""
+                )
+            return
+        except StopIteration:
+            pass
+
+    @classmethod
+    @throws_default_error(errors.server_error.DataError, shorten_width=200)
     def bulk_error(cls, e, _, **__):
         if not e.errors:
             return
+
+        # Currently we only handle the first error
+        error = e.errors[0]
+
+        cls._bulk_meta_error(error)
 
         # Else try returning a better error string
         for _, reason in dpath.search(e.errors[0], "*/error/reason", yielded=True):
             return reason
 
 
+# noinspection RegExpRedundantEscape
 class MongoEngineErrorsHandler(object):
     # NotUniqueError
     __not_unique_regex = re.compile(
@@ -81,6 +106,7 @@ class MongoEngineErrorsHandler(object):
     def validation_error(cls, e: ValidationError, message, **_):
         # Thrown when a document is validated. Documents are validated by default on save and on update
         err_dict = e.errors or {e.field_name: e.message}
+        err_dict = {key: str(value) for key, value in err_dict.items()}
         raise errors.bad_request.DataValidationError(message, **err_dict)
 
     @classmethod

@@ -118,6 +118,7 @@ _error_codes = {
         1:   ('internal_error', 'internal server error'),
         2:   ('config_error', 'configuration error'),
         3:   ('build_info_error', 'build info unavailable or corrupted'),
+        4:   ('low_disk_space', 'Critical server error! Server reports low or insufficient disk space. Please resolve immediately by allocating additional disk space or freeing up storage space.'),
         10:  ('transaction_error', 'a transaction call has returned with an error'),
         # Database-related issues
         100: ('data_error', 'general data error'),
