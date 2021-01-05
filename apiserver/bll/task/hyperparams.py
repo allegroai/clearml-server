@@ -63,7 +63,11 @@ class HyperParams:
 
     @classmethod
     def delete_params(
-        cls, company_id: str, task_id: str, hyperparams: Sequence[HyperParamKey]
+        cls,
+        company_id: str,
+        task_id: str,
+        hyperparams: Sequence[HyperParamKey],
+        force: bool,
     ) -> int:
         with TimingContext("mongo", "delete_hyperparams"):
             properties_only = cls._normalize_params(hyperparams)
@@ -71,6 +75,7 @@ class HyperParams:
                 company_id=company_id,
                 task_id=task_id,
                 allow_all_statuses=properties_only,
+                force=force,
             )
 
             with_param, without_param = iterutils.partition(
@@ -100,6 +105,7 @@ class HyperParams:
         task_id: str,
         hyperparams: Sequence[HyperParamItem],
         replace_hyperparams: str,
+        force: bool,
     ) -> int:
         with TimingContext("mongo", "edit_hyperparams"):
             properties_only = cls._normalize_params(hyperparams)
@@ -107,6 +113,7 @@ class HyperParams:
                 company_id=company_id,
                 task_id=task_id,
                 allow_all_statuses=properties_only,
+                force=force,
             )
 
             update_cmds = dict()
@@ -198,9 +205,12 @@ class HyperParams:
         task_id: str,
         configuration: Sequence[Configuration],
         replace_configuration: bool,
+        force: bool,
     ) -> int:
         with TimingContext("mongo", "edit_configuration"):
-            task = get_task_for_update(company_id=company_id, task_id=task_id)
+            task = get_task_for_update(
+                company_id=company_id, task_id=task_id, force=force
+            )
 
             update_cmds = dict()
             configuration = {
@@ -217,10 +227,12 @@ class HyperParams:
 
     @classmethod
     def delete_configuration(
-        cls, company_id: str, task_id: str, configuration: Sequence[str]
+        cls, company_id: str, task_id: str, configuration: Sequence[str], force: bool
     ) -> int:
         with TimingContext("mongo", "delete_configuration"):
-            task = get_task_for_update(company_id=company_id, task_id=task_id)
+            task = get_task_for_update(
+                company_id=company_id, task_id=task_id, force=force
+            )
 
             delete_cmds = {
                 f"unset__configuration__{ParameterKeyEscaper.escape(name)}": 1

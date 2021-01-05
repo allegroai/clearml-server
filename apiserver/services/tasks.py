@@ -74,6 +74,7 @@ from apiserver.database.model.task.task import (
     Script,
     DEFAULT_LAST_ITERATION,
     Execution,
+    ArtifactModes,
 )
 from apiserver.database.utils import get_fields_attr, parse_from_call
 from apiserver.service_repo import APICall, endpoint
@@ -642,6 +643,7 @@ def edit_hyper_params(call: APICall, company_id, request: EditHyperParamsRequest
                 task_id=request.task,
                 hyperparams=request.hyperparams,
                 replace_hyperparams=request.replace_hyperparams,
+                force=request.force,
             )
         }
 
@@ -651,7 +653,10 @@ def delete_hyper_params(call: APICall, company_id, request: DeleteHyperParamsReq
     with translate_errors_context():
         call.result.data = {
             "deleted": HyperParams.delete_params(
-                company_id, task_id=request.task, hyperparams=request.hyperparams
+                company_id,
+                task_id=request.task,
+                hyperparams=request.hyperparams,
+                force=request.force,
             )
         }
 
@@ -699,6 +704,7 @@ def edit_configuration(call: APICall, company_id, request: EditConfigurationRequ
                 task_id=request.task,
                 configuration=request.configuration,
                 replace_configuration=request.replace_configuration,
+                force=request.force,
             )
         }
 
@@ -710,7 +716,10 @@ def delete_configuration(
     with translate_errors_context():
         call.result.data = {
             "deleted": HyperParams.delete_configuration(
-                company_id, task_id=request.task, configuration=request.configuration
+                company_id,
+                task_id=request.task,
+                configuration=request.configuration,
+                force=request.force,
             )
         }
 
@@ -782,15 +791,20 @@ def enqueue(call: APICall, company_id, req_model: EnqueueRequest):
     request_data_model=UpdateRequest,
     response_data_model=DequeueResponse,
 )
-def dequeue(call: APICall, company_id, req_model: UpdateRequest):
+def dequeue(call: APICall, company_id, request: UpdateRequest):
     task = TaskBLL.get_task_with_access(
-        req_model.task,
+        request.task,
         company_id=company_id,
         only=("id", "execution", "status", "project"),
         requires_write_access=True,
     )
     res = DequeueResponse(
-        **TaskBLL.dequeue_and_change_status(task, company_id, req_model)
+        **TaskBLL.dequeue_and_change_status(
+            task,
+            company_id,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
+        )
     )
 
     res.dequeued = 1
@@ -846,8 +860,8 @@ def reset(call: APICall, company_id, request: ResetRequest):
             updates.update(
                 set__execution__artifacts={
                     key: artifact
-                    for key, artifact in task.execution.artifacts
-                    if artifact.get("mode") == "input"
+                    for key, artifact in task.execution.artifacts.items()
+                    if artifact.mode == ArtifactModes.input
                 }
             )
 
@@ -860,6 +874,9 @@ def reset(call: APICall, company_id, request: ResetRequest):
             status_message="reset",
         ).execute(started=None, completed=None, published=None, **updates)
     )
+
+    # do not return artifacts since they are not serializable
+    res.fields.pop("execution.artifacts", None)
 
     for key, value in api_results.items():
         setattr(res, key, value)
@@ -892,7 +909,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
             status_reason=request.status_reason,
             system_tags=sorted(
                 set(task.system_tags) | {EntityVisibility.archived.value}
-            )
+            ),
         )
 
         archived += 1
@@ -1132,7 +1149,10 @@ def add_or_update_artifacts(
     with translate_errors_context():
         call.result.data = {
             "updated": Artifacts.add_or_update_artifacts(
-                company_id=company_id, task_id=request.task, artifacts=request.artifacts
+                company_id=company_id,
+                task_id=request.task,
+                artifacts=request.artifacts,
+                force=request.force,
             )
         }
 
@@ -1149,6 +1169,7 @@ def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest)
                 company_id=company_id,
                 task_id=request.task,
                 artifact_ids=request.artifacts,
+                force=request.force,
             )
         }
 

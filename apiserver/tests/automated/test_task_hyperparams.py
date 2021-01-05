@@ -118,11 +118,23 @@ class TestTasksHyperparams(TestService):
             self.api.tasks.edit_hyper_params(
                 task=task, hyperparams=[dict(section="test", name="x", value="123")]
             )
+        with self.api.raises(InvalidTaskStatus):
+            self.api.tasks.delete_hyper_params(
+                task=task, hyperparams=[dict(section="test")]
+            )
+        self.api.tasks.edit_hyper_params(
+            task=task, hyperparams=[dict(section="test", name="x", value="123")], force=True
+        )
+        self.api.tasks.delete_hyper_params(
+            task=task, hyperparams=[dict(section="test")], force=True
+        )
+
+        # properties section can be edited/deleted in any task state without the flag
         self.api.tasks.edit_hyper_params(
             task=task, hyperparams=[dict(section="properties", name="x", value="123")]
         )
         self.api.tasks.delete_hyper_params(
-            task=task, hyperparams=[dict(section="Properties")]
+            task=task, hyperparams=[dict(section="properties")]
         )
 
     @staticmethod
@@ -204,7 +216,7 @@ class TestTasksHyperparams(TestService):
 
         # delete
         new_to_delete = self._get_config_keys(new_config[1:])
-        res = self.api.tasks.delete_configuration(
+        self.api.tasks.delete_configuration(
             task=task, configuration=new_to_delete
         )
         res = self.api.tasks.get_configurations(tasks=[task]).configurations[0]
@@ -217,6 +229,23 @@ class TestTasksHyperparams(TestService):
             self.assertEqual(new_config, res.configuration)
         finally:
             self.api.tasks.delete(task=new_task, force=True)
+
+        # edit/delete of running task
+        self.api.tasks.started(task=task)
+        with self.api.raises(InvalidTaskStatus):
+            self.api.tasks.edit_configuration(
+                task=task, configuration=new_config
+            )
+        with self.api.raises(InvalidTaskStatus):
+            self.api.tasks.delete_configuration(
+                task=task, configuration=new_to_delete
+            )
+        self.api.tasks.edit_configuration(
+            task=task, configuration=new_config, force=True
+        )
+        self.api.tasks.delete_configuration(
+            task=task, configuration=new_to_delete, force=True
+        )
 
     @staticmethod
     def _get_config_keys(config: Sequence[dict]) -> List[dict]:

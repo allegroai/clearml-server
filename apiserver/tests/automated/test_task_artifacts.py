@@ -1,6 +1,7 @@
 from operator import itemgetter
 from typing import Sequence
 
+from apiserver.apierrors.errors.bad_request import InvalidTaskStatus
 from apiserver.tests.automated import TestService
 
 
@@ -58,14 +59,15 @@ class TestTasksArtifacts(TestService):
 
     def test_artifacts_edit_delete(self):
         artifacts = [
-            dict(key="a", type="str", uri="test1"),
+            dict(key="a", type="str", uri="test1", mode="input"),
             dict(key="b", type="int", uri="test2"),
+            dict(key="c", type="int", uri="test3"),
         ]
         task = self.new_task(execution={"artifacts": artifacts})
 
         # test add_or_update
         edit = [
-            dict(key="a", type="str", uri="hello"),
+            dict(key="a", type="str", uri="hello", mode="input"),
             dict(key="c", type="int", uri="world"),
         ]
         res = self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit)
@@ -77,6 +79,23 @@ class TestTasksArtifacts(TestService):
         self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}])
         res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
         self._assertTaskArtifacts(artifacts[0: len(artifacts) - 1], res)
+
+        # test edit running task
+        self.api.tasks.started(task=task)
+        with self.api.raises(InvalidTaskStatus):
+            self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit)
+        self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit, force=True)
+        res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
+        self._assertTaskArtifacts(artifacts, res)
+        with self.api.raises(InvalidTaskStatus):
+            self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}])
+        self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}], force=True)
+        res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
+        self._assertTaskArtifacts(artifacts[0: len(artifacts) - 1], res)
+
+        self.api.tasks.reset(task=task)
+        res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
+        self._assertTaskArtifacts(artifacts[0: 1], res)
 
     def _update_source(self, source: Sequence[dict], update: Sequence[dict]):
         dict1 = {s["key"]: s for s in source}

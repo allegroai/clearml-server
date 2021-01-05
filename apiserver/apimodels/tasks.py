@@ -119,6 +119,7 @@ class CloneRequest(TaskRequest):
 
 class AddOrUpdateArtifactsRequest(TaskRequest):
     artifacts = ListField([Artifact], validators=Length(minimum_value=1))
+    force = BoolField(default=False)
 
 
 class ArtifactId(models.Base):
@@ -130,6 +131,7 @@ class ArtifactId(models.Base):
 
 class DeleteArtifactsRequest(TaskRequest):
     artifacts = ListField([ArtifactId], validators=Length(minimum_value=1))
+    force = BoolField(default=False)
 
 
 class ResetRequest(UpdateRequest):
@@ -166,6 +168,7 @@ class EditHyperParamsRequest(TaskRequest):
         validators=Enum(*get_options(ReplaceHyperparams)),
         default=ReplaceHyperparams.none,
     )
+    force = BoolField(default=False)
 
 
 class HyperParamKey(models.Base):
@@ -177,6 +180,7 @@ class DeleteHyperParamsRequest(TaskRequest):
     hyperparams: Sequence[HyperParamKey] = ListField(
         [HyperParamKey], validators=Length(minimum_value=1)
     )
+    force = BoolField(default=False)
 
 
 class GetConfigurationsRequest(MultiTaskRequest):
@@ -199,10 +203,12 @@ class EditConfigurationRequest(TaskRequest):
         [Configuration], validators=Length(minimum_value=1)
     )
     replace_configuration = BoolField(default=False)
+    force = BoolField(default=False)
 
 
 class DeleteConfigurationRequest(TaskRequest):
     configuration: Sequence[str] = ListField([str], validators=Length(minimum_value=1))
+    force = BoolField(default=False)
 
 
 class ArchiveRequest(MultiTaskRequest):

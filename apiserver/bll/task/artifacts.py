@@ -48,11 +48,17 @@ def artifacts_unprepare_from_saved(fields):
 class Artifacts:
     @classmethod
     def add_or_update_artifacts(
-        cls, company_id: str, task_id: str, artifacts: Sequence[ApiArtifact],
+        cls,
+        company_id: str,
+        task_id: str,
+        artifacts: Sequence[ApiArtifact],
+        force: bool,
     ) -> int:
         with TimingContext("mongo", "update_artifacts"):
             task = get_task_for_update(
-                company_id=company_id, task_id=task_id, allow_all_statuses=True
+                company_id=company_id,
+                task_id=task_id,
+                force=force,
             )
 
             artifacts = {
@@ -68,11 +74,17 @@ class Artifacts:
 
     @classmethod
     def delete_artifacts(
-        cls, company_id: str, task_id: str, artifact_ids: Sequence[ArtifactId]
+        cls,
+        company_id: str,
+        task_id: str,
+        artifact_ids: Sequence[ArtifactId],
+        force: bool,
     ) -> int:
         with TimingContext("mongo", "delete_artifacts"):
             task = get_task_for_update(
-                company_id=company_id, task_id=task_id, allow_all_statuses=True
+                company_id=company_id,
+                task_id=task_id,
+                force=force,
             )
 
             artifact_ids = [

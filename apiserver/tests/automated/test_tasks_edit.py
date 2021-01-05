@@ -9,7 +9,7 @@ log = config.logger(__file__)
 
 class TestTasksEdit(TestService):
     def setUp(self, **kwargs):
-        super().setUp(version="2.9")
+        super().setUp(version="2.12")
 
     def new_task(self, **kwargs):
         self.update_missing(

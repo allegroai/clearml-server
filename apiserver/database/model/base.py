@@ -104,8 +104,13 @@ class GetMixin(PropsMixin):
         legacy_exclude_prefix = "-"
 
         _default = "in"
-        _ops = {"not": "nin"}
+        _ops = {
+            "not": ("nin", False),
+            "all": ("all", True),
+            "and": ("all", True),
+        }
         _next = _default
+        _sticky = False
 
         def __init__(self, legacy=False):
             self._legacy = legacy
@@ -116,13 +121,16 @@ class GetMixin(PropsMixin):
                 return self._default
             elif self._legacy and v.startswith(self.legacy_exclude_prefix):
                 self._next = self._default
-                return self._ops["not"]
+                return self._ops["not"][0]
             elif v.startswith(self.op_prefix):
-                self._next = self._ops.get(v[len(self.op_prefix) :], self._default)
+                self._next, self._sticky = self._ops.get(
+                    v[len(self.op_prefix) :], (self._default, self._sticky)
+                )
                 return None
 
             next_ = self._next
-            self._next = self._default
+            if not self._sticky:
+                self._next = self._default
             return next_
 
         def value_transform(self, v):
@@ -260,6 +268,7 @@ class GetMixin(PropsMixin):
 
         - Exclusion can be specified by a leading "-" for each value (API versions <2.8)
             or by a preceding "__$not" value (operator)
+        - AND can be achieved using a preceding "__$all" or "__$and" value (operator)
         """
         if not isinstance(data, (list, tuple)):
             raise MakeGetAllQueryError("expected list", field)

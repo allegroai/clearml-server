@@ -174,7 +174,7 @@ def split_by(
 
 
 def get_task_for_update(
-    company_id: str, task_id: str, allow_all_statuses: bool = False
+    company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
 ) -> Task:
     """
     Loads only task id and return the task only if it is updatable (status == 'created')
@@ -186,7 +186,10 @@ def get_task_for_update(
     if allow_all_statuses:
         return task
 
-    if task.status != TaskStatus.created:
+    allowed_statuses = (
+        [TaskStatus.created, TaskStatus.in_progress] if force else [TaskStatus.created]
+    )
+    if task.status not in allowed_statuses:
         raise errors.bad_request.InvalidTaskStatus(
             expected=TaskStatus.created, status=task.status
         )
