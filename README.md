@@ -211,9 +211,9 @@ To upgrade your existing **ClearML Server** deployment:
 ## Community & Support
 
 If you have any questions, look to the ClearML [FAQ](https://allegro.ai/clearml/docs/docs/faq/faq.html), or
-tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/trains) with '**trains**' tag.
+tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/clearml) with '**clearml**' tag.
 
-For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/trains-server/issues).
+For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/clearml-server/issues).
 
 Additionally, you can always find us at *clearml@allegro.ai*
 
