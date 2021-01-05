@@ -218,6 +218,7 @@ class TaskBLL:
                 for k, a in artifacts.items()
                 if a.get("mode") != ArtifactModes.output
             }
+        execution_dict.pop("queue", None)
 
         new_project_data = None
         if not project and new_project_name:
