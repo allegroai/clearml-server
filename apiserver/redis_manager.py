@@ -165,7 +165,7 @@ class RedisManager(object):
             else:
                 self.aliases[alias] = StrictRedis(**alias_config)
 
-    def connection(self, alias):
+    def connection(self, alias) -> StrictRedis:
         obj = self.aliases.get(alias)
         if not obj:
             raise GeneralError(f"Invalid Redis alias {alias}")
