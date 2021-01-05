@@ -29,7 +29,7 @@ class Company(DbModelMixin, Document):
     meta = {"db_alias": Database.backend, "strict": strict}
 
     id = StringField(primary_key=True)
-    name = StrippedStringField(unique=True, min_length=3)
+    name = StrippedStringField(min_length=3)
     defaults = EmbeddedDocumentField(CompanyDefaults, default=CompanyDefaults)
 
     @classmethod
