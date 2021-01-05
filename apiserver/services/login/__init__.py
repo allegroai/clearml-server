@@ -26,6 +26,7 @@ def supported_modes(_, __, ___: GetSupportedModesRequest):
     return GetSupportedModesResponse(
         basic=BasicMode(enabled=FixedUser.enabled(), guest=guest),
         sso={},
+        sso_providers=[],
         server_errors=ServerErrors(
             missed_es_upgrade=info.missed_es_upgrade,
             es_connection_error=info.es_connection_error,

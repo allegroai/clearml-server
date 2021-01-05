@@ -1,4 +1,4 @@
-from jsonmodels.fields import StringField, BoolField, EmbeddedField
+from jsonmodels.fields import StringField, BoolField, EmbeddedField, ListField
 from jsonmodels.models import Base
 
 from apiserver.apimodels import DictField, callable_default
@@ -30,3 +30,4 @@ class GetSupportedModesResponse(Base):
     basic = EmbeddedField(BasicMode)
     server_errors = EmbeddedField(ServerErrors)
     sso = DictField([str, type(None)])
+    sso_providers = ListField([dict])
