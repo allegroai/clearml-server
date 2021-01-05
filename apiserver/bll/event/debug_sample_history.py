@@ -10,7 +10,12 @@ from redis import StrictRedis
 
 from apiserver.apierrors import errors
 from apiserver.apimodels import JsonSerializableMixin
-from apiserver.bll.event.event_common import EventSettings, get_index_name
+from apiserver.bll.event.event_common import (
+    EventSettings,
+    EventType,
+    check_empty_data,
+    search_company_events,
+)
 from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.database.errors import translate_errors_context
 from apiserver.timing_context import TimingContext
@@ -44,7 +49,7 @@ class DebugSampleHistoryResult(object):
 
 
 class DebugSampleHistory:
-    EVENT_TYPE = "training_debug_image"
+    EVENT_TYPE = EventType.metrics_image
 
     def __init__(self, redis: StrictRedis, es: Elasticsearch):
         self.es = es
@@ -66,14 +71,13 @@ class DebugSampleHistory:
         if not state or state.task != task:
             raise errors.bad_request.InvalidScrollId(scroll_id=state_id)
 
-        es_index = get_index_name(company_id, self.EVENT_TYPE)
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id=company_id, event_type=self.EVENT_TYPE):
             return res
 
         image = self._get_next_for_current_iteration(
-            es_index=es_index, navigate_earlier=navigate_earlier, state=state
+            company_id=company_id, navigate_earlier=navigate_earlier, state=state
         ) or self._get_next_for_another_iteration(
-            es_index=es_index, navigate_earlier=navigate_earlier, state=state
+            company_id=company_id, navigate_earlier=navigate_earlier, state=state
         )
         if not image:
             return res
@@ -94,7 +98,7 @@ class DebugSampleHistory:
             res.max_iteration = var_state.max_iteration
 
     def _get_next_for_current_iteration(
-        self, es_index: str, navigate_earlier: bool, state: DebugSampleHistoryState
+        self, company_id: str, navigate_earlier: bool, state: DebugSampleHistoryState
     ) -> Optional[dict]:
         """
         Get the image for next (if navigated earlier is False) or previous variant sorted by name for the same iteration
@@ -127,7 +131,9 @@ class DebugSampleHistory:
         with translate_errors_context(), TimingContext(
             "es", "get_next_for_current_iteration"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=state.task)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=self.EVENT_TYPE, body=es_req
+            )
 
         hits = nested_get(es_res, ("hits", "hits"))
         if not hits:
@@ -136,7 +142,7 @@ class DebugSampleHistory:
         return hits[0]["_source"]
 
     def _get_next_for_another_iteration(
-        self, es_index: str, navigate_earlier: bool, state: DebugSampleHistoryState
+        self, company_id: str, navigate_earlier: bool, state: DebugSampleHistoryState
     ) -> Optional[dict]:
         """
         Get the image for the first variant for the next iteration (if navigate_earlier is set to False)
@@ -189,7 +195,9 @@ class DebugSampleHistory:
         with translate_errors_context(), TimingContext(
             "es", "get_next_for_another_iteration"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=state.task)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=self.EVENT_TYPE, body=es_req
+            )
 
         hits = nested_get(es_res, ("hits", "hits"))
         if not hits:
@@ -212,14 +220,13 @@ class DebugSampleHistory:
         If the iteration is not passed then get the latest event
         """
         res = DebugSampleHistoryResult()
-        es_index = get_index_name(company_id, self.EVENT_TYPE)
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id=company_id, event_type=self.EVENT_TYPE):
             return res
 
         def init_state(state_: DebugSampleHistoryState):
             state_.task = task
             state_.metric = metric
-            self._reset_variant_states(es_index, state=state_)
+            self._reset_variant_states(company_id=company_id, state=state_)
 
         def validate_state(state_: DebugSampleHistoryState):
             if state_.task != task or state_.metric != metric:
@@ -228,7 +235,7 @@ class DebugSampleHistory:
                     scroll_id=state_.id,
                 )
             if refresh:
-                self._reset_variant_states(es_index, state=state_)
+                self._reset_variant_states(company_id=company_id, state=state_)
 
         state: DebugSampleHistoryState
         with self.cache_manager.get_or_create_state(
@@ -271,7 +278,12 @@ class DebugSampleHistory:
             with translate_errors_context(), TimingContext(
                 "es", "get_debug_image_for_variant"
             ):
-                es_res = self.es.search(index=es_index, body=es_req, routing=task)
+                es_res = search_company_events(
+                    self.es,
+                    company_id=company_id,
+                    event_type=self.EVENT_TYPE,
+                    body=es_req,
+                )
 
             hits = nested_get(es_res, ("hits", "hits"))
             if not hits:
@@ -282,9 +294,9 @@ class DebugSampleHistory:
             )
             return res
 
-    def _reset_variant_states(self, es_index, state: DebugSampleHistoryState):
+    def _reset_variant_states(self, company_id: str, state: DebugSampleHistoryState):
         variant_iterations = self._get_variant_iterations(
-            es_index=es_index, task=state.task, metric=state.metric
+            company_id=company_id, task=state.task, metric=state.metric
         )
         state.variant_states = [
             VariantState(name=var_name, min_iteration=min_iter, max_iteration=max_iter)
@@ -293,7 +305,7 @@ class DebugSampleHistory:
 
     def _get_variant_iterations(
         self,
-        es_index: str,
+        company_id: str,
         task: str,
         metric: str,
         variants: Optional[Sequence[str]] = None,
@@ -344,7 +356,9 @@ class DebugSampleHistory:
         with translate_errors_context(), TimingContext(
             "es", "get_debug_image_iterations"
         ):
-            es_res = self.es.search(index=es_index, body=es_req, routing=task)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=self.EVENT_TYPE, body=es_req
+            )
 
         def get_variant_data(variant_bucket: dict) -> Tuple[str, int, int]:
             variant = variant_bucket["key"]

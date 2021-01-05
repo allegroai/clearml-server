@@ -13,7 +13,14 @@ from mongoengine import Q
 from nested_dict import nested_dict
 
 from apiserver.bll.event.debug_sample_history import DebugSampleHistory
-from apiserver.bll.event.event_common import EventType, EventSettings, get_index_name
+from apiserver.bll.event.event_common import (
+    EventType,
+    EventSettings,
+    get_index_name,
+    check_empty_data,
+    search_company_events,
+    delete_company_events,
+)
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
@@ -156,7 +163,7 @@ class EventBLL(object):
             }
 
             # for "log" events, don't assing custom _id - whatever is sent, is written (not overwritten)
-            if event_type != "log":
+            if event_type != EventType.task_log.value:
                 es_action["_id"] = self._get_event_id(event)
             else:
                 es_action["_id"] = dbutils.id()
@@ -389,10 +396,10 @@ class EventBLL(object):
 
     def scroll_task_events(
         self,
-        company_id,
-        task_id,
-        order,
-        event_type=None,
+        company_id: str,
+        task_id: str,
+        order: str,
+        event_type: EventType,
         batch_size=10000,
         scroll_id=None,
     ):
@@ -404,12 +411,7 @@ class EventBLL(object):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             size = min(batch_size, 10000)
-            if event_type is None:
-                event_type = "*"
-
-            es_index = get_index_name(company_id, event_type)
-
-            if not self.es.indices.exists(es_index):
+            if check_empty_data(self.es, company_id=company_id, event_type=event_type):
                 return [], None, 0
 
             es_req = {
@@ -419,15 +421,25 @@ class EventBLL(object):
             }
 
             with translate_errors_context(), TimingContext("es", "scroll_task_events"):
-                es_res = self.es.search(index=es_index, body=es_req, scroll="1h")
+                es_res = search_company_events(
+                    self.es,
+                    company_id=company_id,
+                    event_type=event_type,
+                    body=es_req,
+                    scroll="1h",
+                )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
         return events, next_scroll_id, total_events
 
     def get_last_iterations_per_event_metric_variant(
-        self, es_index: str, task_id: str, num_last_iterations: int, event_type: str
+        self,
+        company_id: str,
+        task_id: str,
+        num_last_iterations: int,
+        event_type: EventType,
     ):
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return []
 
         es_req: dict = {
@@ -461,13 +473,14 @@ class EventBLL(object):
             },
             "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
         }
-        if event_type:
-            es_req["query"]["bool"]["must"].append({"term": {"type": event_type}})
 
         with translate_errors_context(), TimingContext(
             "es", "task_last_iter_metric_variant"
         ):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
+
         if "aggregations" not in es_res:
             return []
 
@@ -494,9 +507,8 @@ class EventBLL(object):
             with translate_errors_context(), TimingContext("es", "get_task_events"):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
-            event_type = "plot"
-            es_index = get_index_name(company_id, event_type)
-            if not self.es.indices.exists(es_index):
+            event_type = EventType.metrics_plot
+            if check_empty_data(self.es, company_id=company_id, event_type=event_type):
                 return TaskEventsResult()
 
             plot_valid_condition = {
@@ -519,7 +531,10 @@ class EventBLL(object):
                 should = []
                 for i, task_id in enumerate(tasks):
                     last_iters = self.get_last_iterations_per_event_metric_variant(
-                        es_index, task_id, last_iterations_per_plot, event_type
+                        company_id=company_id,
+                        task_id=task_id,
+                        num_last_iterations=last_iterations_per_plot,
+                        event_type=event_type,
                     )
                     if not last_iters:
                         continue
@@ -551,8 +566,13 @@ class EventBLL(object):
             }
 
             with translate_errors_context(), TimingContext("es", "get_task_plots"):
-                es_res = self.es.search(
-                    index=es_index, body=es_req, ignore=404, scroll="1h",
+                es_res = search_company_events(
+                    self.es,
+                    company_id=company_id,
+                    event_type=event_type,
+                    body=es_req,
+                    ignore=404,
+                    scroll="1h",
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
@@ -577,9 +597,9 @@ class EventBLL(object):
 
     def get_task_events(
         self,
-        company_id,
-        task_id,
-        event_type=None,
+        company_id: str,
+        task_id: str,
+        event_type: EventType,
         metric=None,
         variant=None,
         last_iter_count=None,
@@ -595,11 +615,8 @@ class EventBLL(object):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             task_ids = [task_id] if isinstance(task_id, six.string_types) else task_id
-            if event_type is None:
-                event_type = "*"
 
-            es_index = get_index_name(company_id, event_type)
-            if not self.es.indices.exists(es_index):
+            if check_empty_data(self.es, company_id=company_id, event_type=event_type):
                 return TaskEventsResult()
 
             must = []
@@ -614,7 +631,10 @@ class EventBLL(object):
                 should = []
                 for i, task_id in enumerate(task_ids):
                     last_iters = self.get_last_iters(
-                        es_index, task_id, event_type, last_iter_count
+                        company_id=company_id,
+                        event_type=event_type,
+                        task_id=task_id,
+                        iters=last_iter_count,
                     )
                     if not last_iters:
                         continue
@@ -642,8 +662,13 @@ class EventBLL(object):
             }
 
             with translate_errors_context(), TimingContext("es", "get_task_events"):
-                es_res = self.es.search(
-                    index=es_index, body=es_req, ignore=404, scroll="1h",
+                es_res = search_company_events(
+                    self.es,
+                    company_id=company_id,
+                    event_type=event_type,
+                    body=es_req,
+                    ignore=404,
+                    scroll="1h",
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
@@ -651,11 +676,10 @@ class EventBLL(object):
             events=events, next_scroll_id=next_scroll_id, total_events=total_events
         )
 
-    def get_metrics_and_variants(self, company_id, task_id, event_type):
-
-        es_index = get_index_name(company_id, event_type)
-
-        if not self.es.indices.exists(es_index):
+    def get_metrics_and_variants(
+        self, company_id: str, task_id: str, event_type: EventType
+    ):
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
         es_req = {
@@ -684,7 +708,9 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
 
         metrics = {}
         for metric_bucket in es_res["aggregations"]["metrics"].get("buckets"):
@@ -695,10 +721,9 @@ class EventBLL(object):
 
         return metrics
 
-    def get_task_latest_scalar_values(self, company_id, task_id):
-        es_index = get_index_name(company_id, "training_stats_scalar")
-
-        if not self.es.indices.exists(es_index):
+    def get_task_latest_scalar_values(self, company_id: str, task_id: str):
+        event_type = EventType.metrics_scalar
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
         es_req = {
@@ -753,7 +778,9 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
 
         metrics = []
         max_timestamp = 0
@@ -780,9 +807,8 @@ class EventBLL(object):
         return metrics, max_timestamp
 
     def get_vector_metrics_per_iter(self, company_id, task_id, metric, variant):
-
-        es_index = get_index_name(company_id, "training_stats_vector")
-        if not self.es.indices.exists(es_index):
+        event_type = EventType.metrics_vector
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return [], []
 
         es_req = {
@@ -800,7 +826,9 @@ class EventBLL(object):
             "sort": ["iter"],
         }
         with translate_errors_context(), TimingContext("es", "task_stats_vector"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
 
         vectors = []
         iterations = []
@@ -810,8 +838,10 @@ class EventBLL(object):
 
         return iterations, vectors
 
-    def get_last_iters(self, es_index, task_id, event_type, iters):
-        if not self.es.indices.exists(es_index):
+    def get_last_iters(
+        self, company_id: str, event_type: EventType, task_id: str, iters: int
+    ):
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return []
 
         es_req: dict = {
@@ -827,11 +857,12 @@ class EventBLL(object):
             },
             "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
         }
-        if event_type:
-            es_req["query"]["bool"]["must"].append({"term": {"type": event_type}})
 
         with translate_errors_context(), TimingContext("es", "task_last_iter"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
+
         if "aggregations" not in es_res:
             return []
 
@@ -850,9 +881,14 @@ class EventBLL(object):
                     extra_msg, company=company_id, id=task_id
                 )
 
-        es_index = get_index_name(company_id, "*")
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):
-            es_res = self.es.delete_by_query(index=es_index, body=es_req, refresh=True)
+            es_res = delete_company_events(
+                es=self.es,
+                company_id=company_id,
+                event_type=EventType.all,
+                body=es_req,
+                refresh=True,
+            )
 
         return es_res.get("deleted", 0)

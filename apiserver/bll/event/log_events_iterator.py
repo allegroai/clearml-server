@@ -3,7 +3,11 @@ from typing import Optional, Tuple, Sequence
 import attr
 from elasticsearch import Elasticsearch
 
-from apiserver.bll.event.event_common import check_empty_data, search_company_events
+from apiserver.bll.event.event_common import (
+    check_empty_data,
+    search_company_events,
+    EventType,
+)
 from apiserver.database.errors import translate_errors_context
 from apiserver.timing_context import TimingContext
 
@@ -16,7 +20,7 @@ class TaskEventsResult:
 
 
 class LogEventsIterator:
-    EVENT_TYPE = "log"
+    EVENT_TYPE = EventType.task_log
 
     def __init__(self, es: Elasticsearch):
         self.es = es
@@ -75,7 +79,6 @@ class LogEventsIterator:
                 company_id=company_id,
                 event_type=self.EVENT_TYPE,
                 body=es_req,
-                routing=task_id,
             )
             hits = es_result["hits"]["hits"]
             hits_total = es_result["hits"]["total"]["value"]
@@ -102,7 +105,6 @@ class LogEventsIterator:
                 company_id=company_id,
                 event_type=self.EVENT_TYPE,
                 body=es_req,
-                routing=task_id,
             )
             last_second_hits = es_result["hits"]["hits"]
             if not last_second_hits or len(last_second_hits) < 2:

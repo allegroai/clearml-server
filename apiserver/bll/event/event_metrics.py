@@ -10,7 +10,12 @@ from elasticsearch import Elasticsearch
 from mongoengine import Q
 
 from apiserver.apierrors import errors
-from apiserver.bll.event.event_common import EventType, get_index_name, EventSettings
+from apiserver.bll.event.event_common import (
+    EventType,
+    EventSettings,
+    search_company_events,
+    check_empty_data,
+)
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -36,31 +41,40 @@ class EventMetrics:
         The amount of points in each histogram should not exceed
         the requested samples
         """
-        es_index = get_index_name(company_id, "training_stats_scalar")
-        if not self.es.indices.exists(es_index):
+        event_type = EventType.metrics_scalar
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
         return self._get_scalar_average_per_iter_core(
-            task_id, es_index, samples, ScalarKey.resolve(key)
+            task_id, company_id, event_type, samples, ScalarKey.resolve(key)
         )
 
     def _get_scalar_average_per_iter_core(
         self,
         task_id: str,
-        es_index: str,
+        company_id: str,
+        event_type: EventType,
         samples: int,
         key: ScalarKey,
         run_parallel: bool = True,
     ) -> dict:
         intervals = self._get_task_metric_intervals(
-            es_index=es_index, task_id=task_id, samples=samples, field=key.field
+            company_id=company_id,
+            event_type=event_type,
+            task_id=task_id,
+            samples=samples,
+            field=key.field,
         )
         if not intervals:
             return {}
         interval_groups = self._group_task_metric_intervals(intervals)
 
         get_scalar_average = partial(
-            self._get_scalar_average, task_id=task_id, es_index=es_index, key=key
+            self._get_scalar_average,
+            task_id=task_id,
+            company_id=company_id,
+            event_type=event_type,
+            key=key,
         )
         if run_parallel:
             with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
@@ -110,13 +124,15 @@ class EventMetrics:
                 "only tasks from the same company are supported"
             )
 
-        es_index = get_index_name(next(iter(companies)), "training_stats_scalar")
-        if not self.es.indices.exists(es_index):
+        event_type = EventType.metrics_scalar
+        company_id = next(iter(companies))
+        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
         get_scalar_average_per_iter = partial(
             self._get_scalar_average_per_iter_core,
-            es_index=es_index,
+            company_id=company_id,
+            event_type=event_type,
             samples=samples,
             key=ScalarKey.resolve(key),
             run_parallel=False,
@@ -175,7 +191,12 @@ class EventMetrics:
         return metric_interval_groups
 
     def _get_task_metric_intervals(
-        self, es_index, task_id: str, samples: int, field: str = "iter"
+        self,
+        company_id: str,
+        event_type: EventType,
+        task_id: str,
+        samples: int,
+        field: str = "iter",
     ) -> Sequence[MetricInterval]:
         """
         Calculate interval per task metric variant so that the resulting
@@ -212,7 +233,9 @@ class EventMetrics:
         }
 
         with translate_errors_context(), TimingContext("es", "task_stats_get_interval"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
+            )
 
         aggs_result = es_res.get("aggregations")
         if not aggs_result:
@@ -255,7 +278,8 @@ class EventMetrics:
         self,
         metrics_interval: MetricIntervalGroup,
         task_id: str,
-        es_index: str,
+        company_id: str,
+        event_type: EventType,
         key: ScalarKey,
     ) -> Sequence[MetricData]:
         """
@@ -283,7 +307,11 @@ class EventMetrics:
             }
         }
         aggs_result = self._query_aggregation_for_task_metrics(
-            es_index, aggs=aggs, task_id=task_id, metrics=metrics
+            company_id=company_id,
+            event_type=event_type,
+            aggs=aggs,
+            task_id=task_id,
+            metrics=metrics,
         )
 
         if not aggs_result:
@@ -314,7 +342,8 @@ class EventMetrics:
 
     def _query_aggregation_for_task_metrics(
         self,
-        es_index: str,
+        company_id: str,
+        event_type: EventType,
         aggs: dict,
         task_id: str,
         metrics: Sequence[Tuple[str, str]],
@@ -345,7 +374,9 @@ class EventMetrics:
         }
 
         with translate_errors_context(), TimingContext("es", "task_stats_scalar"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
+            )
 
         return es_res.get("aggregations")
 
@@ -356,30 +387,26 @@ class EventMetrics:
         For the requested tasks return all the metrics that
         reported events of the requested types
         """
-        es_index = get_index_name(company_id, event_type.value)
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id, event_type):
             return {}
 
         with ThreadPoolExecutor(EventSettings.max_workers) as pool:
             res = pool.map(
                 partial(
-                    self._get_task_metrics, es_index=es_index, event_type=event_type,
+                    self._get_task_metrics,
+                    company_id=company_id,
+                    event_type=event_type,
                 ),
                 task_ids,
             )
         return list(zip(task_ids, res))
 
-    def _get_task_metrics(self, task_id, es_index, event_type: EventType) -> Sequence:
+    def _get_task_metrics(
+        self, task_id: str, company_id: str, event_type: EventType
+    ) -> Sequence:
         es_req = {
             "size": 0,
-            "query": {
-                "bool": {
-                    "must": [
-                        {"term": {"task": task_id}},
-                        {"term": {"type": event_type.value}},
-                    ]
-                }
-            },
+            "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
             "aggs": {
                 "metrics": {
                     "terms": {
@@ -392,7 +419,9 @@ class EventMetrics:
         }
 
         with translate_errors_context(), TimingContext("es", "_get_task_metrics"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es, company_id=company_id, event_type=event_type, body=es_req
+            )
 
         return [
             metric["key"]

@@ -19,6 +19,7 @@ from apiserver.bll.event.event_common import (
     EventSettings,
     check_empty_data,
     search_company_events,
+    EventType,
 )
 from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.database.errors import translate_errors_context
@@ -59,7 +60,7 @@ class DebugImagesResult(object):
 
 
 class DebugImagesIterator:
-    EVENT_TYPE = "training_debug_image"
+    EVENT_TYPE = EventType.metrics_image
 
     def __init__(self, redis: StrictRedis, es: Elasticsearch):
         self.es = es
@@ -142,10 +143,10 @@ class DebugImagesIterator:
             return [
                 (
                     (task.id, stats.metric),
-                    stats.event_stats_by_type[self.EVENT_TYPE].last_update,
+                    stats.event_stats_by_type[self.EVENT_TYPE.value].last_update,
                 )
                 for stats in metric_stats.values()
-                if self.EVENT_TYPE in stats.event_stats_by_type
+                if self.EVENT_TYPE.value in stats.event_stats_by_type
             ]
 
         update_times = dict(
@@ -257,7 +258,6 @@ class DebugImagesIterator:
                 company_id=company_id,
                 event_type=self.EVENT_TYPE,
                 body=es_req,
-                routing=task,
             )
         if "aggregations" not in es_res:
             return []
@@ -401,7 +401,6 @@ class DebugImagesIterator:
                 company_id=company_id,
                 event_type=self.EVENT_TYPE,
                 body=es_req,
-                routing=metric.task,
             )
         if "aggregations" not in es_res:
             return metric.task, metric.name, []

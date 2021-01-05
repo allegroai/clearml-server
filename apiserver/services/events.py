@@ -19,7 +19,7 @@ from apiserver.apimodels.events import (
     NextDebugImageSampleRequest,
 )
 from apiserver.bll.event import EventBLL
-from apiserver.bll.event.event_common import get_index_name
+from apiserver.bll.event.event_common import EventType
 from apiserver.bll.task import TaskBLL
 from apiserver.service_repo import APICall, endpoint
 from apiserver.utilities import json
@@ -63,7 +63,7 @@ def get_task_log_v1_5(call, company_id, _):
         task.get_index_company(),
         task_id,
         order,
-        event_type="log",
+        event_type=EventType.task_log,
         batch_size=batch_size,
         scroll_id=scroll_id,
     )
@@ -90,7 +90,7 @@ def get_task_log_v1_7(call, company_id, _):
         company_id=task.get_index_company(),
         task_id=task_id,
         order=scroll_order,
-        event_type="log",
+        event_type=EventType.task_log,
         batch_size=batch_size,
         scroll_id=scroll_id,
     )
@@ -118,11 +118,9 @@ def get_task_log(call, company_id, request: LogEventsRequest):
         from_timestamp=request.from_timestamp,
     )
 
-    if (
-        request.order and (
-            (request.navigate_earlier and request.order == LogOrderEnum.asc)
-            or (not request.navigate_earlier and request.order == LogOrderEnum.desc)
-        )
+    if request.order and (
+        (request.navigate_earlier and request.order == LogOrderEnum.asc)
+        or (not request.navigate_earlier and request.order == LogOrderEnum.desc)
     ):
         res.events.reverse()
 
@@ -182,7 +180,7 @@ def download_task_log(call, company_id, _):
                 task.get_index_company(),
                 task_id,
                 order="asc",
-                event_type="log",
+                event_type=EventType.task_log,
                 batch_size=batch_size,
                 scroll_id=scroll_id,
             )
@@ -219,7 +217,7 @@ def get_vector_metrics_and_variants(call, company_id, _):
     )[0]
     call.result.data = dict(
         metrics=event_bll.get_metrics_and_variants(
-            task.get_index_company(), task_id, "training_stats_vector"
+            task.get_index_company(), task_id, EventType.metrics_vector
         )
     )
 
@@ -232,7 +230,7 @@ def get_scalar_metrics_and_variants(call, company_id, _):
     )[0]
     call.result.data = dict(
         metrics=event_bll.get_metrics_and_variants(
-            task.get_index_company(), task_id, "training_stats_scalar"
+            task.get_index_company(), task_id, EventType.metrics_scalar
         )
     )
 
@@ -272,7 +270,7 @@ def get_task_events(call, company_id, _):
         task.get_index_company(),
         task_id,
         sort=[{"timestamp": {"order": order}}],
-        event_type=event_type,
+        event_type=EventType(event_type) if event_type else EventType.all,
         scroll_id=scroll_id,
         size=batch_size,
     )
@@ -297,7 +295,7 @@ def get_scalar_metric_data(call, company_id, _):
     result = event_bll.get_task_events(
         task.get_index_company(),
         task_id,
-        event_type="training_stats_scalar",
+        event_type=EventType.metrics_scalar,
         sort=[{"iter": {"order": "desc"}}],
         metric=metric,
         scroll_id=scroll_id,
@@ -321,8 +319,9 @@ def get_task_latest_scalar_values(call, company_id, _):
     metrics, last_timestamp = event_bll.get_task_latest_scalar_values(
         index_company, task_id
     )
-    es_index = get_index_name(index_company, "*")
-    last_iters = event_bll.get_last_iters(es_index, task_id, None, 1)
+    last_iters = event_bll.get_last_iters(
+        company_id=company_id, event_type=EventType.all, task_id=task_id, iters=1
+    )
     call.result.data = dict(
         metrics=metrics,
         last_iter=last_iters[0] if last_iters else 0,
@@ -344,7 +343,10 @@ def scalar_metrics_iter_histogram(
         company_id, request.task, allow_public=True, only=("company", "company_origin")
     )[0]
     metrics = event_bll.metrics.get_scalar_metrics_average_per_iter(
-        task.get_index_company(), task_id=request.task, samples=request.samples, key=request.key
+        task.get_index_company(),
+        task_id=request.task,
+        samples=request.samples,
+        key=request.key,
     )
     call.result.data = metrics
 
@@ -394,7 +396,7 @@ def get_multi_task_plots_v1_7(call, company_id, _):
     result = event_bll.get_task_events(
         next(iter(companies)),
         task_ids,
-        event_type="plot",
+        event_type=EventType.metrics_plot,
         sort=[{"iter": {"order": "desc"}}],
         size=10000,
         scroll_id=scroll_id,
@@ -436,7 +438,7 @@ def get_multi_task_plots(call, company_id, req_model):
     result = event_bll.get_task_events(
         next(iter(companies)),
         task_ids,
-        event_type="plot",
+        event_type=EventType.metrics_plot,
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
@@ -476,7 +478,7 @@ def get_task_plots_v1_7(call, company_id, _):
     result = event_bll.get_task_events(
         task.get_index_company(),
         task_id,
-        event_type="plot",
+        event_type=EventType.metrics_plot,
         sort=[{"iter": {"order": "desc"}}],
         size=10000,
         scroll_id=scroll_id,
@@ -539,7 +541,7 @@ def get_debug_images_v1_7(call, company_id, _):
     result = event_bll.get_task_events(
         task.get_index_company(),
         task_id,
-        event_type="training_debug_image",
+        event_type=EventType.metrics_image,
         sort=[{"iter": {"order": "desc"}}],
         size=10000,
         scroll_id=scroll_id,
@@ -568,7 +570,7 @@ def get_debug_images_v1_8(call, company_id, _):
     result = event_bll.get_task_events(
         task.get_index_company(),
         task_id,
-        event_type="training_debug_image",
+        event_type=EventType.metrics_image,
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
@@ -594,7 +596,10 @@ def get_debug_images_v1_8(call, company_id, _):
 def get_debug_images(call, company_id, request: DebugImagesRequest):
     task_ids = {m.task for m in request.metrics}
     tasks = task_bll.assert_exists(
-        company_id, task_ids=task_ids, allow_public=True, only=("company", "company_origin")
+        company_id,
+        task_ids=task_ids,
+        allow_public=True,
+        only=("company", "company_origin"),
     )
 
     companies = {t.get_index_company() for t in tasks}
@@ -662,7 +667,7 @@ def next_debug_image_sample(call, company_id, request: NextDebugImageSampleReque
         company_id=task.company,
         task=request.task,
         state_id=request.scroll_id,
-        navigate_earlier=request.navigate_earlier
+        navigate_earlier=request.navigate_earlier,
     )
     call.result.data = attr.asdict(res, recurse=False)
 
@@ -670,7 +675,10 @@ def next_debug_image_sample(call, company_id, request: NextDebugImageSampleReque
 @endpoint("events.get_task_metrics", request_data_model=TaskMetricsRequest)
 def get_tasks_metrics(call: APICall, company_id, request: TaskMetricsRequest):
     task = task_bll.assert_exists(
-        company_id, task_ids=request.tasks, allow_public=True, only=("company", "company_origin")
+        company_id,
+        task_ids=request.tasks,
+        allow_public=True,
+        only=("company", "company_origin"),
     )[0]
     res = event_bll.metrics.get_tasks_metrics(
         task.get_index_company(), task_ids=request.tasks, event_type=request.event_type

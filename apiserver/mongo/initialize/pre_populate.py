@@ -32,6 +32,7 @@ from furl import furl
 from mongoengine import Q
 
 from apiserver.bll.event import EventBLL
+from apiserver.bll.event.event_common import EventType
 from apiserver.bll.task.artifacts import get_artifact_id
 from apiserver.bll.task.param_utils import (
     split_param_name,
@@ -532,19 +533,22 @@ class PrePopulate:
                 scroll_id = None
                 while True:
                     res = cls.event_bll.get_task_events(
-                        task.company, task.id, scroll_id=scroll_id
+                        company_id=task.company,
+                        task_id=task.id,
+                        event_type=EventType.all,
+                        scroll_id=scroll_id,
                     )
                     if not res.events:
                         break
                     scroll_id = res.next_scroll_id
                     for event in res.events:
                         event_type = event.get("type")
-                        if event_type == "training_debug_image":
+                        if event_type == EventType.metrics_image.value:
                             url = cls._get_fixed_url(event.get("url"))
                             if url:
                                 event["url"] = url
                                 artifacts.append(url)
-                        elif event_type == "plot":
+                        elif event_type == EventType.metrics_plot.value:
                             plot_str: str = event.get("plot_str", "")
                             for match in cls.img_source_regex.findall(plot_str):
                                 url = cls._get_fixed_url(match)

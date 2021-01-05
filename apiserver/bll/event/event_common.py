@@ -13,6 +13,7 @@ class EventType(Enum):
     metrics_image = "training_debug_image"
     metrics_plot = "plot"
     task_log = "log"
+    all = "*"
 
 
 class EventSettings:
@@ -40,8 +41,8 @@ def get_index_name(company_id: str, event_type: str):
     return f"events-{event_type}-{company_id}"
 
 
-def check_empty_data(es: Elasticsearch, company_id: str, event_type: str) -> bool:
-    es_index = get_index_name(company_id, event_type)
+def check_empty_data(es: Elasticsearch, company_id: str, event_type: EventType) -> bool:
+    es_index = get_index_name(company_id, event_type.value)
     if not es.indices.exists(es_index):
         return True
     return False
@@ -50,16 +51,16 @@ def check_empty_data(es: Elasticsearch, company_id: str, event_type: str) -> boo
 def search_company_events(
     es: Elasticsearch,
     company_id: Union[str, Sequence[str]],
-    event_type: str,
+    event_type: EventType,
     body: dict,
     **kwargs,
 ) -> dict:
-    es_index = get_index_name(company_id, event_type)
+    es_index = get_index_name(company_id, event_type.value)
     return es.search(index=es_index, body=body, **kwargs)
 
 
 def delete_company_events(
-    es: Elasticsearch, company_id: str, event_type: str, body: dict, **kwargs
+    es: Elasticsearch, company_id: str, event_type: EventType, body: dict, **kwargs
 ) -> dict:
-    es_index = get_index_name(company_id, event_type)
+    es_index = get_index_name(company_id, event_type.value)
     return es.delete_by_query(index=es_index, body=body, **kwargs)
