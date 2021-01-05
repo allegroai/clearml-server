@@ -72,5 +72,5 @@ class User(DbModelMixin, AuthDocument):
     credentials = EmbeddedDocumentListField(Credentials, default=list)
     """ Credentials generated for this user """
 
-    email = EmailField(unique=True)
+    email = EmailField(unique=True, sparse=True)
     """ Email uniquely identifying the user """
