@@ -5,8 +5,8 @@ from jsonmodels import models
 from jsonmodels.errors import FieldNotSupported
 
 from schema import schema
+from utilities.partial_version import PartialVersion
 from .apicall import APICall
-from .base import PartialVersion
 from .schema_validator import SchemaValidator
 
 EndpointFunc = Callable[[APICall, Text, models.Base], None]

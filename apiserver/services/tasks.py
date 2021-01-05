@@ -69,9 +69,9 @@ from database.model.task.task import (
 )
 from database.utils import get_fields, parse_from_call
 from service_repo import APICall, endpoint
-from service_repo.base import PartialVersion
 from services.utils import conform_tag_fields, conform_output_tags, validate_tags
 from timing_context import TimingContext
+from utilities.partial_version import PartialVersion
 
 task_fields = set(Task.get_fields())
 task_script_fields = set(get_fields(Script))

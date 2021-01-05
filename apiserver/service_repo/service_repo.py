@@ -11,7 +11,7 @@ from apierrors import APIError
 from apierrors.errors.bad_request import RequestPathHasInvalidVersion
 from api_version import __version__ as _api_version_
 from config import config
-from service_repo.base import PartialVersion
+from utilities.partial_version import PartialVersion
 from .apicall import APICall
 from .endpoint import Endpoint
 from .errors import MalformedPathError, InvalidVersionError, CallFailedError

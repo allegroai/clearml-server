@@ -5,7 +5,7 @@ from apimodels.organization import Filter
 from database.model.base import GetMixin
 from database.utils import partition_tags
 from service_repo import APICall
-from service_repo.base import PartialVersion
+from utilities.partial_version import PartialVersion
 
 
 def get_tags_filter_dictionary(input_: Filter) -> dict:

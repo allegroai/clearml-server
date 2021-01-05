@@ -9,9 +9,9 @@ from six import string_types
 import database
 from timing_context import TimingContext, TimingStats
 from utilities import json
+from utilities.partial_version import PartialVersion
 from .auth import Identity
 from .auth import Payload as AuthPayload
-from .base import PartialVersion
 from .errors import CallParsingError
 from .schema_validator import SchemaValidator
 
@@ -305,6 +305,7 @@ class APICall(DataContainer):
         headers=None,
         files=None,
         trx=None,
+        **kwargs,
     ):
         super(APICall, self).__init__(data=data, batched_data=batched_data)
 

@@ -12,7 +12,7 @@ from boltons.dictutils import subdict
 from pyhocon import ConfigFactory
 
 from config import config
-from service_repo.base import PartialVersion
+from utilities.partial_version import PartialVersion
 
 HERE = Path(__file__)
 
