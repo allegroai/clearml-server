@@ -14,7 +14,7 @@ from mongoengine import (
     DictField,
     DynamicField,
 )
-from mongoengine.fields import key_not_string, key_starts_with_dollar
+from mongoengine.fields import key_not_string, key_starts_with_dollar, EmailField
 
 NoneType = type(None)
 
@@ -91,6 +91,24 @@ class CustomFloatField(FloatField):
 
         if self.greater_than is not None and value <= self.greater_than:
             self.error("Float value must be greater than %s" % str(self.greater_than))
+
+
+class CanonicEmailField(EmailField):
+    """email field that is always lower cased"""
+    def __set__(self, instance, value: str):
+        if value is not None:
+            try:
+                value = value.lower()
+            except AttributeError:
+                pass
+        super().__set__(instance, value)
+
+    def prepare_query_value(self, op, value):
+        if not isinstance(op, six.string_types):
+            return value
+        if value is not None:
+            value = value.lower()
+        return super().prepare_query_value(op, value)
 
 
 class StrippedStringField(StringField):
