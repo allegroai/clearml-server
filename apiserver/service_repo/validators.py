@@ -78,7 +78,7 @@ def validate_auth(endpoint, call):
         auth_type, _, auth_data = auth.partition(" ")
         authorize_func = get_auth_func(auth_type)
         call.auth = authorize_func(auth_data, service, action, call.batched_data)
-    except Exception as e:
+    except Exception:
         if endpoint.authorize:
             # if endpoint requires authorization, re-raise exception
             raise
@@ -86,7 +86,7 @@ def validate_auth(endpoint, call):
 
 def validate_impersonation(endpoint, call):
     """ Validate impersonation headers and set impersonated identity and authorization data accordingly.
-        :returns True is impersonating, False otherwise
+        :returns True if impersonating, False otherwise
     """
     try:
         act_as = call.act_as
@@ -158,7 +158,8 @@ def validate_impersonation(endpoint, call):
 
     except APIError:
         raise
-    except Exception:
+    except Exception as ex:
+        log.exception(f"Validating impersonation: {str(ex)}")
         raise errors.server_error.InternalError("validating impersonation")
 
 
