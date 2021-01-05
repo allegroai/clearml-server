@@ -79,7 +79,7 @@ class ServiceRepo(object):
 
     @classmethod
     def load(cls, root_module="services"):
-        root_module = Path(root_module)
+        root_module = Path(__file__).parents[1] / root_module
         sub_module = None
         for sub_module in root_module.glob("*"):
             if (
@@ -87,9 +87,9 @@ class ServiceRepo(object):
                 and sub_module.suffix == ".py"
                 and not sub_module.stem == "__init__"
             ):
-                import_module(f"{root_module.stem}.{sub_module.stem}")
+                import_module(f"apiserver.{root_module.stem}.{sub_module.stem}")
             if sub_module.is_dir():
-                import_module(f"{root_module.stem}.{sub_module.stem}")
+                import_module(f"apiserver.{root_module.stem}.{sub_module.stem}")
         # leave no trace of the 'sub_module' local
         del sub_module
 
