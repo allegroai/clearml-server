@@ -152,7 +152,7 @@ To restart the **ClearML Server**, you must first stop the containers, and then 
 
 ## Upgrading <a name="upgrade"></a>
 
-**ClearML Server** releases are also reflected in the [docker compose configuration file](https://github.com/allegroai/trains-server/blob/master/docker-compose.yml).  
+**ClearML Server** releases are also reflected in the [docker compose configuration file](https://github.com/allegroai/trains-server/blob/master/docker/docker-compose.yml).  
 We strongly encourage you to keep your **ClearML Server** up to date, by keeping up with the current release.
 
 **Note**: The following upgrade instructions use the Linux OS as an example.
@@ -185,7 +185,7 @@ To upgrade your existing **ClearML Server** deployment:
 1. Download the latest `docker-compose.yml` file.
 
    ```bash
-   curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker-compose.yml -o docker-compose.yml 
+   curl https://raw.githubusercontent.com/allegroai/trains-server/master/docker/docker-compose.yml -o docker-compose.yml 
    ```
 
 1. Configure the ClearML-Agent Services (not supported on Windows installation). 

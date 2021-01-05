@@ -1,21 +1,21 @@
 version: "3.6"
 services:
-  trainsserver:
+  clearmlserver:
     command:
      - -c
-     - "echo \"#!/bin/bash\" > /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh webserver&\" >> /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh fileserver&\" >> /opt/trains/all.sh && echo \"/opt/trains/wrapper.sh apiserver\" >> /opt/trains/all.sh && cat /opt/trains/all.sh && chmod +x /opt/trains/all.sh && /opt/trains/all.sh"
+     - "echo \"#!/bin/bash\" > /opt/clearml/all.sh && echo \"/opt/clearml/wrapper.sh webserver&\" >> /opt/clearml/all.sh && echo \"/opt/clearml/wrapper.sh fileserver&\" >> /opt/clearml/all.sh && echo \"/opt/clearml/wrapper.sh apiserver\" >> /opt/clearml/all.sh && cat /opt/clearml/all.sh && chmod +x /opt/clearml/all.sh && /opt/clearml/all.sh"
     entrypoint: /bin/bash
-    container_name: trains-server
-    image: allegroai/trains:latest
+    container_name: clearml-server
+    image: allegroai/clearml:latest
     ports:
     - 8008:8008
     - 8080:80
     - 8081:8081
     restart: unless-stopped
     volumes:
-    - /opt/trains/logs:/var/log/trains
-    - /opt/trains/data/fileserver:/mnt/fileserver
-    - /opt/trains/config:/opt/trains/config
+    - /opt/clearml/logs:/var/log/trains
+    - /opt/clearml/data/fileserver:/mnt/fileserver
+    - /opt/clearml/config:/opt/trains/config
 
     depends_on:
       - redis
@@ -33,20 +33,20 @@ services:
   elasticsearch:
     networks:
       - backend
-    container_name: trains-elastic
+    container_name: clearml-elastic
     environment:
       ES_JAVA_OPTS: -Xms2g -Xmx2g
       bootstrap.memory_lock: "true"
-      cluster.name: trains
+      cluster.name: clearml
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
-      cluster.routing.allocation.disk.watermark.low: 2gb
-      cluster.routing.allocation.disk.watermark.high: 2gb
-      cluster.routing.allocation.disk.watermark.flood_stage: 2gb
+      cluster.routing.allocation.disk.watermark.low: 10gb
+      cluster.routing.allocation.disk.watermark.high: 10gb
+      cluster.routing.allocation.disk.watermark.flood_stage: 10gb
       discovery.zen.minimum_master_nodes: "1"
       discovery.type: "single-node"
       http.compression_level: "7"
       node.ingest: "true"
-      node.name: trains
+      node.name: clearml
       reindex.remote.whitelist: '*.*'
       xpack.monitoring.enabled: "false"
       xpack.security.enabled: "false"
@@ -60,25 +60,25 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
     restart: unless-stopped
     volumes:
-    - /opt/trains/data/elastic_7:/usr/share/elasticsearch/data
+    - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
   mongo:
     networks:
       - backend
-    container_name: trains-mongo
+    container_name: clearml-mongo
     image: mongo:3.6.5
     restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
-    - /opt/trains/data/mongo/db:/data/db
-    - /opt/trains/data/mongo/configdb:/data/configdb
+    - /opt/clearml/data/mongo/db:/data/db
+    - /opt/clearml/data/mongo/configdb:/data/configdb
   redis:
     networks:
       - backend
-    container_name: trains-redis
+    container_name: clearml-redis
     image: redis:5.0
     restart: unless-stopped
     volumes:
-    - /opt/trains/data/redis:/data
+    - /opt/clearml/data/redis:/data
 
 networks:
   backend:
