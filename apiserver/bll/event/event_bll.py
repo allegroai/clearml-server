@@ -206,7 +206,7 @@ class EventBLL(object):
                 ) as it:
                     for success, info in it:
                         if success:
-                            added += chunk_size
+                            added += 1
                         else:
                             errors_per_type["Error when indexing events batch"] += 1
 
@@ -232,9 +232,6 @@ class EventBLL(object):
                     TaskBLL.set_last_update(
                         remaining_tasks, company_id, last_update=now
                     )
-
-        # Compensate for always adding chunk_size on success (last chunk is probably smaller)
-        added = min(added, len(actions))
 
         if not added:
             raise errors.bad_request.EventsNotAdded(**errors_per_type)
