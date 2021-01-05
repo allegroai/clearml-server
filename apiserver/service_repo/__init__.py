@@ -1,4 +1,4 @@
-from typing import Text, Sequence, Callable, Union
+from typing import Text, Sequence, Callable, Union, Type
 
 from funcsigs import signature
 from jsonmodels import models
@@ -18,8 +18,8 @@ def endpoint(
     name: Text,
     min_version: Text = "1.0",
     required_fields: Sequence[Text] = None,
-    request_data_model: models.Base = None,
-    response_data_model: models.Base = None,
+    request_data_model: Type[models.Base] = None,
+    response_data_model: Type[models.Base] = None,
     validate_schema=False,
 ):
     """ Endpoint decorator, used to declare a method as an endpoint handler """

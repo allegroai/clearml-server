@@ -126,7 +126,9 @@ class TaskBLL(object):
                 return_dicts=False,
             )
             if only:
-                q = q.only(*only)
+                # Make sure to reset fields filters (some fields are excluded by default) since this
+                # is an internal call and specific fields were requested.
+                q = q.all_fields().only(*only)
 
             if q.count() != len(ids):
                 raise errors.bad_request.InvalidTaskId(ids=task_ids)

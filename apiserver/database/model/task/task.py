@@ -217,3 +217,13 @@ class Task(AttributedDocument):
     hyperparams = SafeMapField(field=SafeMapField(EmbeddedDocumentField(ParamsItem)))
     configuration = SafeMapField(field=EmbeddedDocumentField(ConfigurationItem))
     runtime = SafeDictField(default=dict)
+
+    def get_index_company(self) -> str:
+        """
+        Returns the company ID used for locating indices containing task data.
+        In case the task has a valid company, this is the company ID.
+        Otherwise, if the task has a company_origin, this is a task that has been made public and the
+         origin company should be used.
+        Otherwise, an empty company is used.
+        """
+        return self.company or self.company_origin or ""

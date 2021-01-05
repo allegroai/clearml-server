@@ -773,7 +773,7 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
     ):
         if enabled:
             items = list(cls.objects(id__in=ids, company=company_id).only("id"))
-            update = dict(set__company_origin=company_id, unset__company=1)
+            update = dict(set__company_origin=company_id, set__company="")
         else:
             items = list(
                 cls.objects(

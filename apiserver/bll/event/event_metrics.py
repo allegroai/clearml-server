@@ -115,7 +115,7 @@ class EventMetrics:
                 company=company_id,
                 query=Q(id__in=task_ids),
                 allow_public=allow_public,
-                override_projection=("id", "name", "company"),
+                override_projection=("id", "name", "company", "company_origin"),
                 return_dicts=False,
             )
             if len(task_objs) < len(task_ids):
@@ -123,7 +123,7 @@ class EventMetrics:
                 raise errors.bad_request.InvalidTaskId(company=company_id, ids=invalid)
             task_name_by_id = {t.id: t.name for t in task_objs}
 
-        companies = {t.company for t in task_objs}
+        companies = {t.get_index_company() for t in task_objs}
         if len(companies) > 1:
             raise errors.bad_request.InvalidTaskId(
                 "only tasks from the same company are supported"
