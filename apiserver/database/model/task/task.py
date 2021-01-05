@@ -185,10 +185,9 @@ class Task(AttributedDocument):
         ],
     }
     get_all_query_options = GetMixin.QueryParameterOptions(
-        list_fields=("id", "user", "tags", "system_tags", "type", "status", "project"),
+        list_fields=("id", "user", "tags", "system_tags", "type", "status", "project", "parent"),
         datetime_fields=("status_changed",),
         pattern_fields=("name", "comment"),
-        fields=("parent",),
     )
 
     id = StringField(primary_key=True)
