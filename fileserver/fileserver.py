@@ -36,7 +36,8 @@ def upload():
 
 @app.route("/<path:path>", methods=["GET"])
 def download(path):
-    response = send_from_directory(app.config["UPLOAD_FOLDER"], path)
+    as_attachment = "download" in request.args
+    response = send_from_directory(app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment)
     if config.get("fileserver.download.disable_browser_caching", False):
         headers = response.headers
         headers["Pragma-directive"] = "no-cache"
