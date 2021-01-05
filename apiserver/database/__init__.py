@@ -95,4 +95,4 @@ class DatabaseFactory:
             get_connection(entry.alias)
 
 
-database = DatabaseFactory()
+db = DatabaseFactory()

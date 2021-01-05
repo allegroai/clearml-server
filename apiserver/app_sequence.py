@@ -4,7 +4,7 @@ from hashlib import md5
 from flask import Flask
 from semantic_version import Version
 
-from apiserver.database import database
+from apiserver.database import db
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
 from apiserver.config import info
 from apiserver.config_repo import config
@@ -44,10 +44,10 @@ class AppSequence:
         )
 
     def _init_dbs(self):
-        database.initialize()
+        db.initialize()
 
         # build a key that uniquely identifies specific mongo instance
-        hosts_string = ";".join(sorted(database.get_hosts()))
+        hosts_string = ";".join(sorted(db.get_hosts()))
         key = "db_init_" + md5(hosts_string.encode()).hexdigest()
         with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 120)):
             upgrade_monitoring = config.get(

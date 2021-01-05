@@ -6,8 +6,8 @@ from humanfriendly import parse_timespan
 
 
 def setup():
-    from apiserver.database import database
-    database.initialize()
+    from apiserver.database import db
+    db.initialize()
 
 
 def gen_token(args):
