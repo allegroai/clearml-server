@@ -26,6 +26,7 @@ from apiserver.database.model.task.task import (
     ArtifactModes,
     external_task_types,
 )
+from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
 from apiserver.es_factory import es_factory
 from apiserver.service_repo import APICall
@@ -231,6 +232,16 @@ class TaskBLL:
 
         now = datetime.utcnow()
 
+        def clean_system_tags(input_tags: Sequence[str]) -> Sequence[str]:
+            if not input_tags:
+                return input_tags
+
+            return [
+                tag
+                for tag in input_tags
+                if tag not in [TaskSystemTags.development, EntityVisibility.archived.value]
+            ]
+
         with TimingContext("mongo", "clone task"):
             new_task = Task(
                 id=create_id(),
@@ -244,7 +255,7 @@ class TaskBLL:
                 parent=parent or task.parent,
                 project=project or task.project,
                 tags=tags or task.tags,
-                system_tags=system_tags or [],
+                system_tags=system_tags or clean_system_tags(task.system_tags),
                 type=task.type,
                 script=task.script,
                 output=Output(destination=task.output.destination)

@@ -120,7 +120,7 @@ class TestTasksEdit(TestService):
         self.assertEqual(new_task.parent, task)
         # self.assertEqual(new_task.execution.parameters, execution["parameters"])
         self.assertEqual(new_task.execution.framework, execution_overrides["framework"])
-        self.assertEqual(new_task.system_tags, [])
+        self.assertEqual(new_task.system_tags, ["test"])
 
     def test_model_check_in_clone(self):
         model = self.new_model()
