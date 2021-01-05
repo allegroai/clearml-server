@@ -1,7 +1,8 @@
 from jsonmodels import models, fields
 
-from apiserver.apimodels import ListField
+from apiserver.apimodels import ListField, ActualEnumField
 from apiserver.apimodels.organization import TagsRequest
+from apiserver.database.model import EntityVisibility
 
 
 class ProjectReq(models.Base):
@@ -19,3 +20,5 @@ class ProjectTagsRequest(TagsRequest):
 
 class ProjectTaskParentsRequest(ProjectReq):
     projects = ListField(str)
+    tasks_state = ActualEnumField(EntityVisibility)
+

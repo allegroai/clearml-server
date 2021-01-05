@@ -429,20 +429,18 @@ def get_tags(call: APICall, company, request: ProjectTagsRequest):
     "projects.make_public", min_version="2.9", request_data_model=MakePublicRequest
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
-    with translate_errors_context():
-        call.result.data = Project.set_public(
-            company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=True
-        )
+    call.result.data = Project.set_public(
+        company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=True
+    )
 
 
 @endpoint(
     "projects.make_private", min_version="2.9", request_data_model=MakePublicRequest
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
-    with translate_errors_context():
-        call.result.data = Project.set_public(
-            company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=False
-        )
+    call.result.data = Project.set_public(
+        company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=False
+    )
 
 
 @endpoint(
@@ -454,5 +452,7 @@ def get_task_parents(
     call: APICall, company_id: str, request: ProjectTaskParentsRequest
 ):
     call.result.data = {
-        "parents": org_bll.get_parent_tasks(company_id, projects=request.projects)
+        "parents": org_bll.get_parent_tasks(
+            company_id, projects=request.projects, state=request.tasks_state
+        )
     }

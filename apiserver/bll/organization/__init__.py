@@ -1,11 +1,12 @@
 from collections import defaultdict
 from enum import Enum
 from operator import itemgetter
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Optional
 
 from mongoengine import Q
 
 from apiserver.config_repo import config
+from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task
 from apiserver.redis_manager import redman
@@ -67,7 +68,10 @@ class OrgBLL:
 
     @classmethod
     def get_parent_tasks(
-        cls, company_id: str, projects: Sequence[str]
+        cls,
+        company_id: str,
+        projects: Sequence[str],
+        state: Optional[EntityVisibility] = None,
     ) -> Sequence[dict]:
         """
         Get list of unique parent tasks sorted by task name for the passed company projects
@@ -76,12 +80,19 @@ class OrgBLL:
         query = Q(company=company_id)
         if projects:
             query &= Q(project__in=projects)
+        if state == EntityVisibility.archived:
+            query &= Q(system_tags__in=[EntityVisibility.archived.value])
+        elif state == EntityVisibility.active:
+            query &= Q(system_tags__nin=[EntityVisibility.archived.value])
+
         parent_ids = set(Task.objects(query).distinct("parent"))
         if not parent_ids:
             return []
 
-        parents = [
-            {"id": task.id, "name": task.name}
-            for task in Task.objects(id__in=parent_ids).only("id", "name")
-        ]
+        parents = Task.get_many_with_join(
+            company_id,
+            query=Q(id__in=parent_ids),
+            allow_public=True,
+            override_projection=("id", "name", "project.name"),
+        )
         return sorted(parents, key=itemgetter("name"))
