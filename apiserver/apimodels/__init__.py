@@ -12,8 +12,8 @@ from jsonmodels.validators import Enum as EnumValidator
 from luqum.parser import parser, ParseError
 from validators import email as email_validator, domain as domain_validator
 
-from apierrors import errors
-from utilities.json import loads, dumps
+from apiserver.apierrors import errors
+from apiserver.utilities.json import loads, dumps
 
 
 def make_default(field_cls, default_value):

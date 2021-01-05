@@ -2,10 +2,10 @@ from jsonmodels.fields import IntField, StringField, BoolField, EmbeddedField, D
 from jsonmodels.models import Base
 from jsonmodels.validators import Max, Enum
 
-from apimodels import ListField, EnumField
-from config import config
-from database.model.auth import Role
-from database.utils import get_options
+from apiserver.apimodels import ListField, EnumField
+from apiserver.config import config
+from apiserver.database.model.auth import Role
+from apiserver.database.utils import get_options
 
 
 class GetTokenRequest(Base):

@@ -2,7 +2,7 @@ import hashlib
 
 from pymongo.database import Database, Collection
 
-from service_repo.auth.fixed_user import FixedUser
+from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
 def _get_ids():

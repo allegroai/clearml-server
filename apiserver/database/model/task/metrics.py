@@ -6,7 +6,7 @@ from mongoengine import (
     EmbeddedDocumentField,
 )
 
-from database.fields import SafeMapField
+from apiserver.database.fields import SafeMapField
 
 
 class MetricEvent(EmbeddedDocument):

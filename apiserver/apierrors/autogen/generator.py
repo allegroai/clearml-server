@@ -26,7 +26,7 @@ def cls_name(name):
 
 class Generator(object):
     _base_class_name = 'BaseError'
-    _base_class_module = 'apierrors.base'
+    _base_class_module = 'apiserver.apierrors.base'
 
     def __init__(self, path, format_pep8=True, use_md5=True):
         self._use_md5 = use_md5

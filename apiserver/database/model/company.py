@@ -8,9 +8,9 @@ from mongoengine import (
     DateTimeField,
 )
 
-from database import Database, strict
-from database.fields import StrippedStringField
-from database.model import DbModelMixin
+from apiserver.database import Database, strict
+from apiserver.database.fields import StrippedStringField
+from apiserver.database.model import DbModelMixin
 
 
 class ReportStatsOption(EmbeddedDocument):

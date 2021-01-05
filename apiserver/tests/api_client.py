@@ -4,18 +4,18 @@ import os
 import time
 from contextlib import contextmanager
 from typing import Sequence
+from typing import Union, Tuple, Type
 
 import requests
 import six
-from boltons.typeutils import issubclass
 from boltons.iterutils import remap
+from boltons.typeutils import issubclass
+from pyhocon import ConfigFactory
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.util.retry import Retry
-from typing import Union, Tuple, Type
 
-from apierrors.base import BaseError
-from pyhocon import ConfigFactory
+from apiserver.apierrors.base import BaseError
 
 config = ConfigFactory.parse_file("api_client.conf")
 

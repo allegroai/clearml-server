@@ -4,9 +4,9 @@ Module for polymorphism over different types of X axes in scalar aggregations
 from abc import ABC, abstractmethod
 from enum import auto
 
-from utilities.stringenum import StringEnum
-from bll.util import extract_properties_to_lists
-from config import config
+from apiserver.utilities.stringenum import StringEnum
+from apiserver.bll.util import extract_properties_to_lists
+from apiserver.config import config
 
 log = config.logger(__file__)
 

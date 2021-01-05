@@ -3,10 +3,10 @@ from logging import Logger
 
 import attr
 
-from database.model.auth import Role
-from database.model.auth import User as AuthUser, Credentials
-from database.model.user import User
-from service_repo.auth.fixed_user import FixedUser
+from apiserver.database.model.auth import Role
+from apiserver.database.model.auth import User as AuthUser, Credentials
+from apiserver.database.model.user import User
+from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
 def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False):

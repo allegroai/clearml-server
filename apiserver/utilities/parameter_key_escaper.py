@@ -1,6 +1,6 @@
 from boltons.dictutils import OneToOne
 
-from apierrors import errors
+from apiserver.apierrors import errors
 
 
 class ParameterKeyEscaper:

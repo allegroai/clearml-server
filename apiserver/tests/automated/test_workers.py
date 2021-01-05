@@ -4,9 +4,9 @@ from datetime import timedelta
 from operator import attrgetter
 from typing import Sequence
 
-from apierrors.errors import bad_request
-from tests.automated import TestService, utc_now_tz_aware
-from config import config
+from apiserver.apierrors.errors import bad_request
+from apiserver.tests.automated import TestService, utc_now_tz_aware
+from apiserver.config import config
 
 log = config.logger(__file__)
 

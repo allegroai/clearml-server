@@ -1,5 +1,5 @@
-from config import config
-from tests.automated import TestService
+from apiserver.config import config
+from apiserver.tests.automated import TestService
 
 log = config.logger(__file__)
 

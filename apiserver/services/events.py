@@ -2,8 +2,8 @@ import itertools
 from collections import defaultdict
 from operator import itemgetter
 
-from apierrors import errors
-from apimodels.events import (
+from apiserver.apierrors import errors
+from apiserver.apimodels.events import (
     MultiTaskScalarMetricsIterHistogramRequest,
     ScalarMetricsIterHistogramRequest,
     DebugImagesRequest,
@@ -14,11 +14,11 @@ from apimodels.events import (
     LogEventsRequest,
     LogOrderEnum,
 )
-from bll.event import EventBLL
-from bll.event.event_metrics import EventMetrics
-from bll.task import TaskBLL
-from service_repo import APICall, endpoint
-from utilities import json
+from apiserver.bll.event import EventBLL
+from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.task import TaskBLL
+from apiserver.service_repo import APICall, endpoint
+from apiserver.utilities import json
 
 task_bll = TaskBLL()
 event_bll = EventBLL()

@@ -1,14 +1,14 @@
 from mongoengine import Document, StringField, DateTimeField, BooleanField
 
-from database import Database, strict
-from database.fields import StrippedStringField, SafeDictField, SafeSortedListField
-from database.model import DbModelMixin
-from database.model.base import GetMixin
-from database.model.model_labels import ModelLabels
-from database.model.company import Company
-from database.model.project import Project
-from database.model.task.task import Task
-from database.model.user import User
+from apiserver.database import Database, strict
+from apiserver.database.fields import StrippedStringField, SafeDictField, SafeSortedListField
+from apiserver.database.model import DbModelMixin
+from apiserver.database.model.base import GetMixin
+from apiserver.database.model.model_labels import ModelLabels
+from apiserver.database.model.company import Company
+from apiserver.database.model.project import Project
+from apiserver.database.model.task.task import Task
+from apiserver.database.model.user import User
 
 
 class Model(DbModelMixin, Document):

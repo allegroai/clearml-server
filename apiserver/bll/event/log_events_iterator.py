@@ -3,9 +3,9 @@ from typing import Optional, Tuple, Sequence
 import attr
 from elasticsearch import Elasticsearch
 
-from bll.event.event_metrics import EventMetrics
-from database.errors import translate_errors_context
-from timing_context import TimingContext
+from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.database.errors import translate_errors_context
+from apiserver.timing_context import TimingContext
 
 
 @attr.s(auto_attribs=True)

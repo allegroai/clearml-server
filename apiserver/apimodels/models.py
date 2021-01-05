@@ -1,9 +1,9 @@
 from jsonmodels import models, fields
 from six import string_types
 
-from apimodels import ListField, DictField
-from apimodels.base import UpdateResponse
-from apimodels.tasks import PublishResponse as TaskPublishResponse
+from apiserver.apimodels import ListField, DictField
+from apiserver.apimodels.base import UpdateResponse
+from apiserver.apimodels.tasks import PublishResponse as TaskPublishResponse
 
 
 class GetFrameworksRequest(models.Base):

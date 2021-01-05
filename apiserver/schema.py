@@ -11,8 +11,8 @@ import attr
 from boltons.dictutils import subdict
 from pyhocon import ConfigFactory
 
-from config import config
-from utilities.partial_version import PartialVersion
+from apiserver.config import config
+from apiserver.utilities.partial_version import PartialVersion
 
 HERE = Path(__file__)
 

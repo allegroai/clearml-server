@@ -6,8 +6,8 @@ import fastjsonschema
 import jsonschema
 from boltons.iterutils import remap
 
-from apierrors import errors
-from config import config
+from apiserver.apierrors import errors
+from apiserver.config import config
 
 log = config.logger(__file__)
 

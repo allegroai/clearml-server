@@ -3,8 +3,8 @@ from typing import Any, Optional, Sequence, Tuple
 from mongoengine import Document, StringField, DynamicField, Q
 from mongoengine.errors import NotUniqueError
 
-from database import Database, strict
-from database.model import DbModelMixin
+from apiserver.database import Database, strict
+from apiserver.database.model import DbModelMixin
 
 
 class SettingKeys:

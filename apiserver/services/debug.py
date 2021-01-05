@@ -1,4 +1,4 @@
-from service_repo import APICall, endpoint
+from apiserver.service_repo import APICall, endpoint
 
 
 @endpoint("debug.ping")

@@ -1,4 +1,4 @@
-from tests.automated import TestService
+from apiserver.tests.automated import TestService
 
 
 class TestProjectTags(TestService):

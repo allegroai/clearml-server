@@ -4,20 +4,20 @@ from hashlib import md5
 from flask import Flask
 from semantic_version import Version
 
-import database
-from bll.statistics.stats_reporter import StatisticsReporter
-from config import config, info
-from elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
-from mongo.initialize import (
+from apiserver import database
+from apiserver.bll.statistics.stats_reporter import StatisticsReporter
+from apiserver.config import config, info
+from apiserver.elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
+from apiserver.mongo.initialize import (
     init_mongo_data,
     pre_populate_data,
     check_mongo_empty,
     get_last_server_version,
 )
-from service_repo import ServiceRepo
-from sync import distributed_lock
-from updates import check_updates_thread
-from utilities.threads_manager import ThreadsManager
+from apiserver.service_repo import ServiceRepo
+from apiserver.sync import distributed_lock
+from apiserver.updates import check_updates_thread
+from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
 

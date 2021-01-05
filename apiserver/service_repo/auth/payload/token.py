@@ -2,9 +2,9 @@ import jwt
 
 from datetime import datetime, timedelta
 
-from apierrors import errors
-from config import config
-from database.model.auth import Role
+from apiserver.apierrors import errors
+from apiserver.config import config
+from apiserver.database.model.auth import Role
 
 from .auth_type import AuthType
 from .payload import Payload

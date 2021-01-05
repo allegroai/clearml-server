@@ -12,7 +12,7 @@ from jsonmodels.fields import (
 )
 from jsonmodels.models import Base
 
-from apimodels import make_default, ListField, EnumField, JsonSerializableMixin
+from apiserver.apimodels import make_default, ListField, EnumField, JsonSerializableMixin
 
 DEFAULT_TIMEOUT = 10 * 60
 

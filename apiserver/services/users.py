@@ -5,19 +5,19 @@ import dpath
 from boltons.iterutils import remap
 from mongoengine import Q
 
-from apierrors import errors
-from apimodels.base import UpdateResponse
-from apimodels.users import CreateRequest, SetPreferencesRequest
-from bll.project import ProjectBLL
-from bll.user import UserBLL
-from config import config
-from database.errors import translate_errors_context
-from database.model.auth import Role
-from database.model.company import Company
-from database.model.user import User
-from database.utils import parse_from_call
-from service_repo import APICall, endpoint
-from utilities.json import loads, dumps
+from apiserver.apierrors import errors
+from apiserver.apimodels.base import UpdateResponse
+from apiserver.apimodels.users import CreateRequest, SetPreferencesRequest
+from apiserver.bll.project import ProjectBLL
+from apiserver.bll.user import UserBLL
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.auth import Role
+from apiserver.database.model.company import Company
+from apiserver.database.model.user import User
+from apiserver.database.utils import parse_from_call
+from apiserver.service_repo import APICall, endpoint
+from apiserver.utilities.json import loads, dumps
 
 log = config.logger(__file__)
 project_bll = ProjectBLL()

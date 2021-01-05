@@ -1,6 +1,6 @@
-from config import config
-from database.model.task.task import TaskStatus
-from tests.automated import TestService
+from apiserver.config import config
+from apiserver.database.model.task.task import TaskStatus
+from apiserver.tests.automated import TestService
 
 log = config.logger(__file__)
 

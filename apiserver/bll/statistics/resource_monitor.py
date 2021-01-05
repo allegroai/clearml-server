@@ -6,7 +6,7 @@ from time import sleep
 import attr
 import psutil
 
-from utilities.threads_manager import ThreadsManager
+from apiserver.utilities.threads_manager import ThreadsManager
 
 
 class ResourceMonitor(Thread):

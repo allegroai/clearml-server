@@ -4,8 +4,8 @@ from typing import Optional, Sequence, Union
 
 from boltons.iterutils import bucketize
 
-from apierrors.errors import bad_request
-from apimodels.workers import (
+from apiserver.apierrors.errors import bad_request
+from apiserver.apimodels.workers import (
     WorkerRequest,
     StatusReportRequest,
     GetAllRequest,
@@ -23,10 +23,10 @@ from apimodels.workers import (
     GetActivityReportResponse,
     ActivityReportSeries,
 )
-from bll.util import extract_properties_to_lists
-from bll.workers import WorkerBLL
-from config import config
-from service_repo import APICall, endpoint
+from apiserver.bll.util import extract_properties_to_lists
+from apiserver.bll.workers import WorkerBLL
+from apiserver.config import config
+from apiserver.service_repo import APICall, endpoint
 
 log = config.logger(__file__)
 

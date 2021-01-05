@@ -2,8 +2,8 @@ from typing import Optional, Sequence
 
 from mongoengine import Q
 
-from database.model.model import Model
-from database.utils import get_company_or_none_constraint
+from apiserver.database.model.model import Model
+from apiserver.database.utils import get_company_or_none_constraint
 
 
 class ModelBLL:

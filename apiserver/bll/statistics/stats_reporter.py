@@ -11,18 +11,18 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from bll.query import Builder as QueryBuilder
-from bll.util import get_server_uuid
-from bll.workers import WorkerStats, WorkerBLL
-from config import config
-from config.info import get_deployment_type
-from database.model import Company, User
-from database.model.queue import Queue
-from database.model.task.task import Task
-from tools import safe_get
-from utilities.json import dumps
-from utilities.threads_manager import ThreadsManager
-from version import __version__ as current_version
+from apiserver.bll.query import Builder as QueryBuilder
+from apiserver.bll.util import get_server_uuid
+from apiserver.bll.workers import WorkerStats, WorkerBLL
+from apiserver.config import config
+from apiserver.config.info import get_deployment_type
+from apiserver.database.model import Company, User
+from apiserver.database.model.queue import Queue
+from apiserver.database.model.task.task import Task
+from apiserver.tools import safe_get
+from apiserver.utilities.json import dumps
+from apiserver.utilities.threads_manager import ThreadsManager
+from apiserver.version import __version__ as current_version
 from .resource_monitor import ResourceMonitor
 
 log = config.logger(__file__)

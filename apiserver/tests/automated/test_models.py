@@ -1,5 +1,5 @@
-from apierrors.errors.bad_request import InvalidModelId
-from tests.automated import TestService
+from apiserver.apierrors.errors.bad_request import InvalidModelId
+from apiserver.tests.automated import TestService
 
 MODEL_CANNOT_BE_UPDATED_CODES = (400, 203)
 TASK_CANNOT_BE_UPDATED_CODES = (400, 110)

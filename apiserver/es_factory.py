@@ -4,7 +4,7 @@ from os import getenv
 from boltons.iterutils import first
 from elasticsearch import Elasticsearch, Transport
 
-from config import config
+from apiserver.config import config
 
 log = config.logger(__file__)
 

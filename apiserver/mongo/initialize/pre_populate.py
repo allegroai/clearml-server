@@ -31,21 +31,21 @@ from boltons.iterutils import chunked_iter
 from furl import furl
 from mongoengine import Q
 
-from bll.event import EventBLL
-from bll.task.param_utils import (
+from apiserver.bll.event import EventBLL
+from apiserver.bll.task.param_utils import (
     split_param_name,
     hyperparams_default_section,
     hyperparams_legacy_type,
 )
-from config import config
-from config.info import get_default_company
-from database.model import EntityVisibility
-from database.model.model import Model
-from database.model.project import Project
-from database.model.task.task import Task, ArtifactModes, TaskStatus
-from database.utils import get_options
-from tools import safe_get
-from utilities import json
+from apiserver.config import config
+from apiserver.config.info import get_default_company
+from apiserver.database.model import EntityVisibility
+from apiserver.database.model.model import Model
+from apiserver.database.model.project import Project
+from apiserver.database.model.task.task import Task, ArtifactModes, TaskStatus
+from apiserver.database.utils import get_options
+from apiserver.tools import safe_get
+from apiserver.utilities import json
 from .user import _ensure_backend_user
 
 

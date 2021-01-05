@@ -1,9 +1,9 @@
 from collections import defaultdict
 
-from apimodels.organization import TagsRequest
-from bll.organization import OrgBLL, Tags
-from service_repo import endpoint, APICall
-from services.utils import get_tags_filter_dictionary, get_tags_response
+from apiserver.apimodels.organization import TagsRequest
+from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.service_repo import endpoint, APICall
+from apiserver.services.utils import get_tags_filter_dictionary, get_tags_response
 
 org_bll = OrgBLL()
 

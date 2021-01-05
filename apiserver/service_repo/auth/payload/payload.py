@@ -1,4 +1,4 @@
-from apierrors import errors
+from apiserver.apierrors import errors
 
 from ..identity import Identity
 from ..dictable import Dictable

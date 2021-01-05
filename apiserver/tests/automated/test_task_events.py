@@ -10,9 +10,9 @@ from typing import Sequence, Optional, Tuple
 
 from boltons.iterutils import first
 
-import es_factory
-from apierrors.errors.bad_request import EventsNotAdded
-from tests.automated import TestService
+from apiserver import es_factory
+from apiserver.apierrors.errors.bad_request import EventsNotAdded
+from apiserver.tests.automated import TestService
 
 
 class TestTaskEvents(TestService):

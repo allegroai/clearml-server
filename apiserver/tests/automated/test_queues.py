@@ -4,8 +4,8 @@ from typing import Sequence
 
 from future.backports.datetime import timedelta
 
-from tests.api_client import AttrDict
-from tests.automated import TestService, utc_now_tz_aware
+from apiserver.tests.api_client import AttrDict
+from apiserver.tests.automated import TestService, utc_now_tz_aware
 
 
 class TestQueues(TestService):

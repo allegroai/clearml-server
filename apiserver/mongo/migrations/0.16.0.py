@@ -1,11 +1,11 @@
 from pymongo.database import Database, Collection
 
-from bll.task.param_utils import (
+from apiserver.bll.task.param_utils import (
     hyperparams_legacy_type,
     hyperparams_default_section,
     split_param_name,
 )
-from tools import safe_get
+from apiserver.tools import safe_get
 
 
 def migrate_backend(db: Database):

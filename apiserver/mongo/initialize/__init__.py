@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Sequence, Union
 
-from config import config
-from config.info import get_default_company
-from database.model.auth import Role
-from service_repo.auth.fixed_user import FixedUser
+from apiserver.config import config
+from apiserver.config.info import get_default_company
+from apiserver.database.model.auth import Role
+from apiserver.service_repo.auth.fixed_user import FixedUser
 from .migration import _apply_migrations, check_mongo_empty, get_last_server_version
 from .pre_populate import PrePopulate
 from .user import ensure_fixed_user, _ensure_auth_user, _ensure_backend_user

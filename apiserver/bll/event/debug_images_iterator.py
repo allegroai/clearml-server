@@ -13,15 +13,15 @@ from jsonmodels.fields import StringField, ListField, IntField
 from jsonmodels.models import Base
 from redis import StrictRedis
 
-from apierrors import errors
-from apimodels import JsonSerializableMixin
-from bll.event.event_metrics import EventMetrics
-from bll.redis_cache_manager import RedisCacheManager
-from config import config
-from database.errors import translate_errors_context
-from database.model.task.metrics import MetricEventStats
-from database.model.task.task import Task
-from timing_context import TimingContext
+from apiserver.apierrors import errors
+from apiserver.apimodels import JsonSerializableMixin
+from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.redis_cache_manager import RedisCacheManager
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.task.metrics import MetricEventStats
+from apiserver.database.model.task.task import Task
+from apiserver.timing_context import TimingContext
 
 
 class VariantScrollState(Base):

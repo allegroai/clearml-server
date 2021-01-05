@@ -1,6 +1,6 @@
 from pymongo.database import Database, Collection
 
-from database.utils import partition_tags
+from apiserver.database.utils import partition_tags
 
 
 def migrate_backend(db: Database):

@@ -7,10 +7,10 @@ import attr
 import requests
 from semantic_version import Version
 
-from config import config
-from config.info import get_version
-from database.model.settings import Settings
-from utilities.threads_manager import ThreadsManager
+from apiserver.config import config
+from apiserver.config.info import get_version
+from apiserver.database.model.settings import Settings
+from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__name__)
 

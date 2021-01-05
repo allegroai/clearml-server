@@ -6,9 +6,9 @@ from pathlib import Path
 from mongoengine.connection import get_db
 from semantic_version import Version
 
-import database.utils
-from database import Database
-from database.model.version import Version as DatabaseVersion
+from apiserver.database import utils
+from apiserver.database import Database
+from apiserver.database.model.version import Version as DatabaseVersion
 
 migration_dir = Path(__file__).resolve().parent.with_name("migrations")
 
@@ -16,7 +16,7 @@ migration_dir = Path(__file__).resolve().parent.with_name("migrations")
 def check_mongo_empty() -> bool:
     return not all(
         get_db(alias).collection_names()
-        for alias in database.utils.get_options(Database)
+        for alias in utils.get_options(Database)
     )
 
 
@@ -82,7 +82,7 @@ def _apply_migrations(log: Logger):
                     )
 
         DatabaseVersion(
-            id=database.utils.id(),
+            id=utils.id(),
             num=script.stem,
             created=datetime.utcnow(),
             desc="Applied on server startup",

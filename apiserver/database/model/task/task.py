@@ -8,8 +8,8 @@ from mongoengine import (
     LongField,
 )
 
-from database import Database, strict
-from database.fields import (
+from apiserver.database import Database, strict
+from apiserver.database.fields import (
     StrippedStringField,
     SafeMapField,
     SafeDictField,
@@ -17,11 +17,11 @@ from database.fields import (
     EmbeddedDocumentSortedListField,
     SafeSortedListField,
 )
-from database.model import AttributedDocument
-from database.model.base import ProperDictMixin, GetMixin
-from database.model.model_labels import ModelLabels
-from database.model.project import Project
-from database.utils import get_options
+from apiserver.database.model import AttributedDocument
+from apiserver.database.model.base import ProperDictMixin, GetMixin
+from apiserver.database.model.model_labels import ModelLabels
+from apiserver.database.model.project import Project
+from apiserver.database.utils import get_options
 from .metrics import MetricEvent, MetricEventStats
 from .output import Output
 

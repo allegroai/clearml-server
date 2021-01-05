@@ -5,17 +5,17 @@ from typing import Sequence, Dict
 
 from boltons import iterutils
 
-from apierrors import errors
-from apimodels.tasks import (
+from apiserver.apierrors import errors
+from apiserver.apimodels.tasks import (
     HyperParamKey,
     HyperParamItem,
     ReplaceHyperparams,
     Configuration,
 )
-from bll.task import TaskBLL
-from config import config
-from database.model.task.task import ParamsItem, Task, ConfigurationItem, TaskStatus
-from utilities.parameter_key_escaper import ParameterKeyEscaper
+from apiserver.bll.task import TaskBLL
+from apiserver.config import config
+from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem, TaskStatus
+from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 
 log = config.logger(__file__)
 task_bll = TaskBLL()

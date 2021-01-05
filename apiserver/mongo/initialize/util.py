@@ -1,11 +1,11 @@
 from logging import Logger
 from uuid import uuid4
 
-from bll.queue import QueueBLL
-from config import config
-from database.model.company import Company
-from database.model.queue import Queue
-from database.model.settings import Settings, SettingKeys
+from apiserver.bll.queue import QueueBLL
+from apiserver.config import config
+from apiserver.database.model.company import Company
+from apiserver.database.model.queue import Queue
+from apiserver.database.model.settings import Settings, SettingKeys
 
 log = config.logger(__file__)
 

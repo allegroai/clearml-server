@@ -6,10 +6,10 @@ from mongoengine import (
     DateTimeField,
 )
 
-from database import Database, strict
-from database.model import DbModelMixin
-from database.model.base import AuthDocument
-from database.utils import get_options
+from apiserver.database import Database, strict
+from apiserver.database.model import DbModelMixin
+from apiserver.database.model.base import AuthDocument
+from apiserver.database.utils import get_options
 
 
 class Entities(object):

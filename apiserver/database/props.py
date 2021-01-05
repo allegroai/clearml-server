@@ -8,12 +8,12 @@ import six
 from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
 from mongoengine.base import get_document, BaseField
 
-from database.fields import (
+from apiserver.database.fields import (
     LengthRangeEmbeddedDocumentListField,
     UniqueEmbeddedDocumentListField,
     EmbeddedDocumentSortedListField,
 )
-from database.utils import get_fields, get_fields_attr
+from apiserver.database.utils import get_fields, get_fields_attr
 
 
 class PropsMixin(object):

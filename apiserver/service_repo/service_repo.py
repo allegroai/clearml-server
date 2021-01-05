@@ -6,12 +6,12 @@ from typing import cast, Iterable, List, MutableMapping, Optional, Tuple
 
 import jsonmodels.models
 
-import timing_context
-from apierrors import APIError
-from apierrors.errors.bad_request import RequestPathHasInvalidVersion
-from api_version import __version__ as _api_version_
-from config import config
-from utilities.partial_version import PartialVersion
+from apiserver import timing_context
+from apiserver.apierrors import APIError
+from apiserver.apierrors.errors.bad_request import RequestPathHasInvalidVersion
+from apiserver.api_version import __version__ as _api_version_
+from apiserver.config import config
+from apiserver.utilities.partial_version import PartialVersion
 from .apicall import APICall
 from .endpoint import Endpoint
 from .errors import MalformedPathError, InvalidVersionError, CallFailedError

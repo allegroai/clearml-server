@@ -10,20 +10,20 @@ from elasticsearch import helpers
 from mongoengine import Q
 from nested_dict import nested_dict
 
-import database.utils as dbutils
-import es_factory
-from apierrors import errors
-from bll.event.debug_images_iterator import DebugImagesIterator
-from bll.event.event_metrics import EventMetrics, EventType
-from bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
-from bll.task import TaskBLL
-from config import config
-from database.errors import translate_errors_context
-from database.model.task.task import Task, TaskStatus
-from redis_manager import redman
-from timing_context import TimingContext
-from tools import safe_get
-from utilities.dicts import flatten_nested_items
+from apiserver.database import utils as dbutils
+from apiserver import es_factory
+from apiserver.apierrors import errors
+from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
+from apiserver.bll.event.event_metrics import EventMetrics, EventType
+from apiserver.bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
+from apiserver.bll.task import TaskBLL
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.task.task import Task, TaskStatus
+from apiserver.redis_manager import redman
+from apiserver.timing_context import TimingContext
+from apiserver.tools import safe_get
+from apiserver.utilities.dicts import flatten_nested_items
 
 # noinspection PyTypeChecker
 EVENT_TYPES = set(map(attrgetter("value"), EventType))

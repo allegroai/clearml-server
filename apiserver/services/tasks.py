@@ -10,10 +10,10 @@ from mongoengine import EmbeddedDocument, Q
 from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
 
-from apierrors import errors, APIError
-from apierrors.errors.bad_request import InvalidTaskId
-from apimodels.base import UpdateResponse, IdResponse, MakePublicRequest
-from apimodels.tasks import (
+from apiserver.apierrors import errors, APIError
+from apiserver.apierrors.errors.bad_request import InvalidTaskId
+from apiserver.apimodels.base import UpdateResponse, IdResponse, MakePublicRequest
+from apiserver.apimodels.tasks import (
     StartedResponse,
     ResetResponse,
     PublishRequest,
@@ -40,38 +40,38 @@ from apimodels.tasks import (
     DeleteConfigurationRequest,
     GetConfigurationNamesRequest,
 )
-from bll.event import EventBLL
-from bll.organization import OrgBLL, Tags
-from bll.queue import QueueBLL
-from bll.task import (
+from apiserver.bll.event import EventBLL
+from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.queue import QueueBLL
+from apiserver.bll.task import (
     TaskBLL,
     ChangeStatusRequest,
     update_project_time,
     split_by,
 )
-from bll.task.hyperparams import HyperParams
-from bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
-from bll.task.param_utils import (
+from apiserver.bll.task.hyperparams import HyperParams
+from apiserver.bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
+from apiserver.bll.task.param_utils import (
     params_prepare_for_save,
     params_unprepare_from_saved,
     escape_paths,
 )
-from bll.util import SetFieldsResolver
-from database.errors import translate_errors_context
-from database.model.model import Model
-from database.model.task.output import Output
-from database.model.task.task import (
+from apiserver.bll.util import SetFieldsResolver
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.model import Model
+from apiserver.database.model.task.output import Output
+from apiserver.database.model.task.task import (
     Task,
     TaskStatus,
     Script,
     DEFAULT_LAST_ITERATION,
     Execution,
 )
-from database.utils import get_fields, parse_from_call
-from service_repo import APICall, endpoint
-from services.utils import conform_tag_fields, conform_output_tags, validate_tags
-from timing_context import TimingContext
-from utilities.partial_version import PartialVersion
+from apiserver.database.utils import get_fields, parse_from_call
+from apiserver.service_repo import APICall, endpoint
+from apiserver.services.utils import conform_tag_fields, conform_output_tags, validate_tags
+from apiserver.timing_context import TimingContext
+from apiserver.utilities.partial_version import PartialVersion
 
 task_fields = set(Task.get_fields())
 task_script_fields = set(get_fields(Script))

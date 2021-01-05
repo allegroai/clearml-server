@@ -3,9 +3,9 @@ from typing import Sequence, List, Tuple
 
 from boltons import iterutils
 
-from apierrors.errors.bad_request import InvalidTaskStatus
-from tests.api_client import APIClient
-from tests.automated import TestService
+from apiserver.apierrors.errors.bad_request import InvalidTaskStatus
+from apiserver.tests.api_client import APIClient
+from apiserver.tests.automated import TestService
 
 
 class TestTasksHyperparams(TestService):

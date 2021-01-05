@@ -6,10 +6,10 @@ from typing import Type, Optional
 from jsonmodels import models
 from six import string_types
 
-import database
-from timing_context import TimingContext, TimingStats
-from utilities import json
-from utilities.partial_version import PartialVersion
+from apiserver import database
+from apiserver.timing_context import TimingContext, TimingStats
+from apiserver.utilities import json
+from apiserver.utilities.partial_version import PartialVersion
 from .auth import Identity
 from .auth import Payload as AuthPayload
 from .errors import CallParsingError

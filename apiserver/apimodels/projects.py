@@ -1,7 +1,7 @@
 from jsonmodels import models, fields
 
-from apimodels import ListField
-from apimodels.organization import TagsRequest
+from apiserver.apimodels import ListField
+from apiserver.apimodels.organization import TagsRequest
 
 
 class ProjectReq(models.Base):

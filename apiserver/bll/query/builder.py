@@ -1,6 +1,6 @@
 from typing import Optional, Sequence, Iterable, Union
 
-from config import config
+from apiserver.config import config
 
 log = config.logger(__file__)
 

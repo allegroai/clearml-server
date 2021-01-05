@@ -2,10 +2,10 @@ from enum import Enum
 
 from mongoengine import Document, StringField
 
-from apierrors import errors
-from database.model.base import DbModelMixin, ABSTRACT_FLAG
-from database.model.company import Company
-from database.model.user import User
+from apiserver.apierrors import errors
+from apiserver.database.model.base import DbModelMixin, ABSTRACT_FLAG
+from apiserver.database.model.company import Company
+from apiserver.database.model.user import User
 
 
 class AttributedDocument(DbModelMixin, Document):

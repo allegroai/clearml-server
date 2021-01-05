@@ -1,9 +1,9 @@
 from mongoengine import StringField, DateTimeField, IntField
 
-from database import Database, strict
-from database.fields import StrippedStringField, SafeSortedListField
-from database.model import AttributedDocument
-from database.model.base import GetMixin
+from apiserver.database import Database, strict
+from apiserver.database.fields import StrippedStringField, SafeSortedListField
+from apiserver.database.model import AttributedDocument
+from apiserver.database.model.base import GetMixin
 
 
 class Project(AttributedDocument):

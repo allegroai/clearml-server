@@ -1,7 +1,7 @@
-from apierrors.errors.bad_request import InvalidModelId, ValidationError, InvalidTaskId
-from apierrors.errors.forbidden import NoWritePermission
-from config import config
-from tests.automated import TestService
+from apiserver.apierrors.errors.bad_request import InvalidModelId, ValidationError, InvalidTaskId
+from apiserver.apierrors.errors.forbidden import NoWritePermission
+from apiserver.config import config
+from apiserver.tests.automated import TestService
 
 
 log = config.logger(__file__)

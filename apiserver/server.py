@@ -4,9 +4,9 @@ from flask import Flask
 from flask_compress import Compress
 from flask_cors import CORS
 
-from app_routes import register_routes
-from app_sequence import AppSequence
-from config import config
+from apiserver.app_routes import register_routes
+from apiserver.app_sequence import AppSequence
+from apiserver.config import config
 
 app = Flask(__name__, static_url_path="/static")
 CORS(app, **config.get("apiserver.cors"))

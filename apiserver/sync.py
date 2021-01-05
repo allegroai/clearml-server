@@ -2,7 +2,7 @@ import time
 from contextlib import contextmanager
 from time import sleep
 
-from redis_manager import redman
+from apiserver.redis_manager import redman
 
 _redis = redman.connection("apiserver")
 

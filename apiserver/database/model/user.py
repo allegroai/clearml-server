@@ -1,9 +1,9 @@
 from mongoengine import Document, StringField, DynamicField
 
-from database import Database, strict
-from database.model import DbModelMixin
-from database.model.base import GetMixin
-from database.model.company import Company
+from apiserver.database import Database, strict
+from apiserver.database.model import DbModelMixin
+from apiserver.database.model.base import GetMixin
+from apiserver.database.model.company import Company
 
 
 class User(DbModelMixin, Document):

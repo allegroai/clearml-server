@@ -2,16 +2,16 @@ from datetime import datetime
 
 from pyhocon.config_tree import NoneValue
 
-from apierrors import errors
-from apimodels.server import ReportStatsOptionRequest, ReportStatsOptionResponse
-from bll.statistics.stats_reporter import StatisticsReporter
-from config import config
-from config.info import get_version, get_build_number, get_commit_number
-from database.errors import translate_errors_context
-from database.model import Company
-from database.model.company import ReportStatsOption
-from database.model.settings import Settings, SettingKeys
-from service_repo import ServiceRepo, APICall, endpoint
+from apiserver.apierrors import errors
+from apiserver.apimodels.server import ReportStatsOptionRequest, ReportStatsOptionResponse
+from apiserver.bll.statistics.stats_reporter import StatisticsReporter
+from apiserver.config import config
+from apiserver.config.info import get_version, get_build_number, get_commit_number
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model import Company
+from apiserver.database.model.company import ReportStatsOption
+from apiserver.database.model.settings import Settings, SettingKeys
+from apiserver.service_repo import ServiceRepo, APICall, endpoint
 
 
 @endpoint("server.get_stats")

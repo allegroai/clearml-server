@@ -1,7 +1,7 @@
 from mongoengine import EmbeddedDocument, StringField
 
-from database.fields import StrippedStringField
-from database.utils import get_options
+from apiserver.database.fields import StrippedStringField
+from apiserver.database.utils import get_options
 
 
 class Result(object):

@@ -1,5 +1,5 @@
-from apierrors import errors
-from apimodels.auth import (
+from apiserver.apierrors import errors
+from apiserver.apimodels.auth import (
     GetTokenResponse,
     GetTokenForUserRequest,
     GetTokenRequest,
@@ -14,14 +14,14 @@ from apimodels.auth import (
     RevokeCredentialsRequest,
     EditUserReq,
 )
-from apimodels.base import UpdateResponse
-from bll.auth import AuthBLL
-from config import config, info
-from database.errors import translate_errors_context
-from database.model.auth import User
-from service_repo import APICall, endpoint
-from service_repo.auth import Token
-from service_repo.auth.fixed_user import FixedUser
+from apiserver.apimodels.base import UpdateResponse
+from apiserver.bll.auth import AuthBLL
+from apiserver.config import config, info
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.auth import User
+from apiserver.service_repo import APICall, endpoint
+from apiserver.service_repo.auth import Token
+from apiserver.service_repo.auth.fixed_user import FixedUser
 
 log = config.logger(__file__)
 

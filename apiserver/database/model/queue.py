@@ -6,12 +6,12 @@ from mongoengine import (
     EmbeddedDocumentListField,
 )
 
-from database import Database, strict
-from database.fields import StrippedStringField, SafeSortedListField
-from database.model import DbModelMixin
-from database.model.base import ProperDictMixin, GetMixin
-from database.model.company import Company
-from database.model.task.task import Task
+from apiserver.database import Database, strict
+from apiserver.database.fields import StrippedStringField, SafeSortedListField
+from apiserver.database.model import DbModelMixin
+from apiserver.database.model.base import ProperDictMixin, GetMixin
+from apiserver.database.model.company import Company
+from apiserver.database.model.task.task import Task
 
 
 class Entry(EmbeddedDocument, ProperDictMixin):

@@ -1,13 +1,13 @@
 import fastjsonschema
 import jsonmodels.errors
 
-from apierrors import errors, APIError
-from config import config
-from database.model import Company
-from database.model.auth import Role, User
-from service_repo import APICall
-from service_repo.apicall import MissingIdentity
-from service_repo.endpoint import Endpoint
+from apiserver.apierrors import errors, APIError
+from apiserver.config import config
+from apiserver.database.model import Company
+from apiserver.database.model.auth import Role, User
+from apiserver.service_repo import APICall
+from apiserver.service_repo.apicall import MissingIdentity
+from apiserver.service_repo.endpoint import Endpoint
 from .auth import get_auth_func, Identity, authorize_impersonation, Payload
 from .errors import CallParsingError
 

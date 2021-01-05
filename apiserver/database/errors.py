@@ -17,7 +17,7 @@ from mongoengine.errors import (
 )
 from pymongo.errors import PyMongoError, NotMasterError
 
-from apierrors import errors
+from apiserver.apierrors import errors
 
 
 class MakeGetAllQueryError(Exception):

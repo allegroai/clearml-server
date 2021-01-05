@@ -11,18 +11,18 @@ import six
 from mongoengine import Q
 from six import string_types
 
-import database.utils as dbutils
-import es_factory
-from apierrors import errors
-from apimodels.tasks import Artifact as ApiArtifact
-from bll.organization import OrgBLL, Tags
-from config import config
-from database.errors import translate_errors_context
-from database.model.model import Model
-from database.model.project import Project
-from database.model.task.metrics import EventStats, MetricEventStats
-from database.model.task.output import Output
-from database.model.task.task import (
+import apiserver.database.utils as dbutils
+from apiserver import es_factory
+from apiserver.apierrors import errors
+from apiserver.apimodels.tasks import Artifact as ApiArtifact
+from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.model import Model
+from apiserver.database.model.project import Project
+from apiserver.database.model.task.metrics import EventStats, MetricEventStats
+from apiserver.database.model.task.output import Output
+from apiserver.database.model.task.task import (
     Task,
     TaskStatus,
     TaskStatusMessage,
@@ -31,11 +31,11 @@ from database.model.task.task import (
     Artifact,
     external_task_types,
 )
-from database.utils import get_company_or_none_constraint, id as create_id
-from service_repo import APICall
-from timing_context import TimingContext
-from utilities.dicts import deep_merge
-from utilities.parameter_key_escaper import ParameterKeyEscaper
+from apiserver.database.utils import get_company_or_none_constraint, id as create_id
+from apiserver.service_repo import APICall
+from apiserver.timing_context import TimingContext
+from apiserver.utilities.dicts import deep_merge
+from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .param_utils import params_prepare_for_save
 from .utils import ChangeStatusRequest, validate_status_change
 

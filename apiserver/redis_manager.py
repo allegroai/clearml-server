@@ -6,8 +6,8 @@ from boltons.iterutils import first
 from redis import StrictRedis
 from redis.sentinel import Sentinel, SentinelConnectionPool
 
-from apierrors.errors.server_error import ConfigError, GeneralError
-from config import config
+from apiserver.apierrors.errors.server_error import ConfigError, GeneralError
+from apiserver.config import config
 
 log = config.logger(__file__)
 

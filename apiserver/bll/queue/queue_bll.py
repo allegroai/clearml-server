@@ -4,14 +4,14 @@ from typing import Callable, Sequence, Optional, Tuple
 
 from elasticsearch import Elasticsearch
 
-import database
-import es_factory
-from apierrors import errors
-from bll.queue.queue_metrics import QueueMetrics
-from bll.workers import WorkerBLL
-from config import config
-from database.errors import translate_errors_context
-from database.model.queue import Queue, Entry
+from apiserver import database
+from apiserver import es_factory
+from apiserver.apierrors import errors
+from apiserver.bll.queue.queue_metrics import QueueMetrics
+from apiserver.bll.workers import WorkerBLL
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.queue import Queue, Entry
 
 log = config.logger(__file__)
 

@@ -6,12 +6,12 @@ from humanfriendly import parse_timespan
 
 
 def setup():
-    from database import initialize
+    from apiserver.database import initialize
     initialize()
 
 
 def gen_token(args):
-    from bll.auth import AuthBLL
+    from apiserver.bll.auth import AuthBLL
     resp = AuthBLL.get_token_for_user(args.user_id, args.company_id, parse_timespan(args.expiration))
     print('Token:\n%s' % resp.token)
 

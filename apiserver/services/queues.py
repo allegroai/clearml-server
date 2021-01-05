@@ -1,5 +1,5 @@
-from apimodels.base import UpdateResponse
-from apimodels.queues import (
+from apiserver.apimodels.base import UpdateResponse
+from apiserver.apimodels.queues import (
     GetDefaultResp,
     CreateRequest,
     DeleteRequest,
@@ -12,11 +12,11 @@ from apimodels.queues import (
     GetMetricsResponse,
     QueueMetrics,
 )
-from bll.queue import QueueBLL
-from bll.util import extract_properties_to_lists
-from bll.workers import WorkerBLL
-from service_repo import APICall, endpoint
-from services.utils import conform_tag_fields, conform_output_tags, conform_tags
+from apiserver.bll.queue import QueueBLL
+from apiserver.bll.util import extract_properties_to_lists
+from apiserver.bll.workers import WorkerBLL
+from apiserver.service_repo import APICall, endpoint
+from apiserver.services.utils import conform_tag_fields, conform_output_tags, conform_tags
 
 worker_bll = WorkerBLL()
 queue_bll = QueueBLL(worker_bll)

@@ -2,7 +2,7 @@ from jsonmodels import models, fields
 from jsonmodels.validators import Length
 from mongoengine.base import BaseDocument
 
-from apimodels import DictField, ListField
+from apiserver.apimodels import DictField, ListField
 
 
 class MongoengineFieldsDict(DictField):

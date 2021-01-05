@@ -1,7 +1,7 @@
 from mongoengine import Document, DateTimeField, StringField
 
-from database import Database, strict
-from database.model import DbModelMixin
+from apiserver.database import Database, strict
+from apiserver.database.model import DbModelMixin
 
 
 class Version(DbModelMixin, Document):

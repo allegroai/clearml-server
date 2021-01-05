@@ -2,8 +2,8 @@ import functools
 from operator import itemgetter
 from typing import Sequence, Optional, Callable, Tuple, Dict, Any, Set
 
-from database.model import AttributedDocument
-from database.model.settings import Settings
+from apiserver.database.model import AttributedDocument
+from apiserver.database.model.settings import Settings
 
 
 def extract_properties_to_lists(

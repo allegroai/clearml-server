@@ -3,8 +3,8 @@ from typing import Optional, TypeVar, Generic, Type, Callable
 
 from redis import StrictRedis
 
-import database
-from timing_context import TimingContext
+from apiserver import database
+from apiserver.timing_context import TimingContext
 
 T = TypeVar("T")
 

@@ -6,11 +6,11 @@ from jsonmodels.fields import StringField, BoolField
 from jsonmodels.models import Base
 from jsonmodels.validators import Length, Min, Max
 
-from apimodels import ListField, IntField, ActualEnumField
-from bll.event.event_metrics import EventType
-from bll.event.scalar_key import ScalarKeyEnum
-from config import config
-from utilities.stringenum import StringEnum
+from apiserver.apimodels import ListField, IntField, ActualEnumField
+from apiserver.bll.event.event_metrics import EventType
+from apiserver.bll.event.scalar_key import ScalarKeyEnum
+from apiserver.config import config
+from apiserver.utilities.stringenum import StringEnum
 
 
 class HistogramRequestBase(Base):

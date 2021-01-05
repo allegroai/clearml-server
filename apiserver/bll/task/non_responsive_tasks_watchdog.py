@@ -1,11 +1,11 @@
 from datetime import timedelta, datetime
 from time import sleep
 
-from apierrors import errors
-from bll.task import ChangeStatusRequest
-from config import config
-from database.model.task.task import TaskStatus, Task
-from utilities.threads_manager import ThreadsManager
+from apiserver.apierrors import errors
+from apiserver.bll.task import ChangeStatusRequest
+from apiserver.config import config
+from apiserver.database.model.task.task import TaskStatus, Task
+from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
 

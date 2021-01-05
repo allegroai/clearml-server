@@ -4,8 +4,8 @@ from typing import Sequence, Optional
 
 import attr
 
-from config import config
-from config.info import get_default_company
+from apiserver.config import config
+from apiserver.config.info import get_default_company
 
 
 class FixedUsersError(Exception):

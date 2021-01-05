@@ -5,10 +5,10 @@ from typing import Sequence, Set, Optional
 import attr
 import elasticsearch.helpers
 
-import es_factory
-from apierrors import APIError
-from apierrors.errors import bad_request, server_error
-from apimodels.workers import (
+from apiserver import es_factory
+from apiserver.apierrors import APIError
+from apiserver.apierrors.errors import bad_request, server_error
+from apiserver.apimodels.workers import (
     DEFAULT_TIMEOUT,
     IdNameEntry,
     WorkerEntry,
@@ -17,16 +17,16 @@ from apimodels.workers import (
     QueueEntry,
     MachineStats,
 )
-from config import config
-from database.errors import translate_errors_context
-from database.model.auth import User
-from database.model.company import Company
-from database.model.project import Project
-from database.model.queue import Queue
-from database.model.task.task import Task
-from redis_manager import redman
-from timing_context import TimingContext
-from tools import safe_get
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.auth import User
+from apiserver.database.model.company import Company
+from apiserver.database.model.project import Project
+from apiserver.database.model.queue import Queue
+from apiserver.database.model.task.task import Task
+from apiserver.redis_manager import redman
+from apiserver.timing_context import TimingContext
+from apiserver.tools import safe_get
 from .stats import WorkerStats
 
 log = config.logger(__file__)

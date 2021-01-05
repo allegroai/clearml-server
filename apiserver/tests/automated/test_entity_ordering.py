@@ -3,7 +3,7 @@ from time import sleep
 
 from typing import Sequence, Mapping
 
-from tests.automated import TestService
+from apiserver.tests.automated import TestService
 
 
 class TestEntityOrdering(TestService):

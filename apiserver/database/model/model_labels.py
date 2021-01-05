@@ -1,4 +1,4 @@
-from database.fields import NoneType, UnionField, SafeMapField
+from apiserver.database.fields import NoneType, UnionField, SafeMapField
 
 
 class ModelLabels(SafeMapField):

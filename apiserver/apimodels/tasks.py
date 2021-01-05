@@ -5,10 +5,10 @@ from jsonmodels import models
 from jsonmodels.fields import StringField, BoolField, IntField, EmbeddedField
 from jsonmodels.validators import Enum, Length
 
-from apimodels import DictField, ListField
-from apimodels.base import UpdateResponse
-from database.model.task.task import TaskType
-from database.utils import get_options
+from apiserver.apimodels import DictField, ListField
+from apiserver.apimodels.base import UpdateResponse
+from apiserver.database.model.task.task import TaskType
+from apiserver.database.utils import get_options
 
 
 class ArtifactTypeData(models.Base):

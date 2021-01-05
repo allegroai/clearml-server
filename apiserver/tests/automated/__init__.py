@@ -5,8 +5,8 @@ from functools import partial
 from typing import Iterable
 from unittest import TestCase
 
-from tests.api_client import APIClient
-from config import config
+from apiserver.tests.api_client import APIClient
+from apiserver.config import config
 
 log = config.logger(__file__)
 

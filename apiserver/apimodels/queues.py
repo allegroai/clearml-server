@@ -2,7 +2,7 @@ from jsonmodels import validators
 from jsonmodels.fields import StringField, IntField, BoolField, FloatField
 from jsonmodels.models import Base
 
-from apimodels import ListField
+from apiserver.apimodels import ListField
 
 
 class GetDefaultResp(Base):

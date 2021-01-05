@@ -5,8 +5,8 @@ from typing import Sequence, Dict, Callable, Tuple, Any, Type
 
 import dpath.path
 
-from apierrors import errors
-from database.props import PropsMixin
+from apiserver.apierrors import errors
+from apiserver.database.props import PropsMixin
 
 SEP = "."
 

@@ -10,13 +10,13 @@ from typing import Sequence, Tuple
 from elasticsearch import Elasticsearch
 from mongoengine import Q
 
-from apierrors import errors
-from bll.event.scalar_key import ScalarKey, ScalarKeyEnum
-from config import config
-from database.errors import translate_errors_context
-from database.model.task.task import Task
-from timing_context import TimingContext
-from tools import safe_get
+from apiserver.apierrors import errors
+from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
+from apiserver.config import config
+from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.task.task import Task
+from apiserver.timing_context import TimingContext
+from apiserver.tools import safe_get
 
 log = config.logger(__file__)
 
