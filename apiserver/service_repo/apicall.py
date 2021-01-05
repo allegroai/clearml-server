@@ -297,7 +297,7 @@ class MissingIdentity(Exception):
 
 
 def _get_headers(name: str) -> Tuple[str, ...]:
-    return tuple("-".join(("X", p, name)) for p in ("ClearML", "Trains"))
+    return tuple("-".join(("X", p, name)) for p in ("Clearml", "Trains"))
 
 
 class APICall(DataContainer):
