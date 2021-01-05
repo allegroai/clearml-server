@@ -127,14 +127,7 @@ class ProjectBLL:
                 project_name=project_name,
                 description="Auto-generated during move",
             )
-            extra = (
-                {"set__last_update": datetime.utcnow()}
-                if hasattr(entity_cls, "last_update")
-                else {}
-            )
 
-            entity_cls.objects(company=company, id__in=ids).update(
-                set__project=project, **extra
-            )
+            entity_cls.objects(company=company, id__in=ids).update(set__project=project)
 
             return project

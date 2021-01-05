@@ -471,7 +471,6 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             company_id=company_id,
             id=task_id,
             partial_update_dict=partial_update_dict,
-            injected_update=dict(last_update=datetime.utcnow()),
         )
         if updated_count:
             new_project = updated_fields.get("project", task.project)
