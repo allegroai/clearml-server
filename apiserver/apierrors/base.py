@@ -1,8 +1,12 @@
-import six
-from boltons.typeutils import classproperty
 from typing import Tuple
 
+import six
+from boltons.iterutils import is_collection, remap
+from boltons.typeutils import classproperty
+
 from .apierror import APIError
+
+jsonable_types = (dict, list, tuple, str, int, float, bool, type(None))
 
 
 class BaseError(APIError):
@@ -19,15 +23,26 @@ class BaseError(APIError):
                 f"{k}={self._format_kwarg(v)}" for k, v in kwargs.items()
             )
             message += f": {kwargs_msg}"
-        params = kwargs.copy()
-        params.update(
-            code=self._default_code, subcode=self._default_subcode, msg=message
+
+        super(BaseError, self).__init__(
+            code=self._default_code,
+            subcode=self._default_subcode,
+            msg=message,
+            error_data=self._to_safe_json_types(kwargs),
         )
-        super(BaseError, self).__init__(**params)
+
+    @staticmethod
+    def _to_safe_json_types(data):
+        def visit(_, k, v):
+            if not isinstance(v, jsonable_types):
+                v = str(v)
+            return k, v
+
+        return remap(data, visit=visit)
 
     @staticmethod
     def _format_kwarg(value):
-        if isinstance(value, (tuple, list)):
+        if is_collection(value):
             return f'({", ".join(str(v) for v in value)})'
         elif isinstance(value, six.string_types):
             return value

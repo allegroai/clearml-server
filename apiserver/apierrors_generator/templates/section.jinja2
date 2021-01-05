@@ -1,0 +1,9 @@
+{% from 'templates/error.jinja2' import error_class with context %}
+{% if subcodes %}
+from {{ base_class_module }} import {{ base_class_name }}
+{% endif %}
+{% for subcode, (name, msg) in subcodes %}
+
+
+{{ error_class(name|cls_name, msg, code, subcode|int) -}}
+{% endfor %}

@@ -1,0 +1,14 @@
+{% from 'templates/error.jinja2' import error_class with context %}
+{% if sections %}
+from {{ base_class_module }} import {{ base_class_name }}
+{% endif %}
+
+{% for _, name in sections %}
+from . import {{ name }}
+{% endfor %}
+
+
+{% for code, name in sections %}
+{{ error_class(name|cls_name, name|replace('_', ' '), code) }}
+
+{% endfor %}
