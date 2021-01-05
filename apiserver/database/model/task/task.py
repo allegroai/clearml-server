@@ -1,3 +1,5 @@
+from typing import Dict
+
 from mongoengine import (
     StringField,
     EmbeddedDocumentField,
@@ -14,7 +16,6 @@ from apiserver.database.fields import (
     SafeMapField,
     SafeDictField,
     UnionField,
-    EmbeddedDocumentSortedListField,
     SafeSortedListField,
 )
 from apiserver.database.model import AttributedDocument
@@ -72,10 +73,13 @@ class ArtifactModes:
     output = "output"
 
 
+DEFAULT_ARTIFACT_MODE = ArtifactModes.output
+
+
 class Artifact(EmbeddedDocument):
     key = StringField(required=True)
     type = StringField(required=True)
-    mode = StringField(choices=get_options(ArtifactModes), default=ArtifactModes.output)
+    mode = StringField(choices=get_options(ArtifactModes), default=DEFAULT_ARTIFACT_MODE)
     uri = StringField()
     hash = StringField()
     content_size = LongField()
@@ -107,7 +111,7 @@ class Execution(EmbeddedDocument, ProperDictMixin):
     model_desc = SafeMapField(StringField(default=""))
     model_labels = ModelLabels()
     framework = StringField()
-    artifacts = EmbeddedDocumentSortedListField(Artifact)
+    artifacts: Dict[str, Artifact] = SafeMapField(field=EmbeddedDocumentField(Artifact))
     docker_cmd = StringField()
     queue = StringField()
     """ Queue ID where task was queued """

@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple, Any
+from typing import Sequence, Tuple, Any, Union, Callable, Optional
 
 
 def flatten_nested_items(
@@ -33,3 +33,52 @@ def deep_merge(source: dict, override: dict) -> dict:
             source[key] = value
 
     return source
+
+
+def nested_get(
+    dictionary: dict,
+    path: Union[Sequence[str], str],
+    default: Optional[Union[Any, Callable]] = None,
+) -> Any:
+    if isinstance(path, str):
+        path = [path]
+
+    node = dictionary
+    for key in path:
+        if key not in node:
+            if callable(default):
+                return default()
+            return default
+        node = node.get(key)
+
+    return node
+
+
+def nested_delete(dictionary: dict, path: Union[Sequence[str], str]) -> bool:
+    """
+    Return 'True' if the element was deleted
+    """
+    if isinstance(path, str):
+        path = [path]
+
+    *parent_path, last_key = path
+    parent = nested_get(dictionary, parent_path)
+    if not parent or last_key not in parent:
+        return False
+
+    del parent[last_key]
+    return True
+
+
+def nested_set(dictionary: dict, path: Union[Sequence[str], str], value: Any):
+    if isinstance(path, str):
+        path = [path]
+
+    *parent_path, last_key = path
+    node = dictionary
+    for key in parent_path:
+        if key not in node:
+            node[key] = {}
+        node = node.get(key)
+
+    node[last_key] = value

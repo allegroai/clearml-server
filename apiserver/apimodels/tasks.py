@@ -7,7 +7,7 @@ from jsonmodels.validators import Enum, Length
 
 from apiserver.apimodels import DictField, ListField
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.database.model.task.task import TaskType
+from apiserver.database.model.task.task import TaskType, ArtifactModes, DEFAULT_ARTIFACT_MODE
 from apiserver.database.utils import get_options
 
 
@@ -20,7 +20,9 @@ class ArtifactTypeData(models.Base):
 class Artifact(models.Base):
     key = StringField(required=True)
     type = StringField(required=True)
-    mode = StringField(validators=Enum("input", "output"), default="output")
+    mode = StringField(
+        validators=Enum(*get_options(ArtifactModes)), default=DEFAULT_ARTIFACT_MODE
+    )
     uri = StringField()
     hash = StringField()
     content_size = IntField()
@@ -112,12 +114,18 @@ class CloneRequest(TaskRequest):
 
 
 class AddOrUpdateArtifactsRequest(TaskRequest):
-    artifacts = ListField([Artifact], required=True)
+    artifacts = ListField([Artifact], validators=Length(minimum_value=1))
 
 
-class AddOrUpdateArtifactsResponse(models.Base):
-    added = ListField([str])
-    updated = ListField([str])
+class ArtifactId(models.Base):
+    key = StringField(required=True)
+    mode = StringField(
+        validators=Enum(*get_options(ArtifactModes)), default=DEFAULT_ARTIFACT_MODE
+    )
+
+
+class DeleteArtifactsRequest(TaskRequest):
+    artifacts = ListField([ArtifactId], validators=Length(minimum_value=1))
 
 
 class ResetRequest(UpdateRequest):

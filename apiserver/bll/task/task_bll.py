@@ -1,20 +1,14 @@
 from collections import OrderedDict
 from datetime import datetime
-from operator import attrgetter
-from random import random
-from time import sleep
-from typing import Collection, Sequence, Tuple, Any, Optional, List, Dict
+from typing import Collection, Sequence, Tuple, Any, Optional, Dict
 
 import dpath
-import pymongo.results
 import six
 from mongoengine import Q
 from six import string_types
 
 import apiserver.database.utils as dbutils
-from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
-from apiserver.apimodels.tasks import Artifact as ApiArtifact
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.config import config
 from apiserver.database.errors import translate_errors_context
@@ -28,14 +22,14 @@ from apiserver.database.model.task.task import (
     TaskStatusMessage,
     TaskSystemTags,
     ArtifactModes,
-    Artifact,
     external_task_types,
 )
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
+from apiserver.es_factory import es_factory
 from apiserver.service_repo import APICall
 from apiserver.timing_context import TimingContext
-from apiserver.utilities.dicts import deep_merge
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
+from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
 from .utils import ChangeStatusRequest, validate_status_change
 
@@ -181,9 +175,6 @@ class TaskBLL(object):
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
     ) -> Task:
-        task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
-        execution_dict = task.execution.to_proper_dict() if task.execution else {}
-        execution_model_overriden = False
         params_dict = {
             field: value
             for field, value in (
@@ -192,21 +183,32 @@ class TaskBLL(object):
             )
             if value is not None
         }
+
+        task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
+
+        execution_dict = task.execution.to_proper_dict() if task.execution else {}
+        execution_model_overriden = False
         if execution_overrides:
+            execution_model_overriden = execution_overrides.get("model") is not None
+            artifacts_prepare_for_save({"execution": execution_overrides})
+
             params_dict["execution"] = {}
             for legacy_param in ("parameters", "configuration"):
                 legacy_value = execution_overrides.pop(legacy_param, None)
                 if legacy_value is not None:
                     params_dict["execution"] = legacy_value
-            execution_dict = deep_merge(execution_dict, execution_overrides)
-            execution_model_overriden = execution_overrides.get("model") is not None
+
+            execution_dict.update(execution_overrides)
+
         params_prepare_for_save(params_dict, previous_task=task)
 
         artifacts = execution_dict.get("artifacts")
         if artifacts:
-            execution_dict["artifacts"] = [
-                a for a in artifacts if a.get("mode") != ArtifactModes.output
-            ]
+            execution_dict["artifacts"] = {
+                k: a
+                for k, a in artifacts.items()
+                if a.get("mode") != ArtifactModes.output
+            }
         now = datetime.utcnow()
 
         with translate_errors_context():
@@ -542,97 +544,6 @@ class TaskBLL(object):
             status_message=status_message,
             force=force,
         ).execute()
-
-    @classmethod
-    def add_or_update_artifacts(
-        cls, task_id: str, company_id: str, artifacts: List[ApiArtifact]
-    ) -> Tuple[List[str], List[str]]:
-        key = attrgetter("key", "mode")
-
-        if not artifacts:
-            return [], []
-
-        with translate_errors_context(), TimingContext("mongo", "update_artifacts"):
-            artifacts: List[Artifact] = [
-                Artifact(**artifact.to_struct()) for artifact in artifacts
-            ]
-
-            attempts = int(config.get("services.tasks.artifacts.update_attempts", 10))
-
-            for retry in range(attempts):
-                task = cls.get_task_with_access(
-                    task_id, company_id=company_id, requires_write_access=True
-                )
-
-                current = list(map(key, task.execution.artifacts))
-                updated = [a for a in artifacts if key(a) in current]
-                added = [a for a in artifacts if a not in updated]
-
-                filter = {"_id": task_id, "company": company_id}
-                update = {}
-                array_filters = None
-                if current:
-                    filter["execution.artifacts"] = {
-                        "$size": len(current),
-                        "$all": [
-                            *(
-                                {"$elemMatch": {"key": key, "mode": mode}}
-                                for key, mode in current
-                            )
-                        ],
-                    }
-                else:
-                    filter["$or"] = [
-                        {"execution.artifacts": {"$exists": False}},
-                        {"execution.artifacts": {"$size": 0}},
-                    ]
-
-                if added:
-                    update["$push"] = {
-                        "execution.artifacts": {"$each": [a.to_mongo() for a in added]}
-                    }
-                if updated:
-                    update["$set"] = {
-                        f"execution.artifacts.$[artifact{index}]": artifact.to_mongo()
-                        for index, artifact in enumerate(updated)
-                    }
-                    array_filters = [
-                        {
-                            f"artifact{index}.key": artifact.key,
-                            f"artifact{index}.mode": artifact.mode,
-                        }
-                        for index, artifact in enumerate(updated)
-                    ]
-
-                if not update:
-                    return [], []
-
-                result: pymongo.results.UpdateResult = Task._get_collection().update_one(
-                    filter=filter,
-                    update=update,
-                    array_filters=array_filters,
-                    upsert=False,
-                )
-
-                if result.matched_count >= 1:
-                    break
-
-                wait_msec = random() * int(
-                    config.get("services.tasks.artifacts.update_retry_msec", 500)
-                )
-
-                log.warning(
-                    f"Failed to update artifacts for task {task_id} (updated by another party),"
-                    f" retrying {retry+1}/{attempts} in {wait_msec}ms"
-                )
-
-                sleep(wait_msec / 1000)
-            else:
-                raise errors.server_error.UpdateFailed(
-                    "task artifacts updated by another party"
-                )
-
-            return [a.key for a in added], [a.key for a in updated]
 
     @staticmethod
     def get_aggregated_project_parameters(

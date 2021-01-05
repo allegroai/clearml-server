@@ -29,7 +29,6 @@ from apiserver.apimodels.tasks import (
     DequeueResponse,
     CloneRequest,
     AddOrUpdateArtifactsRequest,
-    AddOrUpdateArtifactsResponse,
     GetTypesRequest,
     ResetRequest,
     GetHyperParamsRequest,
@@ -39,6 +38,7 @@ from apiserver.apimodels.tasks import (
     EditConfigurationRequest,
     DeleteConfigurationRequest,
     GetConfigurationNamesRequest,
+    DeleteArtifactsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -48,6 +48,11 @@ from apiserver.bll.task import (
     ChangeStatusRequest,
     update_project_time,
     split_by,
+)
+from apiserver.bll.task.artifacts import (
+    artifacts_prepare_for_save,
+    artifacts_unprepare_from_saved,
+    Artifacts,
 )
 from apiserver.bll.task.hyperparams import HyperParams
 from apiserver.bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
@@ -279,6 +284,7 @@ create_fields = {
 def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     conform_tag_fields(call, fields, validate=True)
     params_prepare_for_save(fields, previous_task=previous_task)
+    artifacts_prepare_for_save(fields)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_fields:
@@ -301,10 +307,11 @@ def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict])
     conform_output_tags(call, tasks_data)
 
     for data in tasks_data:
+        need_legacy_params = call.requested_endpoint_version < PartialVersion("2.9")
         params_unprepare_from_saved(
-            fields=data,
-            copy_to_legacy=call.requested_endpoint_version < PartialVersion("2.9"),
+            fields=data, copy_to_legacy=need_legacy_params,
         )
+        artifacts_unprepare_from_saved(fields=data)
 
 
 def prepare_create_fields(
@@ -846,10 +853,15 @@ def reset(call: APICall, company_id, request: ResetRequest):
             set__execution=Execution(), unset__script=1,
         )
     else:
-        updates.update(
-            unset__execution__queue=1,
-            __raw__={"$pull": {"execution.artifacts": {"mode": {"$ne": "input"}}}},
-        )
+        updates.update(unset__execution__queue=1)
+        if task.execution and task.execution.artifacts:
+            updates.update(
+                set__execution__artifacts={
+                    key: artifact
+                    for key, artifact in task.execution.artifacts
+                    if artifact.get("mode") == "input"
+                }
+            )
 
     res = ResetResponse(
         **ChangeStatusRequest(
@@ -1090,17 +1102,34 @@ def ping(_, company_id, request: PingRequest):
 
 @endpoint(
     "tasks.add_or_update_artifacts",
-    min_version="2.6",
+    min_version="2.10",
     request_data_model=AddOrUpdateArtifactsRequest,
-    response_data_model=AddOrUpdateArtifactsResponse,
 )
 def add_or_update_artifacts(
     call: APICall, company_id, request: AddOrUpdateArtifactsRequest
 ):
-    added, updated = TaskBLL.add_or_update_artifacts(
-        task_id=request.task, company_id=company_id, artifacts=request.artifacts
-    )
-    call.result.data_model = AddOrUpdateArtifactsResponse(added=added, updated=updated)
+    with translate_errors_context():
+        call.result.data = {
+            "updated": Artifacts.add_or_update_artifacts(
+                company_id=company_id, task_id=request.task, artifacts=request.artifacts
+            )
+        }
+
+
+@endpoint(
+    "tasks.delete_artifacts",
+    min_version="2.10",
+    request_data_model=DeleteArtifactsRequest,
+)
+def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest):
+    with translate_errors_context():
+        call.result.data = {
+            "deleted": Artifacts.delete_artifacts(
+                company_id=company_id,
+                task_id=request.task,
+                artifact_ids=request.artifacts,
+            )
+        }
 
 
 @endpoint("tasks.make_public", min_version="2.9", request_data_model=MakePublicRequest)

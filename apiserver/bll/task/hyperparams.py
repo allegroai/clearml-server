@@ -13,8 +13,10 @@ from apiserver.apimodels.tasks import (
     Configuration,
 )
 from apiserver.bll.task import TaskBLL
+from apiserver.bll.task.utils import get_task_for_update
 from apiserver.config import config
-from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem, TaskStatus
+from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem
+from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 
 log = config.logger(__file__)
@@ -58,32 +60,33 @@ class HyperParams:
 
     @classmethod
     def delete_params(
-        cls, company_id: str, task_id: str, hyperparams=Sequence[HyperParamKey]
+        cls, company_id: str, task_id: str, hyperparams: Sequence[HyperParamKey]
     ) -> int:
-        properties_only = cls._normalize_params(hyperparams)
-        task = cls._get_task_for_update(
-            company=company_id, id=task_id, allow_all_statuses=properties_only
-        )
+        with TimingContext("mongo", "delete_hyperparams"):
+            properties_only = cls._normalize_params(hyperparams)
+            task = get_task_for_update(
+                company_id=company_id, task_id=task_id, allow_all_statuses=properties_only
+            )
 
-        with_param, without_param = iterutils.partition(
-            hyperparams, key=lambda p: bool(p.name)
-        )
-        sections_to_delete = {p.section for p in without_param}
-        delete_cmds = {
-            f"unset__hyperparams__{ParameterKeyEscaper.escape(section)}": 1
-            for section in sections_to_delete
-        }
+            with_param, without_param = iterutils.partition(
+                hyperparams, key=lambda p: bool(p.name)
+            )
+            sections_to_delete = {p.section for p in without_param}
+            delete_cmds = {
+                f"unset__hyperparams__{ParameterKeyEscaper.escape(section)}": 1
+                for section in sections_to_delete
+            }
 
-        for item in with_param:
-            section = ParameterKeyEscaper.escape(item.section)
-            if item.section in sections_to_delete:
-                raise errors.bad_request.FieldsConflict(
-                    "Cannot delete section field if the whole section was scheduled for deletion"
-                )
-            name = ParameterKeyEscaper.escape(item.name)
-            delete_cmds[f"unset__hyperparams__{section}__{name}"] = 1
+            for item in with_param:
+                section = ParameterKeyEscaper.escape(item.section)
+                if item.section in sections_to_delete:
+                    raise errors.bad_request.FieldsConflict(
+                        "Cannot delete section field if the whole section was scheduled for deletion"
+                    )
+                name = ParameterKeyEscaper.escape(item.name)
+                delete_cmds[f"unset__hyperparams__{section}__{name}"] = 1
 
-        return task.update(**delete_cmds, last_update=datetime.utcnow())
+            return task.update(**delete_cmds, last_update=datetime.utcnow())
 
     @classmethod
     def edit_params(
@@ -93,24 +96,25 @@ class HyperParams:
         hyperparams: Sequence[HyperParamItem],
         replace_hyperparams: str,
     ) -> int:
-        properties_only = cls._normalize_params(hyperparams)
-        task = cls._get_task_for_update(
-            company=company_id, id=task_id, allow_all_statuses=properties_only
-        )
+        with TimingContext("mongo", "edit_hyperparams"):
+            properties_only = cls._normalize_params(hyperparams)
+            task = get_task_for_update(
+                company_id=company_id, task_id=task_id, allow_all_statuses=properties_only
+            )
 
-        update_cmds = dict()
-        hyperparams = cls._db_dicts_from_list(hyperparams)
-        if replace_hyperparams == ReplaceHyperparams.all:
-            update_cmds["set__hyperparams"] = hyperparams
-        elif replace_hyperparams == ReplaceHyperparams.section:
-            for section, value in hyperparams.items():
-                update_cmds[f"set__hyperparams__{section}"] = value
-        else:
-            for section, section_params in hyperparams.items():
-                for name, value in section_params.items():
-                    update_cmds[f"set__hyperparams__{section}__{name}"] = value
+            update_cmds = dict()
+            hyperparams = cls._db_dicts_from_list(hyperparams)
+            if replace_hyperparams == ReplaceHyperparams.all:
+                update_cmds["set__hyperparams"] = hyperparams
+            elif replace_hyperparams == ReplaceHyperparams.section:
+                for section, value in hyperparams.items():
+                    update_cmds[f"set__hyperparams__{section}"] = value
+            else:
+                for section, section_params in hyperparams.items():
+                    for name, value in section_params.items():
+                        update_cmds[f"set__hyperparams__{section}__{name}"] = value
 
-        return task.update(**update_cmds, last_update=datetime.utcnow())
+            return task.update(**update_cmds, last_update=datetime.utcnow())
 
     @classmethod
     def _db_dicts_from_list(cls, items: Sequence[HyperParamItem]) -> Dict[str, dict]:
@@ -152,28 +156,29 @@ class HyperParams:
     def get_configuration_names(
         cls, company_id: str, task_ids: Sequence[str]
     ) -> Dict[str, list]:
-        pipeline = [
-            {
-                "$match": {
-                    "company": {"$in": [None, "", company_id]},
-                    "_id": {"$in": task_ids},
+        with TimingContext("mongo", "get_configuration_names"):
+            pipeline = [
+                {
+                    "$match": {
+                        "company": {"$in": [None, "", company_id]},
+                        "_id": {"$in": task_ids},
+                    }
+                },
+                {"$project": {"items": {"$objectToArray": "$configuration"}}},
+                {"$unwind": "$items"},
+                {"$group": {"_id": "$_id", "names": {"$addToSet": "$items.k"}}},
+            ]
+
+            tasks = Task.aggregate(pipeline)
+
+            return {
+                task["_id"]: {
+                    "names": sorted(
+                        ParameterKeyEscaper.unescape(name) for name in task["names"]
+                    )
                 }
-            },
-            {"$project": {"items": {"$objectToArray": "$configuration"}}},
-            {"$unwind": "$items"},
-            {"$group": {"_id": "$_id", "names": {"$addToSet": "$items.k"}}},
-        ]
-
-        tasks = Task.aggregate(pipeline)
-
-        return {
-            task["_id"]: {
-                "names": sorted(
-                    ParameterKeyEscaper.unescape(name) for name in task["names"]
-                )
+                for task in tasks
             }
-            for task in tasks
-        }
 
     @classmethod
     def edit_configuration(
@@ -183,47 +188,32 @@ class HyperParams:
         configuration: Sequence[Configuration],
         replace_configuration: bool,
     ) -> int:
-        task = cls._get_task_for_update(company=company_id, id=task_id)
+        with TimingContext("mongo", "edit_configuration"):
+            task = get_task_for_update(company_id=company_id, task_id=task_id)
 
-        update_cmds = dict()
-        configuration = {
-            ParameterKeyEscaper.escape(c.name): ConfigurationItem(**c.to_struct())
-            for c in configuration
-        }
-        if replace_configuration:
-            update_cmds["set__configuration"] = configuration
-        else:
-            for name, value in configuration.items():
-                update_cmds[f"set__configuration__{name}"] = value
+            update_cmds = dict()
+            configuration = {
+                ParameterKeyEscaper.escape(c.name): ConfigurationItem(**c.to_struct())
+                for c in configuration
+            }
+            if replace_configuration:
+                update_cmds["set__configuration"] = configuration
+            else:
+                for name, value in configuration.items():
+                    update_cmds[f"set__configuration__{name}"] = value
 
-        return task.update(**update_cmds, last_update=datetime.utcnow())
+            return task.update(**update_cmds, last_update=datetime.utcnow())
 
     @classmethod
     def delete_configuration(
-        cls, company_id: str, task_id: str, configuration=Sequence[str]
+        cls, company_id: str, task_id: str, configuration: Sequence[str]
     ) -> int:
-        task = cls._get_task_for_update(company=company_id, id=task_id)
+        with TimingContext("mongo", "delete_configuration"):
+            task = get_task_for_update(company_id=company_id, task_id=task_id)
 
-        delete_cmds = {
-            f"unset__configuration__{ParameterKeyEscaper.escape(name)}": 1
-            for name in set(configuration)
-        }
+            delete_cmds = {
+                f"unset__configuration__{ParameterKeyEscaper.escape(name)}": 1
+                for name in set(configuration)
+            }
 
-        return task.update(**delete_cmds, last_update=datetime.utcnow())
-
-    @staticmethod
-    def _get_task_for_update(
-        company: str, id: str, allow_all_statuses: bool = False
-    ) -> Task:
-        task = Task.get_for_writing(company=company, id=id, _only=("id", "status"))
-        if not task:
-            raise errors.bad_request.InvalidTaskId(id=id)
-
-        if allow_all_statuses:
-            return task
-
-        if task.status != TaskStatus.created:
-            raise errors.bad_request.InvalidTaskStatus(
-                expected=TaskStatus.created, status=task.status
-            )
-        return task
+            return task.update(**delete_cmds, last_update=datetime.utcnow())

@@ -171,3 +171,23 @@ def split_by(
         [item for cond, item in applied if cond],
         [item for cond, item in applied if not cond],
     )
+
+
+def get_task_for_update(
+    company_id: str, task_id: str, allow_all_statuses: bool = False
+) -> Task:
+    """
+    Loads only task id and return the task only if it is updatable (status == 'created')
+    """
+    task = Task.get_for_writing(company=company_id, id=task_id, _only=("id", "status"))
+    if not task:
+        raise errors.bad_request.InvalidTaskId(id=task_id)
+
+    if allow_all_statuses:
+        return task
+
+    if task.status != TaskStatus.created:
+        raise errors.bad_request.InvalidTaskStatus(
+            expected=TaskStatus.created, status=task.status
+        )
+    return task
