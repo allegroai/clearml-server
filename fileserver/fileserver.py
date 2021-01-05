@@ -48,6 +48,19 @@ def download(path):
     return response
 
 
+@app.route("/<path:path>", methods=["DELETE"])
+def delete(path):
+    full_path = Path(safe_join(app.config["UPLOAD_FOLDER"], path))
+    if os.path.exists(full_path):
+        try:
+            os.remove(full_path)
+            return json.dumps(str(path)), 200
+        except OSError as ex:
+            return json.dumps("Error while deleting file {}:\n{}".format(path, ex)), 500
+    else:
+        return json.dumps("File {} not found".format(path)), 404
+
+
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -60,12 +73,11 @@ def main():
     parser.add_argument(
         "--upload-folder",
         "-u",
-        default=DEFAULT_UPLOAD_FOLDER,
-        help="Upload folder (default %(default)s)",
+        help=f"Upload folder (default {DEFAULT_UPLOAD_FOLDER})",
     )
     args = parser.parse_args()
 
-    if app.config.get("UPLOAD_FOLDER") is None:
+    if args.upload_folder is not None:
         app.config["UPLOAD_FOLDER"] = args.upload_folder
 
     app.run(debug=args.debug, host=args.ip, port=args.port, threaded=True)
