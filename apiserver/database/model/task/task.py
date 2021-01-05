@@ -226,6 +226,7 @@ class Task(AttributedDocument):
     hyperparams = SafeMapField(field=SafeMapField(EmbeddedDocumentField(ParamsItem)))
     configuration = SafeMapField(field=EmbeddedDocumentField(ConfigurationItem))
     runtime = SafeDictField(default=dict)
+    docker_init_script = StringField()
 
     def get_index_company(self) -> str:
         """
