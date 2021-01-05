@@ -46,6 +46,7 @@ class MetricScrollState(Base):
 class DebugImageEventsScrollState(Base, JsonSerializableMixin):
     id: str = StringField(required=True)
     metrics: Sequence[MetricScrollState] = ListField([MetricScrollState])
+    warning: str = StringField()
 
 
 @attr.s(auto_attribs=True)
@@ -65,7 +66,7 @@ class DebugImagesIterator:
 
     @property
     def _max_workers(self):
-        return config.get("services.events.max_metrics_concurrency", 4)
+        return config.get("services.events.events_retrieval.max_metrics_concurrency", 4)
 
     def __init__(self, redis: StrictRedis, es: Elasticsearch):
         self.es = es
@@ -219,14 +220,16 @@ class DebugImagesIterator:
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.MAX_METRICS_COUNT,
+                        "size": EventMetrics.max_metrics_count,
+                        "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "last_event_timestamp": {"max": {"field": "timestamp"}},
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                                "size": EventMetrics.max_variants_count,
+                                "order": {"_key": "asc"},
                             },
                             "aggs": {
                                 "urls": {
@@ -379,7 +382,8 @@ class DebugImagesIterator:
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                                "size": EventMetrics.max_variants_count,
+                                "order": {"_key": "asc"},
                             },
                             "aggs": {
                                 "events": {

@@ -7,6 +7,7 @@ from functools import partial
 from operator import itemgetter
 from typing import Sequence, Tuple
 
+from boltons.typeutils import classproperty
 from elasticsearch import Elasticsearch
 from mongoengine import Q
 
@@ -30,17 +31,23 @@ class EventType(Enum):
 
 
 class EventMetrics:
-    MAX_METRICS_COUNT = 100
-    MAX_VARIANTS_COUNT = 100
     MAX_AGGS_ELEMENTS_COUNT = 50
     MAX_SAMPLE_BUCKETS = 6000
 
     def __init__(self, es: Elasticsearch):
         self.es = es
 
+    @classproperty
+    def max_metrics_count(self):
+        return config.get("services.events.events_retrieval.max_metrics_count", 100)
+
+    @classproperty
+    def max_variants_count(self):
+        return config.get("services.events.events_retrieval.max_variants_count", 100)
+
     @property
     def _max_concurrency(self):
-        return config.get("services.events.max_metrics_concurrency", 4)
+        return config.get("services.events.events_retrieval.max_metrics_concurrency", 4)
 
     @staticmethod
     def get_index_name(company_id, event_type):
@@ -207,12 +214,17 @@ class EventMetrics:
             "query": {"term": {"task": task_id}},
             "aggs": {
                 "metrics": {
-                    "terms": {"field": "metric", "size": self.MAX_METRICS_COUNT},
+                    "terms": {
+                        "field": "metric",
+                        "size": self.max_metrics_count,
+                        "order": {"_key": "asc"},
+                    },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": self.MAX_VARIANTS_COUNT,
+                                "size": self.max_variants_count,
+                                "order": {"_key": "asc"},
                             },
                             "aggs": {
                                 "count": {"value_count": {"field": field}},
@@ -281,15 +293,15 @@ class EventMetrics:
             "metrics": {
                 "terms": {
                     "field": "metric",
-                    "size": self.MAX_METRICS_COUNT,
-                    "order": {"_key": "desc"},
+                    "size": self.max_metrics_count,
+                    "order": {"_key": "asc"},
                 },
                 "aggs": {
                     "variants": {
                         "terms": {
                             "field": "variant",
-                            "size": self.MAX_VARIANTS_COUNT,
-                            "order": {"_key": "desc"},
+                            "size": self.max_variants_count,
+                            "order": {"_key": "asc"},
                         },
                         "aggs": aggregation,
                     }
@@ -396,7 +408,11 @@ class EventMetrics:
             },
             "aggs": {
                 "metrics": {
-                    "terms": {"field": "metric", "size": self.MAX_METRICS_COUNT}
+                    "terms": {
+                        "field": "metric",
+                        "size": self.max_metrics_count,
+                        "order": {"_key": "asc"},
+                    }
                 }
             },
         }

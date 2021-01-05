@@ -33,6 +33,7 @@ class DebugSampleHistoryState(Base, JsonSerializableMixin):
     reached_first: bool = BoolField()
     reached_last: bool = BoolField()
     variant_states: Sequence[VariantState] = ListField([VariantState])
+    warning: str = StringField()
 
 
 @attr.s(auto_attribs=True)
@@ -317,7 +318,8 @@ class DebugSampleHistory:
                     # all variants that sent debug images
                     "terms": {
                         "field": "variant",
-                        "size": EventMetrics.MAX_VARIANTS_COUNT,
+                        "size": EventMetrics.max_variants_count,
+                        "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "last_iter": {"max": {"field": "iter"}},

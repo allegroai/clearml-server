@@ -435,13 +435,15 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.MAX_METRICS_COUNT,
+                        "size": EventMetrics.max_metrics_count,
+                        "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                                "size": EventMetrics.max_variants_count,
+                                "order": {"_key": "asc"},
                             },
                             "aggs": {
                                 "iters": {
@@ -661,13 +663,15 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.MAX_METRICS_COUNT,
+                        "size": EventMetrics.max_metrics_count,
+                        "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                                "size": EventMetrics.max_variants_count,
+                                "order": {"_key": "asc"},
                             }
                         }
                     },
@@ -710,14 +714,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.MAX_METRICS_COUNT,
+                        "size": EventMetrics.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.MAX_VARIANTS_COUNT,
+                                "size": EventMetrics.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
