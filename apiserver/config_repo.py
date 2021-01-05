@@ -1,3 +1,3 @@
-from apiserver.config import load_config
+from apiserver.config import Factory
 
-config = load_config()
+config = Factory.get()
