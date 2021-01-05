@@ -2,6 +2,8 @@ import atexit
 from hashlib import md5
 
 from flask import Flask
+from flask_compress import Compress
+from flask_cors import CORS
 from semantic_version import Version
 
 from apiserver.database import db
@@ -19,6 +21,7 @@ from apiserver.mongo.initialize import (
     check_mongo_empty,
     get_last_server_version,
 )
+from apiserver.server_init.request_handlers import RequestHandlers
 from apiserver.service_repo import ServiceRepo
 from apiserver.sync import distributed_lock
 from apiserver.updates import check_updates_thread
@@ -31,15 +34,23 @@ class AppSequence:
     def __init__(self, app: Flask):
         self.app = app
 
-    def start(self):
+    def start(self, request_handlers: RequestHandlers):
         log.info("################ API Server initializing #####################")
         self._configure()
         self._init_dbs()
         self._load_services()
         self._start_worker()
         atexit.register(self._on_worker_stop)
+        self._attach_request_handlers(request_handlers)
+
+    def _attach_request_handlers(self, request_handlers: RequestHandlers):
+        self.app.before_first_request(request_handlers.before_app_first_request)
+        self.app.before_request(request_handlers.before_request)
 
     def _configure(self):
+        CORS(self.app, **config.get("apiserver.cors"))
+        Compress(self.app)
+
         self.app.config["SECRET_KEY"] = config.get(
             "secure.http.session_secret.apiserver"
         )

@@ -1,5 +1,4 @@
 from enum import Enum
-from textwrap import shorten
 from typing import Union, Type, Iterable
 
 import jsonmodels.errors
@@ -8,8 +7,6 @@ from jsonmodels import fields
 from jsonmodels.fields import _LazyType, NotSet
 from jsonmodels.models import Base as ModelBase
 from jsonmodels.validators import Enum as EnumValidator
-from luqum.exceptions import ParseError
-from luqum.parser import parser
 from mongoengine.base import BaseDocument
 from validators import email as email_validator, domain as domain_validator
 
@@ -33,25 +30,6 @@ class DomainField(fields.StringField):
             return
         if domain_validator(value) is not True:
             raise errors.bad_request.InvalidDomainName()
-
-
-def validate_lucene_query(value):
-    if value == "":
-        return
-    try:
-        parser.parse(value)
-    except ParseError as e:
-        raise errors.bad_request.InvalidLuceneSyntax(
-            error=str(e), query=shorten(value, 50, placeholder="...")
-        )
-
-
-class LuceneQueryField(fields.StringField):
-    def validate(self, value):
-        super(LuceneQueryField, self).validate(value)
-        if value is None:
-            return
-        validate_lucene_query(value)
 
 
 def make_default(field_cls, default_value):

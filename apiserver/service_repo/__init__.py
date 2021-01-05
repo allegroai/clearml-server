@@ -8,7 +8,7 @@ from .endpoint import EndpointFunc, Endpoint
 from .service_repo import ServiceRepo
 
 
-__all__ = ["APICall", "endpoint"]
+__all__ = ["ServiceRepo", "APICall", "endpoint"]
 
 
 LegacyEndpointFunc = Callable[[APICall], None]
