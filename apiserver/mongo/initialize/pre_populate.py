@@ -363,19 +363,21 @@ class PrePopulate:
 
     @classmethod
     def update_featured_projects_order(cls):
-        featured_order = config.get("services.projects.featured_order", [])
-        if not featured_order:
+        order = config.get("services.projects.featured.order", [])
+        if not order:
             return
 
+        public_default = config.get("services.projects.featured.public_default", 9999)
+
         def get_index(p: Project):
-            for index, entry in enumerate(featured_order):
+            for index, entry in enumerate(order):
                 if (
                     entry.get("id", None) == p.id
                     or entry.get("name", None) == p.name
                     or ("name_regex" in entry and re.match(entry["name_regex"], p.name))
                 ):
                     return index
-            return 999
+            return public_default
 
         for project in Project.get_many_public(projection=["id", "name"]):
             featured_index = get_index(project)
