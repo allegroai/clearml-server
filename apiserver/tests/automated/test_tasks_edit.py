@@ -1,8 +1,8 @@
 from apiserver.apierrors.errors.bad_request import InvalidModelId, ValidationError, InvalidTaskId
 from apiserver.apierrors.errors.forbidden import NoWritePermission
 from apiserver.config_repo import config
+from apiserver.tests.api_client import APIError
 from apiserver.tests.automated import TestService
-
 
 log = config.logger(__file__)
 
@@ -20,6 +20,10 @@ class TestTasksEdit(TestService):
     def new_model(self, **kwargs):
         self.update_missing(kwargs, name="test", uri="file:///a/b", labels={})
         return self.create_temp("models", **kwargs)
+
+    def new_queue(self, **kwargs):
+        self.update_missing(kwargs, name="test")
+        return self.create_temp("queues", **kwargs)
 
     def test_task_types(self):
         with self.api.raises(ValidationError):
@@ -171,3 +175,41 @@ class TestTasksEdit(TestService):
         res = self.api.tasks.get_all_ex(id=[task])
         self.assertEqual([t.id for t in res.tasks], [task])
         self.api.tasks.stopped(task=task)
+
+    def test_archive_task(self):
+        # non-existing task throws an exception
+        with self.assertRaises(APIError):
+            self.api.tasks.archive(tasks=["fake-task-id"])
+
+        system_tag = "existing-system-tag"
+        status_message = "test-status-message"
+        status_reason = "test-status-reason"
+        queue_id = self.new_queue()
+
+        # Create two tasks with system_tags and enqueue one of them
+        dequeued_task_id = self.new_task(system_tags=[system_tag])
+        enqueued_task_id = self.new_task(system_tags=[system_tag])
+        self.api.tasks.enqueue(task=enqueued_task_id, queue=queue_id)
+
+        self.api.tasks.archive(
+            tasks=[enqueued_task_id, dequeued_task_id],
+            status_message=status_message,
+            status_reason=status_reason,
+        )
+
+        tasks = self.api.tasks.get_all_ex(id=[enqueued_task_id, dequeued_task_id]).tasks
+
+        for task in tasks:
+            self.assertIn(system_tag, task.system_tags)
+            self.assertIn("archived", task.system_tags)
+            self.assertNotIn("queue", task.execution)
+            self.assertIn(status_message, task.status_message)
+            self.assertIn(status_reason, task.status_reason)
+
+        # Check that the queue does not contain the enqueued task anymore
+        queue = self.api.queues.get_by_id(queue=queue_id).queue
+        task_in_queue = next(
+            (True for entry in queue.entries if entry["task"] == enqueued_task_id),
+            False,
+        )
+        self.assertFalse(task_in_queue)

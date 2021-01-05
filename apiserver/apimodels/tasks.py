@@ -7,7 +7,11 @@ from jsonmodels.validators import Enum, Length
 
 from apiserver.apimodels import DictField, ListField
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.database.model.task.task import TaskType, ArtifactModes, DEFAULT_ARTIFACT_MODE
+from apiserver.database.model.task.task import (
+    TaskType,
+    ArtifactModes,
+    DEFAULT_ARTIFACT_MODE,
+)
 from apiserver.database.utils import get_options
 
 
@@ -199,3 +203,12 @@ class EditConfigurationRequest(TaskRequest):
 
 class DeleteConfigurationRequest(TaskRequest):
     configuration: Sequence[str] = ListField([str], validators=Length(minimum_value=1))
+
+
+class ArchiveRequest(MultiTaskRequest):
+    status_reason = StringField(default="")
+    status_message = StringField(default="")
+
+
+class ArchiveResponse(models.Base):
+    archived = IntField()

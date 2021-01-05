@@ -39,6 +39,8 @@ from apiserver.apimodels.tasks import (
     DeleteConfigurationRequest,
     GetConfigurationNamesRequest,
     DeleteArtifactsRequest,
+    ArchiveResponse,
+    ArchiveRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -63,6 +65,7 @@ from apiserver.bll.task.param_utils import (
 )
 from apiserver.bll.util import SetFieldsResolver
 from apiserver.database.errors import translate_errors_context
+from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
@@ -74,12 +77,18 @@ from apiserver.database.model.task.task import (
 )
 from apiserver.database.utils import get_fields_attr, parse_from_call
 from apiserver.service_repo import APICall, endpoint
-from apiserver.services.utils import conform_tag_fields, conform_output_tags, validate_tags
+from apiserver.services.utils import (
+    conform_tag_fields,
+    conform_output_tags,
+    validate_tags,
+)
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.partial_version import PartialVersion
 
 task_fields = set(Task.get_fields())
-task_script_stripped_fields = set([f for f, v in get_fields_attr(Script, 'strip').items() if v])
+task_script_stripped_fields = set(
+    [f for f, v in get_fields_attr(Script, "strip").items() if v]
+)
 
 task_bll = TaskBLL()
 event_bll = EventBLL()
@@ -172,9 +181,7 @@ def get_by_id_ex(call: APICall, company_id, _):
     with translate_errors_context():
         with TimingContext("mongo", "task_get_by_id_ex"):
             tasks = Task.get_many_with_join(
-                company=company_id,
-                query_dict=call.data,
-                allow_public=True,
+                company=company_id, query_dict=call.data, allow_public=True,
             )
 
         unprepare_from_saved(call, tasks)
@@ -782,49 +789,12 @@ def dequeue(call: APICall, company_id, req_model: UpdateRequest):
         only=("id", "execution", "status", "project"),
         requires_write_access=True,
     )
-    if task.status not in (TaskStatus.queued,):
-        raise errors.bad_request.InvalidTaskId(
-            status=task.status, expected=TaskStatus.queued
-        )
-
-    _dequeue(task, company_id)
-
-    status_message = req_model.status_message
-    status_reason = req_model.status_reason
     res = DequeueResponse(
-        **ChangeStatusRequest(
-            task=task,
-            new_status=TaskStatus.created,
-            status_reason=status_reason,
-            status_message=status_message,
-        ).execute(unset__execution__queue=1)
+        **TaskBLL.dequeue_and_change_status(task, company_id, req_model)
     )
+
     res.dequeued = 1
-
     call.result.data_model = res
-
-
-def _dequeue(task: Task, company_id: str, silent_fail=False):
-    """
-    Dequeue the task from the queue
-    :param task: task to dequeue
-    :param silent_fail: do not throw exceptions. APIError is still thrown
-    :raise errors.bad_request.MissingRequiredFields: if the task is not queued
-    :raise APIError or errors.server_error.TransactionError: if internal call to queues.remove_task fails
-    :return: the result of queues.remove_task call. None in case of silent failure
-    """
-    if not task.execution or not task.execution.queue:
-        if silent_fail:
-            return
-        raise errors.bad_request.MissingRequiredFields(
-            "task has no queue value", field="execution.queue"
-        )
-
-    return {
-        "removed": queue_bll.remove_task(
-            company_id=company_id, queue_id=task.execution.queue, task_id=task.id
-        )
-    }
 
 
 @endpoint(
@@ -844,7 +814,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
     updates = {}
 
     try:
-        dequeued = _dequeue(task, company_id, silent_fail=True)
+        dequeued = TaskBLL.dequeue(task, company_id, silent_fail=True)
     except APIError:
         # dequeue may fail if the task was not enqueued
         pass
@@ -895,6 +865,39 @@ def reset(call: APICall, company_id, request: ResetRequest):
         setattr(res, key, value)
 
     call.result.data_model = res
+
+
+@endpoint(
+    "tasks.archive",
+    request_data_model=ArchiveRequest,
+    response_data_model=ArchiveResponse,
+)
+def archive(call: APICall, company_id, request: ArchiveRequest):
+    archived = 0
+    tasks = TaskBLL.assert_exists(
+        company_id,
+        task_ids=request.tasks,
+        only=("id", "execution", "status", "project", "system_tags"),
+    )
+    for task in tasks:
+        TaskBLL.dequeue_and_change_status(
+            task,
+            company_id,
+            request.status_message,
+            request.status_reason,
+            silent_dequeue_fail=True,
+        )
+        task.update(
+            status_message=request.status_message,
+            status_reason=request.status_reason,
+            system_tags=sorted(
+                set(task.system_tags) | {EntityVisibility.archived.value}
+            )
+        )
+
+        archived += 1
+
+    call.result.data_model = ArchiveResponse(archived=archived)
 
 
 class DocumentGroup(list):

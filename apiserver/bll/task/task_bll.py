@@ -10,6 +10,7 @@ from six import string_types
 import apiserver.database.utils as dbutils
 from apiserver.apierrors import errors
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.queue import QueueBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
@@ -327,14 +328,26 @@ class TaskBLL(object):
 
     @staticmethod
     def set_last_update(
-        task_ids: Collection[str], company_id: str, last_update: datetime, **extra_updates
+        task_ids: Collection[str],
+        company_id: str,
+        last_update: datetime,
+        **extra_updates,
     ):
-        tasks = Task.objects(id__in=task_ids, company=company_id).only("status", "started")
+        tasks = Task.objects(id__in=task_ids, company=company_id).only(
+            "status", "started"
+        )
         for task in tasks:
             updates = extra_updates
             if task.status == TaskStatus.in_progress and task.started:
-                updates = {"active_duration": (datetime.utcnow() - task.started).total_seconds(), **extra_updates}
-            Task.objects(id=task.id, company=company_id).update(upsert=False, last_update=last_update, **updates)
+                updates = {
+                    "active_duration": (
+                        datetime.utcnow() - task.started
+                    ).total_seconds(),
+                    **extra_updates,
+                }
+            Task.objects(id=task.id, company=company_id).update(
+                upsert=False, last_update=last_update, **updates
+            )
 
     @staticmethod
     def update_statistics(
@@ -398,7 +411,10 @@ class TaskBLL(object):
             extra_updates["metric_stats"] = metric_stats
 
         TaskBLL.set_last_update(
-            task_ids=[task_id], company_id=company_id, last_update=last_update, **extra_updates
+            task_ids=[task_id],
+            company_id=company_id,
+            last_update=last_update,
+            **extra_updates,
         )
 
     @classmethod
@@ -613,3 +629,53 @@ class TaskBLL(object):
             remaining = max(0, total - (len(results) + page * page_size))
 
         return total, remaining, results
+
+    @classmethod
+    def dequeue_and_change_status(
+        cls,
+        task: Task,
+        company_id: str,
+        status_message: str,
+        status_reason: str,
+        silent_dequeue_fail=False,
+    ):
+        cls.dequeue(task, company_id, silent_dequeue_fail)
+
+        return ChangeStatusRequest(
+            task=task,
+            new_status=TaskStatus.created,
+            status_reason=status_reason,
+            status_message=status_message,
+        ).execute(unset__execution__queue=1)
+
+    @classmethod
+    def dequeue(cls, task: Task, company_id: str, silent_fail=False):
+        """
+        Dequeue the task from the queue
+        :param task: task to dequeue
+        :param company_id: task's company ID.
+        :param silent_fail: do not throw exceptions. APIError is still thrown
+        :raise errors.bad_request.InvalidTaskId: if the task's status is not queued
+        :raise errors.bad_request.MissingRequiredFields: if the task is not queued
+        :raise APIError or errors.server_error.TransactionError: if internal call to queues.remove_task fails
+        :return: the result of queues.remove_task call. None in case of silent failure
+        """
+        if task.status not in (TaskStatus.queued,):
+            if silent_fail:
+                return
+            raise errors.bad_request.InvalidTaskId(
+                status=task.status, expected=TaskStatus.queued
+            )
+
+        if not task.execution or not task.execution.queue:
+            if silent_fail:
+                return
+            raise errors.bad_request.MissingRequiredFields(
+                "task has no queue value", field="execution.queue"
+            )
+
+        return {
+            "removed": QueueBLL().remove_task(
+                company_id=company_id, queue_id=task.execution.queue, task_id=task.id
+            )
+        }
