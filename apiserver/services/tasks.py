@@ -129,6 +129,8 @@ def set_task_status_from_call(
         ):
             fields_resolver.add_fields(
                 duration=int((task.started - datetime.utcnow()).total_seconds())
+                if task.started
+                else 0
             )
 
     status_reason = request.status_reason
