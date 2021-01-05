@@ -5,7 +5,7 @@ import json
 import re
 from operator import attrgetter
 from pathlib import Path
-from typing import Mapping, Sequence, Type
+from typing import Mapping, Sequence
 
 import attr
 from boltons.dictutils import subdict
@@ -17,7 +17,7 @@ from apiserver.utilities.partial_version import PartialVersion
 
 log = config.logger(__file__)
 
-
+root = Path(__file__).parent / "services"
 ALL_ROLES = "*"
 
 
@@ -119,7 +119,7 @@ class EndpointVersionsGroup:
 
         self.endpoints = sorted(
             (
-                SchemaReader.endpoint_schema_cls(
+                EndpointSchema(
                     service_name=self.service_name,
                     action_name=self.action_name,
                     version=parse_version(version),
@@ -167,7 +167,7 @@ class Service:
         self.defaults = {**api_defaults, **conf.pop("_default", {})}
         self.definitions = conf.pop("_definitions", None)
         self.endpoint_groups: Mapping[str, EndpointVersionsGroup] = {
-            endpoint_name: SchemaReader.endpoint_versions_group_cls(
+            endpoint_name: EndpointVersionsGroup(
                 service_name=self.name,
                 action_name=endpoint_name,
                 conf=endpoint_conf,
@@ -189,23 +189,18 @@ class Schema:
         """
         self.api_defaults = api_defaults
         self.services = {
-            name: SchemaReader.service_cls(name, conf, api_defaults=self.api_defaults)
+            name: Service(name, conf, api_defaults=self.api_defaults)
             for name, conf in services.items()
         }
 
 
 @attr.s()
 class SchemaReader:
-    service_cls: Type[Service] = Service
-    endpoint_versions_group_cls: Type[EndpointVersionsGroup] = EndpointVersionsGroup
-    endpoint_schema_cls: Type[EndpointSchema] = EndpointSchema
-
-    root: Path = Path(__file__).parent / "services"
     cache_path: Path = None
 
     def __attrs_post_init__(self):
         if not self.cache_path:
-            self.cache_path = self.root / "_cache.json"
+            self.cache_path = root / "_cache.json"
 
     @staticmethod
     def mod_time(path):
@@ -225,7 +220,7 @@ class SchemaReader:
         """
         services = [
             service
-            for service in self.root.glob("*.conf")
+            for service in root.glob("*.conf")
             if not service.name.startswith("_")
         ]
 
@@ -249,7 +244,7 @@ class SchemaReader:
 
         log.info("regenerating schema cache")
         services = {path.stem: self.read_file(path) for path in services}
-        api_defaults = self.read_file(self.root / "_api_defaults.conf")
+        api_defaults = self.read_file(root / "_api_defaults.conf")
 
         try:
             self.cache_path.write_text(
