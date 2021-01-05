@@ -38,7 +38,7 @@ class BasicConfig:
 
     def get(self, key, default=NotSet):
         value = self._config.get(key, default)
-        if value is self.NotSet and not default:
+        if value is self.NotSet:
             raise KeyError(
                 f"Unable to find value for key '{key}' and default value was not provided."
             )
