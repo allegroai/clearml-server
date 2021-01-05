@@ -38,7 +38,6 @@ class Endpoint(object):
         :param response_data_model: response jsonschema model, will be validated if validate_schema=False
         :param validate_schema: whether request and response schema should be validated
         """
-        super(Endpoint, self).__init__()
         self.name = name
         self.min_version = PartialVersion(min_version)
         self.func = func

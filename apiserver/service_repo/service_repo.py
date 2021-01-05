@@ -2,13 +2,11 @@ import re
 from importlib import import_module
 from itertools import chain
 from pathlib import Path
-from typing import cast, Iterable, List, MutableMapping, Optional, Tuple
+from typing import cast, Iterable, List, MutableMapping, Optional, Tuple, Callable
 
 import jsonmodels.models
 
-from apiserver import timing_context
-from apiserver.apierrors import APIError
-from apiserver.apierrors.errors.bad_request import RequestPathHasInvalidVersion
+from apiserver.apierrors import APIError, errors
 from apiserver.config_repo import config
 from apiserver.utilities.partial_version import PartialVersion
 from .apicall import APICall
@@ -77,18 +75,36 @@ class ServiceRepo(object):
     """ Token for internal calls """
 
     @classmethod
-    def load(cls, root_module="services"):
-        root_module = Path(__file__).parents[1] / root_module
+    def _load_from_path(
+        cls,
+        root_module: Path,
+        module_prefix: Optional[str] = None,
+        predicate: Optional[Callable[[Path], bool]] = None,
+    ):
+        log.info(f"Loading services from {str(root_module.absolute())}")
         sub_module = None
         for sub_module in root_module.glob("*"):
+            if predicate and not predicate(sub_module):
+                continue
+
             if (
                 sub_module.is_file()
                 and sub_module.suffix == ".py"
                 and not sub_module.stem == "__init__"
             ):
-                import_module(f"apiserver.{root_module.stem}.{sub_module.stem}")
-            if sub_module.is_dir():
-                import_module(f"apiserver.{root_module.stem}.{sub_module.stem}")
+                import_module(
+                    ".".join(
+                        filter(None, (module_prefix, root_module.stem, sub_module.stem))
+                    )
+                )
+
+            if sub_module.is_dir() and not sub_module.stem == "__pycache__":
+                import_module(
+                    ".".join(
+                        filter(None, (module_prefix, root_module.stem, sub_module.stem))
+                    )
+                )
+
         # leave no trace of the 'sub_module' local
         del sub_module
 
@@ -101,8 +117,14 @@ class ServiceRepo(object):
         )
 
     @classmethod
-    def register(cls, endpoint):
-        assert isinstance(endpoint, Endpoint)
+    def load(cls, root_module="services"):
+        cls._load_from_path(
+            root_module=Path(__file__).parents[1] / root_module,
+            module_prefix="apiserver",
+        )
+
+    @classmethod
+    def register(cls, endpoint: Endpoint):
         if cls._endpoints.get(endpoint.name):
             if any(
                 ep.min_version == endpoint.min_version
@@ -149,7 +171,6 @@ class ServiceRepo(object):
 
     @classmethod
     def _resolve_endpoint_from_call(cls, call: APICall) -> Optional[Endpoint]:
-        assert isinstance(call, APICall)
         endpoint = cls._get_endpoint(
             call.endpoint_name, call.requested_endpoint_version
         )
@@ -165,7 +186,6 @@ class ServiceRepo(object):
             )
             return
 
-        assert isinstance(endpoint, Endpoint)
         call.actual_endpoint_version = endpoint.min_version
         call.requires_authorization = endpoint.authorize
         return endpoint
@@ -185,7 +205,9 @@ class ServiceRepo(object):
             try:
                 version = PartialVersion(version)
             except ValueError as e:
-                raise RequestPathHasInvalidVersion(version=version, reason=e)
+                raise errors.bad_request.RequestPathHasInvalidVersion(
+                    version=version, reason=e
+                )
             if cls._check_max_version and version > cls._max_version:
                 raise InvalidVersionError(
                     f"Invalid API version (max. supported version is {cls._max_version})"
@@ -232,8 +254,6 @@ class ServiceRepo(object):
     @classmethod
     def handle_call(cls, call: APICall):
         try:
-            assert isinstance(call, APICall)
-
             if call.failed:
                 raise CallFailedError()
 
@@ -242,8 +262,7 @@ class ServiceRepo(object):
             if call.failed:
                 raise CallFailedError()
 
-            with timing_context.TimingContext("service_repo", "validate_call"):
-                validate_all(call, endpoint)
+            validate_all(call, endpoint)
 
             if call.failed:
                 raise CallFailedError()

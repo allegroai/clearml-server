@@ -6,7 +6,7 @@ from functools import reduce
 from os import getenv
 from os.path import expandvars
 from pathlib import Path
-from typing import List, Any, Type, TypeVar
+from typing import List, Any, TypeVar
 
 from pyhocon import ConfigTree, ConfigFactory
 from pyparsing import (
@@ -169,29 +169,8 @@ class BasicConfig:
 
 class ConfigurationError(Exception):
     def __init__(self, msg, file_path=None, *args):
-        super(ConfigurationError, self).__init__(msg, *args)
+        super().__init__(msg, *args)
         self.file_path = file_path
 
 
 ConfigType = TypeVar("ConfigType", bound=BasicConfig)
-
-
-class Factory:
-    _config_cls: Type[ConfigType] = BasicConfig
-
-    @classmethod
-    def get(cls) -> BasicConfig:
-        config = cls._config_cls()
-        config.initialize_logging()
-        return config
-
-    @classmethod
-    def set_cls(cls, cls_: Type[ConfigType]):
-        cls._config_cls = cls_
-
-
-__all__ = [
-    "Factory",
-    "BasicConfig",
-    "ConfigurationError",
-]

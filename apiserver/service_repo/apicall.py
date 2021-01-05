@@ -186,7 +186,7 @@ class APICallResult(DataContainer):
         error_data=None,
         cookies=None,
     ):
-        super(APICallResult, self).__init__(data)
+        super().__init__(data)
         self._code = code
         self._subcode = subcode
         self._msg = msg
@@ -297,9 +297,7 @@ class MissingIdentity(Exception):
 
 
 def _get_headers(name: str) -> Tuple[str, ...]:
-    return tuple(
-        "-".join(("X", p, name)) for p in ("ClearML", "Trains")
-    )
+    return tuple("-".join(("X", p, name)) for p in ("ClearML", "Trains"))
 
 
 class APICall(DataContainer):
@@ -307,8 +305,6 @@ class APICall(DataContainer):
     HEADER_REAL_IP = "X-Real-IP"
     HEADER_FORWARDED_FOR = "X-Forwarded-For"
     """ Standard headers """
-
-    _call_result_cls = APICallResult
 
     _transaction_headers = _get_headers("Trx")
     """ Transaction ID """
@@ -358,7 +354,7 @@ class APICall(DataContainer):
         host=None,
         auth_cookie=None,
     ):
-        super(APICall, self).__init__(data=data, batched_data=batched_data)
+        super().__init__(data=data, batched_data=batched_data)
 
         self._id = database.utils.id()
         self._files = files  # currently dic of key to flask's FileStorage)
@@ -375,7 +371,7 @@ class APICall(DataContainer):
         self._log_api = True
         if headers:
             self._headers.update(headers)
-        self._result = self._call_result_cls()
+        self._result = APICallResult()
         self._auth = None
         self._impersonation = None
         if trx:
@@ -640,7 +636,7 @@ class APICall(DataContainer):
         self, msg, code=500, subcode=0, include_stack=False, error_data=None
     ):
         tb = format_exc() if include_stack else None
-        self._result = self._call_result_cls(
+        self._result = APICallResult(
             data=self._result.data,
             code=code,
             subcode=subcode,

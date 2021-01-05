@@ -13,8 +13,6 @@ log = config.logger(__file__)
 
 class RequestHandlers:
     _request_strip_prefix = config.get("apiserver.request.strip_prefix", None)
-    _service_repo_cls = ServiceRepo
-    _api_call_cls = APICall
 
     def before_app_first_request(self):
         pass
@@ -27,7 +25,7 @@ class RequestHandlers:
 
         try:
             call = self._create_api_call(request)
-            content, content_type = self._service_repo_cls.handle_call(call)
+            content, content_type = ServiceRepo.handle_call(call)
 
             if call.result.redirect:
                 response = redirect(call.result.redirect.url, call.result.redirect.code)
@@ -39,7 +37,10 @@ class RequestHandlers:
                     }
 
                 response = Response(
-                    content, mimetype=content_type, status=call.result.code, headers=headers
+                    content,
+                    mimetype=content_type,
+                    status=call.result.code,
+                    headers=headers,
                 )
 
             if call.result.cookies:
@@ -47,13 +48,11 @@ class RequestHandlers:
                     kwargs = config.get("apiserver.auth.cookies")
                     if value is None:
                         kwargs = kwargs.copy()
-                        kwargs['max_age'] = 0
-                        kwargs['expires'] = 0
+                        kwargs["max_age"] = 0
+                        kwargs["expires"] = 0
                         response.set_cookie(key, "", **kwargs)
                     else:
-                        response.set_cookie(
-                            key, value, **kwargs
-                        )
+                        response.set_cookie(key, value, **kwargs)
 
             return response
         except Exception as ex:
@@ -96,7 +95,7 @@ class RequestHandlers:
             call.data = json_body or form or {}
 
     def _call_or_empty_with_error(self, call, req, msg, code=500, subcode=0):
-        call = call or self._api_call_cls(
+        call = call or APICall(
             "", remote_addr=req.remote_addr, headers=dict(req.headers), files=req.files
         )
         call.set_error_result(msg=msg, code=code, subcode=subcode)
@@ -107,9 +106,11 @@ class RequestHandlers:
         try:
             # Parse the request path
             path = req.path
-            if self._request_strip_prefix and path.startswith(self._request_strip_prefix):
-                path = path[len(self._request_strip_prefix):]
-            endpoint_version, endpoint_name = self._service_repo_cls.parse_endpoint_path(path)
+            if self._request_strip_prefix and path.startswith(
+                self._request_strip_prefix
+            ):
+                path = path[len(self._request_strip_prefix) :]
+            endpoint_version, endpoint_name = ServiceRepo.parse_endpoint_path(path)
 
             # Resolve authorization: if cookies contain an authorization token, use it as a starting point.
             # in any case, request headers always take precedence.
@@ -126,7 +127,7 @@ class RequestHandlers:
             )  # add (possibly override with) the headers
 
             # Construct call instance
-            call = self._api_call_cls(
+            call = APICall(
                 endpoint_name=endpoint_name,
                 remote_addr=req.remote_addr,
                 endpoint_version=endpoint_version,
@@ -145,9 +146,13 @@ class RequestHandlers:
         except BadRequest as ex:
             call = self._call_or_empty_with_error(call, req, ex.description, 400)
         except BaseError as ex:
-            call = self._call_or_empty_with_error(call, req, ex.msg, ex.code, ex.subcode)
+            call = self._call_or_empty_with_error(
+                call, req, ex.msg, ex.code, ex.subcode
+            )
         except Exception as ex:
             log.exception("Error creating call")
-            call = self._call_or_empty_with_error(call, req, ex.args[0] if ex.args else type(ex).__name__, 500)
+            call = self._call_or_empty_with_error(
+                call, req, ex.args[0] if ex.args else type(ex).__name__, 500
+            )
 
         return call

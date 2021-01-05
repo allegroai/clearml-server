@@ -1,3 +1,4 @@
-from apiserver.config import Factory
+from apiserver.config import BasicConfig
 
-config = Factory.get()
+config = BasicConfig()
+config.initialize_logging()

@@ -1,1 +1,1 @@
-from .basic import BasicConfig, ConfigurationError, Factory
+from .basic import BasicConfig, ConfigurationError

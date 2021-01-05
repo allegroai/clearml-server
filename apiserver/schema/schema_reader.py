@@ -17,7 +17,6 @@ from apiserver.utilities.partial_version import PartialVersion
 
 log = config.logger(__file__)
 
-root = Path(__file__).parent / "services"
 ALL_ROLES = "*"
 
 
@@ -196,11 +195,12 @@ class Schema:
 
 @attr.s()
 class SchemaReader:
+    root = Path(__file__).parent / "services"
     cache_path: Path = None
 
     def __attrs_post_init__(self):
         if not self.cache_path:
-            self.cache_path = root / "_cache.json"
+            self.cache_path = self.root / "_cache.json"
 
     @staticmethod
     def mod_time(path):
@@ -220,7 +220,7 @@ class SchemaReader:
         """
         services = [
             service
-            for service in root.glob("*.conf")
+            for service in self.root.glob("*.conf")
             if not service.name.startswith("_")
         ]
 
@@ -244,7 +244,7 @@ class SchemaReader:
 
         log.info("regenerating schema cache")
         services = {path.stem: self.read_file(path) for path in services}
-        api_defaults = self.read_file(root / "_api_defaults.conf")
+        api_defaults = self.read_file(self.root / "_api_defaults.conf")
 
         try:
             self.cache_path.write_text(
