@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from apiserver.tests.automated import TestService
 
 
@@ -46,7 +48,7 @@ class TestProjectTags(TestService):
         self.assertEqual(set(tags_1[1:]), set(data.tags))
 
     def test_organization_tags(self):
-        tag1 = "Orgtest tag1"
+        tag1 = datetime.utcnow().isoformat()
         tag2 = "Orgtest tag2"
         system_tag = "Orgtest system tag"
 
