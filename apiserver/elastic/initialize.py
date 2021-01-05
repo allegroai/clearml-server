@@ -50,14 +50,14 @@ class ConnectionErrorFilter(logging.Filter):
 
     def filter(self, record):
         try:
-            allow = (
-                (self.err_type is None or record.exc_info[0] != self.err_type)
-                and (self.level is None or record.levelno != self.level)
-                and (self.args is None or record.args[: len(self.args)] != self.args)
+            filter_out = (
+                (self.err_type is None or record.exc_info[0] == self.err_type)
+                and (self.level is None or record.levelno == self.level)
+                and (self.args is None or record.args[: len(self.args)] == self.args)
             )
-            if not allow:
+            if filter_out:
                 self.last_blocked = record
-            return allow
+            return not filter_out
         except Exception:
             return True
 
