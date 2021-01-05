@@ -4,7 +4,7 @@ from hashlib import md5
 from flask import Flask
 from semantic_version import Version
 
-from apiserver import database
+from apiserver.database import database
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
 from apiserver.config import config, info
 from apiserver.elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
