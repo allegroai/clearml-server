@@ -72,14 +72,14 @@ from apiserver.database.model.task.task import (
     DEFAULT_LAST_ITERATION,
     Execution,
 )
-from apiserver.database.utils import get_fields, parse_from_call
+from apiserver.database.utils import get_fields_attr, parse_from_call
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import conform_tag_fields, conform_output_tags, validate_tags
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.partial_version import PartialVersion
 
 task_fields = set(Task.get_fields())
-task_script_fields = set(get_fields(Script))
+task_script_stripped_fields = set([f for f, v in get_fields_attr(Script, 'strip').items() if v])
 
 task_bll = TaskBLL()
 event_bll = EventBLL()
@@ -287,7 +287,7 @@ def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     artifacts_prepare_for_save(fields)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
-    for field in task_script_fields:
+    for field in task_script_stripped_fields:
         try:
             path = f"script/{field}"
             value = dpath.get(fields, path)

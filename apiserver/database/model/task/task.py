@@ -51,13 +51,13 @@ class TaskSystemTags(object):
 
 
 class Script(EmbeddedDocument, ProperDictMixin):
-    binary = StringField(default="python")
-    repository = StringField(default="")
-    tag = StringField()
-    branch = StringField()
-    version_num = StringField()
-    entry_point = StringField(default="")
-    working_dir = StringField()
+    binary = StringField(default="python", strip=True)
+    repository = StringField(default="", strip=True)
+    tag = StringField(strip=True)
+    branch = StringField(strip=True)
+    version_num = StringField(strip=True)
+    entry_point = StringField(default="", strip=True)
+    working_dir = StringField(strip=True)
     requirements = SafeDictField()
     diff = StringField()
 

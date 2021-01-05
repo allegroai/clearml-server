@@ -176,28 +176,3 @@ class ActivityReportSeries(Base):
 class GetActivityReportResponse(Base):
     total = EmbeddedField(ActivityReportSeries)
     active = EmbeddedField(ActivityReportSeries)
-
-
-class RuntimeProperty(Base):
-    key = StringField()
-    value = StringField()
-    expiry = IntField(default=None)
-
-
-class GetRuntimePropertiesRequest(Base):
-    worker = StringField(required=True)
-
-
-class GetRuntimePropertiesResponse(Base):
-    runtime_properties = ListField(RuntimeProperty)
-
-
-class SetRuntimePropertiesRequest(Base):
-    worker = StringField(required=True)
-    runtime_properties = ListField(RuntimeProperty)
-
-
-class SetRuntimePropertiesResponse(Base):
-    added = ListField(str)
-    removed = ListField(str)
-    errors = ListField(str)

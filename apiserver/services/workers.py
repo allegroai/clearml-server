@@ -22,10 +22,6 @@ from apiserver.apimodels.workers import (
     GetActivityReportRequest,
     GetActivityReportResponse,
     ActivityReportSeries,
-    SetRuntimePropertiesRequest,
-    GetRuntimePropertiesRequest,
-    GetRuntimePropertiesResponse,
-    SetRuntimePropertiesResponse
 )
 from apiserver.bll.util import extract_properties_to_lists
 from apiserver.bll.workers import WorkerBLL
@@ -205,36 +201,4 @@ def get_stats(call: APICall, company_id, request: GetStatsRequest):
             WorkerStatistics(worker=worker, metrics=_get_worker_metrics(stats))
             for worker, stats in ret.items()
         ]
-    )
-
-
-@endpoint(
-    "workers.set_runtime_properties",
-    min_version="2.10",
-    request_data_model=SetRuntimePropertiesRequest,
-    response_data_model=SetRuntimePropertiesResponse,
-)
-def set_runtime_properties(call: APICall, company_id, request: SetRuntimePropertiesRequest):
-    res = worker_bll.set_runtime_properties(
-        company=company_id,
-        user=call.identity.user,
-        worker_id=request.worker,
-        runtime_properties=request.runtime_properties,
-    )
-    return SetRuntimePropertiesResponse(added=res["added"], removed=res["removed"], errors=res["errors"])
-
-
-@endpoint(
-    "workers.get_runtime_properties",
-    min_version="2.10",
-    request_data_model=GetRuntimePropertiesRequest,
-    response_data_model=GetRuntimePropertiesResponse,
-)
-def get_runtime_properties(call: APICall, company_id, request: GetRuntimePropertiesRequest):
-    return GetRuntimePropertiesResponse(
-        runtime_properties=worker_bll.get_runtime_properties(
-            company=company_id,
-            user=call.identity.user,
-            worker_id=request.worker,
-        )
     )

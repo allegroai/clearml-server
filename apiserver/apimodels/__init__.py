@@ -9,7 +9,8 @@ from jsonmodels import fields
 from jsonmodels.fields import _LazyType, NotSet
 from jsonmodels.models import Base as ModelBase
 from jsonmodels.validators import Enum as EnumValidator
-from luqum.parser import parser, ParseError
+from luqum.exceptions import ParseError
+from luqum.parser import parser
 from validators import email as email_validator, domain as domain_validator
 
 from apiserver.apierrors import errors

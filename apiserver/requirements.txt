@@ -14,7 +14,7 @@ humanfriendly==4.18
 Jinja2==2.10
 jsonmodels>=2.3
 jsonschema>=2.6.0
-luqum>=0.7.2
+luqum>=0.10.0
 mongoengine==0.19.1
 nested_dict>=1.61
 psutil>=5.6.5
