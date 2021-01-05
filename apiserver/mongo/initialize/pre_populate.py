@@ -4,7 +4,6 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
-from functools import partial
 from io import BytesIO
 from itertools import chain
 from operator import attrgetter
@@ -21,17 +20,19 @@ from typing import (
     BinaryIO,
     Union,
     Mapping,
+    IO,
 )
 from urllib.parse import unquote, urlparse
 from zipfile import ZipFile, ZIP_BZIP2
 
 import dpath
 import mongoengine
-from boltons.iterutils import chunked_iter
+from boltons.iterutils import chunked_iter, first
 from furl import furl
 from mongoengine import Q
 
 from apiserver.bll.event import EventBLL
+from apiserver.bll.task.artifacts import get_artifact_id
 from apiserver.bll.task.param_utils import (
     split_param_name,
     hyperparams_default_section,
@@ -46,6 +47,7 @@ from apiserver.database.model.task.task import Task, ArtifactModes, TaskStatus
 from apiserver.database.utils import get_options
 from apiserver.tools import safe_get
 from apiserver.utilities import json
+from apiserver.utilities.dicts import nested_get, nested_set
 from .user import _ensure_backend_user
 
 
@@ -344,7 +346,7 @@ class PrePopulate:
             dpath.delete(task_data, old_param_field)
 
     @classmethod
-    def _upgrade_tasks(cls, f: BinaryIO) -> bytes:
+    def _upgrade_tasks(cls, f: IO[bytes]) -> bytes:
         """
         Build content array that contains fixed tasks from the passed file
         For each task the old execution.parameters and model.design are
@@ -564,13 +566,13 @@ class PrePopulate:
         if not task.execution.artifacts:
             return []
 
-        for a in task.execution.artifacts:
+        for a in task.execution.artifacts.values():
             if a.mode == ArtifactModes.output:
                 a.uri = cls._get_fixed_url(a.uri)
 
         return [
             a.uri
-            for a in task.execution.artifacts
+            for a in task.execution.artifacts.values()
             if a.mode == ArtifactModes.output and a.uri
         ]
 
@@ -630,7 +632,7 @@ class PrePopulate:
         return artifacts
 
     @staticmethod
-    def json_lines(file: BinaryIO):
+    def json_lines(file: IO[bytes]):
         for line in file:
             clean = (
                 line.decode("utf-8")
@@ -651,6 +653,7 @@ class PrePopulate:
         company_id: str = "",
         user_id: str = None,
         metadata: Mapping[str, Any] = None,
+        sort_tasks_by_last_updated: bool = True,
     ):
         """
         Import entities and events from the zip file
@@ -663,35 +666,60 @@ class PrePopulate:
             if not fi.orig_filename.endswith(event_file_ending)
             and fi.orig_filename != cls.metadata_filename
         )
-        event_files = (
-            fi for fi in reader.filelist if fi.orig_filename.endswith(event_file_ending)
-        )
-        for files, reader_func in (
-            (entity_files, partial(cls._import_entity, metadata=metadata or {})),
-            (event_files, cls._import_events),
-        ):
-            for file_info in files:
-                with reader.open(file_info) as f:
-                    full_name = splitext(file_info.orig_filename)[0]
-                    print(f"Reading {reader.filename}:{full_name}...")
-                    reader_func(f, full_name, company_id, user_id)
+        metadata = metadata or {}
+        tasks = []
+        for entity_file in entity_files:
+            with reader.open(entity_file) as f:
+                full_name = splitext(entity_file.orig_filename)[0]
+                print(f"Reading {reader.filename}:{full_name}...")
+                res = cls._import_entity(f, full_name, company_id, user_id, metadata)
+                if res:
+                    tasks = res
+
+        if sort_tasks_by_last_updated:
+            tasks = sorted(tasks, key=attrgetter("last_update"))
+
+        for task in tasks:
+            events_file = first(
+                fi
+                for fi in reader.filelist
+                if fi.orig_filename.endswith(task.id + event_file_ending)
+            )
+            if not events_file:
+                continue
+            with reader.open(events_file) as f:
+                full_name = splitext(events_file.orig_filename)[0]
+                print(f"Reading {reader.filename}:{full_name}...")
+                cls._import_events(f, full_name, company_id, user_id)
 
     @classmethod
     def _import_entity(
         cls,
-        f: BinaryIO,
+        f: IO[bytes],
         full_name: str,
         company_id: str,
         user_id: str,
         metadata: Mapping[str, Any],
-    ):
+    ) -> Optional[Sequence[Task]]:
         module_name, _, class_name = full_name.rpartition(".")
         module = importlib.import_module(module_name)
         cls_: Type[mongoengine.Document] = getattr(module, class_name)
         print(f"Writing {cls_.__name__.lower()}s into database")
-
+        tasks = []
         override_project_count = 0
         for item in cls.json_lines(f):
+            if cls_ == Task:
+                task_data = json.loads(item)
+                artifacts_path = ("execution", "artifacts")
+                artifacts = nested_get(task_data, artifacts_path)
+                if isinstance(artifacts, list):
+                    nested_set(
+                        task_data,
+                        artifacts_path,
+                        value={get_artifact_id(a): a for a in artifacts},
+                    )
+                    item = json.dumps(task_data)
+
             doc = cls_.from_json(item, created=True)
             if hasattr(doc, "user"):
                 doc.user = user_id
@@ -717,10 +745,14 @@ class PrePopulate:
             doc.save()
 
             if isinstance(doc, Task):
+                tasks.append(doc)
                 cls.event_bll.delete_task_events(company_id, doc.id, allow_locked=True)
 
+        if tasks:
+            return tasks
+
     @classmethod
-    def _import_events(cls, f: BinaryIO, full_name: str, company_id: str, _):
+    def _import_events(cls, f: IO[bytes], full_name: str, company_id: str, _):
         _, _, task_id = full_name[0 : -len(cls.events_file_suffix)].rpartition("_")
         print(f"Writing events for task {task_id} into database")
         for events_chunk in chunked_iter(cls.json_lines(f), 1000):

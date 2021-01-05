@@ -214,3 +214,21 @@ class JsonSerializableMixin:
     @classmethod
     def from_json(cls: Type[ModelBase], s):
         return cls(**loads(s))
+
+
+def callable_default(cls: Type[fields.BaseField]) -> Type[fields.BaseField]:
+    class _Wrapped(cls):
+        _callable_default = None
+
+        def get_default_value(self):
+            if self._callable_default:
+                return self._callable_default()
+            return super(_Wrapped, self).get_default_value()
+
+        def __init__(self, *args, default=None, **kwargs):
+            if default and callable(default):
+                self._callable_default = default
+                default = default()
+            super(_Wrapped, self).__init__(*args, default=default, **kwargs)
+
+    return _Wrapped

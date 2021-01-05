@@ -1,6 +1,6 @@
 import itertools
 from datetime import datetime, timedelta
-from typing import Sequence, Set, Optional
+from typing import Sequence, Set, Optional, List
 
 import attr
 import elasticsearch.helpers
@@ -16,6 +16,7 @@ from apiserver.apimodels.workers import (
     WorkerResponseEntry,
     QueueEntry,
     MachineStats,
+    RuntimeProperty,
 )
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -415,6 +416,66 @@ class WorkerBLL:
         es_res = elasticsearch.helpers.bulk(self.es_client, actions)
         added, errors = es_res[:2]
         return (added == len(actions)) and not errors
+
+    def set_runtime_properties(
+        self,
+        company: str,
+        user: str,
+        worker_id: str,
+        runtime_properties: List[RuntimeProperty],
+    ) -> dict:
+        """Save worker entry in Redis"""
+        res = {
+            "added": [],
+            "removed": [],
+            "errors": [],
+        }
+        for prop in runtime_properties:
+            try:
+                key = self._get_runtime_property_key(company, user, worker_id, prop.key)
+                if prop.expiry == 0:
+                    self.redis.delete(key)
+                    res["removed"].append(key)
+                else:
+                    self.redis.set(
+                        key,
+                        prop.value,
+                        ex=prop.expiry
+                    )
+                    res["added"].append(key)
+            except Exception as ex:
+                msg = f"Exception: {ex}\nFailed saving property '{prop.key}: {prop.value}', skipping"
+                log.exception(msg)
+                res["errors"].append(ex)
+        return res
+
+    def get_runtime_properties(
+        self,
+        company: str,
+        user: str,
+        worker_id: str,
+    ) -> List[RuntimeProperty]:
+        match = self._get_runtime_property_key(company, user, worker_id, "*")
+        with TimingContext("redis", "get_runtime_properties"):
+            res = self.redis.scan_iter(match=match)
+        runtime_properties = []
+        for r in res:
+            ttl = self.redis.ttl(r)
+            runtime_properties.append(
+                RuntimeProperty(
+                        key=r.decode()[len(match) - 1:],
+                        value=self.redis.get(r).decode(),
+                        expiry=ttl if ttl >= 0 else None
+                    )
+            )
+        return runtime_properties
+
+    def _get_runtime_property_key(
+        self, company: str, user: str, worker_id: str, prop_id: str
+    ) -> str:
+        """Build redis key from company, user, worker_id and prop_id"""
+        prefix = self._get_worker_key(company, user, worker_id)
+        return f"{prefix}_prop_{prop_id}"
 
 
 @attr.s(auto_attribs=True)
