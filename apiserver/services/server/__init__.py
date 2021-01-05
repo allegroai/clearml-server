@@ -67,6 +67,12 @@ def info_2_8(call: APICall):
     call.result.data["uid"] = Settings.get_by_key(SettingKeys.server__uuid)
 
 
+@endpoint("server.info", min_version="2.12")
+def info_2_8(call: APICall):
+    info(call)
+    call.result.data["api_version"] = str(ServiceRepo.max_endpoint_version())
+
+
 @endpoint(
     "server.report_stats_option",
     request_data_model=ReportStatsOptionRequest,

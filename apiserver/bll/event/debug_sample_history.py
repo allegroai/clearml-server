@@ -211,6 +211,7 @@ class DebugSampleHistory:
         metric: str,
         variant: str,
         iteration: Optional[int] = None,
+        refresh: bool = False,
         state_id: str = None,
     ) -> DebugSampleHistoryResult:
         """
@@ -225,15 +226,7 @@ class DebugSampleHistory:
         def init_state(state_: DebugSampleHistoryState):
             state_.task = task
             state_.metric = metric
-            variant_iterations = self._get_variant_iterations(
-                es_index=es_index, task=task, metric=metric
-            )
-            state_.variant_states = [
-                VariantState(
-                    name=var_name, min_iteration=min_iter, max_iteration=max_iter
-                )
-                for var_name, min_iter, max_iter in variant_iterations
-            ]
+            self._reset_variant_states(es_index, state=state_)
 
         def validate_state(state_: DebugSampleHistoryState):
             if state_.task != task or state_.metric != metric:
@@ -241,6 +234,8 @@ class DebugSampleHistory:
                     "Task and metric stored in the state do not match the passed ones",
                     scroll_id=state_.id,
                 )
+            if refresh:
+                self._reset_variant_states(es_index, state=state_)
 
         state: DebugSampleHistoryState
         with self.cache_manager.get_or_create_state(
@@ -290,6 +285,17 @@ class DebugSampleHistory:
                 image=hits[0]["_source"], res=res, state=state
             )
             return res
+
+    def _reset_variant_states(self, es_index, state: DebugSampleHistoryState):
+        variant_iterations = self._get_variant_iterations(
+            es_index=es_index, task=state.task, metric=state.metric
+        )
+        state.variant_states = [
+            VariantState(
+                name=var_name, min_iteration=min_iter, max_iteration=max_iter
+            )
+            for var_name, min_iter, max_iter in variant_iterations
+        ]
 
     def _get_variant_iterations(
         self,

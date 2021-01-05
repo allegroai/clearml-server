@@ -60,6 +60,7 @@ class TaskMetricVariant(Base):
 class GetDebugImageSampleRequest(TaskMetricVariant):
     iteration: Optional[int] = IntField()
     scroll_id: Optional[str] = StringField()
+    refresh: bool = BoolField(default=False)
 
 
 class NextDebugImageSampleRequest(Base):

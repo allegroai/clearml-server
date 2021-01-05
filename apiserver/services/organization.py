@@ -1,7 +1,9 @@
 from collections import defaultdict
+from operator import itemgetter
 
 from apiserver.apimodels.organization import TagsRequest
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.database.model import User
 from apiserver.service_repo import endpoint, APICall
 from apiserver.services.utils import get_tags_filter_dictionary, get_tags_response
 
@@ -20,3 +22,26 @@ def get_tags(call: APICall, company, request: TagsRequest):
             ret[field] |= vals
 
     call.result.data = get_tags_response(ret)
+
+
+@endpoint("organization.get_user_companies")
+def get_user_companies(call: APICall, company_id: str, _):
+    users = [
+        {
+            "id": u.id,
+            "name": u.name,
+            "avatar": u.avatar,
+        }
+        for u in User.objects(company=company_id).only("avatar", "name", "company")
+    ]
+
+    call.result.data = {
+        "companies": [
+            {
+                "id": company_id,
+                "name": call.identity.company_name,
+                "allocated": len(users),
+                "owners": sorted(users, key=itemgetter("name")),
+            }
+        ]
+    }

@@ -879,7 +879,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
             force=force,
             status_reason="reset",
             status_message="reset",
-        ).execute(started=None, completed=None, published=None, **updates)
+        ).execute(started=None, completed=None, published=None, active_duration=None, **updates)
     )
 
     # do not return artifacts since they are not serializable
@@ -904,13 +904,16 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
         only=("id", "execution", "status", "project", "system_tags"),
     )
     for task in tasks:
-        TaskBLL.dequeue_and_change_status(
-            task,
-            company_id,
-            request.status_message,
-            request.status_reason,
-            silent_dequeue_fail=True,
-        )
+        try:
+            TaskBLL.dequeue_and_change_status(
+                task,
+                company_id,
+                request.status_message,
+                request.status_reason,
+            )
+        except APIError:
+            # dequeue may fail if the task was not enqueued
+            pass
         task.update(
             status_message=request.status_message,
             status_reason=request.status_reason,

@@ -651,9 +651,8 @@ class TaskBLL:
         company_id: str,
         status_message: str,
         status_reason: str,
-        silent_dequeue_fail=False,
     ):
-        cls.dequeue(task, company_id, silent_dequeue_fail)
+        cls.dequeue(task, company_id)
 
         return ChangeStatusRequest(
             task=task,

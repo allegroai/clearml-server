@@ -643,6 +643,7 @@ def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest
         metric=request.metric,
         variant=request.variant,
         iteration=request.iteration,
+        refresh=request.refresh,
         state_id=request.scroll_id,
     )
     call.result.data = attr.asdict(res, recurse=False)
