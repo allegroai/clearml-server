@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Sequence
 import attr
 from elasticsearch import Elasticsearch
 
-from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.event.event_common import check_empty_data, search_company_events
 from apiserver.database.errors import translate_errors_context
 from apiserver.timing_context import TimingContext
 
@@ -29,13 +29,12 @@ class LogEventsIterator:
         navigate_earlier: bool = True,
         from_timestamp: Optional[int] = None,
     ) -> TaskEventsResult:
-        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id, self.EVENT_TYPE):
             return TaskEventsResult()
 
         res = TaskEventsResult()
         res.events, res.total_events = self._get_events(
-            es_index=es_index,
+            company_id=company_id,
             task_id=task_id,
             batch_size=batch_size,
             navigate_earlier=navigate_earlier,
@@ -45,7 +44,7 @@ class LogEventsIterator:
 
     def _get_events(
         self,
-        es_index,
+        company_id: str,
         task_id: str,
         batch_size: int,
         navigate_earlier: bool,
@@ -71,7 +70,13 @@ class LogEventsIterator:
             es_req["search_after"] = [from_timestamp]
 
         with translate_errors_context(), TimingContext("es", "get_task_events"):
-            es_result = self.es.search(index=es_index, body=es_req)
+            es_result = search_company_events(
+                self.es,
+                company_id=company_id,
+                event_type=self.EVENT_TYPE,
+                body=es_req,
+                routing=task_id,
+            )
             hits = es_result["hits"]["hits"]
             hits_total = es_result["hits"]["total"]["value"]
             if not hits:
@@ -92,7 +97,13 @@ class LogEventsIterator:
                     }
                 },
             }
-            es_result = self.es.search(index=es_index, body=es_req)
+            es_result = search_company_events(
+                self.es,
+                company_id=company_id,
+                event_type=self.EVENT_TYPE,
+                body=es_req,
+                routing=task_id,
+            )
             last_second_hits = es_result["hits"]["hits"]
             if not last_second_hits or len(last_second_hits) < 2:
                 # if only one element is returned for the last timestamp

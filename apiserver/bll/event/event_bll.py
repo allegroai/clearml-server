@@ -13,12 +13,13 @@ from mongoengine import Q
 from nested_dict import nested_dict
 
 from apiserver.bll.event.debug_sample_history import DebugSampleHistory
+from apiserver.bll.event.event_common import EventType, EventSettings, get_index_name
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
-from apiserver.bll.event.event_metrics import EventMetrics, EventType
+from apiserver.bll.event.event_metrics import EventMetrics
 from apiserver.bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
@@ -147,7 +148,7 @@ class EventBLL(object):
             event["metric"] = event.get("metric") or ""
             event["variant"] = event.get("variant") or ""
 
-            index_name = EventMetrics.get_index_name(company_id, event_type)
+            index_name = get_index_name(company_id, event_type)
             es_action = {
                 "_op_type": "index",  # overwrite if exists with same ID
                 "_index": index_name,
@@ -406,7 +407,7 @@ class EventBLL(object):
             if event_type is None:
                 event_type = "*"
 
-            es_index = EventMetrics.get_index_name(company_id, event_type)
+            es_index = get_index_name(company_id, event_type)
 
             if not self.es.indices.exists(es_index):
                 return [], None, 0
@@ -435,14 +436,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -494,7 +495,7 @@ class EventBLL(object):
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             event_type = "plot"
-            es_index = EventMetrics.get_index_name(company_id, event_type)
+            es_index = get_index_name(company_id, event_type)
             if not self.es.indices.exists(es_index):
                 return TaskEventsResult()
 
@@ -597,7 +598,7 @@ class EventBLL(object):
             if event_type is None:
                 event_type = "*"
 
-            es_index = EventMetrics.get_index_name(company_id, event_type)
+            es_index = get_index_name(company_id, event_type)
             if not self.es.indices.exists(es_index):
                 return TaskEventsResult()
 
@@ -652,7 +653,7 @@ class EventBLL(object):
 
     def get_metrics_and_variants(self, company_id, task_id, event_type):
 
-        es_index = EventMetrics.get_index_name(company_id, event_type)
+        es_index = get_index_name(company_id, event_type)
 
         if not self.es.indices.exists(es_index):
             return {}
@@ -663,14 +664,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             }
                         }
@@ -695,7 +696,7 @@ class EventBLL(object):
         return metrics
 
     def get_task_latest_scalar_values(self, company_id, task_id):
-        es_index = EventMetrics.get_index_name(company_id, "training_stats_scalar")
+        es_index = get_index_name(company_id, "training_stats_scalar")
 
         if not self.es.indices.exists(es_index):
             return {}
@@ -714,14 +715,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -780,7 +781,7 @@ class EventBLL(object):
 
     def get_vector_metrics_per_iter(self, company_id, task_id, metric, variant):
 
-        es_index = EventMetrics.get_index_name(company_id, "training_stats_vector")
+        es_index = get_index_name(company_id, "training_stats_vector")
         if not self.es.indices.exists(es_index):
             return [], []
 
@@ -849,7 +850,7 @@ class EventBLL(object):
                     extra_msg, company=company_id, id=task_id
                 )
 
-        es_index = EventMetrics.get_index_name(company_id, "*")
+        es_index = get_index_name(company_id, "*")
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):
             es_res = self.es.delete_by_query(index=es_index, body=es_req, refresh=True)

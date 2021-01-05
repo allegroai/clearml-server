@@ -19,7 +19,7 @@ from apiserver.apimodels.events import (
     NextDebugImageSampleRequest,
 )
 from apiserver.bll.event import EventBLL
-from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.event.event_common import get_index_name
 from apiserver.bll.task import TaskBLL
 from apiserver.service_repo import APICall, endpoint
 from apiserver.utilities import json
@@ -321,7 +321,7 @@ def get_task_latest_scalar_values(call, company_id, _):
     metrics, last_timestamp = event_bll.get_task_latest_scalar_values(
         index_company, task_id
     )
-    es_index = EventMetrics.get_index_name(index_company, "*")
+    es_index = get_index_name(index_company, "*")
     last_iters = event_bll.get_last_iters(es_index, task_id, None, 1)
     call.result.data = dict(
         metrics=metrics,

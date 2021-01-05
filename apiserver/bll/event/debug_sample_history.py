@@ -10,9 +10,8 @@ from redis import StrictRedis
 
 from apiserver.apierrors import errors
 from apiserver.apimodels import JsonSerializableMixin
-from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.event.event_common import EventSettings, get_index_name
 from apiserver.bll.redis_cache_manager import RedisCacheManager
-from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get
@@ -47,18 +46,12 @@ class DebugSampleHistoryResult(object):
 class DebugSampleHistory:
     EVENT_TYPE = "training_debug_image"
 
-    @property
-    def state_expiration_sec(self):
-        return config.get(
-            f"services.events.events_retrieval.state_expiration_sec", 3600
-        )
-
     def __init__(self, redis: StrictRedis, es: Elasticsearch):
         self.es = es
         self.cache_manager = RedisCacheManager(
             state_class=DebugSampleHistoryState,
             redis=redis,
-            expiration_interval=self.state_expiration_sec,
+            expiration_interval=EventSettings.state_expiration_sec,
         )
 
     def get_next_debug_image(
@@ -73,7 +66,7 @@ class DebugSampleHistory:
         if not state or state.task != task:
             raise errors.bad_request.InvalidScrollId(scroll_id=state_id)
 
-        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
+        es_index = get_index_name(company_id, self.EVENT_TYPE)
         if not self.es.indices.exists(es_index):
             return res
 
@@ -219,7 +212,7 @@ class DebugSampleHistory:
         If the iteration is not passed then get the latest event
         """
         res = DebugSampleHistoryResult()
-        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
+        es_index = get_index_name(company_id, self.EVENT_TYPE)
         if not self.es.indices.exists(es_index):
             return res
 
@@ -246,6 +239,9 @@ class DebugSampleHistory:
             var_state = first(s for s in state.variant_states if s.name == variant)
             if not var_state:
                 return res
+
+            res.min_iteration = var_state.min_iteration
+            res.max_iteration = var_state.max_iteration
 
             must_conditions = [
                 {"term": {"task": task}},
@@ -291,9 +287,7 @@ class DebugSampleHistory:
             es_index=es_index, task=state.task, metric=state.metric
         )
         state.variant_states = [
-            VariantState(
-                name=var_name, min_iteration=min_iter, max_iteration=max_iter
-            )
+            VariantState(name=var_name, min_iteration=min_iter, max_iteration=max_iter)
             for var_name, min_iter, max_iter in variant_iterations
         ]
 
@@ -324,7 +318,7 @@ class DebugSampleHistory:
                     # all variants that sent debug images
                     "terms": {
                         "field": "variant",
-                        "size": EventMetrics.max_variants_count,
+                        "size": EventSettings.max_variants_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {

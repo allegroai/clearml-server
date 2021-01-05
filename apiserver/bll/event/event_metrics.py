@@ -2,16 +2,15 @@ import itertools
 import math
 from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
-from enum import Enum
 from functools import partial
 from operator import itemgetter
 from typing import Sequence, Tuple
 
-from boltons.typeutils import classproperty
 from elasticsearch import Elasticsearch
 from mongoengine import Q
 
 from apiserver.apierrors import errors
+from apiserver.bll.event.event_common import EventType, get_index_name, EventSettings
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -22,37 +21,12 @@ from apiserver.tools import safe_get
 log = config.logger(__file__)
 
 
-class EventType(Enum):
-    metrics_scalar = "training_stats_scalar"
-    metrics_vector = "training_stats_vector"
-    metrics_image = "training_debug_image"
-    metrics_plot = "plot"
-    task_log = "log"
-
-
 class EventMetrics:
     MAX_AGGS_ELEMENTS_COUNT = 50
     MAX_SAMPLE_BUCKETS = 6000
 
     def __init__(self, es: Elasticsearch):
         self.es = es
-
-    @classproperty
-    def max_metrics_count(self):
-        return config.get("services.events.events_retrieval.max_metrics_count", 100)
-
-    @classproperty
-    def max_variants_count(self):
-        return config.get("services.events.events_retrieval.max_variants_count", 100)
-
-    @property
-    def _max_concurrency(self):
-        return config.get("services.events.events_retrieval.max_metrics_concurrency", 4)
-
-    @staticmethod
-    def get_index_name(company_id, event_type):
-        event_type = event_type.lower().replace(" ", "_")
-        return f"events-{event_type}-{company_id}"
 
     def get_scalar_metrics_average_per_iter(
         self, company_id: str, task_id: str, samples: int, key: ScalarKeyEnum
@@ -62,7 +36,7 @@ class EventMetrics:
         The amount of points in each histogram should not exceed
         the requested samples
         """
-        es_index = self.get_index_name(company_id, "training_stats_scalar")
+        es_index = get_index_name(company_id, "training_stats_scalar")
         if not self.es.indices.exists(es_index):
             return {}
 
@@ -89,7 +63,7 @@ class EventMetrics:
             self._get_scalar_average, task_id=task_id, es_index=es_index, key=key
         )
         if run_parallel:
-            with ThreadPoolExecutor(max_workers=self._max_concurrency) as pool:
+            with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
                 metrics = itertools.chain.from_iterable(
                     pool.map(get_scalar_average, interval_groups)
                 )
@@ -136,7 +110,7 @@ class EventMetrics:
                 "only tasks from the same company are supported"
             )
 
-        es_index = self.get_index_name(next(iter(companies)), "training_stats_scalar")
+        es_index = get_index_name(next(iter(companies)), "training_stats_scalar")
         if not self.es.indices.exists(es_index):
             return {}
 
@@ -147,7 +121,7 @@ class EventMetrics:
             key=ScalarKey.resolve(key),
             run_parallel=False,
         )
-        with ThreadPoolExecutor(max_workers=self._max_concurrency) as pool:
+        with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
             task_metrics = zip(
                 task_ids, pool.map(get_scalar_average_per_iter, task_ids)
             )
@@ -216,14 +190,14 @@ class EventMetrics:
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": self.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": self.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -293,14 +267,14 @@ class EventMetrics:
             "metrics": {
                 "terms": {
                     "field": "metric",
-                    "size": self.max_metrics_count,
+                    "size": EventSettings.max_metrics_count,
                     "order": {"_key": "asc"},
                 },
                 "aggs": {
                     "variants": {
                         "terms": {
                             "field": "variant",
-                            "size": self.max_variants_count,
+                            "size": EventSettings.max_variants_count,
                             "order": {"_key": "asc"},
                         },
                         "aggs": aggregation,
@@ -382,11 +356,11 @@ class EventMetrics:
         For the requested tasks return all the metrics that
         reported events of the requested types
         """
-        es_index = EventMetrics.get_index_name(company_id, event_type.value)
+        es_index = get_index_name(company_id, event_type.value)
         if not self.es.indices.exists(es_index):
             return {}
 
-        with ThreadPoolExecutor(self._max_concurrency) as pool:
+        with ThreadPoolExecutor(EventSettings.max_workers) as pool:
             res = pool.map(
                 partial(
                     self._get_task_metrics, es_index=es_index, event_type=event_type,
@@ -410,7 +384,7 @@ class EventMetrics:
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": self.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     }
                 }

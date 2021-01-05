@@ -15,9 +15,12 @@ from redis import StrictRedis
 
 from apiserver.apierrors import errors
 from apiserver.apimodels import JsonSerializableMixin
-from apiserver.bll.event.event_metrics import EventMetrics
+from apiserver.bll.event.event_common import (
+    EventSettings,
+    check_empty_data,
+    search_company_events,
+)
 from apiserver.bll.redis_cache_manager import RedisCacheManager
-from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.metrics import MetricEventStats
 from apiserver.database.model.task.task import Task
@@ -58,22 +61,12 @@ class DebugImagesResult(object):
 class DebugImagesIterator:
     EVENT_TYPE = "training_debug_image"
 
-    @property
-    def state_expiration_sec(self):
-        return config.get(
-            f"services.events.events_retrieval.state_expiration_sec", 3600
-        )
-
-    @property
-    def _max_workers(self):
-        return config.get("services.events.events_retrieval.max_metrics_concurrency", 4)
-
     def __init__(self, redis: StrictRedis, es: Elasticsearch):
         self.es = es
         self.cache_manager = RedisCacheManager(
             state_class=DebugImageEventsScrollState,
             redis=redis,
-            expiration_interval=self.state_expiration_sec,
+            expiration_interval=EventSettings.state_expiration_sec,
         )
 
     def get_task_events(
@@ -85,13 +78,12 @@ class DebugImagesIterator:
         refresh: bool = False,
         state_id: str = None,
     ) -> DebugImagesResult:
-        es_index = EventMetrics.get_index_name(company_id, self.EVENT_TYPE)
-        if not self.es.indices.exists(es_index):
+        if check_empty_data(self.es, company_id, self.EVENT_TYPE):
             return DebugImagesResult()
 
         def init_state(state_: DebugImageEventsScrollState):
             unique_metrics = set(metrics)
-            state_.metrics = self._init_metric_states(es_index, list(unique_metrics))
+            state_.metrics = self._init_metric_states(company_id, list(unique_metrics))
 
         def validate_state(state_: DebugImageEventsScrollState):
             """
@@ -106,7 +98,7 @@ class DebugImagesIterator:
                     scroll_id=state_.id,
                 )
             if refresh:
-                self._reinit_outdated_metric_states(company_id, es_index, state_)
+                self._reinit_outdated_metric_states(company_id, state_)
                 for metric_state in state_.metrics:
                     metric_state.reset()
 
@@ -114,12 +106,12 @@ class DebugImagesIterator:
             state_id=state_id, init_state=init_state, validate_state=validate_state
         ) as state:
             res = DebugImagesResult(next_scroll_id=state.id)
-            with ThreadPoolExecutor(self._max_workers) as pool:
+            with ThreadPoolExecutor(EventSettings.max_workers) as pool:
                 res.metric_events = list(
                     pool.map(
                         partial(
                             self._get_task_metric_events,
-                            es_index=es_index,
+                            company_id=company_id,
                             iter_count=iter_count,
                             navigate_earlier=navigate_earlier,
                         ),
@@ -130,7 +122,7 @@ class DebugImagesIterator:
             return res
 
     def _reinit_outdated_metric_states(
-        self, company_id, es_index, state: DebugImageEventsScrollState
+        self, company_id, state: DebugImageEventsScrollState
     ):
         """
         Determines the metrics for which new debug image events were added
@@ -171,14 +163,14 @@ class DebugImagesIterator:
             *(metric for metric in state.metrics if metric not in outdated_metrics),
             *(
                 self._init_metric_states(
-                    es_index,
+                    company_id,
                     [(metric.task, metric.name) for metric in outdated_metrics],
                 )
             ),
         ]
 
     def _init_metric_states(
-        self, es_index, metrics: Sequence[Tuple[str, str]]
+        self, company_id: str, metrics: Sequence[Tuple[str, str]]
     ) -> Sequence[MetricScrollState]:
         """
         Returned initialized metric scroll stated for the requested task metrics
@@ -187,18 +179,20 @@ class DebugImagesIterator:
         for (task, metric) in metrics:
             tasks[task].append(metric)
 
-        with ThreadPoolExecutor(self._max_workers) as pool:
+        with ThreadPoolExecutor(EventSettings.max_workers) as pool:
             return list(
                 chain.from_iterable(
                     pool.map(
-                        partial(self._init_metric_states_for_task, es_index=es_index),
+                        partial(
+                            self._init_metric_states_for_task, company_id=company_id
+                        ),
                         tasks.items(),
                     )
                 )
             )
 
     def _init_metric_states_for_task(
-        self, task_metrics: Tuple[str, Sequence[str]], es_index
+        self, task_metrics: Tuple[str, Sequence[str]], company_id: str
     ) -> Sequence[MetricScrollState]:
         """
         Return metric scroll states for the task filled with the variant states
@@ -220,7 +214,7 @@ class DebugImagesIterator:
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventMetrics.max_metrics_count,
+                        "size": EventSettings.max_metrics_count,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
@@ -228,7 +222,7 @@ class DebugImagesIterator:
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -258,7 +252,13 @@ class DebugImagesIterator:
         }
 
         with translate_errors_context(), TimingContext("es", "_init_metric_states"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es,
+                company_id=company_id,
+                event_type=self.EVENT_TYPE,
+                body=es_req,
+                routing=task,
+            )
         if "aggregations" not in es_res:
             return []
 
@@ -290,7 +290,7 @@ class DebugImagesIterator:
     def _get_task_metric_events(
         self,
         metric: MetricScrollState,
-        es_index: str,
+        company_id: str,
         iter_count: int,
         navigate_earlier: bool,
     ) -> Tuple:
@@ -382,7 +382,7 @@ class DebugImagesIterator:
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventMetrics.max_variants_count,
+                                "size": EventSettings.max_variants_count,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -396,7 +396,13 @@ class DebugImagesIterator:
             },
         }
         with translate_errors_context(), TimingContext("es", "get_debug_image_events"):
-            es_res = self.es.search(index=es_index, body=es_req)
+            es_res = search_company_events(
+                self.es,
+                company_id=company_id,
+                event_type=self.EVENT_TYPE,
+                body=es_req,
+                routing=metric.task,
+            )
         if "aggregations" not in es_res:
             return metric.task, metric.name, []
 
