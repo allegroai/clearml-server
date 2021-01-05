@@ -3,7 +3,7 @@ from time import sleep
 
 from apiserver.apierrors import errors
 from apiserver.bll.task import ChangeStatusRequest
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.task.task import TaskStatus, Task
 from apiserver.utilities.threads_manager import ThreadsManager
 

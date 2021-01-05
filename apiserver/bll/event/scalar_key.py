@@ -6,7 +6,7 @@ from enum import auto
 
 from apiserver.utilities.stringenum import StringEnum
 from apiserver.bll.util import extract_properties_to_lists
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

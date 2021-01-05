@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Sequence, Union
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_default_company
 from apiserver.database.model.auth import Role
 from apiserver.service_repo.auth.fixed_user import FixedUser

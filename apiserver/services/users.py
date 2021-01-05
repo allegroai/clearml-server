@@ -10,7 +10,7 @@ from apiserver.apimodels.base import UpdateResponse
 from apiserver.apimodels.users import CreateRequest, SetPreferencesRequest
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.user import UserBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import Role
 from apiserver.database.model.company import Company

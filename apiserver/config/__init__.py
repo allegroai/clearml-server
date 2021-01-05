@@ -3,6 +3,8 @@ from pathlib import Path
 
 from .basic import BasicConfig
 
-config = BasicConfig(Path(__file__).with_name("default"))
 
-logging.config.dictConfig(config.get("logging"))
+def load_config():
+    config = BasicConfig(Path(__file__).with_name("default"))
+    logging.config.dictConfig(config.get("logging"))
+    return config

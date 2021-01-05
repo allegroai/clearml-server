@@ -1,4 +1,4 @@
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.task.task import TaskStatus
 from apiserver.tests.automated import TestService
 

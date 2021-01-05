@@ -10,7 +10,7 @@ from pymongo.command_cursor import CommandCursor
 
 from apiserver.apierrors import errors
 from apiserver.apierrors.base import BaseError
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import MakeGetAllQueryError
 from apiserver.database.projection import project_dict, ProjectionHelper
 from apiserver.database.props import PropsMixin

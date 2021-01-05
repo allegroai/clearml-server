@@ -7,7 +7,7 @@ from werkzeug.exceptions import BadRequest
 
 from apiserver.apierrors.base import BaseError
 from apiserver.app_sequence import AppSequence
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.service_repo import ServiceRepo, APICall
 from apiserver.service_repo.auth import AuthType
 from apiserver.service_repo.errors import PathParsingError

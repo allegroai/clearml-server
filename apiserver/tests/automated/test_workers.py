@@ -6,7 +6,7 @@ from typing import Sequence
 
 from apiserver.apierrors.errors import bad_request
 from apiserver.tests.automated import TestService, utc_now_tz_aware
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

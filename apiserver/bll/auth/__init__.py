@@ -5,7 +5,7 @@ from apiserver.apierrors import errors
 from apiserver.apimodels.auth import GetTokenResponse, CreateUserRequest, Credentials as CredModel
 from apiserver.apimodels.users import CreateRequest as Users_CreateRequest
 from apiserver.bll.user import UserBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_version, get_build_number
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User, Role, Credentials

@@ -16,7 +16,8 @@ from apiserver.apimodels.auth import (
 )
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.bll.auth import AuthBLL
-from apiserver.config import config, info
+from apiserver.config import info
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User
 from apiserver.service_repo import APICall, endpoint

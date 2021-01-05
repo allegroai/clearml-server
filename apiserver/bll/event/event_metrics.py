@@ -12,7 +12,7 @@ from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task
 from apiserver.timing_context import TimingContext

@@ -4,7 +4,7 @@ from typing import Sequence, Optional
 
 import attr
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_default_company
 
 

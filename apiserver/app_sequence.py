@@ -6,7 +6,8 @@ from semantic_version import Version
 
 from apiserver.database import database
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
-from apiserver.config import config, info
+from apiserver.config import info
+from apiserver.config_repo import config
 from apiserver.elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
 from apiserver.mongo.initialize import (
     init_mongo_data,

@@ -17,7 +17,7 @@ from apiserver.apimodels.workers import (
     QueueEntry,
     MachineStats,
 )
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User
 from apiserver.database.model.company import Company

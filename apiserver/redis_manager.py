@@ -7,7 +7,7 @@ from redis import StrictRedis
 from redis.sentinel import Sentinel, SentinelConnectionPool
 
 from apiserver.apierrors.errors.server_error import ConfigError, GeneralError
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

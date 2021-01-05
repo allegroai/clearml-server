@@ -5,7 +5,7 @@ from pyhocon.config_tree import NoneValue
 from apiserver.apierrors import errors
 from apiserver.apimodels.server import ReportStatsOptionRequest, ReportStatsOptionResponse
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_version, get_build_number, get_commit_number
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import Company

@@ -8,7 +8,7 @@ from jsonmodels.fields import StringField
 from mongoengine import register_connection
 from mongoengine.connection import get_connection, disconnect
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from .defs import Database
 from .utils import get_items
 

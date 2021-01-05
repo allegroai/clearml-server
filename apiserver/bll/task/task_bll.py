@@ -10,7 +10,7 @@ from six import string_types
 import apiserver.database.utils as dbutils
 from apiserver.apierrors import errors
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project

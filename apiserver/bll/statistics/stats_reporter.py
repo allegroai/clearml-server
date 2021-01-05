@@ -14,7 +14,7 @@ from requests.packages.urllib3.util.retry import Retry
 from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.bll.util import get_server_uuid
 from apiserver.bll.workers import WorkerStats, WorkerBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_deployment_type
 from apiserver.database.model import Company, User
 from apiserver.database.model.queue import Queue

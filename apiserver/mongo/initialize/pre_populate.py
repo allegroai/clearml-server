@@ -37,7 +37,7 @@ from apiserver.bll.task.param_utils import (
     hyperparams_default_section,
     hyperparams_legacy_type,
 )
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_default_company
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model

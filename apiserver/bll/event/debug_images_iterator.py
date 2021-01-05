@@ -17,7 +17,7 @@ from apiserver.apierrors import errors
 from apiserver.apimodels import JsonSerializableMixin
 from apiserver.bll.event.event_metrics import EventMetrics
 from apiserver.bll.redis_cache_manager import RedisCacheManager
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.metrics import MetricEventStats
 from apiserver.database.model.task.task import Task

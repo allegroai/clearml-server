@@ -2,7 +2,7 @@ from typing import Sequence, Optional
 
 from mongoengine import Q
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task
 from apiserver.timing_context import TimingContext

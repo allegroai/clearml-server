@@ -9,7 +9,7 @@ from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.queue.queue_metrics import QueueMetrics
 from apiserver.bll.workers import WorkerBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.queue import Queue, Entry
 

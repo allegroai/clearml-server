@@ -3,7 +3,7 @@ from jsonmodels.models import Base
 from jsonmodels.validators import Max, Enum
 
 from apiserver.apimodels import ListField, EnumField
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.auth import Role
 from apiserver.database.utils import get_options
 

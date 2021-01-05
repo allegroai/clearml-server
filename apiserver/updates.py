@@ -7,7 +7,7 @@ import attr
 import requests
 from semantic_version import Version
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.config.info import get_version
 from apiserver.database.model.settings import Settings
 from apiserver.utilities.threads_manager import ThreadsManager

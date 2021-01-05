@@ -6,7 +6,7 @@ from typing import Iterable
 from unittest import TestCase
 
 from apiserver.tests.api_client import APIClient
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

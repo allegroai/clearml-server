@@ -18,7 +18,7 @@ from apiserver.apimodels.models import (
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.task import TaskBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import validate_id
 from apiserver.database.model.model import Model

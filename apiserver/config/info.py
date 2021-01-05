@@ -2,7 +2,7 @@ from functools import lru_cache
 from os import getenv
 from pathlib import Path
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.version import __version__
 
 root = Path(__file__).parent.parent

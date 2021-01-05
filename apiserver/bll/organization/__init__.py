@@ -6,7 +6,7 @@ from typing import Sequence, Union, Type, Dict
 from mongoengine import Q
 from redis import Redis
 
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task

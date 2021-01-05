@@ -6,7 +6,7 @@ from apiserver.apierrors.errors import bad_request
 from apiserver.database.utils import partition_tags
 from apiserver.tests.api_client import APIClient, AttrDict
 from apiserver.tests.automated import TestService
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

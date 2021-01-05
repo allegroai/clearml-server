@@ -3,7 +3,7 @@ import jwt
 from datetime import datetime, timedelta
 
 from apiserver.apierrors import errors
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.auth import Role
 
 from .auth_type import AuthType

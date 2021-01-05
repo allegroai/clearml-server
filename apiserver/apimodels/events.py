@@ -9,7 +9,7 @@ from jsonmodels.validators import Length, Min, Max
 from apiserver.apimodels import ListField, IntField, ActualEnumField
 from apiserver.bll.event.event_metrics import EventType
 from apiserver.bll.event.scalar_key import ScalarKeyEnum
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.utilities.stringenum import StringEnum
 
 

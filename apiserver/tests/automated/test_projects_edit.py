@@ -1,6 +1,6 @@
 from apiserver.apierrors.errors.bad_request import InvalidProjectId
 from apiserver.apierrors.errors.forbidden import NoWritePermission
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.tests.automated import TestService
 
 

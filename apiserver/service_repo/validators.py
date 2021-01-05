@@ -2,7 +2,7 @@ import fastjsonschema
 import jsonmodels.errors
 
 from apiserver.apierrors import errors, APIError
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model import Company
 from apiserver.database.model.auth import Role, User
 from apiserver.service_repo import APICall

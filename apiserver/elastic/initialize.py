@@ -6,7 +6,7 @@ import urllib3.exceptions
 from elasticsearch import Elasticsearch, exceptions
 
 from apiserver.es_factory import es_factory
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.elastic.apply_mappings import apply_mappings_to_cluster
 
 log = config.logger(__file__)

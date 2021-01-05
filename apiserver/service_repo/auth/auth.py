@@ -5,7 +5,7 @@ import jwt
 from mongoengine import Q
 
 from apiserver.apierrors import errors
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User, Entities, Credentials
 from apiserver.database.model.company import Company

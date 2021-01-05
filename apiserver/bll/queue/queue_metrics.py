@@ -8,7 +8,7 @@ from elasticsearch import Elasticsearch
 from apiserver.es_factory import es_factory
 from apiserver.apierrors.errors import bad_request
 from apiserver.bll.query import Builder as QueryBuilder
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.queue import Queue, Entry
 from apiserver.timing_context import TimingContext

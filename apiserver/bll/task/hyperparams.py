@@ -14,7 +14,7 @@ from apiserver.apimodels.tasks import (
 )
 from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.utils import get_task_for_update
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper

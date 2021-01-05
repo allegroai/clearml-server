@@ -20,7 +20,7 @@ from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
 from apiserver.bll.event.event_metrics import EventMetrics, EventType
 from apiserver.bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
 from apiserver.bll.task import TaskBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.redis_manager import redman

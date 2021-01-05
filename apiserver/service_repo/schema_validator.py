@@ -7,7 +7,7 @@ import jsonschema
 from boltons.iterutils import remap
 
 from apiserver.apierrors import errors
-from apiserver.config import config
+from apiserver.config_repo import config
 
 log = config.logger(__file__)
 

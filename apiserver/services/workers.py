@@ -25,7 +25,7 @@ from apiserver.apimodels.workers import (
 )
 from apiserver.bll.util import extract_properties_to_lists
 from apiserver.bll.workers import WorkerBLL
-from apiserver.config import config
+from apiserver.config_repo import config
 from apiserver.service_repo import APICall, endpoint
 
 log = config.logger(__file__)
