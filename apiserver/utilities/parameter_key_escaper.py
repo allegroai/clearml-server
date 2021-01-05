@@ -1,7 +1,5 @@
 from boltons.dictutils import OneToOne
 
-from apiserver.apierrors import errors
-
 
 class ParameterKeyEscaper:
     """
@@ -14,11 +12,8 @@ class ParameterKeyEscaper:
     _mapping = OneToOne({".": "%2E", "$": "%24", "__": "%_%_"})
 
     @classmethod
-    def escape(cls, value):
+    def escape(cls, value: str):
         """ Quote a parameter key """
-        if value is None:
-            raise errors.bad_request.ValidationError("Key cannot be empty")
-
         value = value.strip().replace("%", "%%")
 
         for c, r in cls._mapping.items():
@@ -30,13 +25,13 @@ class ParameterKeyEscaper:
         return value
 
     @classmethod
-    def _unescape(cls, value):
+    def _unescape(cls, value: str):
         for c, r in cls._mapping.inv.items():
             value = value.replace(c, r)
         return value
 
     @classmethod
-    def unescape(cls, value):
+    def unescape(cls, value: str):
         """ Unquote a quoted parameter key """
         value = "%".join(map(cls._unescape, value.split("%%")))
 

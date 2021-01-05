@@ -1,15 +1,15 @@
 from functools import wraps
 from threading import Lock, Thread
-from typing import ClassVar
+from typing import ClassVar, Callable
 
 
 class ThreadsManager:
     objects = {}
     lock = Lock()
+    request_context_creator: ClassVar[Callable] = None
     terminating: ClassVar[bool] = False
 
     def __init__(self, name=None, **threads):
-        super(ThreadsManager, self).__init__()
         self.name = name or self.__class__.__name__
         self.objects = {}
         self.lock = Lock()
