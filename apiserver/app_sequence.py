@@ -8,7 +8,11 @@ from apiserver.database import db
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
 from apiserver.config import info
 from apiserver.config_repo import config
-from apiserver.elastic.initialize import init_es_data, check_elastic_empty, ElasticConnectionError
+from apiserver.elastic.initialize import (
+    init_es_data,
+    check_elastic_empty,
+    ElasticConnectionError,
+)
 from apiserver.mongo.initialize import (
     init_mongo_data,
     pre_populate_data,
@@ -43,13 +47,19 @@ class AppSequence:
             "apiserver.pretty_json"
         )
 
+    @staticmethod
+    def _get_db_instance_key() -> str:
+        """build a key that uniquely identifies specific mongo instance"""
+        hosts_string = ";".join(sorted(db.get_hosts()))
+        return "db_init_" + md5(hosts_string.encode()).hexdigest()
+
     def _init_dbs(self):
         db.initialize()
 
-        # build a key that uniquely identifies specific mongo instance
-        hosts_string = ";".join(sorted(db.get_hosts()))
-        key = "db_init_" + md5(hosts_string.encode()).hexdigest()
-        with distributed_lock(key, timeout=config.get("apiserver.db_init_timout", 120)):
+        with distributed_lock(
+            name=self._get_db_instance_key(),
+            timeout=config.get("apiserver.db_init_timout", 120),
+        ):
             upgrade_monitoring = config.get(
                 "apiserver.elastic.upgrade_monitoring.v16_migration_verification", True
             )
