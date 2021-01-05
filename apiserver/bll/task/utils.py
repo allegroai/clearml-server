@@ -43,6 +43,7 @@ class ChangeStatusRequest(object):
             status_message=self.status_message,
             status_changed=now,
             last_update=now,
+            last_change=now,
         )
 
         if self.new_status == TaskStatus.queued:
@@ -194,3 +195,11 @@ def get_task_for_update(
             expected=TaskStatus.created, status=task.status
         )
     return task
+
+
+def update_task(task: Task, update_cmds: dict, set_last_update: bool = True):
+    now = datetime.utcnow()
+    last_updates = dict(last_change=now)
+    if set_last_update:
+        last_updates.update(last_update=now)
+    return task.update(**update_cmds, **last_updates)

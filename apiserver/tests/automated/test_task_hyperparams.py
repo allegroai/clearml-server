@@ -105,7 +105,7 @@ class TestTasksHyperparams(TestService):
         )
 
         # clone task
-        new_task = self.api.tasks.clone(task=task, new_hyperparams=new_params_dict).id
+        new_task = self.api.tasks.clone(task=task, new_task_hyperparams=new_params_dict).id
         try:
             res = self.api.tasks.get_hyper_params(tasks=[new_task]).params[0]
             self.assertEqual(new_params, res.hyperparams)
@@ -223,7 +223,7 @@ class TestTasksHyperparams(TestService):
         self.assertEqual(old_config + new_config[:1], res.configuration)
 
         # clone task
-        new_task = self.api.tasks.clone(task=task, new_configuration=new_config_dict).id
+        new_task = self.api.tasks.clone(task=task, new_task_configuration=new_config_dict).id
         try:
             res = self.api.tasks.get_configurations(tasks=[new_task]).configurations[0]
             self.assertEqual(new_config, res.configuration)

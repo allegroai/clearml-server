@@ -1,10 +1,9 @@
-from datetime import datetime
 from hashlib import md5
 from operator import itemgetter
 from typing import Sequence
 
 from apiserver.apimodels.tasks import Artifact as ApiArtifact, ArtifactId
-from apiserver.bll.task.utils import get_task_for_update
+from apiserver.bll.task.utils import get_task_for_update, update_task
 from apiserver.database.model.task.task import DEFAULT_ARTIFACT_MODE, Artifact
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get, nested_set
@@ -70,7 +69,7 @@ class Artifacts:
                 f"set__execution__artifacts__{mongoengine_safe(name)}": value
                 for name, value in artifacts.items()
             }
-            return task.update(**update_cmds, last_update=datetime.utcnow())
+            return update_task(task, update_cmds=update_cmds)
 
     @classmethod
     def delete_artifacts(
@@ -95,4 +94,4 @@ class Artifacts:
                 f"unset__execution__artifacts__{id_}": 1 for id_ in set(artifact_ids)
             }
 
-            return task.update(**delete_cmds, last_update=datetime.utcnow())
+            return update_task(task, update_cmds=delete_cmds)

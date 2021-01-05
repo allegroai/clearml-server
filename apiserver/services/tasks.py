@@ -69,6 +69,7 @@ from apiserver.bll.task.param_utils import (
     params_unprepare_from_saved,
     escape_paths,
 )
+from apiserver.bll.task.utils import update_task
 from apiserver.bll.util import SetFieldsResolver
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
@@ -439,7 +440,7 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
 
 
 def prepare_update_fields(call: APICall, task, call_data):
-    valid_fields = deepcopy(task.__class__.user_set_allowed())
+    valid_fields = deepcopy(Task.user_set_allowed())
     update_fields = {k: v for k, v in create_fields.items() if k in valid_fields}
     update_fields["output__error"] = None
     t_fields = task_fields
@@ -467,7 +468,10 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             return UpdateResponse(updated=0)
 
         updated_count, updated_fields = Task.safe_update(
-            company_id=company_id, id=task_id, partial_update_dict=partial_update_dict,
+            company_id=company_id,
+            id=task_id,
+            partial_update_dict=partial_update_dict,
+            injected_update=dict(last_change=datetime.utcnow()),
         )
         if updated_count:
             new_project = updated_fields.get("project", task.project)
@@ -500,8 +504,8 @@ def set_requirements(call: APICall, company_id, req_model: SetRequirementsReques
             raise errors.bad_request.MissingTaskFields(
                 "Task has no script field", task=task.id
             )
-        res = task.update(
-            script__requirements=requirements, last_update=datetime.utcnow()
+        res = update_task(
+            task, update_cmds=dict(script__requirements=requirements)
         )
         call.result.data_model = UpdateResponse(updated=res)
         if res:
@@ -537,7 +541,7 @@ def update_batch(call: APICall, company_id, _):
             partial_update_dict = Task.get_safe_update_dict(fields)
             if not partial_update_dict:
                 continue
-            partial_update_dict.update(last_update=now)
+            partial_update_dict.update(last_change=now)
             update_op = UpdateOne(
                 {"_id": id, "company": company_id}, {"$set": partial_update_dict}
             )
@@ -608,8 +612,11 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
         }
         if fixed_fields:
             now = datetime.utcnow()
-            fields.update(last_update=now)
-            fixed_fields.update(last_update=now)
+            last_change = dict(last_change=now)
+            if not set(fields).issubset(Task.user_set_allowed()):
+                last_change.update(last_update=now)
+            fields.update(**last_change)
+            fixed_fields.update(**last_change)
             updated = task.update(upsert=False, **fixed_fields)
             if updated:
                 new_project = fixed_fields.get("project", task.project)
@@ -920,6 +927,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
             system_tags=sorted(
                 set(task.system_tags) | {EntityVisibility.archived.value}
             ),
+            last_change=datetime.utcnow(),
         )
 
         archived += 1

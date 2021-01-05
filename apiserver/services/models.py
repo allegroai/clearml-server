@@ -472,9 +472,11 @@ def update(call: APICall, company_id, _):
                     raise errors.bad_request.ModelCreatingTaskExists(
                         "and published, use force=True to delete", task=model.task
                     )
+                now = datetime.utcnow()
                 task.update(
                     output__model=deleted_model_id,
-                    output__error=f"model deleted on {datetime.utcnow().isoformat()}",
+                    output__error=f"model deleted on {now.isoformat()}",
+                    last_change=now,
                     upsert=False,
                 )
 

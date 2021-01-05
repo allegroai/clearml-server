@@ -52,7 +52,7 @@ class Credentials(EmbeddedDocument):
 
 
 class User(DbModelMixin, AuthDocument):
-    meta = {"db_alias": Database.auth, "strict": strict}
+    meta = {"db_alias": Database.auth, "strict": strict, "indexes": ["email"]}
 
     id = StringField(primary_key=True)
     name = StringField()

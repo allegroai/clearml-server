@@ -1,4 +1,3 @@
-from datetime import datetime
 from itertools import chain
 from operator import attrgetter
 from typing import Sequence, Dict
@@ -13,7 +12,7 @@ from apiserver.apimodels.tasks import (
     Configuration,
 )
 from apiserver.bll.task import TaskBLL
-from apiserver.bll.task.utils import get_task_for_update
+from apiserver.bll.task.utils import get_task_for_update, update_task
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem
 from apiserver.timing_context import TimingContext
@@ -96,7 +95,9 @@ class HyperParams:
                 name = ParameterKeyEscaper.escape(item.name)
                 delete_cmds[f"unset__hyperparams__{section}__{name}"] = 1
 
-            return task.update(**delete_cmds, last_update=datetime.utcnow())
+            return update_task(
+                task, update_cmds=delete_cmds, set_last_update=not properties_only
+            )
 
     @classmethod
     def edit_params(
@@ -132,7 +133,9 @@ class HyperParams:
                             f"set__hyperparams__{section}__{mongoengine_safe(name)}"
                         ] = value
 
-            return task.update(**update_cmds, last_update=datetime.utcnow())
+            return update_task(
+                task, update_cmds=update_cmds, set_last_update=not properties_only
+            )
 
     @classmethod
     def _db_dicts_from_list(cls, items: Sequence[HyperParamItem]) -> Dict[str, dict]:
@@ -223,7 +226,7 @@ class HyperParams:
                 for name, value in configuration.items():
                     update_cmds[f"set__configuration__{mongoengine_safe(name)}"] = value
 
-            return task.update(**update_cmds, last_update=datetime.utcnow())
+            return update_task(task, update_cmds=update_cmds)
 
     @classmethod
     def delete_configuration(
@@ -239,4 +242,4 @@ class HyperParams:
                 for name in set(configuration)
             }
 
-            return task.update(**delete_cmds, last_update=datetime.utcnow())
+            return update_task(task, update_cmds=delete_cmds)

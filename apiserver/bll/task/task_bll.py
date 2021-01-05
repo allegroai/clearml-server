@@ -145,6 +145,7 @@ class TaskBLL:
             company=identity.company,
             created=now,
             last_update=now,
+            last_change=now,
             **fields,
         )
 
@@ -237,6 +238,7 @@ class TaskBLL:
                 company=company_id,
                 created=now,
                 last_update=now,
+                last_change=now,
                 name=name or task.name,
                 comment=comment or task.comment,
                 parent=parent or task.parent,
@@ -367,7 +369,10 @@ class TaskBLL:
                     **extra_updates,
                 }
             Task.objects(id=task.id, company=company_id).update(
-                upsert=False, last_update=last_update, **updates
+                upsert=False,
+                last_update=last_update,
+                last_change=last_update,
+                **updates,
             )
 
     @staticmethod
@@ -653,11 +658,7 @@ class TaskBLL:
 
     @classmethod
     def dequeue_and_change_status(
-        cls,
-        task: Task,
-        company_id: str,
-        status_message: str,
-        status_reason: str,
+        cls, task: Task, company_id: str, status_message: str, status_reason: str,
     ):
         cls.dequeue(task, company_id)
 

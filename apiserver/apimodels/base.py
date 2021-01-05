@@ -82,7 +82,7 @@ class DictField(fields.BaseField):
         """Cast value to proper collection."""
         result = self.get_default_value()
 
-        if not values:
+        if values is None:
             return result
 
         if not self.value_types or not isinstance(values, dict):

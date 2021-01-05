@@ -155,6 +155,8 @@ class Task(AttributedDocument):
             "project",
             ("company", "name"),
             ("company", "user"),
+            ("company", "status", "type"),
+            ("company", "system_tags", "last_update"),
             ("company", "type", "system_tags", "status"),
             ("company", "project", "type", "system_tags", "status"),
             ("status", "last_update"),  # for maintenance tasks
@@ -215,6 +217,7 @@ class Task(AttributedDocument):
     last_worker = StringField()
     last_worker_report = DateTimeField()
     last_update = DateTimeField()
+    last_change = DateTimeField()
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
     metric_stats = SafeMapField(field=EmbeddedDocumentField(MetricEventStats))
