@@ -6,16 +6,16 @@ from operator import itemgetter
 import dpath
 from mongoengine import Q
 
-from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidProjectId
-from apiserver.apimodels.base import UpdateResponse, MakePublicRequest
+from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, IdResponse
 from apiserver.apimodels.projects import (
     GetHyperParamReq,
     ProjectReq,
     ProjectTagsRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
@@ -280,26 +280,23 @@ def get_all(call: APICall):
         call.result.data = {"projects": projects}
 
 
-@endpoint("projects.create", required_fields=["name", "description"])
-def create(call):
-    assert isinstance(call, APICall)
+@endpoint(
+    "projects.create",
+    required_fields=["name", "description"],
+    response_data_model=IdResponse,
+)
+def create(call: APICall):
     identity = call.identity
 
     with translate_errors_context():
         fields = parse_from_call(call.data, create_fields, Project.get_fields())
         conform_tag_fields(call, fields, validate=True)
-        now = datetime.utcnow()
-        project = Project(
-            id=database.utils.id(),
-            user=identity.user,
-            company=identity.company,
-            created=now,
-            last_update=now,
-            **fields
+
+        return IdResponse(
+            id=ProjectBLL.create(
+                user=identity.user, company=identity.company, **fields,
+            )
         )
-        with TimingContext("mongo", "projects_save"):
-            project.save()
-        call.result.data = {"id": project.id}
 
 
 @endpoint(

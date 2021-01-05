@@ -12,7 +12,12 @@ from pymongo import UpdateOne
 
 from apiserver.apierrors import errors, APIError
 from apiserver.apierrors.errors.bad_request import InvalidTaskId
-from apiserver.apimodels.base import UpdateResponse, IdResponse, MakePublicRequest
+from apiserver.apimodels.base import (
+    UpdateResponse,
+    IdResponse,
+    MakePublicRequest,
+    MoveRequest,
+)
 from apiserver.apimodels.tasks import (
     StartedResponse,
     ResetResponse,
@@ -44,6 +49,7 @@ from apiserver.apimodels.tasks import (
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.project import ProjectBLL
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.task import (
     TaskBLL,
@@ -95,6 +101,7 @@ task_bll = TaskBLL()
 event_bll = EventBLL()
 queue_bll = QueueBLL()
 org_bll = OrgBLL()
+project_bll = ProjectBLL()
 
 NonResponsiveTasksWatchdog.start()
 
@@ -427,6 +434,7 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
         configuration=request.new_configuration,
         execution_overrides=request.execution_overrides,
         validate_references=request.validate_references,
+        new_project_name=request.new_project_name,
     )
     call.result.data_model = IdResponse(id=task.id)
 
@@ -1188,3 +1196,23 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
         call.result.data = Task.set_public(
             company_id, request.ids, invalid_cls=InvalidTaskId, enabled=False
         )
+
+
+@endpoint("tasks.move", request_data_model=MoveRequest)
+def move(call: APICall, company_id: str, request: MoveRequest):
+    if not (request.project or request.project_name):
+        raise errors.bad_request.MissingRequiredFields(
+            "project or project_name is required"
+        )
+
+    with translate_errors_context():
+        return {
+            "project_id": project_bll.move_under_project(
+                entity_cls=Task,
+                user=call.identity.user,
+                company=company_id,
+                ids=request.ids,
+                project=request.project,
+                project_name=request.project_name,
+            )
+        }

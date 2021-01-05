@@ -6,7 +6,7 @@ from mongoengine import Q, EmbeddedDocument
 from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidModelId
-from apiserver.apimodels.base import UpdateResponse, MakePublicRequest
+from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, MoveRequest
 from apiserver.apimodels.models import (
     CreateModelRequest,
     CreateModelResponse,
@@ -17,6 +17,7 @@ from apiserver.apimodels.models import (
 )
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -36,6 +37,7 @@ from apiserver.timing_context import TimingContext
 log = config.logger(__file__)
 org_bll = OrgBLL()
 model_bll = ModelBLL()
+project_bll = ProjectBLL()
 
 
 @endpoint("models.get_by_id", required_fields=["model"])
@@ -498,3 +500,23 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
         call.result.data = Model.set_public(
             company_id, request.ids, invalid_cls=InvalidModelId, enabled=False
         )
+
+
+@endpoint("models.move", request_data_model=MoveRequest)
+def move(call: APICall, company_id: str, request: MoveRequest):
+    if not (request.project or request.project_name):
+        raise errors.bad_request.MissingRequiredFields(
+            "project or project_name is required"
+        )
+
+    with translate_errors_context():
+        return {
+            "project_id": project_bll.move_under_project(
+                entity_cls=Model,
+                user=call.identity.user,
+                company=company_id,
+                ids=request.ids,
+                project=request.project,
+                project_name=request.project_name,
+            )
+        }

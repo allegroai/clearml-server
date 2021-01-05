@@ -67,3 +67,9 @@ class IdResponse(models.Base):
 
 class MakePublicRequest(models.Base):
     ids = ListField(items_types=str, validators=[Length(minimum_value=1)])
+
+
+class MoveRequest(models.Base):
+    ids = ListField([str], validators=Length(minimum_value=1))
+    project = fields.StringField()
+    project_name = fields.StringField()

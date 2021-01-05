@@ -204,7 +204,7 @@ class Task(AttributedDocument):
     started = DateTimeField()
     completed = DateTimeField()
     published = DateTimeField()
-    active_duration = IntField(default=0)
+    active_duration = IntField(default=None)
     parent = StringField(reference_field="Task")
     project = StringField(reference_field=Project, user_set_allowed=True)
     output: Output = EmbeddedDocumentField(Output, default=Output)

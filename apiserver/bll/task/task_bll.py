@@ -9,8 +9,9 @@ from six import string_types
 
 import apiserver.database.utils as dbutils
 from apiserver.apierrors import errors
-from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.queue import QueueBLL
+from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.project import ProjectBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
@@ -36,9 +37,11 @@ from .utils import ChangeStatusRequest, validate_status_change
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
+queue_bll = QueueBLL()
+project_bll = ProjectBLL()
 
 
-class TaskBLL(object):
+class TaskBLL:
     def __init__(self, events_es=None):
         self.events_es = (
             events_es if events_es is not None else es_factory.connect("events")
@@ -162,9 +165,9 @@ class TaskBLL(object):
     @classmethod
     def clone_task(
         cls,
-        company_id,
-        user_id,
-        task_id,
+        company_id: str,
+        user_id: str,
+        task_id: str,
         name: Optional[str] = None,
         comment: Optional[str] = None,
         parent: Optional[str] = None,
@@ -175,6 +178,7 @@ class TaskBLL(object):
         configuration: Optional[dict] = None,
         execution_overrides: Optional[dict] = None,
         validate_references: bool = False,
+        new_project_name: str = None,
     ) -> Task:
         params_dict = {
             field: value
@@ -210,6 +214,16 @@ class TaskBLL(object):
                 for k, a in artifacts.items()
                 if a.get("mode") != ArtifactModes.output
             }
+
+        if not project and new_project_name:
+            # Use a project with the provided name, or create a new project
+            project = project_bll.find_or_create(
+                project_name=new_project_name,
+                user=user_id,
+                company=company_id,
+                description="Auto-generated while cloning",
+            )
+
         now = datetime.utcnow()
 
         with translate_errors_context():
@@ -675,7 +689,7 @@ class TaskBLL(object):
             )
 
         return {
-            "removed": QueueBLL().remove_task(
+            "removed": queue_bll.remove_task(
                 company_id=company_id, queue_id=task.execution.queue, task_id=task.id
             )
         }

@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from pymongo.database import Database
 
 
@@ -6,15 +9,27 @@ def _add_active_duration(db: Database):
     query = {active_duration: {"$eq": None}}
     collection = db["task"]
     for doc in collection.find(
-        filter=query, projection=[active_duration, "started", "last_update"]
+        filter=query, projection=[active_duration, "status", "started", "completed"]
     ):
         started = doc.get("started")
-        last_update = doc.get("last_update")
-        if started and last_update and doc.get(active_duration) is None:
+        completed = doc.get("completed")
+        running = doc.get("status") == "running"
+        if started and doc.get(active_duration) is None:
             collection.update_one(
                 {"_id": doc["_id"]},
-                {"$set": {active_duration: (last_update - started).total_seconds()}},
+                {"$set": {active_duration: _get_active_duration(completed, running, started)}},
             )
+
+
+def _get_active_duration(
+    completed: datetime, running: bool, started: datetime
+) -> Optional[float]:
+    if running:
+        return (datetime.utcnow() - started).total_seconds()
+    elif completed:
+        return (completed - started).total_seconds()
+    else:
+        return None
 
 
 def migrate_backend(db: Database):

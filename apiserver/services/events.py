@@ -630,7 +630,7 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
 
 @endpoint(
     "events.get_debug_image_sample",
-    min_version="2.11",
+    min_version="2.12",
     request_data_model=GetDebugImageSampleRequest,
 )
 def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest):
@@ -650,7 +650,7 @@ def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest
 
 @endpoint(
     "events.next_debug_image_sample",
-    min_version="2.11",
+    min_version="2.12",
     request_data_model=NextDebugImageSampleRequest,
 )
 def next_debug_image_sample(call, company_id, request: NextDebugImageSampleRequest):

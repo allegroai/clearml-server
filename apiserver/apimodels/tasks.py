@@ -115,6 +115,7 @@ class CloneRequest(TaskRequest):
     new_configuration = DictField()
     execution_overrides = DictField()
     validate_references = BoolField(default=False)
+    new_project_name = StringField()
 
 
 class AddOrUpdateArtifactsRequest(TaskRequest):
