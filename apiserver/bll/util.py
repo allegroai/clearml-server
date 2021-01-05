@@ -1,6 +1,10 @@
 import functools
+import itertools
+from concurrent.futures.thread import ThreadPoolExecutor
 from operator import itemgetter
-from typing import Sequence, Optional, Callable, Tuple, Dict, Any, Set
+from typing import Sequence, Optional, Callable, Tuple, Dict, Any, Set, Iterable
+
+from boltons import iterutils
 
 from apiserver.database.model import AttributedDocument
 from apiserver.database.model.settings import Settings
@@ -78,3 +82,36 @@ class SetFieldsResolver:
 @functools.lru_cache()
 def get_server_uuid() -> Optional[str]:
     return Settings.get_by_key("server.uuid")
+
+
+def parallel_chunked_decorator(func: Callable = None, chunk_size: int = 100):
+    """
+    Decorates a method for parallel chunked execution. The method should have
+    one positional parameter (that is used for breaking into chunks)
+    and arbitrary number of keyword params. The return value should be iterable
+    The results are concatenated in the same order as the passed params
+    """
+    if func is None:
+        return functools.partial(parallel_chunked_decorator, chunk_size=chunk_size)
+
+    @functools.wraps(func)
+    def wrapper(self, iterable: Iterable, **kwargs):
+        assert iterutils.is_collection(
+            iterable
+        ), "The positional parameter should be an iterable for breaking into chunks"
+
+        func_with_params = functools.partial(func, self, **kwargs)
+        with ThreadPoolExecutor() as pool:
+            return list(
+                itertools.chain.from_iterable(
+                    filter(
+                        None,
+                        pool.map(
+                            func_with_params,
+                            iterutils.chunked_iter(iterable, chunk_size),
+                        ),
+                    )
+                ),
+            )
+
+    return wrapper

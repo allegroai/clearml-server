@@ -6,6 +6,9 @@
       "plot_str": {
         "type": "text",
         "index": false
+      },
+      "plot_data": {
+        "type": "binary"
       }
     }
   }
