@@ -5,7 +5,7 @@ from typing import Type, Optional, Sequence, Any, Union
 import urllib3.exceptions
 from elasticsearch import Elasticsearch, exceptions
 
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.config import config
 from apiserver.elastic.apply_mappings import apply_mappings_to_cluster
 

@@ -5,7 +5,7 @@ from typing import Callable, Sequence, Optional, Tuple
 from elasticsearch import Elasticsearch
 
 from apiserver import database
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.queue.queue_metrics import QueueMetrics
 from apiserver.bll.workers import WorkerBLL

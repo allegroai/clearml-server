@@ -10,7 +10,7 @@ from typing import Sequence, Optional, Tuple
 
 from boltons.iterutils import first
 
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors.errors.bad_request import EventsNotAdded
 from apiserver.tests.automated import TestService
 

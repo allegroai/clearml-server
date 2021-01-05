@@ -5,7 +5,7 @@ from typing import Sequence, Set, Optional
 import attr
 import elasticsearch.helpers
 
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors import APIError
 from apiserver.apierrors.errors import bad_request, server_error
 from apiserver.apimodels.workers import (

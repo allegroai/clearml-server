@@ -5,7 +5,7 @@ from typing import Sequence
 import elasticsearch.helpers
 from elasticsearch import Elasticsearch
 
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors.errors import bad_request
 from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.config import config

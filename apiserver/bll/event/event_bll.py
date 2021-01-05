@@ -11,7 +11,7 @@ from mongoengine import Q
 from nested_dict import nested_dict
 
 from apiserver.database import utils as dbutils
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
 from apiserver.bll.event.event_metrics import EventMetrics, EventType

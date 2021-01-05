@@ -12,7 +12,7 @@ from mongoengine import Q
 from six import string_types
 
 import apiserver.database.utils as dbutils
-from apiserver import es_factory
+from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.apimodels.tasks import Artifact as ApiArtifact
 from apiserver.bll.organization import OrgBLL, Tags
