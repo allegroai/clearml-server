@@ -85,7 +85,7 @@ class DictField(fields.BaseField):
         if not values:
             return result
 
-        if not isinstance(values, dict):
+        if not self.value_types or not isinstance(values, dict):
             return values
 
         return {key: self._cast_value(value) for key, value in values.items()}
