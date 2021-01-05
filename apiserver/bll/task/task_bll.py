@@ -327,11 +327,14 @@ class TaskBLL(object):
 
     @staticmethod
     def set_last_update(
-        task_ids: Collection[str], company_id: str, last_update: datetime
+        task_ids: Collection[str], company_id: str, last_update: datetime, **extra_updates
     ):
-        return Task.objects(id__in=task_ids, company=company_id).update(
-            upsert=False, last_update=last_update
-        )
+        tasks = Task.objects(id__in=task_ids, company=company_id).only("status", "started")
+        for task in tasks:
+            updates = extra_updates
+            if task.status == TaskStatus.in_progress and task.started:
+                updates = {"active_duration": (datetime.utcnow() - task.started).total_seconds(), **extra_updates}
+            Task.objects(id=task.id, company=company_id).update(upsert=False, last_update=last_update, **updates)
 
     @staticmethod
     def update_statistics(
@@ -394,8 +397,8 @@ class TaskBLL(object):
             }
             extra_updates["metric_stats"] = metric_stats
 
-        Task.objects(id=task_id, company=company_id).update(
-            upsert=False, last_update=last_update, **extra_updates
+        TaskBLL.set_last_update(
+            task_ids=[task_id], company_id=company_id, last_update=last_update, **extra_updates
         )
 
     @classmethod

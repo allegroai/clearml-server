@@ -150,6 +150,7 @@ class Task(AttributedDocument):
             "created",
             "started",
             "completed",
+            "active_duration",
             "parent",
             "project",
             ("company", "name"),
@@ -203,6 +204,7 @@ class Task(AttributedDocument):
     started = DateTimeField()
     completed = DateTimeField()
     published = DateTimeField()
+    active_duration = IntField(default=0)
     parent = StringField()
     project = StringField(reference_field=Project, user_set_allowed=True)
     output: Output = EmbeddedDocumentField(Output, default=Output)
