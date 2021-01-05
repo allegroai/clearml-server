@@ -9,11 +9,8 @@ from six import string_types
 
 from apiserver import database
 from apiserver.config_repo import config
-from apiserver.timing_context import TimingContext, TimingStats
 from apiserver.utilities import json
 from apiserver.utilities.partial_version import PartialVersion
-from .auth import Identity
-from .auth import Payload as AuthPayload
 from .errors import CallParsingError
 from .schema_validator import SchemaValidator
 
@@ -311,6 +308,8 @@ class APICall(DataContainer):
     HEADER_FORWARDED_FOR = "X-Forwarded-For"
     """ Standard headers """
 
+    _call_result_cls = APICallResult
+
     _transaction_headers = _get_headers("Trx")
     """ Transaction ID """
 
@@ -376,7 +375,7 @@ class APICall(DataContainer):
         self._log_api = True
         if headers:
             self._headers.update(headers)
-        self._result = APICallResult()
+        self._result = self._call_result_cls()
         self._auth = None
         self._impersonation = None
         if trx:
@@ -471,8 +470,6 @@ class APICall(DataContainer):
 
     @auth.setter
     def auth(self, value):
-        if value:
-            assert isinstance(value, AuthPayload)
         self._auth = value
 
     @property
@@ -497,12 +494,10 @@ class APICall(DataContainer):
 
     @impersonation.setter
     def impersonation(self, value):
-        if value:
-            assert isinstance(value, AuthPayload)
         self._impersonation = value
 
     @property
-    def identity(self) -> Identity:
+    def identity(self):
         if self.impersonation:
             if not self.impersonation.identity:
                 raise Exception("Missing impersonate identity")
@@ -543,7 +538,10 @@ class APICall(DataContainer):
 
     @property
     def worker(self):
-        return self.get_header(self._worker_headers, "<unknown>")
+        return self.get_worker(default="<unknown>")
+
+    def get_worker(self, default=None):
+        return self.get_header(self._worker_headers, default)
 
     @property
     def authorization(self):
@@ -576,10 +574,16 @@ class APICall(DataContainer):
     def mark_end(self):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
-        self.stats = TimingStats.aggregate()
 
-    def get_response(self):
-        def make_version_number(version: PartialVersion):
+    def get_response(self, include_stack: bool = False) -> Tuple[Union[dict, str], str]:
+        """
+        Get the response for this call.
+        :param include_stack: If True, stack trace stored in this call's result should
+        be included in the response (default is False)
+        :return: Response data (encoded according to self.content_type) and the data's content type
+        """
+
+        def make_version_number(version: PartialVersion) -> Union[None, float, str]:
             """
             Client versions <=2.0 expect expect endpoint versions in float format, otherwise throwing an exception
             """
@@ -610,26 +614,25 @@ class APICall(DataContainer):
                     "result_code": self.result.code,
                     "result_subcode": self.result.subcode,
                     "result_msg": self.result.msg,
-                    "error_stack": self.result.traceback,
+                    "error_stack": self.result.traceback if include_stack else None,
                     "error_data": self.result.error_data,
                 },
                 "data": self.result.data,
             }
             if self.content_type.lower() == JSON_CONTENT_TYPE:
-                with TimingContext("json", "serialization"):
-                    try:
-                        res = json.dumps(res)
-                    except Exception as ex:
-                        # JSON serialization may fail, probably problem with data or error_data so pop it and try again
-                        if not (self.result.data or self.result.error_data):
-                            raise
-                        self.result.data = None
-                        self.result.error_data = None
-                        msg = "Error serializing response data: " + str(ex)
-                        self.set_error_result(
-                            code=500, subcode=0, msg=msg, include_stack=False
-                        )
-                        return self.get_response()
+                try:
+                    res = json.dumps(res)
+                except Exception as ex:
+                    # JSON serialization may fail, probably problem with data or error_data so pop it and try again
+                    if not (self.result.data or self.result.error_data):
+                        raise
+                    self.result.data = None
+                    self.result.error_data = None
+                    msg = "Error serializing response data: " + str(ex)
+                    self.set_error_result(
+                        code=500, subcode=0, msg=msg, include_stack=False
+                    )
+                    return self.get_response()
 
             return res, self.content_type
 
@@ -637,7 +640,7 @@ class APICall(DataContainer):
         self, msg, code=500, subcode=0, include_stack=False, error_data=None
     ):
         tb = format_exc() if include_stack else None
-        self._result = APICallResult(
+        self._result = self._call_result_cls(
             data=self._result.data,
             code=code,
             subcode=subcode,

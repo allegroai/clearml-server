@@ -282,6 +282,7 @@ class ServiceRepo(object):
         finally:
             content, content_type = call.get_response()
             call.mark_end()
+
             console_msg = f"Returned {call.result.code} for {call.endpoint_name} in {call.duration}ms"
             if call.result.code < 300:
                 log.info(console_msg)

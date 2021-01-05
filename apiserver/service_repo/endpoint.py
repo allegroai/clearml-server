@@ -4,7 +4,7 @@ from boltons.iterutils import remap
 from jsonmodels import models
 from jsonmodels.errors import FieldNotSupported
 
-from apiserver.schema import schema
+from apiserver.services_schema import schema
 from apiserver.utilities.partial_version import PartialVersion
 from .apicall import APICall
 from .schema_validator import SchemaValidator

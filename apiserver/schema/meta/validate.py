@@ -248,9 +248,9 @@ def remove_description(dct):
             pass
 
 
-def main():
+def main(here: str):
     args = parse_args()
-    meta = load_hocon(os.path.dirname(__file__) + "/meta.conf")
+    meta = load_hocon(here + "/meta.conf")
     validator_for(meta).check_schema(meta)
 
     driver = LazyDriver()
@@ -300,4 +300,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(here=os.path.dirname(__file__))

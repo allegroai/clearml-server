@@ -5,7 +5,7 @@ import json
 import re
 from operator import attrgetter
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Type
 
 import attr
 from boltons.dictutils import subdict
@@ -14,7 +14,6 @@ from pyhocon import ConfigFactory
 from apiserver.config_repo import config
 from apiserver.utilities.partial_version import PartialVersion
 
-HERE = Path(__file__)
 
 log = config.logger(__file__)
 
@@ -120,7 +119,7 @@ class EndpointVersionsGroup:
 
         self.endpoints = sorted(
             (
-                EndpointSchema(
+                SchemaReader.endpoint_schema_cls(
                     service_name=self.service_name,
                     action_name=self.action_name,
                     version=parse_version(version),
@@ -168,7 +167,7 @@ class Service:
         self.defaults = {**api_defaults, **conf.pop("_default", {})}
         self.definitions = conf.pop("_definitions", None)
         self.endpoint_groups: Mapping[str, EndpointVersionsGroup] = {
-            endpoint_name: EndpointVersionsGroup(
+            endpoint_name: SchemaReader.endpoint_versions_group_cls(
                 service_name=self.name,
                 action_name=endpoint_name,
                 conf=endpoint_conf,
@@ -179,10 +178,30 @@ class Service:
         }
 
 
+class Schema:
+    services: Mapping[str, Service]
+
+    def __init__(self, services: dict, api_defaults: dict):
+        """
+        Represents the entire API schema
+        :param services: services schema
+        :param api_defaults: default values of service configuration
+        """
+        self.api_defaults = api_defaults
+        self.services = {
+            name: SchemaReader.service_cls(name, conf, api_defaults=self.api_defaults)
+            for name, conf in services.items()
+        }
+
+
 @attr.s()
 class SchemaReader:
-    root: Path = attr.ib(default=HERE.parent / "schema/services", converter=Path)
-    cache_path: Path = attr.ib(default=None)
+    service_cls: Type[Service] = Service
+    endpoint_versions_group_cls: Type[EndpointVersionsGroup] = EndpointVersionsGroup
+    endpoint_schema_cls: Type[EndpointSchema] = EndpointSchema
+
+    root: Path = Path(__file__).parent / "services"
+    cache_path: Path = None
 
     def __attrs_post_init__(self):
         if not self.cache_path:
@@ -246,22 +265,3 @@ class SchemaReader:
             log.exception(f"failed cache file to {self.cache_path}")
 
         return Schema(services, api_defaults)
-
-
-class Schema:
-    services: Mapping[str, Service]
-
-    def __init__(self, services: dict, api_defaults: dict):
-        """
-        Represents the entire API schema
-        :param services: services schema
-        :param api_defaults: default values of service configuration
-        """
-        self.api_defaults = api_defaults
-        self.services = {
-            name: Service(name, conf, api_defaults=self.api_defaults)
-            for name, conf in services.items()
-        }
-
-
-schema = SchemaReader().get_schema()
