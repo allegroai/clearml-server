@@ -29,6 +29,7 @@ services:
     - "8008:8008"
     networks:
       - backend
+      - frontend
 
   elasticsearch:
     networks:
@@ -65,6 +66,7 @@ services:
   fileserver:
     networks:
       - backend
+      - frontend
     command:
     - fileserver
     container_name: clearml-fileserver
@@ -110,7 +112,11 @@ services:
       - apiserver
     ports:
     - "8080:80"
+    networks:
+      - frontend
 
 networks:
   backend:
     driver: bridge
+  frontend:
+    name: frontend
