@@ -63,11 +63,13 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
     restart: unless-stopped
     volumes:
-    - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - /usr/share/elasticsearch/logs
 
   fileserver:
     networks:
       - backend
+      - frontend
     command:
     - fileserver
     container_name: clearml-fileserver
@@ -117,32 +119,32 @@ services:
   agent-services:
     networks:
       - backend
-    container_name: trains-agent-services
-    image: allegroai/trains-agent-services:latest
+    container_name: clearml-agent-services
+    image: allegroai/clearml-agent-services:latest
     restart: unless-stopped
     privileged: true
     environment:
-      TRAINS_HOST_IP: ${TRAINS_HOST_IP}
-      TRAINS_WEB_HOST: ${TRAINS_WEB_HOST:-}
-      TRAINS_API_HOST: http://apiserver:8008
-      TRAINS_FILES_HOST: ${TRAINS_FILES_HOST:-}
-      TRAINS_API_ACCESS_KEY: ${TRAINS_API_ACCESS_KEY:-}
-      TRAINS_API_SECRET_KEY: ${TRAINS_API_SECRET_KEY:-}
-      TRAINS_AGENT_GIT_USER: ${TRAINS_AGENT_GIT_USER}
-      TRAINS_AGENT_GIT_PASS: ${TRAINS_AGENT_GIT_PASS}
-      TRAINS_AGENT_UPDATE_VERSION: ${TRAINS_AGENT_UPDATE_VERSION:->=0.15.0}
-      TRAINS_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
+      CLEARML_HOST_IP: ${CLEARML_HOST_IP}
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-}
+      CLEARML_API_HOST: http://apiserver:8008
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_API_ACCESS_KEY:-}
+      CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY:-}
+      CLEARML_AGENT_GIT_USER: ${CLEARML_AGENT_GIT_USER}
+      CLEARML_AGENT_GIT_PASS: ${CLEARML_AGENT_GIT_PASS}
+      CLEARML_AGENT_UPDATE_VERSION: ${CLEARML_AGENT_UPDATE_VERSION:->=0.17.0}
+      CLEARML_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-}
       AZURE_STORAGE_KEY: ${AZURE_STORAGE_KEY:-}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
-      TRAINS_WORKER_ID: "trains-services"
-      TRAINS_AGENT_DOCKER_HOST_MOUNT: "/opt/trains/agent:/root/.trains"
+      CLEARML_WORKER_ID: "clearml-services"
+      CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/clearml/agent:/root/.trains
+      - /opt/clearml/agent:/root/.clearml
     depends_on:
       - apiserver
 

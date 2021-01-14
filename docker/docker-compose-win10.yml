@@ -10,6 +10,7 @@ services:
     volumes:
     - c:/opt/clearml/logs:/var/log/trains
     - c:/opt/clearml/config:/opt/trains/config
+    - c:/opt/clearml/data/fileserver:/mnt/fileserver
     depends_on:
       - redis
       - mongo
@@ -23,8 +24,9 @@ services:
       TRAINS_REDIS_SERVICE_HOST: redis
       TRAINS_REDIS_SERVICE_PORT: 6379
       TRAINS_SERVER_DEPLOYMENT_TYPE: ${TRAINS_SERVER_DEPLOYMENT_TYPE:-win10}
-      TRAINS__apiserver__mongo__pre_populate__enabled: "true"
-      TRAINS__apiserver__mongo__pre_populate__zip_file: "/opt/clearml/db-pre-populate/export.zip"
+      TRAINS__apiserver__pre_populate__enabled: "true"
+      TRAINS__apiserver__pre_populate__zip_files: "/opt/trains/db-pre-populate"
+      TRAINS__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
     ports:
     - "8008:8008"
     networks:
@@ -61,7 +63,8 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
     restart: unless-stopped
     volumes:
-    - c:/opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - c:/opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - /usr/share/elasticsearch/logs
 
   fileserver:
     networks:
@@ -113,6 +116,7 @@ services:
     ports:
     - "8080:80"
     networks:
+      - backend
       - frontend
 
 networks:
@@ -120,3 +124,4 @@ networks:
     driver: bridge
   frontend:
     name: frontend
+    driver: bridge
