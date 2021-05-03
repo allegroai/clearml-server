@@ -175,21 +175,23 @@ class HyperParams:
 
     @classmethod
     def get_configuration_names(
-        cls, company_id: str, task_ids: Sequence[str]
+        cls, company_id: str, task_ids: Sequence[str], skip_empty: bool
     ) -> Dict[str, list]:
-        with TimingContext("mongo", "get_configuration_names"):
-            pipeline = [
-                {
-                    "$match": {
-                        "company": {"$in": [None, "", company_id]},
-                        "_id": {"$in": task_ids},
-                    }
-                },
-                {"$project": {"items": {"$objectToArray": "$configuration"}}},
-                {"$unwind": "$items"},
-                {"$group": {"_id": "$_id", "names": {"$addToSet": "$items.k"}}},
-            ]
+        skip_empty_condition = {"$match": {"items.v.value": {"$nin": [None, ""]}}}
+        pipeline = [
+            {
+                "$match": {
+                    "company": {"$in": [None, "", company_id]},
+                    "_id": {"$in": task_ids},
+                }
+            },
+            {"$project": {"items": {"$objectToArray": "$configuration"}}},
+            {"$unwind": "$items"},
+            *([skip_empty_condition] if skip_empty else []),
+            {"$group": {"_id": "$_id", "names": {"$addToSet": "$items.k"}}},
+        ]
 
+        with TimingContext("mongo", "get_configuration_names"):
             tasks = Task.aggregate(pipeline)
 
             return {

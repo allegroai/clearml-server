@@ -789,7 +789,7 @@ def get_configuration_names(
 ):
     with translate_errors_context():
         tasks_params = HyperParams.get_configuration_names(
-            company_id, task_ids=request.tasks
+            company_id, task_ids=request.tasks, skip_empty=request.skip_empty
         )
 
     call.result.data = {

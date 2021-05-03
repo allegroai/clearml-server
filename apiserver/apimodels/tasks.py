@@ -201,7 +201,7 @@ class GetConfigurationsRequest(MultiTaskRequest):
 
 
 class GetConfigurationNamesRequest(MultiTaskRequest):
-    pass
+    skip_empty = BoolField(default=True)
 
 
 class Configuration(models.Base):
