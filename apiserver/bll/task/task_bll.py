@@ -658,7 +658,7 @@ class TaskBLL:
             new_status=TaskStatus.created,
             status_reason=status_reason,
             status_message=status_message,
-        ).execute(unset__execution__queue=1)
+        ).execute()
 
     @classmethod
     def dequeue(cls, task: Task, company_id: str, silent_fail=False):
