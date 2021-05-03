@@ -966,7 +966,7 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
     if res.cleanup_res:
         cleanup_res = dict(
             deleted_models=res.cleanup_res.deleted_models,
-            urls=attr.asdict(res.cleanup_res.urls),
+            urls=attr.asdict(res.cleanup_res.urls) if res.cleanup_res.urls else {},
         )
     else:
         cleanup_res = {}
