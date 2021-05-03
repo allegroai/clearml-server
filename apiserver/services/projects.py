@@ -1,9 +1,5 @@
-from collections import defaultdict
 from datetime import datetime
-from itertools import groupby
-from operator import itemgetter
 
-import dpath
 from mongoengine import Q
 
 from apiserver.apierrors import errors
@@ -15,6 +11,7 @@ from apiserver.apimodels.projects import (
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
+    ProjectsGetRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -23,10 +20,9 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, TaskStatus
+from apiserver.database.model.task.task import Task
 from apiserver.database.utils import (
     parse_from_call,
-    get_options,
     get_company_or_none_constraint,
 )
 from apiserver.service_repo import APICall, endpoint
@@ -40,7 +36,7 @@ from apiserver.timing_context import TimingContext
 
 org_bll = OrgBLL()
 task_bll = TaskBLL()
-archived_tasks_cond = {"$in": [EntityVisibility.archived.value, "$system_tags"]}
+project_bll = ProjectBLL()
 
 create_fields = {
     "name": None,
@@ -75,199 +71,46 @@ def get_by_id(call):
         call.result.data = {"project": project_dict}
 
 
-def make_projects_get_all_pipelines(company_id, project_ids, specific_state=None):
-    archived = EntityVisibility.archived.value
-
-    def ensure_valid_fields():
-        """
-        Make sure system tags is always an array (required by subsequent $in in archived_tasks_cond
-        """
-        return {
-            "$addFields": {
-                "system_tags": {
-                    "$cond": {
-                        "if": {"$ne": [{"$type": "$system_tags"}, "array"]},
-                        "then": [],
-                        "else": "$system_tags",
-                    }
-                },
-                "status": {"$ifNull": ["$status", "unknown"]},
-            }
-        }
-
-    status_count_pipeline = [
-        # count tasks per project per status
-        {
-            "$match": {
-                "company": {"$in": [None, "", company_id]},
-                "project": {"$in": project_ids},
-            }
-        },
-        ensure_valid_fields(),
-        {
-            "$group": {
-                "_id": {
-                    "project": "$project",
-                    "status": "$status",
-                    archived: archived_tasks_cond,
-                },
-                "count": {"$sum": 1},
-            }
-        },
-        # for each project, create a list of (status, count, archived)
-        {
-            "$group": {
-                "_id": "$_id.project",
-                "counts": {
-                    "$push": {
-                        "status": "$_id.status",
-                        "count": "$count",
-                        archived: "$_id.%s" % archived,
-                    }
-                },
-            }
-        },
-    ]
-
-    def runtime_subquery(additional_cond):
-        return {
-            # the sum of
-            "$sum": {
-                # for each task
-                "$cond": {
-                    # if completed and started and completed > started
-                    "if": {
-                        "$and": [
-                            "$started",
-                            "$completed",
-                            {"$gt": ["$completed", "$started"]},
-                            additional_cond,
-                        ]
-                    },
-                    # then: floor((completed - started) / 1000)
-                    "then": {
-                        "$floor": {
-                            "$divide": [
-                                {"$subtract": ["$completed", "$started"]},
-                                1000.0,
-                            ]
-                        }
-                    },
-                    "else": 0,
-                }
-            }
-        }
-
-    group_step = {"_id": "$project"}
-
-    for state in EntityVisibility:
-        if specific_state and state != specific_state:
-            continue
-        if state == EntityVisibility.active:
-            group_step[state.value] = runtime_subquery({"$not": archived_tasks_cond})
-        elif state == EntityVisibility.archived:
-            group_step[state.value] = runtime_subquery(archived_tasks_cond)
-
-    runtime_pipeline = [
-        # only count run time for these types of tasks
-        {
-            "$match": {
-                "type": {"$in": ["training", "testing"]},
-                "company": {"$in": [None, "", company_id]},
-                "project": {"$in": project_ids},
-            }
-        },
-        ensure_valid_fields(),
-        {
-            # for each project
-            "$group": group_step
-        },
-    ]
-
-    return status_count_pipeline, runtime_pipeline
-
-
-@endpoint("projects.get_all_ex")
-def get_all_ex(call: APICall):
-    include_stats = call.data.get("include_stats")
-    stats_for_state = call.data.get("stats_for_state", EntityVisibility.active.value)
-    allow_public = not call.data.get("non_public", False)
-
-    if stats_for_state:
-        try:
-            specific_state = EntityVisibility(stats_for_state)
-        except ValueError:
-            raise errors.bad_request.FieldsValueError(stats_for_state=stats_for_state)
-    else:
-        specific_state = None
-
+@endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
+def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_tag_fields(call, call.data)
-    with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
+    allow_public = not request.non_public
+    with TimingContext("mongo", "projects_get_all"):
+        if request.active_users:
+            ids = project_bll.get_projects_with_active_user(
+                company=company_id,
+                users=request.active_users,
+                project_ids=call.data.get("id"),
+                allow_public=allow_public,
+            )
+            if not ids:
+                call.result.data = {"projects": []}
+                return
+            call.data["id"] = ids
+
         projects = Project.get_many_with_join(
-            company=call.identity.company,
+            company=company_id,
             query_dict=call.data,
             query_options=get_all_query_options,
             allow_public=allow_public,
         )
-        conform_output_tags(call, projects)
 
-        if not include_stats:
+        conform_output_tags(call, projects)
+        if not request.include_stats:
             call.result.data = {"projects": projects}
             return
 
-        ids = [project["id"] for project in projects]
-        status_count_pipeline, runtime_pipeline = make_projects_get_all_pipelines(
-            call.identity.company, ids, specific_state=specific_state
+        project_ids = {project["id"] for project in projects}
+        stats = project_bll.get_project_stats(
+            company=company_id,
+            project_ids=list(project_ids),
+            specific_state=request.stats_for_state,
         )
 
-        default_counts = dict.fromkeys(get_options(TaskStatus), 0)
+        for project in projects:
+            project["stats"] = stats[project["id"]]
 
-        def set_default_count(entry):
-            return dict(default_counts, **entry)
-
-        status_count = defaultdict(lambda: {})
-        key = itemgetter(EntityVisibility.archived.value)
-        for result in Task.aggregate(status_count_pipeline):
-            for k, group in groupby(sorted(result["counts"], key=key), key):
-                section = (
-                    EntityVisibility.archived if k else EntityVisibility.active
-                ).value
-                status_count[result["_id"]][section] = set_default_count(
-                    {
-                        count_entry["status"]: count_entry["count"]
-                        for count_entry in group
-                    }
-                )
-
-        runtime = {
-            result["_id"]: {k: v for k, v in result.items() if k != "_id"}
-            for result in Task.aggregate(runtime_pipeline)
-        }
-
-    def safe_get(obj, path, default=None):
-        try:
-            return dpath.get(obj, path)
-        except KeyError:
-            return default
-
-    def get_status_counts(project_id, section):
-        path = "/".join((project_id, section))
-        return {
-            "total_runtime": safe_get(runtime, path, 0),
-            "status_count": safe_get(status_count, path, default_counts),
-        }
-
-    report_for_states = [
-        s for s in EntityVisibility if not specific_state or specific_state == s
-    ]
-
-    for project in projects:
-        project["stats"] = {
-            task_state.value: get_status_counts(project["id"], task_state.value)
-            for task_state in report_for_states
-        }
-
-    call.result.data = {"projects": projects}
+        call.result.data = {"projects": projects}
 
 
 @endpoint("projects.get_all")

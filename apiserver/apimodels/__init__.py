@@ -218,7 +218,7 @@ class ActualEnumField(fields.StringField):
         )
 
     def parse_value(self, value):
-        if value is None and not self.required:
+        if value is NotSet and not self.required:
             return self.get_default_value()
         try:
             # noinspection PyArgumentList

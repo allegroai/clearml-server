@@ -638,6 +638,35 @@ class GetMixin(PropsMixin):
         return qs
 
     @classmethod
+    def _get_queries_for_order_field(
+        cls, query: Q, order_field: str
+    ) -> Union[None, Tuple[Q, Q]]:
+        """
+        In case the order_field is one of the cls fields and the sorting is ascending
+        then return the tuple of 2 queries:
+        1. original query with not empty constraint on the order_by field
+        2. original query with empty constraint on the order_by field
+        """
+        if not order_field or order_field.startswith("-") or "[" in order_field:
+            return
+
+        mongo_field_name = order_field.replace(".", "__")
+        mongo_field = first(
+            v for k, v in cls.get_all_fields_with_instance() if k == mongo_field_name
+        )
+        if not mongo_field:
+            return
+
+        params = {}
+        if isinstance(mongo_field, ListField):
+            params["is_list"] = True
+        elif isinstance(mongo_field, StringField):
+            params["empty_value"] = ""
+        non_empty = query & field_exists(mongo_field_name, **params)
+        empty = query & field_does_not_exist(mongo_field_name, **params)
+        return non_empty, empty
+
+    @classmethod
     def _get_many_override_none_ordering(
         cls: Union[Document, "GetMixin"],
         query: Q = None,
@@ -675,21 +704,9 @@ class GetMixin(PropsMixin):
             order_field = first(
                 field for field in order_by if not field.startswith("$")
             )
-            if (
-                order_field
-                and not order_field.startswith("-")
-                and "[" not in order_field
-            ):
-                params = {}
-                mongo_field = order_field.replace(".", "__")
-                if mongo_field in cls.get_field_names_for_type(of_type=ListField):
-                    params["is_list"] = True
-                elif mongo_field in cls.get_field_names_for_type(of_type=StringField):
-                    params["empty_value"] = ""
-                non_empty = query & field_exists(mongo_field, **params)
-                empty = query & field_does_not_exist(mongo_field, **params)
-                query_sets = [cls.objects(non_empty), cls.objects(empty)]
-
+            res = cls._get_queries_for_order_field(query, order_field)
+            if res:
+                query_sets = [cls.objects(q) for q in res]
             query_sets = [qs.order_by(*order_by) for qs in query_sets]
             if order_field:
                 collation_override = first(

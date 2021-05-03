@@ -30,3 +30,10 @@ class ProjectHyperparamValuesRequest(MultiProjectReq):
     section = fields.StringField(required=True)
     name = fields.StringField(required=True)
     allow_public = fields.BoolField(default=True)
+
+
+class ProjectsGetRequest(models.Base):
+    include_stats = fields.BoolField(default=False)
+    stats_for_state = ActualEnumField(EntityVisibility, default=EntityVisibility.active)
+    non_public = fields.BoolField(default=False)
+    active_users = fields.ListField(str)

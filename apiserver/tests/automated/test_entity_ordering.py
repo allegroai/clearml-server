@@ -28,7 +28,9 @@ class TestEntityOrdering(TestService):
         self._assertGetTasksWithOrdering(order_by="comment")
 
         # sort by parameter which type is not part of db schema
-        self._assertGetTasksWithOrdering(order_by="execution.parameters.test")
+        self._assertGetTasksWithOrdering(
+            order_by="execution.parameters.test", valid_order=False
+        )
 
     def test_order_with_paging(self):
         order_field = "started"
@@ -97,7 +99,9 @@ class TestEntityOrdering(TestService):
 
         return val
 
-    def _assertGetTasksWithOrdering(self, order_by: str = None, **kwargs):
+    def _assertGetTasksWithOrdering(
+        self, order_by: str = None, valid_order=True, **kwargs
+    ):
         tasks = self.api.tasks.get_all_ex(
             only_fields=self.only_fields,
             order_by=[order_by] if isinstance(order_by, str) else order_by,
@@ -105,14 +109,16 @@ class TestEntityOrdering(TestService):
             **kwargs,
         ).tasks
         self.assertLessEqual(set(self.task_ids), set(t.id for t in tasks))
-        if order_by:
+        if order_by and valid_order:
             # test that the output is correctly ordered
             field_name = order_by if not order_by.startswith("-") else order_by[1:]
-            field_vals = [self._get_value_for_path(t, field_name.split(".")) for t in tasks]
+            field_vals = [
+                self._get_value_for_path(t, field_name.split(".")) for t in tasks
+            ]
             self._assertSorted(
                 field_vals,
                 ascending=not order_by.startswith("-"),
-                is_numeric=field_name.startswith("execution.parameters.")
+                is_numeric=field_name.startswith("execution.parameters."),
             )
 
     def _create_tasks(self):
