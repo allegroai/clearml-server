@@ -221,8 +221,8 @@ class GetMixin(PropsMixin):
         if isinstance(value, str):
             return convert_str(value)
 
-        if isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value):
-            return [convert_str(v) for v in value]
+        if isinstance(value, (list, tuple)):
+            return [convert_str(v) if isinstance(v, str) else v for v in value]
 
         return value
 
