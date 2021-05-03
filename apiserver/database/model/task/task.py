@@ -163,7 +163,6 @@ class Task(AttributedDocument):
         "execution.parameters.": _numeric_locale,
         "last_metrics.": _numeric_locale,
         "hyperparams.": _numeric_locale,
-        "configuration.": _numeric_locale,
     }
 
     meta = {
@@ -184,6 +183,7 @@ class Task(AttributedDocument):
             ("company", "type", "system_tags", "status"),
             ("company", "project", "type", "system_tags", "status"),
             ("status", "last_update"),  # for maintenance tasks
+            {"fields": ["company", "project"], "collation": _numeric_locale},
             {
                 "name": "%s.task.main_text_index" % Database.backend,
                 "fields": [
