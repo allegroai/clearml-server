@@ -1,5 +1,6 @@
 from datetime import datetime
 from os import getenv
+from typing import Tuple
 
 from boltons.iterutils import first
 from elasticsearch import Elasticsearch, Transport
@@ -76,6 +77,10 @@ class ESFactory:
         return list(config.get("hosts.elastic"))
 
     @classmethod
+    def get_override(cls, cluster_name: str) -> Tuple[str, str]:
+        return OVERRIDE_HOST, OVERRIDE_PORT
+
+    @classmethod
     def get_cluster_config(cls, cluster_name):
         """
         Returns cluster config for the specified cluster path
@@ -89,14 +94,16 @@ class ESFactory:
             raise MissingClusterConfiguration(cluster_name)
 
         def set_host_prop(key, value):
-            for host in cluster_config.get("hosts", []):
-                host[key] = value
+            for entry in cluster_config.get("hosts", []):
+                entry[key] = value
 
-        if OVERRIDE_HOST:
-            set_host_prop("host", OVERRIDE_HOST)
+        host, port = cls.get_override(cluster_name)
 
-        if OVERRIDE_PORT:
-            set_host_prop("port", OVERRIDE_PORT)
+        if host:
+            set_host_prop("host", host)
+
+        if port:
+            set_host_prop("port", port)
 
         return cluster_config
 
