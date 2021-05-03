@@ -97,6 +97,22 @@ def _migrate_model_labels(db: Database):
             tasks.update_one({"_id": doc["_id"]}, {"$set": set_commands})
 
 
+def _migrate_project_description(db: Database):
+    projects: Collection = db["project"]
+    filter = {
+        "$or": [
+            {
+                "$expr": {"$lt": [{"$strLenCP": "$description"}, 100]},
+                "description": {"$regex": "^Auto-generated at ", "$options": "i"},
+            },
+            {"description": {"$regex": "^Auto-generated during move$", "$options": "i"}},
+            {"description": {"$regex": "^Auto-generated while cloning$", "$options": "i"}},
+        ]
+    }
+    for doc in projects.find(filter=filter):
+        projects.update_one({"_id": doc["_id"]}, {"$unset": {"description": 1}})
+
+
 def _migrate_project_names(db: Database):
     projects: Collection = db["project"]
 
@@ -111,20 +127,13 @@ def _migrate_project_names(db: Database):
         for iteration in range(max_tries):
             new_name = name.replace("/", "_" * (iteration + 1))
             try:
-                projects.update_one(
-                    {"_id": doc["_id"]},
-                    {
-                        "$set": {"name": new_name}
-                    }
-                )
+                projects.update_one({"_id": doc["_id"]}, {"$set": {"name": new_name}})
                 break
             except DuplicateKeyError:
                 pass
 
         if iteration >= max_tries - 1:
-            print(
-                f"Could not upgrade the name {name} of the project {doc.get('_id')}"
-            )
+            print(f"Could not upgrade the name {name} of the project {doc.get('_id')}")
 
 
 def migrate_backend(db: Database):
@@ -132,4 +141,5 @@ def migrate_backend(db: Database):
     _migrate_docker_cmd(db)
     _migrate_model_labels(db)
     _migrate_project_names(db)
+    _migrate_project_description(db)
     _drop_all_indices_from_collections(db, ["task*"])
