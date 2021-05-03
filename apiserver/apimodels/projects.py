@@ -18,7 +18,15 @@ class ProjectTagsRequest(TagsRequest):
     projects = ListField(str)
 
 
-class ProjectTaskParentsRequest(ProjectReq):
-    projects = ListField(str)
+class MultiProjectReq(models.Base):
+    projects = fields.ListField(str)
+
+
+class ProjectTaskParentsRequest(MultiProjectReq):
     tasks_state = ActualEnumField(EntityVisibility)
 
+
+class ProjectHyperparamValuesRequest(MultiProjectReq):
+    section = fields.StringField(required=True)
+    name = fields.StringField(required=True)
+    allow_public = fields.BoolField(default=True)

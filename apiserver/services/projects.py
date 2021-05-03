@@ -14,6 +14,7 @@ from apiserver.apimodels.projects import (
     ProjectReq,
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
+    ProjectHyperparamValuesRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -394,6 +395,27 @@ def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamR
         "total": total,
         "remaining": remaining,
         "parameters": parameters,
+    }
+
+
+@endpoint(
+    "projects.get_hyperparam_values",
+    min_version="2.13",
+    request_data_model=ProjectHyperparamValuesRequest,
+)
+def get_hyperparam_values(
+    call: APICall, company_id: str, request: ProjectHyperparamValuesRequest
+):
+    total, values = task_bll.get_hyperparam_distinct_values(
+        company_id,
+        project_ids=request.projects,
+        section=request.section,
+        name=request.name,
+        allow_public=request.allow_public,
+    )
+    call.result.data = {
+        "total": total,
+        "values": values,
     }
 
 
