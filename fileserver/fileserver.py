@@ -4,7 +4,7 @@ import os
 from argparse import ArgumentParser
 from pathlib import Path
 
-from flask import Flask, request, send_from_directory, safe_join
+from flask import Flask, request, send_from_directory, safe_join, abort, Response
 from flask_compress import Compress
 from flask_cors import CORS
 
@@ -16,8 +16,12 @@ app = Flask(__name__)
 CORS(app, **config.get("fileserver.cors"))
 Compress(app)
 
-app.config["UPLOAD_FOLDER"] = os.environ.get("TRAINS_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get("fileserver.download.cache_timeout_sec", 5 * 60)
+app.config["UPLOAD_FOLDER"] = (
+    os.environ.get("TRAINS_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
+)
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
+    "fileserver.download.cache_timeout_sec", 5 * 60
+)
 
 
 @app.route("/", methods=["POST"])
@@ -37,7 +41,9 @@ def upload():
 @app.route("/<path:path>", methods=["GET"])
 def download(path):
     as_attachment = "download" in request.args
-    response = send_from_directory(app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment)
+    response = send_from_directory(
+        app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment
+    )
     if config.get("fileserver.download.disable_browser_caching", False):
         headers = response.headers
         headers["Pragma-directive"] = "no-cache"
@@ -50,15 +56,13 @@ def download(path):
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    full_path = Path(safe_join(app.config["UPLOAD_FOLDER"], path))
-    if os.path.exists(full_path):
-        try:
-            os.remove(full_path)
-            return json.dumps(str(path)), 200
-        except OSError as ex:
-            return json.dumps("Error while deleting file {}:\n{}".format(path, ex)), 500
-    else:
-        return json.dumps("File {} not found".format(path)), 404
+    path = Path(safe_join(app.config["UPLOAD_FOLDER"], path))
+
+    if not (path.exists() and path.is_file()):
+        abort(Response(f"File {str(path)} not found", 404))
+
+    path.unlink()
+    return json.dumps(str(path)), 200
 
 
 def main():
