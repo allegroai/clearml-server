@@ -149,18 +149,16 @@ class ModelsBackwardsCompatibility:
 
         for mode, field in cls.mode_to_fields.items():
             value = nested_get(fields, field)
-            if value:
-                nested_set(
-                    fields,
-                    (cls.models_field, mode),
-                    value=[
-                        dict(
-                            name=TaskModelNames[mode],
-                            model=value,
-                            updated=datetime.utcnow(),
-                        )
-                    ],
+            if value is None:
+                continue
+            val = [
+                dict(
+                    name=TaskModelNames[mode],
+                    model=value,
+                    updated=datetime.utcnow(),
                 )
+            ] if value else []
+            nested_set(fields, (cls.models_field, mode), value=val)
 
             nested_delete(fields, field)
 
@@ -195,7 +193,7 @@ class DockerCmdBackwardsCompatibility:
             return
 
         docker_cmd = nested_get(fields, cls.field)
-        if docker_cmd:
+        if docker_cmd is not None:
             image, _, arguments = docker_cmd.partition(" ")
             nested_set(fields, ("container", "image"), value=image)
             nested_set(fields, ("container", "arguments"), value=arguments)

@@ -185,6 +185,7 @@ def escape_paths(paths: Sequence[str]) -> Sequence[str]:
     for old_prefix, new_prefix in (
         ("execution.parameters", f"hyperparams.{hyperparams_default_section}"),
         ("execution.model_desc", f"configuration"),
+        ("execution.docker_cmd", "container")
     ):
         path: str
         paths = [path.replace(old_prefix, new_prefix) for path in paths]
