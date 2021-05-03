@@ -695,14 +695,13 @@ class GetMixin(PropsMixin):
         mongo_field = first(
             v for k, v in cls.get_all_fields_with_instance() if k == mongo_field_name
         )
-        if not mongo_field:
-            return
 
-        params = {}
         if isinstance(mongo_field, ListField):
-            params["is_list"] = True
+            params = {"is_list": True}
         elif isinstance(mongo_field, StringField):
-            params["empty_value"] = ""
+            params = {"empty_value": ""}
+        else:
+            params = {}
         non_empty = query & field_exists(mongo_field_name, **params)
         empty = query & field_does_not_exist(mongo_field_name, **params)
         return non_empty, empty
