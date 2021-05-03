@@ -249,7 +249,7 @@ class TaskBLL:
                 project_name=new_project_name,
                 user=user_id,
                 company=company_id,
-                description="Auto-generated while cloning",
+                description="",
             )
             new_project_data = {"id": project, "name": new_project_name}
 
