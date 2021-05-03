@@ -44,7 +44,13 @@ from apiserver.config.info import get_default_company
 from apiserver.database.model import EntityVisibility, User
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, ArtifactModes, TaskStatus
+from apiserver.database.model.task.task import (
+    Task,
+    ArtifactModes,
+    TaskStatus,
+    TaskModelTypes,
+    TaskModelNames,
+)
 from apiserver.database.utils import get_options
 from apiserver.utilities import json
 from apiserver.utilities.dicts import nested_get, nested_set, nested_delete
@@ -778,19 +784,20 @@ class PrePopulate:
         models = task_data.get("models", {})
         now = datetime.utcnow()
         for old_field, type_ in (
-            ("execution.model", "input"),
-            ("output.model", "output"),
+            ("execution.model", TaskModelTypes.input),
+            ("output.model", TaskModelTypes.output),
         ):
             old_path = old_field.split(".")
             old_model = nested_get(task_data, old_path)
             new_models = models.get(type_, [])
+            name = TaskModelNames[type_]
             if old_model and not any(
                 m
                 for m in new_models
-                if m.get("model") == old_model or m.get("name") == type_
+                if m.get("model") == old_model or m.get("name") == name
             ):
-                model_item = {"model": old_model, "name": type_, "updated": now}
-                if type_ == "input":
+                model_item = {"model": old_model, "name": name, "updated": now}
+                if type_ == TaskModelTypes.input:
                     new_models = [model_item, *new_models]
                 else:
                     new_models = [*new_models, model_item]

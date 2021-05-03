@@ -5,6 +5,7 @@ from apiserver.apierrors import errors
 from apiserver.apimodels.metadata import MetadataItem as ApiMetadataItem
 from apiserver.apimodels.organization import Filter
 from apiserver.database.model.base import GetMixin
+from apiserver.database.model.task.task import TaskModelTypes, TaskModelNames
 from apiserver.database.utils import partition_tags
 from apiserver.service_repo import APICall
 from apiserver.utilities.dicts import nested_set, nested_get, nested_delete
@@ -135,7 +136,10 @@ def unescape_dict_field(fields: dict, path: Union[str, Sequence[str]]):
 
 class ModelsBackwardsCompatibility:
     max_version = PartialVersion("2.13")
-    mode_to_fields = {"input": ("execution", "model"), "output": ("output", "model")}
+    mode_to_fields = {
+        TaskModelTypes.input: ("execution", "model"),
+        TaskModelTypes.output: ("output", "model"),
+    }
     models_field = "models"
 
     @classmethod
@@ -149,7 +153,13 @@ class ModelsBackwardsCompatibility:
                 nested_set(
                     fields,
                     (cls.models_field, mode),
-                    value=[dict(name=mode, model=value, updated=datetime.utcnow())],
+                    value=[
+                        dict(
+                            name=TaskModelNames[mode],
+                            model=value,
+                            updated=datetime.utcnow(),
+                        )
+                    ],
                 )
 
             nested_delete(fields, field)
@@ -170,7 +180,7 @@ class ModelsBackwardsCompatibility:
                 if not models:
                     continue
 
-                model = models[0] if mode == "input" else models[-1]
+                model = models[0] if mode == TaskModelTypes.input else models[-1]
                 if model:
                     nested_set(task, field, model.get("model"))
 

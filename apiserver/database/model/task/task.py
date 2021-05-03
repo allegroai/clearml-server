@@ -106,6 +106,17 @@ class ConfigurationItem(EmbeddedDocument, ProperDictMixin):
     description = StringField()
 
 
+class TaskModelTypes:
+    input = "input"
+    output = "output"
+
+
+TaskModelNames = {
+    TaskModelTypes.input: "Input Model",
+    TaskModelTypes.output: "Output Model",
+}
+
+
 class ModelItem(EmbeddedDocument, ProperDictMixin):
     name = StringField(required=True)
     model = StringField(required=True, reference_field="Model")

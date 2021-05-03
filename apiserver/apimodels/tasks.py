@@ -12,6 +12,7 @@ from apiserver.database.model.task.task import (
     TaskType,
     ArtifactModes,
     DEFAULT_ARTIFACT_MODE,
+    TaskModelTypes,
 )
 from apiserver.database.utils import get_options
 
@@ -279,21 +280,16 @@ class PublishManyRequest(TaskBatchRequest):
     force = BoolField(default=False)
 
 
-class ModelItemType(object):
-    input = "input"
-    output = "output"
-
-
 class AddUpdateModelRequest(TaskRequest):
     name = StringField(required=True)
     model = StringField(required=True)
-    type = StringField(required=True, validators=Enum(*get_options(ModelItemType)))
+    type = StringField(required=True, validators=Enum(*get_options(TaskModelTypes)))
     iteration = IntField()
 
 
 class ModelItemKey(models.Base):
     name = StringField(required=True)
-    type = StringField(required=True, validators=Enum(*get_options(ModelItemType)))
+    type = StringField(required=True, validators=Enum(*get_options(TaskModelTypes)))
 
 
 class DeleteModelsRequest(TaskRequest):

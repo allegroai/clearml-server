@@ -29,6 +29,8 @@ from apiserver.database.model.task.task import (
     ModelItem,
     Models,
     DEFAULT_ARTIFACT_MODE,
+    TaskModelNames,
+    TaskModelTypes,
 )
 from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
@@ -196,13 +198,21 @@ class TaskBLL:
 
         now = datetime.utcnow()
         if input_models:
-            input_models = [ModelItem(model=m.model, name=m.name) for m in input_models]
+            input_models = [
+                ModelItem(model=m.model, name=m.name, updated=now) for m in input_models
+            ]
 
         execution_dict = task.execution.to_proper_dict() if task.execution else {}
         if execution_overrides:
             execution_model = execution_overrides.pop("model", None)
             if not input_models and execution_model:
-                input_models = [ModelItem(model=execution_model, name="input")]
+                input_models = [
+                    ModelItem(
+                        model=execution_model,
+                        name=TaskModelNames[TaskModelTypes.input],
+                        updated=now,
+                    )
+                ]
 
             docker_cmd = execution_overrides.pop("docker_cmd", None)
             if not container and docker_cmd:

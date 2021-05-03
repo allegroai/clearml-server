@@ -38,7 +38,13 @@ from apiserver.database.model import validate_id
 from apiserver.database.model.metadata import metadata_add_or_update, metadata_delete
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, TaskStatus, ModelItem
+from apiserver.database.model.task.task import (
+    Task,
+    TaskStatus,
+    ModelItem,
+    TaskModelNames,
+    TaskModelTypes,
+)
 from apiserver.database.utils import (
     parse_from_call,
     get_company_or_none_constraint,
@@ -287,7 +293,11 @@ def update_for_task(call: APICall, company_id, _):
             company_id=company_id,
             last_iteration_max=iteration,
             models__output=[
-                ModelItem(model=model.id, name=model.name, updated=datetime.utcnow())
+                ModelItem(
+                    model=model.id,
+                    name=TaskModelNames[TaskModelTypes.output],
+                    updated=datetime.utcnow(),
+                )
             ],
         )
 

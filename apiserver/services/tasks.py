@@ -47,7 +47,6 @@ from apiserver.apimodels.tasks import (
     ArchiveRequest,
     AddUpdateModelRequest,
     DeleteModelsRequest,
-    ModelItemType,
     StopManyResponse,
     StopManyRequest,
     EnqueueManyRequest,
@@ -98,6 +97,7 @@ from apiserver.database.model.task.task import (
     TaskStatus,
     Script,
     ModelItem,
+    TaskModelTypes,
 )
 from apiserver.database.utils import get_fields_attr, parse_from_call, get_options
 from apiserver.service_repo import APICall, endpoint
@@ -458,7 +458,7 @@ def prepare_create_fields(
     models = fields.get("models")
     if models:
         now = datetime.utcnow()
-        for field in ("input", "output"):
+        for field in (TaskModelTypes.input, TaskModelTypes.output):
             field_models = models.get(field)
             if not field_models:
                 continue
@@ -1242,7 +1242,7 @@ def delete_models(_: APICall, company_id: str, request: DeleteModelsRequest):
 
     delete_names = {
         type_: [m.name for m in request.models if m.type == type_]
-        for type_ in get_options(ModelItemType)
+        for type_ in get_options(TaskModelTypes)
     }
     commands = {
         f"pull__models__{field}__name__in": names
