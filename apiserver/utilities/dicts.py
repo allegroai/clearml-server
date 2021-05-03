@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple, Any, Union, Callable, Optional
+from typing import Sequence, Tuple, Any, Union, Callable, Optional, Mapping
 
 
 def flatten_nested_items(
@@ -36,7 +36,7 @@ def deep_merge(source: dict, override: dict) -> dict:
 
 
 def nested_get(
-    dictionary: dict,
+    dictionary: Mapping,
     path: Union[Sequence[str], str],
     default: Optional[Union[Any, Callable]] = None,
 ) -> Any:
