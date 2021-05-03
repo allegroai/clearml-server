@@ -5,8 +5,7 @@ from pymongo.database import Database, Collection
 
 def migrate_auth(db: Database):
     collection: Collection = db["user"]
-    if "name_1_company_1" in [doc["name"] for doc in collection.list_indexes()]:
-        collection.drop_index("name_1_company_1")
+    collection.drop_indexes()
 
 
 def migrate_backend(db: Database):

@@ -31,8 +31,8 @@ def migrate_auth(db: Database):
     if not uuids:
         return
 
-    collection = db["user"]
-    collection.drop_index("name_1_company_1")
+    collection: Collection = db["user"]
+    collection.drop_indexes()
 
     _switch_uuid(collection=collection, uuid_field="_id", uuids=uuids)
 
