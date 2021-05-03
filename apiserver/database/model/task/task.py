@@ -79,7 +79,9 @@ DEFAULT_ARTIFACT_MODE = ArtifactModes.output
 class Artifact(EmbeddedDocument):
     key = StringField(required=True)
     type = StringField(required=True)
-    mode = StringField(choices=get_options(ArtifactModes), default=DEFAULT_ARTIFACT_MODE)
+    mode = StringField(
+        choices=get_options(ArtifactModes), default=DEFAULT_ARTIFACT_MODE
+    )
     uri = StringField()
     hash = StringField()
     content_size = LongField()
@@ -185,8 +187,18 @@ class Task(AttributedDocument):
         ],
     }
     get_all_query_options = GetMixin.QueryParameterOptions(
-        list_fields=("id", "user", "tags", "system_tags", "type", "status", "project", "parent"),
-        datetime_fields=("status_changed",),
+        list_fields=(
+            "id",
+            "user",
+            "tags",
+            "system_tags",
+            "type",
+            "status",
+            "project",
+            "parent",
+        ),
+        range_fields=("started", "active_duration", "last_metrics.*"),
+        datetime_fields=("status_changed", "last_update"),
         pattern_fields=("name", "comment"),
     )
 

@@ -4,7 +4,7 @@ from logging import Logger
 from pathlib import Path
 
 from mongoengine.connection import get_db
-from semantic_version import Version
+from packaging.version import Version, parse
 
 from apiserver.database import utils
 from apiserver.database import Database
@@ -50,7 +50,7 @@ def _apply_migrations(log: Logger):
     try:
         new_scripts = {
             ver: path
-            for ver, path in ((Version(f.stem), f) for f in migration_dir.glob("*.py"))
+            for ver, path in ((parse(f.stem), f) for f in migration_dir.glob("*.py"))
             if ver > last_version
         }
     except ValueError as ex:

@@ -17,6 +17,7 @@ jsonschema>=2.6.0
 luqum>=0.10.0
 mongoengine==0.19.1
 nested_dict>=1.61
+packaging==20.3
 psutil>=5.6.5
 pyhocon>=0.3.35
 pyjwt<2.0.0
