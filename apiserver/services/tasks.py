@@ -1,11 +1,9 @@
 from copy import deepcopy
 from datetime import datetime
-from operator import attrgetter
-from typing import Sequence, Callable, Type, TypeVar, Union, Tuple
+from typing import Sequence, Union, Tuple
 
 import attr
 import dpath
-import mongoengine
 from mongoengine import EmbeddedDocument, Q
 from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
@@ -55,7 +53,6 @@ from apiserver.bll.task import (
     TaskBLL,
     ChangeStatusRequest,
     update_project_time,
-    split_by,
 )
 from apiserver.bll.task.artifacts import (
     artifacts_prepare_for_save,
@@ -69,11 +66,11 @@ from apiserver.bll.task.param_utils import (
     params_unprepare_from_saved,
     escape_paths,
 )
-from apiserver.bll.task.utils import update_task
+from apiserver.bll.task.task_cleanup import cleanup_task
+from apiserver.bll.task.utils import update_task, task_deleted_prefix
 from apiserver.bll.util import SetFieldsResolver
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
-from apiserver.database.model.model import Model
 from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
     Task,
@@ -386,6 +383,9 @@ def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dic
 
 @endpoint("tasks.validate", request_data_model=CreateRequest)
 def validate(call: APICall, company_id, req_model: CreateRequest):
+    parent = call.data.get("parent")
+    if parent and parent.startswith(task_deleted_prefix):
+        call.data.pop("parent")
     _validate_and_get_task_from_call(call)
 
 
@@ -849,7 +849,12 @@ def reset(call: APICall, company_id, request: ResetRequest):
         if dequeued:
             api_results.update(dequeued=dequeued)
 
-    cleaned_up = cleanup_task(task, force=force, update_children=False)
+    cleaned_up = cleanup_task(
+        task,
+        force=force,
+        update_children=False,
+        return_file_urls=request.return_file_urls,
+    )
     api_results.update(attr.asdict(cleaned_up))
 
     updates.update(
@@ -937,146 +942,6 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     call.result.data_model = ArchiveResponse(archived=archived)
 
 
-class DocumentGroup(list):
-    """
-    Operate on a list of documents as if they were a query result
-    """
-
-    def __init__(self, document_type, documents):
-        super(DocumentGroup, self).__init__(documents)
-        self.type = document_type
-
-    def objects(self, *args, **kwargs):
-        return self.type.objects(id__in=[obj.id for obj in self], *args, **kwargs)
-
-
-T = TypeVar("T")
-
-
-class TaskOutputs(object):
-    """
-    Split task outputs of the same type by the ready state
-    """
-
-    published = None  # type: DocumentGroup
-    draft = None  # type: DocumentGroup
-
-    def __init__(self, is_published, document_type, children):
-        # type: (Callable[[T], bool], Type[mongoengine.Document], Sequence[T]) -> ()
-        """
-        :param is_published: predicate returning whether items is considered published
-        :param document_type: type of output
-        :param children: output documents
-        """
-        self.published, self.draft = map(
-            lambda x: DocumentGroup(document_type, x), split_by(is_published, children)
-        )
-
-
-@attr.s
-class CleanupResult(object):
-    """
-    Counts of objects modified in task cleanup operation
-    """
-
-    updated_children = attr.ib(type=int)
-    updated_models = attr.ib(type=int)
-    deleted_models = attr.ib(type=int)
-
-
-def cleanup_task(task: Task, force: bool = False, update_children=True):
-    """
-    Validate task deletion and delete/modify all its output.
-    :param task: task object
-    :param force: whether to delete task with published outputs
-    :return: count of delete and modified items
-    """
-    models, child_tasks = get_outputs_for_deletion(task, force)
-    deleted_task_id = trash_task_id(task.id)
-    if child_tasks and update_children:
-        with TimingContext("mongo", "update_task_children"):
-            updated_children = child_tasks.update(parent=deleted_task_id)
-    else:
-        updated_children = 0
-
-    if models.draft:
-        with TimingContext("mongo", "delete_models"):
-            deleted_models = models.draft.objects().delete()
-    else:
-        deleted_models = 0
-
-    if models.published and update_children:
-        with TimingContext("mongo", "update_task_models"):
-            updated_models = models.published.objects().update(task=deleted_task_id)
-    else:
-        updated_models = 0
-
-    event_bll.delete_task_events(task.company, task.id, allow_locked=force)
-
-    return CleanupResult(
-        deleted_models=deleted_models,
-        updated_children=updated_children,
-        updated_models=updated_models,
-    )
-
-
-def get_outputs_for_deletion(task, force=False):
-    with TimingContext("mongo", "get_task_models"):
-        models = TaskOutputs(
-            attrgetter("ready"),
-            Model,
-            Model.objects(task=task.id).only("id", "task", "ready"),
-        )
-        if not force and models.published:
-            raise errors.bad_request.TaskCannotBeDeleted(
-                "has output models, use force=True",
-                task=task.id,
-                models=len(models.published),
-            )
-
-    if task.output.model:
-        output_model = get_output_model(task, force)
-        if output_model:
-            if output_model.ready:
-                models.published.append(output_model)
-            else:
-                models.draft.append(output_model)
-
-    if models.draft:
-        with TimingContext("mongo", "get_execution_models"):
-            model_ids = [m.id for m in models.draft]
-            dependent_tasks = Task.objects(execution__model__in=model_ids).only(
-                "id", "execution.model"
-            )
-            busy_models = [t.execution.model for t in dependent_tasks]
-            models.draft[:] = [m for m in models.draft if m.id not in busy_models]
-
-    with TimingContext("mongo", "get_task_children"):
-        tasks = Task.objects(parent=task.id).only("id", "parent", "status")
-        published_tasks = [
-            task for task in tasks if task.status == TaskStatus.published
-        ]
-        if not force and published_tasks:
-            raise errors.bad_request.TaskCannotBeDeleted(
-                "has children, use force=True", task=task.id, children=published_tasks
-            )
-    return models, tasks
-
-
-def get_output_model(task, force=False):
-    with TimingContext("mongo", "get_task_output_model"):
-        output_model = Model.objects(id=task.output.model).first()
-    if output_model and output_model.ready and not force:
-        raise errors.bad_request.TaskCannotBeDeleted(
-            "has output model, use force=True", task=task.id, model=task.output.model
-        )
-    return output_model
-
-
-def trash_task_id(task_id):
-    return "__DELETED__{}".format(task_id)
-
-
 @endpoint("tasks.delete", request_data_model=DeleteRequest)
 def delete(call: APICall, company_id, req_model: DeleteRequest):
     task = TaskBLL.get_task_with_access(
@@ -1095,7 +960,9 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
         )
 
     with translate_errors_context():
-        result = cleanup_task(task, force=force)
+        result = cleanup_task(
+            task, force=force, return_file_urls=req_model.return_file_urls
+        )
 
         if move_to_trash:
             collection_name = task._get_collection_name()

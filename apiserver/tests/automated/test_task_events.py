@@ -204,7 +204,9 @@ class TestTaskEvents(TestService):
         self.send_batch(events)
         for key in None, "iter", "timestamp", "iso_time":
             with self.subTest(key=key):
-                data = self.api.events.scalar_metrics_iter_histogram(task=task, key=key)
+                data = self.api.events.scalar_metrics_iter_histogram(
+                    task=task, **(dict(key=key) if key is not None else {})
+                )
                 self.assertIn(metric, data)
                 self.assertIn(variant, data[metric])
                 self.assertIn("x", data[metric][variant])

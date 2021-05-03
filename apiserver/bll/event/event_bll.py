@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import re
 import zlib
 from collections import defaultdict
 from contextlib import closing
@@ -36,11 +37,10 @@ from apiserver.redis_manager import redman
 from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
 from apiserver.utilities.dicts import flatten_nested_items
-
-# noinspection PyTypeChecker
 from apiserver.utilities.json import loads
 
-EVENT_TYPES = set(map(attrgetter("value"), EventType))
+# noinspection PyTypeChecker
+EVENT_TYPES: Set[str] = set(map(attrgetter("value"), EventType))
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 
 
@@ -49,11 +49,16 @@ class PlotFields:
     plot_len = "plot_len"
     plot_str = "plot_str"
     plot_data = "plot_data"
+    source_urls = "source_urls"
 
 
 class EventBLL(object):
     id_fields = ("task", "iter", "metric", "variant", "key")
     empty_scroll = "FFFF"
+    img_source_regex = re.compile(
+        r"['\"]source['\"]:\s?['\"]([a-z][a-z0-9+\-.]*://.*?)['\"]",
+        flags=re.IGNORECASE,
+    )
 
     def __init__(self, events_es=None, redis=None):
         self.es = events_es or es_factory.connect("events")
@@ -269,6 +274,11 @@ class EventBLL(object):
             event[PlotFields.plot_len] = plot_len
             if validate:
                 event[PlotFields.valid_plot] = self._is_valid_json(plot_str)
+
+            urls = {match for match in self.img_source_regex.findall(plot_str)}
+            if urls:
+                event[PlotFields.source_urls] = list(urls)
+
             if compression_threshold and plot_len >= compression_threshold:
                 event[PlotFields.plot_data] = base64.encodebytes(
                     zlib.compress(plot_str.encode(), level=1)
@@ -504,7 +514,7 @@ class EventBLL(object):
         scroll_id: str = None,
     ):
         if scroll_id == self.empty_scroll:
-            return [], scroll_id, 0
+            return TaskEventsResult()
 
         if scroll_id:
             with translate_errors_context(), TimingContext("es", "get_task_events"):
@@ -597,6 +607,41 @@ class EventBLL(object):
             next_scroll_id = self.empty_scroll
 
         return events, total_events, next_scroll_id
+
+    def get_plot_image_urls(
+        self, company_id: str, task_id: str, scroll_id: Optional[str]
+    ) -> Tuple[Sequence[dict], Optional[str]]:
+        if scroll_id == self.empty_scroll:
+            return [], None
+
+        if scroll_id:
+            es_res = self.es.scroll(scroll_id=scroll_id, scroll="10m")
+        else:
+            if check_empty_data(self.es, company_id, EventType.metrics_plot):
+                return [], None
+
+            es_req = {
+                "size": 1000,
+                "_source": [PlotFields.source_urls],
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"task": task_id}},
+                            {"exists": {"field": PlotFields.source_urls}},
+                        ]
+                    }
+                },
+            }
+            es_res = search_company_events(
+                self.es,
+                company_id=company_id,
+                event_type=EventType.metrics_plot,
+                body=es_req,
+                scroll="10m",
+            )
+
+        events, _, next_scroll_id = self._get_events_from_es_res(es_res)
+        return events, next_scroll_id
 
     def get_task_events(
         self,

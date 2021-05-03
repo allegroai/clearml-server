@@ -3,5 +3,4 @@ from .utils import (
     ChangeStatusRequest,
     update_project_time,
     validate_status_change,
-    split_by,
 )

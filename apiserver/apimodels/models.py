@@ -32,8 +32,16 @@ class CreateModelResponse(models.Base):
     created = fields.BoolField(required=True)
 
 
-class PublishModelRequest(models.Base):
+class ModelRequest(models.Base):
     model = fields.StringField(required=True)
+
+
+class DeleteModelRequest(ModelRequest):
+    force = fields.BoolField(default=False)
+    return_file_url = fields.BoolField(default=False)
+
+
+class PublishModelRequest(ModelRequest):
     force_publish_task = fields.BoolField(default=False)
     publish_task = fields.BoolField(default=True)
 

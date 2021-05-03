@@ -53,6 +53,7 @@ class ResetResponse(UpdateResponse):
     frames = DictField()
     events = DictField()
     model_deleted = IntField()
+    urls = DictField()
 
 
 class TaskRequest(models.Base):
@@ -71,6 +72,7 @@ class EnqueueRequest(UpdateRequest):
 
 class DeleteRequest(UpdateRequest):
     move_to_trash = BoolField(default=True)
+    return_file_urls = BoolField(default=False)
 
 
 class SetRequirementsRequest(TaskRequest):
@@ -137,6 +139,7 @@ class DeleteArtifactsRequest(TaskRequest):
 
 class ResetRequest(UpdateRequest):
     clear_all = BoolField(default=False)
+    return_file_urls = BoolField(default=False)
 
 
 class MultiTaskRequest(models.Base):

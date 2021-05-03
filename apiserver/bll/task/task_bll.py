@@ -38,7 +38,7 @@ from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
-from .utils import ChangeStatusRequest, validate_status_change, update_project_time
+from .utils import ChangeStatusRequest, validate_status_change, update_project_time, task_deleted_prefix
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -247,6 +247,11 @@ class TaskBLL:
             ]
 
         with TimingContext("mongo", "clone task"):
+            parent_task = (
+                task.parent
+                if task.parent and not task.parent.startswith(task_deleted_prefix)
+                else None
+            )
             new_task = Task(
                 id=create_id(),
                 user=user_id,
@@ -256,7 +261,7 @@ class TaskBLL:
                 last_change=now,
                 name=name or task.name,
                 comment=comment or task.comment,
-                parent=parent or task.parent,
+                parent=parent or parent_task,
                 project=project or task.project,
                 tags=tags or task.tags,
                 system_tags=system_tags or clean_system_tags(task.system_tags),

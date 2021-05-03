@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TypeVar, Callable, Tuple, Sequence, Union
+from typing import Sequence, Union
 
 import attr
 import six
@@ -13,6 +13,7 @@ from apiserver.timing_context import TimingContext
 from apiserver.utilities.attrs import typed_attrs
 
 valid_statuses = get_options(TaskStatus)
+task_deleted_prefix = "__DELETED__"
 
 
 @typed_attrs
@@ -162,22 +163,6 @@ def update_project_time(project_ids: Union[str, Sequence[str]]):
         project_ids = [project_ids]
 
     return Project.objects(id__in=project_ids).update(last_update=datetime.utcnow())
-
-
-T = TypeVar("T")
-
-
-def split_by(
-    condition: Callable[[T], bool], items: Sequence[T]
-) -> Tuple[Sequence[T], Sequence[T]]:
-    """
-    split "items" to two lists by "condition"
-    """
-    applied = zip(map(condition, items), items)
-    return (
-        [item for cond, item in applied if cond],
-        [item for cond, item in applied if not cond],
-    )
 
 
 def get_task_for_update(

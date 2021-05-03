@@ -14,6 +14,7 @@ from apiserver.apimodels.models import (
     PublishModelResponse,
     ModelTaskPublishResponse,
     GetFrameworksRequest,
+    DeleteModelRequest,
 )
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -440,14 +441,14 @@ def set_ready(call: APICall, company_id, req_model: PublishModelRequest):
     )
 
 
-@endpoint("models.delete", required_fields=["model"])
-def update(call: APICall, company_id, _):
-    model_id = call.data["model"]
-    force = call.data.get("force", False)
+@endpoint("models.delete", request_data_model=DeleteModelRequest)
+def update(call: APICall, company_id, request: DeleteModelRequest):
+    model_id = request.model
+    force = request.force
 
     with translate_errors_context():
         query = dict(id=model_id, company=company_id)
-        model = Model.objects(**query).only("id", "task", "project").first()
+        model = Model.objects(**query).only("id", "task", "project", "uri").first()
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
 
@@ -483,7 +484,10 @@ def update(call: APICall, company_id, _):
         del_count = Model.objects(**query).delete()
         if del_count:
             _reset_cached_tags(company_id, projects=[model.project])
-        call.result.data = dict(deleted=del_count > 0)
+        call.result.data = dict(
+            deleted=del_count > 0,
+            url=model.uri if request.return_file_url else None
+        )
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)
