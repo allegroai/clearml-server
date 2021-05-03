@@ -1,3 +1,4 @@
+import os
 import time
 from contextlib import contextmanager
 from time import sleep
@@ -18,10 +19,12 @@ def distributed_lock(name: str, timeout: int, max_wait: int = 0):
     lock_name = f"dist_lock_{name}"
     start = time.time()
     max_wait = max_wait or timeout * 2
-    while not _redis.set(lock_name, value="", ex=timeout, nx=True):
+    pid = os.getpid()
+    while _redis.set(lock_name, value=pid, ex=timeout, nx=True) is None:
         sleep(1)
         if time.time() - start > max_wait:
-            raise Exception(f"Could not acquire {name} lock for {max_wait} seconds")
+            holder = _redis.get(lock_name)
+            raise Exception(f"Could not acquire {name} lock for {max_wait} seconds. The lock is hold by {holder}")
     try:
         yield
     finally:
