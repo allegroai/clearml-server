@@ -59,16 +59,16 @@ def download(path):
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    path = Path(
+    real_path = Path(
         safe_join(
             fspath(app.config["UPLOAD_FOLDER"]),
             fspath(path)
         )
     )
-    if not path.exists() or not path.is_file():
+    if not real_path.exists() or not real_path.is_file():
         abort(Response(f"File {str(path)} not found", 404))
 
-    path.unlink()
+    real_path.unlink()
     return json.dumps(str(path)), 200
 
 
