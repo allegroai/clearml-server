@@ -1,5 +1,7 @@
 from datetime import datetime
+from typing import Sequence
 
+import attr
 from mongoengine import Q
 
 from apiserver.apierrors import errors
@@ -12,15 +14,14 @@ from apiserver.apimodels.projects import (
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
     ProjectsGetRequest,
+    DeleteRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
+from apiserver.bll.project.project_cleanup import delete_project
 from apiserver.bll.task import TaskBLL
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model import EntityVisibility
-from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task
 from apiserver.database.utils import (
     parse_from_call,
     get_company_or_none_constraint,
@@ -178,36 +179,21 @@ def update(call: APICall):
         call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
 
-@endpoint("projects.delete", required_fields=["project"])
-def delete(call):
-    assert isinstance(call, APICall)
-    project_id = call.data["project"]
-    force = call.data.get("force", False)
+def _reset_cached_tags(company: str, projects: Sequence[str]):
+    org_bll.reset_tags(company, Tags.Task, projects=projects)
+    org_bll.reset_tags(company, Tags.Model, projects=projects)
 
-    with translate_errors_context():
-        project = Project.get_for_writing(company=call.identity.company, id=project_id)
-        if not project:
-            raise errors.bad_request.InvalidProjectId(id=project_id)
 
-        # NOTE: from this point on we'll use the project ID and won't check for company, since we assume we already
-        # have the correct project ID.
-
-        # Find the tasks which belong to the project
-        for cls, error in (
-            (Task, errors.bad_request.ProjectHasTasks),
-            (Model, errors.bad_request.ProjectHasModels),
-        ):
-            res = cls.objects(
-                project=project_id, system_tags__nin=[EntityVisibility.archived.value]
-            ).only("id")
-            if res and not force:
-                raise error("use force=true to delete", id=project_id)
-
-        updated_count = res.update(project=None)
-
-        project.delete()
-
-        call.result.data = {"deleted": 1, "disassociated_tasks": updated_count}
+@endpoint("projects.delete", request_data_model=DeleteRequest)
+def delete(call: APICall, company_id: str, request: DeleteRequest):
+    res = delete_project(
+        company=company_id,
+        project_id=request.project,
+        force=request.force,
+        delete_contents=request.delete_contents,
+    )
+    _reset_cached_tags(company_id, projects=[request.project])
+    call.result.data = {**attr.asdict(res)}
 
 
 @endpoint("projects.get_unique_metric_variants", request_data_model=ProjectReq)

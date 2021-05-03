@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Set, Tuple
 
 from apiserver.apierrors import errors
 from apiserver.es_factory import es_factory
@@ -7,7 +7,7 @@ from apiserver.tests.automated import TestService
 
 class TestTasksResetDelete(TestService):
     def setUp(self, **kwargs):
-        super().setUp(version="2.11")
+        super().setUp(version="2.13")
 
     def test_delete(self):
         # draft task can be deleted
@@ -50,12 +50,12 @@ class TestTasksResetDelete(TestService):
         self.assertEqual(res.urls.artifact_urls, [])
 
         task = self.new_task()
-        model_urls = self.create_task_models(task)
+        published_model_urls, draft_model_urls = self.create_task_models(task)
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
         res = self.assert_delete_task(task, force=True, return_file_urls=True)
-        self.assertEqual(set(res.urls.model_urls), model_urls)
+        self.assertEqual(set(res.urls.model_urls), draft_model_urls)
         self.assertEqual(set(res.urls.event_urls), event_urls)
         self.assertEqual(set(res.urls.artifact_urls), artifact_urls)
 
@@ -73,20 +73,58 @@ class TestTasksResetDelete(TestService):
         self.api.tasks.reset(task=task, force=True)
 
         # test urls
-        task = self.new_task()
-        model_urls = self.create_task_models(task)
-        artifact_urls = self.send_artifacts(task)
-        event_urls = self.send_debug_image_events(task)
-        event_urls.update(self.send_plot_events(task))
+        task, (published_model_urls, draft_model_urls), artifact_urls, event_urls = self.create_task_with_data()
         res = self.api.tasks.reset(task=task, force=True, return_file_urls=True)
-        self.assertEqual(set(res.urls.model_urls), model_urls)
+        self.assertEqual(set(res.urls.model_urls), draft_model_urls)
         self.assertEqual(set(res.urls.event_urls), event_urls)
         self.assertEqual(set(res.urls.artifact_urls), artifact_urls)
 
     def test_model_delete(self):
         model = self.new_model(uri="test")
-        res = self.api.models.delete(model=model, return_file_url=True)
+        res = self.api.models.delete(model=model)
         self.assertEqual(res.url, "test")
+
+    def test_project_delete(self):
+        # without delete_contents flag
+        project = self.new_project()
+        task = self.new_task(project=project)
+        res = self.api.tasks.get_by_id(task=task)
+        self.assertEqual(res.task.get("project"), project)
+
+        res = self.api.projects.delete(project=project, force=True)
+        self.assertEqual(res.deleted, 1)
+        self.assertEqual(res.disassociated_tasks, 1)
+        self.assertEqual(res.deleted_tasks, 0)
+        res = self.api.tasks.get_by_id(task=task)
+        self.assertEqual(res.task.get("project"), None)
+
+        # with delete_contents flag
+        project = self.new_project()
+        task, (published_model_urls, draft_model_urls), artifact_urls, event_urls = self.create_task_with_data(
+            project=project
+        )
+        res = self.api.projects.delete(
+            project=project, force=True, delete_contents=True
+        )
+        self.assertEqual(set(res.urls.model_urls), published_model_urls | draft_model_urls)
+        self.assertEqual(res.deleted, 1)
+        self.assertEqual(res.disassociated_tasks, 0)
+        self.assertEqual(res.deleted_tasks, 1)
+        self.assertEqual(res.deleted_models, 2)
+        self.assertEqual(set(res.urls.event_urls), event_urls)
+        self.assertEqual(set(res.urls.artifact_urls), artifact_urls)
+        with self.api.raises(errors.bad_request.InvalidTaskId):
+            self.api.tasks.get_by_id(task=task)
+
+    def create_task_with_data(
+        self, **kwargs
+    ) -> Tuple[str, Tuple[Set[str], Set[str]], Set[str], Set[str]]:
+        task = self.new_task(**kwargs)
+        published_model_urls, draft_model_urls = self.create_task_models(task, **kwargs)
+        artifact_urls = self.send_artifacts(task)
+        event_urls = self.send_debug_image_events(task)
+        event_urls.update(self.send_plot_events(task))
+        return task, (published_model_urls, draft_model_urls), artifact_urls, event_urls
 
     def assert_delete_task(self, task_id, force=False, return_file_urls=False):
         tasks = self.api.tasks.get_all_ex(id=[task_id]).tasks
@@ -99,15 +137,15 @@ class TestTasksResetDelete(TestService):
         self.assertEqual(tasks, [])
         return res
 
-    def create_task_models(self, task) -> Set[str]:
+    def create_task_models(self, task, **kwargs) -> Tuple[Set[str], Set[str]]:
         """
         Update models from task and return only non public models
         """
-        model_ready = self.new_model(uri="ready")
-        model_not_ready = self.new_model(uri="not_ready", ready=False)
+        model_ready = self.new_model(uri="ready", **kwargs)
+        model_not_ready = self.new_model(uri="not_ready", ready=False, **kwargs)
         self.api.models.edit(model=model_not_ready, task=task)
         self.api.models.edit(model=model_ready, task=task)
-        return {"not_ready"}
+        return {"ready"}, {"not_ready"}
 
     def send_artifacts(self, task) -> Set[str]:
         """
@@ -123,7 +161,9 @@ class TestTasksResetDelete(TestService):
 
     def send_debug_image_events(self, task) -> Set[str]:
         events = [
-            self.create_event(task, "training_debug_image", iteration, url=f"url_{iteration}")
+            self.create_event(
+                task, "training_debug_image", iteration, url=f"url_{iteration}"
+            )
             for iteration in range(5)
         ]
         self.send_batch(events)
@@ -161,23 +201,22 @@ class TestTasksResetDelete(TestService):
         _, data = self.api.send_batch("events.add_batch", events)
         return data
 
+    name = "test task delete"
+    delete_params = dict(can_fail=True, force=True)
+
     def new_task(self, **kwargs):
-        return self.create_temp(
-            "tasks",
-            delete_params=dict(can_fail=True),
-            type="testing",
-            name="test task delete",
-            input=dict(view=dict()),
-            **kwargs,
+        self.update_missing(
+            kwargs, name=self.name, type="testing", input=dict(view=dict())
         )
+        return self.create_temp("tasks", delete_params=self.delete_params, **kwargs,)
 
     def new_model(self, **kwargs):
-        self.update_missing(kwargs, name="test", uri="file:///a/b", labels={})
-        return self.create_temp(
-            "models",
-            delete_params=dict(can_fail=True),
-            **kwargs,
-        )
+        self.update_missing(kwargs, name=self.name, uri="file:///a/b", labels={})
+        return self.create_temp("models", delete_params=self.delete_params, **kwargs,)
+
+    def new_project(self, **kwargs):
+        self.update_missing(kwargs, name=self.name, description="")
+        return self.create_temp("projects", delete_params=self.delete_params, **kwargs)
 
     def publish_task(self, task_id):
         self.api.tasks.started(task=task_id)

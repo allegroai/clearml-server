@@ -13,7 +13,7 @@ from apiserver.timing_context import TimingContext
 from apiserver.utilities.attrs import typed_attrs
 
 valid_statuses = get_options(TaskStatus)
-task_deleted_prefix = "__DELETED__"
+deleted_prefix = "__DELETED__"
 
 
 @typed_attrs

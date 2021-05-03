@@ -155,6 +155,7 @@ class Task(AttributedDocument):
             "active_duration",
             "parent",
             "project",
+            "execution.model",
             ("company", "name"),
             ("company", "user"),
             ("company", "status", "type"),

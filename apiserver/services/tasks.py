@@ -67,7 +67,7 @@ from apiserver.bll.task.param_utils import (
     escape_paths,
 )
 from apiserver.bll.task.task_cleanup import cleanup_task
-from apiserver.bll.task.utils import update_task, task_deleted_prefix
+from apiserver.bll.task.utils import update_task, deleted_prefix
 from apiserver.bll.util import SetFieldsResolver
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
@@ -384,7 +384,7 @@ def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dic
 @endpoint("tasks.validate", request_data_model=CreateRequest)
 def validate(call: APICall, company_id, req_model: CreateRequest):
     parent = call.data.get("parent")
-    if parent and parent.startswith(task_deleted_prefix):
+    if parent and parent.startswith(deleted_prefix):
         call.data.pop("parent")
     _validate_and_get_task_from_call(call)
 
@@ -854,6 +854,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
         force=force,
         update_children=False,
         return_file_urls=request.return_file_urls,
+        delete_output_models=request.delete_output_models,
     )
     api_results.update(attr.asdict(cleaned_up))
 
@@ -943,13 +944,13 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
 
 
 @endpoint("tasks.delete", request_data_model=DeleteRequest)
-def delete(call: APICall, company_id, req_model: DeleteRequest):
+def delete(call: APICall, company_id, request: DeleteRequest):
     task = TaskBLL.get_task_with_access(
-        req_model.task, company_id=company_id, requires_write_access=True
+        request.task, company_id=company_id, requires_write_access=True
     )
 
-    move_to_trash = req_model.move_to_trash
-    force = req_model.force
+    move_to_trash = request.move_to_trash
+    force = request.force
 
     if task.status != TaskStatus.created and not force:
         raise errors.bad_request.TaskCannotBeDeleted(
@@ -961,7 +962,10 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
 
     with translate_errors_context():
         result = cleanup_task(
-            task, force=force, return_file_urls=req_model.return_file_urls
+            task,
+            force=force,
+            return_file_urls=request.return_file_urls,
+            delete_output_models=request.delete_output_models,
         )
 
         if move_to_trash:

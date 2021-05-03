@@ -20,6 +20,7 @@ from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
+from apiserver.bll.task.utils import deleted_prefix
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import validate_id
@@ -442,7 +443,7 @@ def set_ready(call: APICall, company_id, req_model: PublishModelRequest):
 
 
 @endpoint("models.delete", request_data_model=DeleteModelRequest)
-def update(call: APICall, company_id, request: DeleteModelRequest):
+def delete(call: APICall, company_id, request: DeleteModelRequest):
     model_id = request.model
     force = request.force
 
@@ -452,7 +453,7 @@ def update(call: APICall, company_id, request: DeleteModelRequest):
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
 
-        deleted_model_id = f"__DELETED__{model_id}"
+        deleted_model_id = f"{deleted_prefix}{model_id}"
 
         using_tasks = Task.objects(execution__model=model_id).only("id")
         if using_tasks:
@@ -473,21 +474,19 @@ def update(call: APICall, company_id, request: DeleteModelRequest):
                     raise errors.bad_request.ModelCreatingTaskExists(
                         "and published, use force=True to delete", task=model.task
                     )
-                now = datetime.utcnow()
-                task.update(
-                    output__model=deleted_model_id,
-                    output__error=f"model deleted on {now.isoformat()}",
-                    last_change=now,
-                    upsert=False,
-                )
+                if task.output and task.output.model == model_id:
+                    now = datetime.utcnow()
+                    task.update(
+                        output__model=deleted_model_id,
+                        output__error=f"model deleted on {now.isoformat()}",
+                        last_change=now,
+                        upsert=False,
+                    )
 
         del_count = Model.objects(**query).delete()
         if del_count:
             _reset_cached_tags(company_id, projects=[model.project])
-        call.result.data = dict(
-            deleted=del_count > 0,
-            url=model.uri if request.return_file_url else None
-        )
+        call.result.data = dict(deleted=del_count > 0, url=model.uri,)
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)

@@ -943,3 +943,20 @@ class EventBLL(object):
             )
 
         return es_res.get("deleted", 0)
+
+    def delete_multi_task_events(self, company_id: str, task_ids: Sequence[str]):
+        """
+        Delete mutliple task events. No check is done for tasks write access
+        so it should be checked by the calling code
+        """
+        es_req = {"query": {"terms": {"task": task_ids}}}
+        with translate_errors_context(), TimingContext("es", "delete_multi_tasks_events"):
+            es_res = delete_company_events(
+                es=self.es,
+                company_id=company_id,
+                event_type=EventType.all,
+                body=es_req,
+                refresh=True,
+            )
+
+        return es_res.get("deleted", 0)

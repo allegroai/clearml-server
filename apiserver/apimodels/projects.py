@@ -6,7 +6,12 @@ from apiserver.database.model import EntityVisibility
 
 
 class ProjectReq(models.Base):
-    project = fields.StringField()
+    project = fields.StringField(required=True)
+
+
+class DeleteRequest(ProjectReq):
+    force = fields.BoolField(default=False)
+    delete_contents = fields.BoolField(default=False)
 
 
 class GetHyperParamReq(ProjectReq):

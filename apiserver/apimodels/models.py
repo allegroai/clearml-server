@@ -38,7 +38,6 @@ class ModelRequest(models.Base):
 
 class DeleteModelRequest(ModelRequest):
     force = fields.BoolField(default=False)
-    return_file_url = fields.BoolField(default=False)
 
 
 class PublishModelRequest(ModelRequest):

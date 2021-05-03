@@ -73,6 +73,7 @@ class EnqueueRequest(UpdateRequest):
 class DeleteRequest(UpdateRequest):
     move_to_trash = BoolField(default=True)
     return_file_urls = BoolField(default=False)
+    delete_output_models = BoolField(default=True)
 
 
 class SetRequirementsRequest(TaskRequest):
@@ -140,6 +141,7 @@ class DeleteArtifactsRequest(TaskRequest):
 class ResetRequest(UpdateRequest):
     clear_all = BoolField(default=False)
     return_file_urls = BoolField(default=False)
+    delete_output_models = BoolField(default=True)
 
 
 class MultiTaskRequest(models.Base):

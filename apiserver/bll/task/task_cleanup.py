@@ -11,7 +11,7 @@ from apiserver.apierrors import errors
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_bll import PlotFields
 from apiserver.bll.event.event_common import EventType
-from apiserver.bll.task.utils import task_deleted_prefix
+from apiserver.bll.task.utils import deleted_prefix
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus, ArtifactModes
 from apiserver.timing_context import TimingContext
@@ -81,7 +81,7 @@ class CleanupResult:
     urls: TaskUrls = None
 
 
-def _collect_plot_image_urls(company: str, task: str) -> Set[str]:
+def collect_plot_image_urls(company: str, task: str) -> Set[str]:
     urls = set()
     next_scroll_id = None
     with TimingContext("es", "collect_plot_image_urls"):
@@ -99,7 +99,7 @@ def _collect_plot_image_urls(company: str, task: str) -> Set[str]:
     return urls
 
 
-def _collect_debug_image_urls(company: str, task: str) -> Set[str]:
+def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     """
     Return the set of unique image urls
     Uses DebugImagesIterator to make sure that we do not retrieve recycled urls
@@ -132,7 +132,11 @@ def _collect_debug_image_urls(company: str, task: str) -> Set[str]:
 
 
 def cleanup_task(
-    task: Task, force: bool = False, update_children=True, return_file_urls=False
+    task: Task,
+    force: bool = False,
+    update_children=True,
+    return_file_urls=False,
+    delete_output_models=True,
 ) -> CleanupResult:
     """
     Validate task deletion and delete/modify all its output.
@@ -144,8 +148,8 @@ def cleanup_task(
 
     event_urls, artifact_urls, model_urls = set(), set(), set()
     if return_file_urls:
-        event_urls = _collect_debug_image_urls(task.company, task.id)
-        event_urls.update(_collect_plot_image_urls(task.company, task.id))
+        event_urls = collect_debug_image_urls(task.company, task.id)
+        event_urls.update(collect_plot_image_urls(task.company, task.id))
         if task.execution and task.execution.artifacts:
             artifact_urls = {
                 a.uri
@@ -154,7 +158,7 @@ def cleanup_task(
             }
         model_urls = {m.uri for m in models.draft.objects().only("uri") if m.uri}
 
-    deleted_task_id = f"{task_deleted_prefix}{task.id}"
+    deleted_task_id = f"{deleted_prefix}{task.id}"
     if update_children:
         with TimingContext("mongo", "update_task_children"):
             updated_children = Task.objects(parent=task.id).update(
@@ -163,7 +167,7 @@ def cleanup_task(
     else:
         updated_children = 0
 
-    if models.draft:
+    if models.draft and delete_output_models:
         with TimingContext("mongo", "delete_models"):
             deleted_models = models.draft.objects().delete()
     else:
