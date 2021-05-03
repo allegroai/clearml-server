@@ -11,34 +11,12 @@ from .utils import _drop_all_indices_from_collections
 
 def _migrate_task_models(db: Database):
     """
-    Collect the task output models from the models collections
     Move the execution and output models to new models.input and output lists
     """
     tasks: Collection = db["task"]
-    models: Collection = db["model"]
 
     models_field = "models"
     now = datetime.utcnow()
-
-    pipeline = [
-        {"$match": {"task": {"$exists": True}}},
-        {"$project": {"name": 1, "task": 1}},
-        {"$group": {"_id": "$task", "models": {"$push": "$$ROOT"}}},
-    ]
-    output_models = f"{models_field}.{TaskModelTypes.output}"
-    for group in models.aggregate(pipeline=pipeline, allowDiskUse=True):
-        task_id = group.get("_id")
-        task_models = group.get("models")
-        if task_id and models:
-            task_models = [
-                {"model": m["_id"], "name": m.get("name", m["_id"]), "updated": now}
-                for m in task_models
-            ]
-            tasks.update_one(
-                {"_id": task_id, output_models: {"$in": [None, []]}},
-                {"$set": {output_models: task_models}},
-                upsert=False,
-            )
 
     fields = {
         TaskModelTypes.input: "execution.model",
