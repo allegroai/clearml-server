@@ -261,6 +261,9 @@ class Task(AttributedDocument):
     runtime = SafeDictField(default=dict)
     models: Models = EmbeddedDocumentField(Models, default=Models)
     container = SafeMapField(field=StringField(default=""))
+    enqueue_status = StringField(
+        choices=get_options(TaskStatus), exclude_by_default=True
+    )
 
     def get_index_company(self) -> str:
         """

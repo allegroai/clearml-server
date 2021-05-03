@@ -893,7 +893,7 @@ def dequeue(call: APICall, company_id, request: UpdateRequest):
     task = TaskBLL.get_task_with_access(
         request.task,
         company_id=company_id,
-        only=("id", "execution", "status", "project"),
+        only=("id", "execution", "status", "project", "enqueue_status"),
         requires_write_access=True,
     )
     res = DequeueResponse(
@@ -984,7 +984,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     tasks = TaskBLL.assert_exists(
         company_id,
         task_ids=request.tasks,
-        only=("id", "execution", "status", "project", "system_tags"),
+        only=("id", "execution", "status", "project", "system_tags", "enqueue_status"),
     )
     archived = 0
     for task in tasks:

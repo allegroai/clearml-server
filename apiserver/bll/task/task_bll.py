@@ -668,10 +668,10 @@ class TaskBLL:
 
         return ChangeStatusRequest(
             task=task,
-            new_status=TaskStatus.created,
+            new_status=task.enqueue_status or TaskStatus.created,
             status_reason=status_reason,
             status_message=status_message,
-        ).execute()
+        ).execute(enqueue_status=None)
 
     @classmethod
     def dequeue(cls, task: Task, company_id: str, silent_fail=False):

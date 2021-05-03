@@ -39,7 +39,14 @@ def archive_task(
         task = TaskBLL.get_task_with_access(
             task,
             company_id=company_id,
-            only=("id", "execution", "status", "project", "system_tags"),
+            only=(
+                "id",
+                "execution",
+                "status",
+                "project",
+                "system_tags",
+                "enqueue_status",
+            ),
             requires_write_access=True,
         )
     try:
@@ -82,7 +89,7 @@ def enqueue_task(
         status_reason=status_reason,
         status_message=status_message,
         allow_same_state_transition=False,
-    ).execute()
+    ).execute(enqueue_status=task.status)
 
     try:
         queue_bll.add_task(company_id=company_id, queue_id=queue_id, task_id=task.id)
@@ -94,7 +101,7 @@ def enqueue_task(
             new_status=task.status,
             force=True,
             status_reason="failed enqueueing",
-        ).execute()
+        ).execute(enqueue_status=None)
         raise
 
     # set the current queue ID in the task
@@ -220,7 +227,12 @@ def reset_task(
         status_reason="reset",
         status_message="reset",
     ).execute(
-        started=None, completed=None, published=None, active_duration=None, **updates,
+        started=None,
+        completed=None,
+        published=None,
+        active_duration=None,
+        enqueue_status=None,
+        **updates,
     )
 
     return dequeued, cleaned_up, res

@@ -634,7 +634,8 @@ class APICall(DataContainer):
             }
             if self.content_type.lower() == JSON_CONTENT_TYPE:
                 try:
-                    res = json.dumps(res, **(self._json_flags or {}))
+                    func = json.dumps if self._json_flags.pop("ensure_ascii", True) else json.dumps_notascii
+                    res = func(res, **(self._json_flags or {}))
                 except Exception as ex:
                     # JSON serialization may fail, probably problem with data or error_data so pop it and try again
                     if not (self.result.data or self.result.error_data):
