@@ -177,6 +177,7 @@ class TaskBLL:
         system_tags: Optional[Sequence[str]] = None,
         hyperparams: Optional[dict] = None,
         configuration: Optional[dict] = None,
+        container: Optional[dict] = None,
         execution_overrides: Optional[dict] = None,
         input_models: Optional[Sequence[TaskInputModel]] = None,
         validate_references: bool = False,
@@ -203,6 +204,11 @@ class TaskBLL:
             execution_model = execution_overrides.pop("model", None)
             if not input_models and execution_model:
                 input_models = [ModelItem(model=execution_model, name="input")]
+
+            docker_cmd = execution_overrides.pop("docker_cmd", None)
+            if not container and docker_cmd:
+                image, _, arguments = docker_cmd.partition(" ")
+                container = {"image": image, "arguments": arguments}
 
             artifacts_prepare_for_save({"execution": execution_overrides})
 
@@ -272,6 +278,7 @@ class TaskBLL:
                 if task.output
                 else None,
                 models=Models(input=input_models or task.models.input),
+                container=container or task.container,
                 execution=execution_dict,
                 configuration=params_dict.get("configuration") or task.configuration,
                 hyperparams=params_dict.get("hyperparams") or task.hyperparams,

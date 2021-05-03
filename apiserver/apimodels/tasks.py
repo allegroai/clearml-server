@@ -121,6 +121,7 @@ class CloneRequest(TaskRequest):
     new_task_project = StringField()
     new_task_hyperparams = DictField()
     new_task_configuration = DictField()
+    new_task_container = DictField()
     new_task_input_models = ListField([TaskInputModel])
     execution_overrides = DictField()
     validate_references = BoolField(default=False)

@@ -37,9 +37,11 @@ from .sub_projects import (
     _get_sub_projects,
     _ids_with_children,
     _ids_with_parents,
+    _get_project_depth,
 )
 
 log = config.logger(__file__)
+max_depth = config.get("services.projects.sub_projects.max_depth", 10)
 
 
 class ProjectBLL:
@@ -60,6 +62,15 @@ class ProjectBLL:
             source = Project.get(company, source_id)
             destination = Project.get(company, destination_id)
 
+            children = _get_sub_projects(
+                [source.id], _only=("id", "name", "parent", "path")
+            )[source.id]
+            cls.validate_projects_depth(
+                projects=children,
+                old_parent_depth=len(source.path) + 1,
+                new_parent_depth=len(destination.path) + 1,
+            )
+
             moved_entities = 0
             for entity_type in (Task, Model):
                 moved_entities += entity_type.objects(
@@ -70,7 +81,11 @@ class ProjectBLL:
 
             moved_sub_projects = 0
             for child in Project.objects(company=company, parent=source_id):
-                _reposition_project_with_children(project=child, parent=destination)
+                _reposition_project_with_children(
+                    project=child,
+                    children=[c for c in children if c.parent == child.id],
+                    parent=destination,
+                )
                 moved_sub_projects += 1
 
             affected = {source.id, *(source.path or [])}
@@ -81,6 +96,15 @@ class ProjectBLL:
                 affected.update({destination.id, *(destination.path or [])})
 
         return moved_entities, moved_sub_projects, affected
+
+    @staticmethod
+    def validate_projects_depth(
+        projects: Sequence[Project], old_parent_depth: int, new_parent_depth: int
+    ):
+        for current in projects:
+            current_depth = len(current.path) + 1
+            if current_depth - old_parent_depth + new_parent_depth > max_depth:
+                raise errors.bad_request.ProjectPathExceedsMax(max_depth=max_depth)
 
     @classmethod
     def move_project(
@@ -100,6 +124,16 @@ class ProjectBLL:
                 if old_parent_id
                 else None
             )
+
+            children = _get_sub_projects([project.id], _only=("id", "name", "path"))[
+                project.id
+            ]
+            cls.validate_projects_depth(
+                projects=[project, *children],
+                old_parent_depth=len(project.path),
+                new_parent_depth=_get_project_depth(new_location),
+            )
+
             new_parent = _ensure_project(company=company, user=user, name=new_location)
             new_parent_id = new_parent.id if new_parent else None
             if old_parent_id == new_parent_id:
@@ -107,7 +141,9 @@ class ProjectBLL:
                     location=new_parent.name if new_parent else ""
                 )
 
-            moved = _reposition_project_with_children(project, parent=new_parent)
+            moved = _reposition_project_with_children(
+                project, children=children, parent=new_parent
+            )
 
             now = datetime.utcnow()
             affected = set()
@@ -138,7 +174,12 @@ class ProjectBLL:
             if new_name:
                 old_name = project.name
                 project.name = new_name
-                _update_subproject_names(project=project, old_name=old_name)
+                children = _get_sub_projects(
+                    [project.id], _only=("id", "name", "path")
+                )[project.id]
+                _update_subproject_names(
+                    project=project, children=children, old_name=old_name
+                )
 
             return updated
 
@@ -157,6 +198,9 @@ class ProjectBLL:
         Create a new project.
         Returns project ID
         """
+        if _get_project_depth(name) > max_depth:
+            raise errors.bad_request.ProjectPathExceedsMax(max_depth=max_depth)
+
         name, location = _validate_project_name(name)
         now = datetime.utcnow()
         project = Project(

@@ -4,25 +4,23 @@ from typing import Tuple, Optional, Sequence, Mapping
 
 from apiserver import database
 from apiserver.apierrors import errors
-from apiserver.config_repo import config
 from apiserver.database.model.project import Project
 
 name_separator = "/"
-max_depth = config.get("services.projects.sub_projects.max_depth", 10)
+
+
+def _get_project_depth(project_name: str) -> int:
+    return len(list(filter(None, project_name.split(name_separator))))
 
 
 def _validate_project_name(project_name: str) -> Tuple[str, str]:
     """
     Remove redundant '/' characters. Ensure that the project name is not empty
-    and path to it is not larger then max_depth parameter.
     Return the cleaned up project name and location
     """
     name_parts = list(filter(None, project_name.split(name_separator)))
     if not name_parts:
         raise errors.bad_request.InvalidProjectName(name=project_name)
-
-    if len(name_parts) > max_depth:
-        raise errors.bad_request.ProjectPathExceedsMax(max_depth=max_depth)
 
     return name_separator.join(name_parts), name_separator.join(name_parts[:-1])
 
@@ -135,6 +133,7 @@ def _ids_with_children(project_ids: Sequence[str]) -> Sequence[str]:
 
 def _update_subproject_names(
     project: Project,
+    children: Sequence[Project],
     old_name: str,
     update_path: bool = False,
     old_path: Sequence[str] = None,
@@ -143,9 +142,8 @@ def _update_subproject_names(
     Update sub project names when the base project name changes
     Optionally update the paths
     """
-    child_projects = _get_sub_projects(project_ids=[project.id], _only=("id", "name"))
     updated = 0
-    for child in child_projects[project.id]:
+    for child in children:
         child_suffix = name_separator.join(
             child.name.split(name_separator)[len(old_name.split(name_separator)) :]
         )
@@ -157,7 +155,9 @@ def _update_subproject_names(
     return updated
 
 
-def _reposition_project_with_children(project: Project, parent: Project) -> int:
+def _reposition_project_with_children(
+    project: Project, children: Sequence[Project], parent: Project
+) -> int:
     new_location = parent.name if parent else None
     old_name = project.name
     old_path = project.path
@@ -167,6 +167,10 @@ def _reposition_project_with_children(project: Project, parent: Project) -> int:
     _save_under_parent(project, parent=parent)
 
     moved = 1 + _update_subproject_names(
-        project=project, old_name=old_name, update_path=True, old_path=old_path
+        project=project,
+        children=children,
+        old_name=old_name,
+        update_path=True,
+        old_path=old_path,
     )
     return moved
