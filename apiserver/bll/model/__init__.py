@@ -115,3 +115,15 @@ class ModelBLL:
         )
 
         return archived
+
+    @classmethod
+    def unarchive_model(cls, model_id: str, company_id: str):
+        cls.get_company_model_by_id(
+            company_id=company_id, model_id=model_id, only_fields=("id",)
+        )
+        unarchived = Model.objects(company=company_id, id=model_id).update(
+            pull__system_tags=EntityVisibility.archived.value,
+            last_update=datetime.utcnow(),
+        )
+
+        return unarchived

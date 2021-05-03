@@ -51,10 +51,6 @@ class ModelsDeleteManyRequest(BatchRequest):
     force = fields.BoolField(default=False)
 
 
-class ModelsArchiveManyRequest(BatchRequest):
-    pass
-
-
 class ModelsDeleteManyResponse(BatchResponse):
     urls = fields.ListField([str])
 

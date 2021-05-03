@@ -51,9 +51,9 @@ from apiserver.apimodels.tasks import (
     StopManyRequest,
     EnqueueManyRequest,
     ResetManyRequest,
-    ArchiveManyRequest,
     DeleteManyRequest,
     PublishManyRequest,
+    TaskBatchRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -85,8 +85,9 @@ from apiserver.bll.task.task_operations import (
     archive_task,
     delete_task,
     publish_task,
+    unarchive_task,
 )
-from apiserver.bll.task.utils import update_task, deleted_prefix, get_task_for_update
+from apiserver.bll.task.utils import update_task, get_task_for_update, deleted_prefix
 from apiserver.bll.util import SetFieldsResolver, run_batch_operation
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.output import Output
@@ -875,6 +876,7 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
             queue_id=request.queue,
             status_message=request.status_message,
             status_reason=request.status_reason,
+            validate=request.validate_tasks,
         ),
         ids=request.ids,
         init_res=EnqueueRes(),
@@ -998,10 +1000,10 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
 
 @endpoint(
     "tasks.archive_many",
-    request_data_model=ArchiveManyRequest,
+    request_data_model=TaskBatchRequest,
     response_data_model=BatchResponse,
 )
-def archive_many(call: APICall, company_id, request: ArchiveManyRequest):
+def archive_many(call: APICall, company_id, request: TaskBatchRequest):
     archived, failures = run_batch_operation(
         func=partial(
             archive_task,
@@ -1013,6 +1015,25 @@ def archive_many(call: APICall, company_id, request: ArchiveManyRequest):
         init_res=0,
     )
     call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
+
+
+@endpoint(
+    "tasks.unarchive_many",
+    request_data_model=TaskBatchRequest,
+    response_data_model=BatchResponse,
+)
+def unarchive_many(call: APICall, company_id, request: TaskBatchRequest):
+    unarchived, failures = run_batch_operation(
+        func=partial(
+            unarchive_task,
+            company_id=company_id,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
+        ),
+        ids=request.ids,
+        init_res=0,
+    )
+    call.result.data_model = BatchResponse(succeeded=unarchived, failures=failures)
 
 
 @endpoint("tasks.delete", request_data_model=DeleteRequest)

@@ -9,7 +9,7 @@ from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidModelId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, MoveRequest
-from apiserver.apimodels.batch import BatchResponse
+from apiserver.apimodels.batch import BatchResponse, BatchRequest
 from apiserver.apimodels.models import (
     CreateModelRequest,
     CreateModelResponse,
@@ -24,7 +24,6 @@ from apiserver.apimodels.models import (
     ModelsPublishManyResponse,
     ModelsDeleteManyRequest,
     ModelsDeleteManyResponse,
-    ModelsArchiveManyRequest,
 )
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -587,16 +586,30 @@ def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
 
 @endpoint(
     "models.archive_many",
-    request_data_model=ModelsArchiveManyRequest,
+    request_data_model=BatchRequest,
     response_data_model=BatchResponse,
 )
-def archive_many(call: APICall, company_id, request: ModelsArchiveManyRequest):
+def archive_many(call: APICall, company_id, request: BatchRequest):
     archived, failures = run_batch_operation(
         func=partial(ModelBLL.archive_model, company_id=company_id),
         ids=request.ids,
         init_res=0,
     )
     call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
+
+
+@endpoint(
+    "models.unarchive_many",
+    request_data_model=BatchRequest,
+    response_data_model=BatchResponse,
+)
+def unarchive_many(call: APICall, company_id, request: BatchRequest):
+    unarchived, failures = run_batch_operation(
+        func=partial(ModelBLL.unarchive_model, company_id=company_id),
+        ids=request.ids,
+        init_res=0,
+    )
+    call.result.data_model = BatchResponse(succeeded=unarchived, failures=failures,)
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)

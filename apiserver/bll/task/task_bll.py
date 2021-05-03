@@ -335,6 +335,7 @@ class TaskBLL:
         if (
             validate_parent
             and task.parent
+            and not task.parent.startswith(deleted_prefix)
             and not Task.get(
                 company=task.company, id=task.parent, _only=("id",), include_public=True
             )

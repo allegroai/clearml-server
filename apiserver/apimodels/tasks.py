@@ -241,12 +241,9 @@ class StopManyRequest(TaskBatchRequest):
     force = BoolField(default=False)
 
 
-class ArchiveManyRequest(TaskBatchRequest):
-    pass
-
-
 class EnqueueManyRequest(TaskBatchRequest):
     queue = StringField()
+    validate_tasks = BoolField(default=False)
 
 
 class DeleteManyRequest(TaskBatchRequest):

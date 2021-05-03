@@ -53,12 +53,18 @@ class TestBatchOperations(TestService):
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertEqual({t.status for t in data}, {"created"})
 
-        # archive
+        # archive/unarchive
         res = self.api.tasks.archive_many(ids=ids)
         self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertTrue(all("archived" in t.system_tags for t in data))
+
+        res = self.api.tasks.unarchive_many(ids=ids)
+        self.assertEqual(res.succeeded, 2)
+        self._assert_failures(res, [missing_id])
+        data = self.api.tasks.get_all_ex(id=ids).tasks
+        self.assertFalse(any("archived" in t.system_tags for t in data))
 
         # delete
         res = self.api.tasks.delete_many(
@@ -88,13 +94,18 @@ class TestBatchOperations(TestService):
         self.assertEqual(res.published_tasks[0].id, task)
         self._assert_failures(res, [ids[1], missing_id])
 
-        # archive
+        # archive/unarchive
         res = self.api.models.archive_many(ids=ids)
         self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.models.get_all_ex(id=ids).models
-        for m in data:
-            self.assertIn("archived", m.system_tags)
+        self.assertTrue(all("archived" in m.system_tags for m in data))
+
+        res = self.api.models.unarchive_many(ids=ids)
+        self.assertEqual(res.succeeded, 2)
+        self._assert_failures(res, [missing_id])
+        data = self.api.models.get_all_ex(id=ids).models
+        self.assertFalse(any("archived" in m.system_tags for m in data))
 
         # delete
         res = self.api.models.delete_many(ids=[*models, missing_id], force=True)

@@ -59,10 +59,27 @@ def archive_task(
     task.update(
         status_message=status_message,
         status_reason=status_reason,
-        add_to_set__system_tags={EntityVisibility.archived.value},
+        add_to_set__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
     )
     return 1
+
+
+def unarchive_task(
+    task: str, company_id: str, status_message: str, status_reason: str,
+) -> int:
+    """
+    Unarchive task. Return 1 if successful
+    """
+    task = TaskBLL.get_task_with_access(
+        task, company_id=company_id, only=("id",), requires_write_access=True,
+    )
+    return task.update(
+        status_message=status_message,
+        status_reason=status_reason,
+        pull__system_tags=EntityVisibility.archived.value,
+        last_change=datetime.utcnow(),
+    )
 
 
 def enqueue_task(
@@ -71,17 +88,19 @@ def enqueue_task(
     queue_id: str,
     status_message: str,
     status_reason: str,
+    validate: bool = False,
 ) -> Tuple[int, dict]:
     if not queue_id:
         # try to get default queue
         queue_id = queue_bll.get_default(company_id).id
 
     query = dict(id=task_id, company=company_id)
-    task = Task.get_for_writing(
-        _only=("type", "script", "execution", "status", "project", "id"), **query
-    )
+    task = Task.get_for_writing(**query)
     if not task:
         raise errors.bad_request.InvalidTaskId(**query)
+
+    if validate:
+        TaskBLL.validate(task)
 
     res = ChangeStatusRequest(
         task=task,
