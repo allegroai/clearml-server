@@ -430,6 +430,9 @@ class EventBLL(object):
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
+        if event_type in (EventType.metrics_plot, EventType.all):
+            self.uncompress_plots(events)
+
         return events, next_scroll_id, total_events
 
     def get_last_iterations_per_event_metric_variant(
@@ -672,6 +675,9 @@ class EventBLL(object):
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
+        if event_type in (EventType.metrics_plot, EventType.all):
+            self.uncompress_plots(events)
+
         return TaskEventsResult(
             events=events, next_scroll_id=next_scroll_id, total_events=total_events
         )
