@@ -78,6 +78,7 @@ class GetMixin(PropsMixin):
     MultiFieldParameters = namedtuple("MultiFieldParameters", "pattern fields")
 
     _field_collation_overrides = {}
+    _numeric_collation = {"locale": "en_US", "numericOrdering": True}
 
     class QueryParameterOptions(object):
         def __init__(
@@ -708,16 +709,21 @@ class GetMixin(PropsMixin):
             if res:
                 query_sets = [cls.objects(q) for q in res]
             query_sets = [qs.order_by(*order_by) for qs in query_sets]
-            if order_field:
-                collation_override = first(
-                    v
-                    for k, v in cls._field_collation_overrides.items()
-                    if order_field.startswith(k)
-                )
-                if collation_override:
-                    query_sets = [
-                        qs.collation(collation=collation_override) for qs in query_sets
-                    ]
+            # if order_field:
+            #     collation_override = first(
+            #         v
+            #         for k, v in cls._field_collation_overrides.items()
+            #         if order_field.startswith(k)
+            #     )
+            #     if collation_override:
+            #         query_sets = [
+            #             qs.collation(collation=collation_override) for qs in query_sets
+            #         ]
+
+        # always use numeric collation
+        query_sets = [
+            qs.collation(collation=cls._numeric_collation) for qs in query_sets
+        ]
 
         if search_text:
             query_sets = [qs.search_text(search_text) for qs in query_sets]

@@ -197,7 +197,7 @@ class Task(AttributedDocument):
             "project",
             "parent",
         ),
-        range_fields=("started", "active_duration", "last_metrics.*"),
+        range_fields=("started", "active_duration", "last_metrics.*", "last_iteration"),
         datetime_fields=("status_changed", "last_update"),
         pattern_fields=("name", "comment"),
     )
