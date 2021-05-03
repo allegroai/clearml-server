@@ -100,16 +100,14 @@ class ModelsBackwardsCompatibility:
 
         for mode, field in cls.mode_to_fields.items():
             value = nested_get(fields, field)
-            if not value:
-                continue
+            if value:
+                nested_set(
+                    fields,
+                    (cls.models_field, mode),
+                    value=[dict(name=mode, model=value, updated=datetime.utcnow())],
+                )
 
             nested_delete(fields, field)
-
-            nested_set(
-                fields,
-                (cls.models_field, mode),
-                value=[dict(name=mode, model=value, updated=datetime.utcnow())],
-            )
 
     @classmethod
     def unprepare_from_saved(
@@ -130,3 +128,38 @@ class ModelsBackwardsCompatibility:
                 model = models[0] if mode == "input" else models[-1]
                 if model:
                     nested_set(task, field, model.get("model"))
+
+
+class DockerCmdBackwardsCompatibility:
+    max_version = PartialVersion("2.13")
+    field = ("execution", "docker_cmd")
+
+    @classmethod
+    def prepare_for_save(cls, call: APICall, fields: dict):
+        if call.requested_endpoint_version > cls.max_version:
+            return
+
+        docker_cmd = nested_get(fields, cls.field)
+        if docker_cmd:
+            image, _, arguments = docker_cmd.partition(" ")
+            nested_set(fields, ("container", "image"), value=image)
+            nested_set(fields, ("container", "arguments"), value=arguments)
+
+        nested_delete(fields, cls.field)
+
+    @classmethod
+    def unprepare_from_saved(cls, call: APICall, tasks_data: Union[Sequence[dict], dict]):
+        if call.requested_endpoint_version > cls.max_version:
+            return
+
+        if isinstance(tasks_data, dict):
+            tasks_data = [tasks_data]
+
+        for task in tasks_data:
+            container = task.get("container")
+            if not container or not container.get("image"):
+                continue
+
+            docker_cmd = " ".join(filter(None, map(container.get, ("image", "arguments"))))
+            if docker_cmd:
+                nested_set(task, cls.field, docker_cmd)

@@ -7,11 +7,10 @@ from apiserver.utilities.dicts import nested_get
 from .utils import _drop_all_indices_from_collections
 
 
-def migrate_backend(db: Database):
+def _migrate_task_models(db: Database):
     """
     Collect the task output models from the models collections
     Move the execution and output models to new models.input and output lists
-    Drop the task indices to accommodate the change in schema
     """
     tasks: Collection = db["task"]
     models: Collection = db["model"]
@@ -44,30 +43,28 @@ def migrate_backend(db: Database):
     fields = {input: "execution.model", output: "output.model"}
     query = {
         "$or": [
-            {field: {"$exists": True, "$nin": [None, ""]}} for field in fields.values()
+            {field: {"$exists": True}} for field in fields.values()
         ]
     }
     for doc in tasks.find(filter=query, projection=[*fields.values(), models_field]):
         set_commands = {}
         for mode, field in fields.items():
             value = nested_get(doc, field.split("."))
-            if not value:
-                continue
-
-            model_doc = models.find_one(filter={"_id": value}, projection=["name"])
-            name = model_doc.get("name", mode) if model_doc else mode
-            model_item = {"model": value, "name": name, "updated": now}
-            existing_models = nested_get(doc, (models_field, mode), default=[])
-            existing_models = (
-                m
-                for m in existing_models
-                if m.get("name") != name and m.get("model") != value
-            )
-            if mode == input:
-                updated_models = [model_item, *existing_models]
-            else:
-                updated_models = [*existing_models, model_item]
-            set_commands[f"{models_field}.{mode}"] = updated_models
+            if value:
+                model_doc = models.find_one(filter={"_id": value}, projection=["name"])
+                name = model_doc.get("name", mode) if model_doc else mode
+                model_item = {"model": value, "name": name, "updated": now}
+                existing_models = nested_get(doc, (models_field, mode), default=[])
+                existing_models = (
+                    m
+                    for m in existing_models
+                    if m.get("name") != name and m.get("model") != value
+                )
+                if mode == input:
+                    updated_models = [model_item, *existing_models]
+                else:
+                    updated_models = [*existing_models, model_item]
+                set_commands[f"{models_field}.{mode}"] = updated_models
 
         tasks.update_one(
             {"_id": doc["_id"]},
@@ -77,4 +74,30 @@ def migrate_backend(db: Database):
             },
         )
 
+
+def _migrate_docker_cmd(db: Database):
+    tasks: Collection = db["task"]
+
+    docker_cmd_field = "execution.docker_cmd"
+    query = {docker_cmd_field: {"$exists": True}}
+
+    for doc in tasks.find(filter=query, projection=(docker_cmd_field,)):
+        set_commands = {}
+        docker_cmd = nested_get(doc, docker_cmd_field.split("."))
+        if docker_cmd:
+            image, _, arguments = docker_cmd.partition(" ")
+            set_commands["container"] = {"image": image, "arguments": arguments}
+
+        tasks.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$unset": {docker_cmd_field: 1},
+                **({"$set": set_commands} if set_commands else {}),
+            }
+        )
+
+
+def migrate_backend(db: Database):
+    _migrate_task_models(db)
+    _migrate_docker_cmd(db)
     _drop_all_indices_from_collections(db, ["task*"])

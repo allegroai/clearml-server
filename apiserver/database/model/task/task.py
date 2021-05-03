@@ -125,7 +125,6 @@ class Execution(EmbeddedDocument, ProperDictMixin):
     model_labels = ModelLabels()
     framework = StringField()
     artifacts: Dict[str, Artifact] = SafeMapField(field=EmbeddedDocumentField(Artifact))
-    docker_cmd = StringField()
     queue = StringField(reference_field="Queue")
     """ Queue ID where task was queued """
 
@@ -250,7 +249,7 @@ class Task(AttributedDocument):
     configuration = SafeMapField(field=EmbeddedDocumentField(ConfigurationItem))
     runtime = SafeDictField(default=dict)
     models: Models = EmbeddedDocumentField(Models, default=Models)
-    docker_init_script = StringField()
+    container = SafeMapField(field=StringField(default=""))
 
     def get_index_company(self) -> str:
         """

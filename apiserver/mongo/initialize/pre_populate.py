@@ -760,6 +760,61 @@ class PrePopulate:
         return getattr(module, class_name)
 
     @classmethod
+    def _upgrade_task_data(cls, task_data: dict) -> dict:
+        """
+        Upgrade artifacts list to dict
+        Migrate from execution.model and output.model to the new models field
+        Move docker_cmd contents into the container field
+        :param task_data:
+        :return:
+        """
+        artifacts_path = ("execution", "artifacts")
+        artifacts = nested_get(task_data, artifacts_path)
+        if isinstance(artifacts, list):
+            nested_set(
+                task_data,
+                path=artifacts_path,
+                value={get_artifact_id(a): a for a in artifacts},
+            )
+
+        models = task_data.get("models", {})
+        now = datetime.utcnow()
+        for old_field, type_ in (
+            ("execution.model", "input"),
+            ("output.model", "output"),
+        ):
+            old_path = old_field.split(".")
+            old_model = nested_get(task_data, old_path)
+            new_models = models.get(type_, [])
+            if old_model and not any(
+                m
+                for m in new_models
+                if m.get("model") == old_model or m.get("name") == type_
+            ):
+                model_item = {"model": old_model, "name": type_, "updated": now}
+                if type_ == "input":
+                    new_models = [model_item, *new_models]
+                else:
+                    new_models = [*new_models, model_item]
+            models[type_] = new_models
+            nested_delete(task_data, old_path)
+        task_data["models"] = models
+
+        docker_cmd_path = ("execution", "docker_cmd")
+        container_path = ("execution", "container")
+        docker_cmd = nested_get(task_data, docker_cmd_path)
+        if docker_cmd and not nested_get(task_data, container_path):
+            image, _, arguments = docker_cmd.partition(" ")
+            nested_set(
+                task_data,
+                path=container_path,
+                value={"image": image, "arguments": arguments},
+            )
+        nested_delete(task_data, docker_cmd_path)
+
+        return task_data
+
+    @classmethod
     def _import_entity(
         cls,
         f: IO[bytes],
@@ -774,40 +829,7 @@ class PrePopulate:
         override_project_count = 0
         for item in cls.json_lines(f):
             if cls_ == cls.task_cls:
-                task_data = json.loads(item)
-                artifacts_path = ("execution", "artifacts")
-                artifacts = nested_get(task_data, artifacts_path)
-                if isinstance(artifacts, list):
-                    nested_set(
-                        task_data,
-                        artifacts_path,
-                        value={get_artifact_id(a): a for a in artifacts},
-                    )
-
-                models = task_data.get("models", {})
-                now = datetime.utcnow()
-                for old_field, type_ in (
-                    ("execution.model", "input"),
-                    ("output.model", "output"),
-                ):
-                    old_path = old_field.split(".")
-                    old_model = nested_get(task_data, old_path)
-                    new_models = models.get(type_, [])
-                    if old_model and not any(
-                        m
-                        for m in new_models
-                        if m.get("model") == old_model or m.get("name") == type_
-                    ):
-                        model_item = {"model": old_model, "name": type_, "updated": now}
-                        if type_ == "input":
-                            new_models = [model_item, *new_models]
-                        else:
-                            new_models = [*new_models, model_item]
-                    models[type_] = new_models
-                    nested_delete(task_data, old_path)
-                task_data["models"] = models
-
-                item = json.dumps(task_data)
+                item = json.dumps(cls._upgrade_task_data(task_data=json.loads(item)))
                 print(item)
 
             doc = cls_.from_json(item, created=True)

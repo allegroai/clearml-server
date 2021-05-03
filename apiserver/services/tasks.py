@@ -90,6 +90,7 @@ from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
     ModelsBackwardsCompatibility,
+    DockerCmdBackwardsCompatibility,
 )
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.partial_version import PartialVersion
@@ -348,6 +349,7 @@ def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     params_prepare_for_save(fields, previous_task=previous_task)
     artifacts_prepare_for_save(fields)
     ModelsBackwardsCompatibility.prepare_for_save(call, fields)
+    DockerCmdBackwardsCompatibility.prepare_for_save(call, fields)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_stripped_fields:
@@ -369,9 +371,11 @@ def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict])
 
     conform_output_tags(call, tasks_data)
     ModelsBackwardsCompatibility.unprepare_from_saved(call, tasks_data)
+    DockerCmdBackwardsCompatibility.unprepare_from_saved(call, tasks_data)
+
+    need_legacy_params = call.requested_endpoint_version < PartialVersion("2.9")
 
     for data in tasks_data:
-        need_legacy_params = call.requested_endpoint_version < PartialVersion("2.9")
         params_unprepare_from_saved(
             fields=data, copy_to_legacy=need_legacy_params,
         )
