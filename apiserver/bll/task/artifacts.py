@@ -1,10 +1,10 @@
-from hashlib import md5
 from operator import itemgetter
 from typing import Sequence
 
 from apiserver.apimodels.tasks import Artifact as ApiArtifact, ArtifactId
 from apiserver.bll.task.utils import get_task_for_update, update_task
 from apiserver.database.model.task.task import DEFAULT_ARTIFACT_MODE, Artifact
+from apiserver.database.utils import hash_field_name
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get, nested_set
 from apiserver.utilities.parameter_key_escaper import mongoengine_safe
@@ -15,7 +15,7 @@ def get_artifact_id(artifact: dict):
     Calculate id from 'key' and 'mode' fields
     Return hash on on the id so that it will not contain mongo illegal characters
     """
-    key_hash: str = md5(artifact["key"].encode()).hexdigest()
+    key_hash: str = hash_field_name(artifact["key"])
     mode: str = artifact.get("mode", DEFAULT_ARTIFACT_MODE)
     return f"{key_hash}_{mode}"
 

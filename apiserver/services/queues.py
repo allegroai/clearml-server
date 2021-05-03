@@ -11,11 +11,20 @@ from apiserver.apimodels.queues import (
     GetMetricsRequest,
     GetMetricsResponse,
     QueueMetrics,
+    AddOrUpdateMetadataRequest,
+    DeleteMetadataRequest,
 )
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.workers import WorkerBLL
+from apiserver.database.model.metadata import metadata_add_or_update, metadata_delete
+from apiserver.database.model.queue import Queue
 from apiserver.service_repo import APICall, endpoint
-from apiserver.services.utils import conform_tag_fields, conform_output_tags, conform_tags
+from apiserver.services.utils import (
+    conform_tag_fields,
+    conform_output_tags,
+    conform_tags,
+    get_metadata_from_api,
+)
 from apiserver.utilities import extract_properties_to_lists
 
 worker_bll = WorkerBLL()
@@ -62,7 +71,11 @@ def create(call: APICall, company_id, request: CreateRequest):
         call, request.tags, request.system_tags, validate=True
     )
     queue = queue_bll.create(
-        company_id=company_id, name=request.name, tags=tags, system_tags=system_tags
+        company_id=company_id,
+        name=request.name,
+        tags=tags,
+        system_tags=system_tags,
+        metadata=get_metadata_from_api(request.metadata),
     )
     call.result.data = {"id": queue.id}
 
@@ -220,3 +233,25 @@ def get_queue_metrics(
             for queue, data in queue_dicts.items()
         ]
     )
+
+
+@endpoint("queues.add_or_update_metadata", min_version="2.13")
+def add_or_update_metadata(
+    _: APICall, company_id: str, request: AddOrUpdateMetadataRequest
+):
+    queue_id = request.queue
+    queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
+
+    return {
+        "updated": metadata_add_or_update(
+            cls=Queue, _id=queue_id, items=get_metadata_from_api(request.metadata),
+        )
+    }
+
+
+@endpoint("queues.delete_metadata", min_version="2.13")
+def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest):
+    queue_id = request.queue
+    queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
+
+    return {"updated": metadata_delete(cls=Queue, _id=queue_id, keys=request.keys)}

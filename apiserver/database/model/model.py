@@ -1,9 +1,22 @@
-from mongoengine import Document, StringField, DateTimeField, BooleanField
+from typing import Sequence
+
+from mongoengine import (
+    Document,
+    StringField,
+    DateTimeField,
+    BooleanField,
+    EmbeddedDocumentListField,
+)
 
 from apiserver.database import Database, strict
-from apiserver.database.fields import StrippedStringField, SafeDictField, SafeSortedListField
+from apiserver.database.fields import (
+    StrippedStringField,
+    SafeDictField,
+    SafeSortedListField,
+)
 from apiserver.database.model import DbModelMixin
 from apiserver.database.model.base import GetMixin
+from apiserver.database.model.metadata import MetadataItem
 from apiserver.database.model.model_labels import ModelLabels
 from apiserver.database.model.company import Company
 from apiserver.database.model.project import Project
@@ -19,6 +32,8 @@ class Model(DbModelMixin, Document):
             "parent",
             "project",
             "task",
+            "metadata.key",
+            "metadata.type",
             ("company", "framework"),
             ("company", "name"),
             ("company", "user"),
@@ -73,3 +88,6 @@ class Model(DbModelMixin, Document):
         default=dict, user_set_allowed=True, exclude_by_default=True
     )
     company_origin = StringField(exclude_by_default=True)
+    metadata: Sequence[MetadataItem] = EmbeddedDocumentListField(
+        MetadataItem, default=list, user_set_allowed=True
+    )

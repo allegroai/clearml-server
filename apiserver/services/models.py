@@ -15,6 +15,8 @@ from apiserver.apimodels.models import (
     ModelTaskPublishResponse,
     GetFrameworksRequest,
     DeleteModelRequest,
+    DeleteMetadataRequest,
+    AddOrUpdateMetadataRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, project_ids_with_children
@@ -23,6 +25,7 @@ from apiserver.bll.task.utils import deleted_prefix
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import validate_id
+from apiserver.database.model.metadata import metadata_add_or_update, metadata_delete
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, ModelItem
@@ -32,7 +35,13 @@ from apiserver.database.utils import (
     filter_fields,
 )
 from apiserver.service_repo import APICall, endpoint
-from apiserver.services.utils import conform_tag_fields, conform_output_tags, ModelsBackwardsCompatibility
+from apiserver.services.utils import (
+    conform_tag_fields,
+    conform_output_tags,
+    ModelsBackwardsCompatibility,
+    validate_metadata,
+    get_metadata_from_api,
+)
 from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
@@ -160,12 +169,16 @@ create_fields = {
     "design": None,
     "labels": dict,
     "ready": None,
+    "metadata": list,
 }
 
 
 def parse_model_fields(call, valid_fields):
     fields = parse_from_call(call.data, valid_fields, Model.get_fields())
     conform_tag_fields(call, fields, validate=True)
+    metadata = fields.get("metadata")
+    if metadata:
+        validate_metadata(metadata)
     return fields
 
 
@@ -183,6 +196,17 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
     org_bll.reset_tags(
         company, Tags.Model, projects=projects,
     )
+
+
+def _get_company_model(company_id: str, model_id: str, only_fields=None) -> Model:
+    query = dict(company=company_id, id=model_id)
+    qs = Model.objects(**query)
+    if only_fields:
+        qs = qs.only(*only_fields)
+    model = qs.first()
+    if not model:
+        raise errors.bad_request.InvalidModelId(**query)
+    return model
 
 
 @endpoint("models.update_for_task", required_fields=["task"])
@@ -218,10 +242,9 @@ def update_for_task(call: APICall, company_id, _):
             )
 
         if override_model_id:
-            query = dict(company=company_id, id=override_model_id)
-            model = Model.objects(**query).first()
-            if not model:
-                raise errors.bad_request.InvalidModelId(**query)
+            model = _get_company_model(
+                company_id=company_id, model_id=override_model_id
+            )
         else:
             if "name" not in call.data:
                 # use task name if name not provided
@@ -294,6 +317,8 @@ def create(call: APICall, company_id, req_model: CreateModelRequest):
         fields = filter_fields(Model, req_data)
         conform_tag_fields(call, fields, validate=True)
 
+        validate_metadata(fields.get("metadata"))
+
         # create and save model
         model = Model(
             id=database.utils.id(),
@@ -352,10 +377,7 @@ def edit(call: APICall, company_id, _):
     model_id = call.data["model"]
 
     with translate_errors_context():
-        query = dict(id=model_id, company=company_id)
-        model = Model.objects(**query).first()
-        if not model:
-            raise errors.bad_request.InvalidModelId(**query)
+        model = _get_company_model(company_id=company_id, model_id=model_id)
 
         fields = parse_model_fields(call, create_fields)
         fields = prepare_update_fields(call, company_id, fields)
@@ -401,11 +423,7 @@ def _update_model(call: APICall, company_id, model_id=None):
     model_id = model_id or call.data["model"]
 
     with translate_errors_context():
-        # get model by id
-        query = dict(id=model_id, company=company_id)
-        model = Model.objects(**query).first()
-        if not model:
-            raise errors.bad_request.InvalidModelId(**query)
+        model = _get_company_model(company_id=company_id, model_id=model_id)
 
         data = prepare_update_fields(call, company_id, call.data)
 
@@ -415,6 +433,10 @@ def _update_model(call: APICall, company_id, model_id=None):
             TaskBLL.update_statistics(
                 task_id=task_id, company_id=company_id, last_iteration_max=iteration,
             )
+
+        metadata = data.get("metadata")
+        if metadata:
+            validate_metadata(metadata)
 
         updated_count, updated_fields = Model.safe_update(company_id, model.id, data)
         if updated_count:
@@ -463,11 +485,11 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
     force = request.force
 
     with translate_errors_context():
-        query = dict(id=model_id, company=company_id)
-        model = Model.objects(**query).only("id", "task", "project", "uri").first()
-        if not model:
-            raise errors.bad_request.InvalidModelId(**query)
-
+        model = _get_company_model(
+            company_id=company_id,
+            model_id=model_id,
+            only_fields=("id", "task", "project", "uri"),
+        )
         deleted_model_id = f"{deleted_prefix}{model_id}"
 
         using_tasks = Task.objects(models__input__model=model_id).only("id")
@@ -507,7 +529,7 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
                         upsert=False,
                     )
 
-        del_count = Model.objects(**query).delete()
+        del_count = Model.objects(id=model_id, company=company_id).delete()
         if del_count:
             _reset_cached_tags(company_id, projects=[model.project])
         call.result.data = dict(deleted=del_count > 0, url=model.uri,)
@@ -549,3 +571,25 @@ def move(call: APICall, company_id: str, request: MoveRequest):
                 project_name=request.project_name,
             )
         }
+
+
+@endpoint("models.add_or_update_metadata", min_version="2.13")
+def add_or_update_metadata(
+    _: APICall, company_id: str, request: AddOrUpdateMetadataRequest
+):
+    model_id = request.model
+    _get_company_model(company_id=company_id, model_id=model_id)
+
+    return {
+        "updated": metadata_add_or_update(
+            cls=Model, _id=model_id, items=get_metadata_from_api(request.metadata),
+        )
+    }
+
+
+@endpoint("models.delete_metadata", min_version="2.13")
+def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest):
+    model_id = request.model
+    _get_company_model(company_id=company_id, model_id=model_id, only_fields=("id",))
+
+    return {"updated": metadata_delete(cls=Model, _id=model_id, keys=request.keys)}

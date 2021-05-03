@@ -60,10 +60,13 @@ class TaskRequest(models.Base):
     task = StringField(required=True)
 
 
-class UpdateRequest(TaskRequest):
+class TaskUpdateRequest(TaskRequest):
+    force = BoolField(default=False)
+
+
+class UpdateRequest(TaskUpdateRequest):
     status_reason = StringField(default="")
     status_message = StringField(default="")
-    force = BoolField(default=False)
 
 
 class EnqueueRequest(UpdateRequest):
@@ -128,9 +131,8 @@ class CloneRequest(TaskRequest):
     new_project_name = StringField()
 
 
-class AddOrUpdateArtifactsRequest(TaskRequest):
+class AddOrUpdateArtifactsRequest(TaskUpdateRequest):
     artifacts = ListField([Artifact], validators=Length(minimum_value=1))
-    force = BoolField(default=False)
 
 
 class ArtifactId(models.Base):
@@ -140,9 +142,8 @@ class ArtifactId(models.Base):
     )
 
 
-class DeleteArtifactsRequest(TaskRequest):
+class DeleteArtifactsRequest(TaskUpdateRequest):
     artifacts = ListField([ArtifactId], validators=Length(minimum_value=1))
-    force = BoolField(default=False)
 
 
 class ResetRequest(UpdateRequest):
@@ -173,7 +174,7 @@ class ReplaceHyperparams(object):
     all = "all"
 
 
-class EditHyperParamsRequest(TaskRequest):
+class EditHyperParamsRequest(TaskUpdateRequest):
     hyperparams: Sequence[HyperParamItem] = ListField(
         [HyperParamItem], validators=Length(minimum_value=1)
     )
@@ -181,7 +182,6 @@ class EditHyperParamsRequest(TaskRequest):
         validators=Enum(*get_options(ReplaceHyperparams)),
         default=ReplaceHyperparams.none,
     )
-    force = BoolField(default=False)
 
 
 class HyperParamKey(models.Base):
@@ -189,11 +189,10 @@ class HyperParamKey(models.Base):
     name = StringField(nullable=True)
 
 
-class DeleteHyperParamsRequest(TaskRequest):
+class DeleteHyperParamsRequest(TaskUpdateRequest):
     hyperparams: Sequence[HyperParamKey] = ListField(
         [HyperParamKey], validators=Length(minimum_value=1)
     )
-    force = BoolField(default=False)
 
 
 class GetConfigurationsRequest(MultiTaskRequest):
@@ -211,17 +210,15 @@ class Configuration(models.Base):
     description = StringField()
 
 
-class EditConfigurationRequest(TaskRequest):
+class EditConfigurationRequest(TaskUpdateRequest):
     configuration: Sequence[Configuration] = ListField(
         [Configuration], validators=Length(minimum_value=1)
     )
     replace_configuration = BoolField(default=False)
-    force = BoolField(default=False)
 
 
-class DeleteConfigurationRequest(TaskRequest):
+class DeleteConfigurationRequest(TaskUpdateRequest):
     configuration: Sequence[str] = ListField([str], validators=Length(minimum_value=1))
-    force = BoolField(default=False)
 
 
 class ArchiveRequest(MultiTaskRequest):

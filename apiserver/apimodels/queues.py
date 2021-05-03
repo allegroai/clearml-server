@@ -3,6 +3,11 @@ from jsonmodels.fields import StringField, IntField, BoolField, FloatField
 from jsonmodels.models import Base
 
 from apiserver.apimodels import ListField
+from apiserver.apimodels.metadata import (
+    MetadataItem,
+    DeleteMetadata,
+    AddOrUpdateMetadata,
+)
 
 
 class GetDefaultResp(Base):
@@ -14,6 +19,7 @@ class CreateRequest(Base):
     name = StringField(required=True)
     tags = ListField(items_types=[str])
     system_tags = ListField(items_types=[str])
+    metadata = ListField(items_types=[MetadataItem])
 
 
 class QueueRequest(Base):
@@ -28,6 +34,7 @@ class UpdateRequest(QueueRequest):
     name = StringField()
     tags = ListField(items_types=[str])
     system_tags = ListField(items_types=[str])
+    metadata = ListField(items_types=[MetadataItem])
 
 
 class TaskRequest(QueueRequest):
@@ -58,3 +65,11 @@ class QueueMetrics(Base):
 
 class GetMetricsResponse(Base):
     queues = ListField(QueueMetrics)
+
+
+class DeleteMetadataRequest(DeleteMetadata):
+    queue = StringField(required=True)
+
+
+class AddOrUpdateMetadataRequest(AddOrUpdateMetadata):
+    queue = StringField(required=True)

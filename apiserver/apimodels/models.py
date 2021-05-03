@@ -3,6 +3,11 @@ from six import string_types
 
 from apiserver.apimodels import ListField, DictField
 from apiserver.apimodels.base import UpdateResponse
+from apiserver.apimodels.metadata import (
+    MetadataItem,
+    DeleteMetadata,
+    AddOrUpdateMetadata,
+)
 from apiserver.apimodels.tasks import PublishResponse as TaskPublishResponse
 
 
@@ -13,7 +18,7 @@ class GetFrameworksRequest(models.Base):
 class CreateModelRequest(models.Base):
     name = fields.StringField(required=True)
     uri = fields.StringField(required=True)
-    labels = DictField(value_types=string_types+(int,))
+    labels = DictField(value_types=string_types + (int,))
     tags = ListField(items_types=string_types)
     system_tags = ListField(items_types=string_types)
     comment = fields.StringField()
@@ -25,6 +30,7 @@ class CreateModelRequest(models.Base):
     ready = fields.BoolField(default=True)
     ui_cache = DictField()
     task = fields.StringField()
+    metadata = ListField(items_types=[MetadataItem])
 
 
 class CreateModelResponse(models.Base):
@@ -53,3 +59,11 @@ class ModelTaskPublishResponse(models.Base):
 class PublishModelResponse(UpdateResponse):
     published_task = fields.EmbeddedField(ModelTaskPublishResponse)
     updated = fields.IntField()
+
+
+class DeleteMetadataRequest(DeleteMetadata):
+    model = fields.StringField(required=True)
+
+
+class AddOrUpdateMetadataRequest(AddOrUpdateMetadata):
+    model = fields.StringField(required=True)

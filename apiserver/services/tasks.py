@@ -70,7 +70,7 @@ from apiserver.bll.task.param_utils import (
     escape_paths,
 )
 from apiserver.bll.task.task_cleanup import cleanup_task
-from apiserver.bll.task.utils import update_task, deleted_prefix
+from apiserver.bll.task.utils import update_task, deleted_prefix, get_task_for_update
 from apiserver.bll.util import SetFieldsResolver
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
@@ -1160,9 +1160,7 @@ def move(call: APICall, company_id: str, request: MoveRequest):
 
 @endpoint("tasks.add_or_update_model", min_version="2.13")
 def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequest):
-    TaskBLL.get_task_with_access(
-        request.task, company_id=company_id, requires_write_access=True, only=["id"]
-    )
+    get_task_for_update(company_id=company_id, task_id=request.task, force=True)
 
     models_field = f"models__{request.type}"
     model = ModelItem(name=request.name, model=request.model, updated=datetime.utcnow())
@@ -1181,9 +1179,7 @@ def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequ
 
 @endpoint("tasks.delete_models", min_version="2.13")
 def delete_models(_: APICall, company_id: str, request: DeleteModelsRequest):
-    task = TaskBLL.get_task_with_access(
-        request.task, company_id=company_id, requires_write_access=True, only=["id"]
-    )
+    task = get_task_for_update(company_id=company_id, task_id=request.task, force=True)
 
     delete_names = {
         type_: [m.name for m in request.models if m.type == type_]

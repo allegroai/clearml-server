@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Union, Sequence, Tuple
 
 from apiserver.apierrors import errors
+from apiserver.apimodels.metadata import MetadataItem as ApiMetadataItem
 from apiserver.apimodels.organization import Filter
 from apiserver.database.model.base import GetMixin
 from apiserver.database.utils import partition_tags
@@ -148,7 +149,9 @@ class DockerCmdBackwardsCompatibility:
         nested_delete(fields, cls.field)
 
     @classmethod
-    def unprepare_from_saved(cls, call: APICall, tasks_data: Union[Sequence[dict], dict]):
+    def unprepare_from_saved(
+        cls, call: APICall, tasks_data: Union[Sequence[dict], dict]
+    ):
         if call.requested_endpoint_version > cls.max_version:
             return
 
@@ -160,6 +163,29 @@ class DockerCmdBackwardsCompatibility:
             if not container or not container.get("image"):
                 continue
 
-            docker_cmd = " ".join(filter(None, map(container.get, ("image", "arguments"))))
+            docker_cmd = " ".join(
+                filter(None, map(container.get, ("image", "arguments")))
+            )
             if docker_cmd:
                 nested_set(task, cls.field, docker_cmd)
+
+
+def validate_metadata(metadata: Sequence[dict]):
+    if not metadata:
+        return
+
+    keys = [m.get("key") for m in metadata]
+    unique_keys = set(keys)
+    unique_keys.discard(None)
+    if len(keys) != len(set(keys)):
+        raise errors.bad_request.ValidationError("Metadata keys should be unique")
+
+
+def get_metadata_from_api(api_metadata: Sequence[ApiMetadataItem]) -> Sequence:
+    if not api_metadata:
+        return api_metadata
+
+    metadata = [m.to_struct() for m in api_metadata]
+    validate_metadata(metadata)
+
+    return metadata

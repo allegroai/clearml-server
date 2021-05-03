@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from mongoengine import (
     Document,
     EmbeddedDocument,
@@ -11,6 +13,7 @@ from apiserver.database.fields import StrippedStringField, SafeSortedListField
 from apiserver.database.model import DbModelMixin
 from apiserver.database.model.base import ProperDictMixin, GetMixin
 from apiserver.database.model.company import Company
+from apiserver.database.model.metadata import MetadataItem
 from apiserver.database.model.task.task import Task
 
 
@@ -32,6 +35,7 @@ class Queue(DbModelMixin, Document):
     meta = {
         'db_alias': Database.backend,
         'strict': strict,
+        "indexes": ["metadata.key", "metadata.type"],
     }
 
     id = StringField(primary_key=True)
@@ -44,3 +48,6 @@ class Queue(DbModelMixin, Document):
     system_tags = SafeSortedListField(StringField(required=True), user_set_allowed=True)
     entries = EmbeddedDocumentListField(Entry, default=list)
     last_update = DateTimeField()
+    metadata: Sequence[MetadataItem] = EmbeddedDocumentListField(
+        MetadataItem, default=list, user_set_allowed=True
+    )
