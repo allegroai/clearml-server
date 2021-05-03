@@ -6,6 +6,7 @@ from pathlib import Path
 
 from boltons.iterutils import first
 from flask import Flask, request, send_from_directory, safe_join, abort, Response
+from flask._compat import fspath
 from flask_compress import Compress
 from flask_cors import CORS
 
@@ -58,7 +59,12 @@ def download(path):
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    path = Path(safe_join(app.config["UPLOAD_FOLDER"], path))
+    path = Path(
+        safe_join(
+            fspath(app.config["UPLOAD_FOLDER"]),
+            fspath(path)
+        )
+    )
     if not path.exists() or path.is_file():
         abort(Response(f"File {str(path)} not found", 404))
 
