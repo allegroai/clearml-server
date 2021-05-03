@@ -516,7 +516,9 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
     call.result.data_model = BatchResponse(
         succeeded=[
             dict(
-                id=_id, updated=bool(updated), published_task=published_task.to_struct()
+                id=_id,
+                updated=bool(updated),
+                published_task=published_task.to_struct() if published_task else None,
             )
             for _id, (updated, published_task) in results
         ],
