@@ -11,6 +11,7 @@ from six import string_types
 
 import apiserver.database.utils as dbutils
 from apiserver.apierrors import errors
+from apiserver.apimodels.tasks import TaskInputModel
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, project_ids_with_children
@@ -23,7 +24,6 @@ from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
     Task,
     TaskStatus,
-    TaskStatusMessage,
     TaskSystemTags,
     ArtifactModes,
     ModelItem,
@@ -41,11 +41,9 @@ from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
 from .utils import (
     ChangeStatusRequest,
-    validate_status_change,
     update_project_time,
     deleted_prefix,
 )
-from ...apimodels.tasks import TaskInputModel
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -481,147 +479,6 @@ class TaskBLL:
             last_update=last_update,
             **extra_updates,
         )
-
-    @classmethod
-    def model_set_ready(
-        cls,
-        model_id: str,
-        company_id: str,
-        publish_task: bool,
-        force_publish_task: bool = False,
-    ) -> tuple:
-        with translate_errors_context():
-            query = dict(id=model_id, company=company_id)
-            model = Model.objects(**query).first()
-            if not model:
-                raise errors.bad_request.InvalidModelId(**query)
-            elif model.ready:
-                raise errors.bad_request.ModelIsReady(**query)
-
-            published_task_data = {}
-            if model.task and publish_task:
-                task = (
-                    Task.objects(id=model.task, company=company_id)
-                    .only("id", "status")
-                    .first()
-                )
-                if task and task.status != TaskStatus.published:
-                    published_task_data["data"] = cls.publish_task(
-                        task_id=model.task,
-                        company_id=company_id,
-                        publish_model=False,
-                        force=force_publish_task,
-                    )
-                    published_task_data["id"] = model.task
-
-            updated = model.update(upsert=False, ready=True)
-            return updated, published_task_data
-
-    @classmethod
-    def publish_task(
-        cls,
-        task_id: str,
-        company_id: str,
-        publish_model: bool,
-        force: bool,
-        status_reason: str = "",
-        status_message: str = "",
-    ) -> dict:
-        task = cls.get_task_with_access(
-            task_id, company_id=company_id, requires_write_access=True
-        )
-        if not force:
-            validate_status_change(task.status, TaskStatus.published)
-
-        previous_task_status = task.status
-        output = task.output or Output()
-        publish_failed = False
-
-        try:
-            # set state to publishing
-            task.status = TaskStatus.publishing
-            task.save()
-
-            # publish task models
-            if task.models.output and publish_model:
-                model_ids = [m.model for m in task.models.output]
-                for model in Model.objects(id__in=model_ids, ready__ne=True).only("id"):
-                    cls.model_set_ready(
-                        model_id=model.id, company_id=company_id, publish_task=False,
-                    )
-
-            # set task status to published, and update (or set) it's new output (view and models)
-            return ChangeStatusRequest(
-                task=task,
-                new_status=TaskStatus.published,
-                force=force,
-                status_reason=status_reason,
-                status_message=status_message,
-            ).execute(published=datetime.utcnow(), output=output)
-
-        except Exception as ex:
-            publish_failed = True
-            raise ex
-        finally:
-            if publish_failed:
-                task.status = previous_task_status
-                task.save()
-
-    @classmethod
-    def stop_task(
-        cls,
-        task_id: str,
-        company_id: str,
-        user_name: str,
-        status_reason: str,
-        force: bool,
-    ) -> dict:
-        """
-        Stop a running task. Requires task status 'in_progress' and
-        execution_progress 'running', or force=True. Development task or
-        task that has no associated worker is stopped immediately.
-        For a non-development task with worker only the status message
-        is set to 'stopping' to allow the worker to stop the task and report by itself
-        :return: updated task fields
-        """
-
-        task = cls.get_task_with_access(
-            task_id,
-            company_id=company_id,
-            only=(
-                "status",
-                "project",
-                "tags",
-                "system_tags",
-                "last_worker",
-                "last_update",
-            ),
-            requires_write_access=True,
-        )
-
-        def is_run_by_worker(t: Task) -> bool:
-            """Checks if there is an active worker running the task"""
-            update_timeout = config.get("apiserver.workers.task_update_timeout", 600)
-            return (
-                t.last_worker
-                and t.last_update
-                and (datetime.utcnow() - t.last_update).total_seconds() < update_timeout
-            )
-
-        if TaskSystemTags.development in task.system_tags or not is_run_by_worker(task):
-            new_status = TaskStatus.stopped
-            status_message = f"Stopped by {user_name}"
-        else:
-            new_status = task.status
-            status_message = TaskStatusMessage.stopping
-
-        return ChangeStatusRequest(
-            task=task,
-            new_status=new_status,
-            status_reason=status_reason,
-            status_message=status_message,
-            force=force,
-        ).execute()
 
     @staticmethod
     def get_aggregated_project_parameters(

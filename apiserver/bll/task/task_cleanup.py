@@ -68,6 +68,16 @@ class TaskUrls:
     event_urls: Sequence[str]
     artifact_urls: Sequence[str]
 
+    def __add__(self, other: "TaskUrls"):
+        if not other:
+            return self
+
+        return TaskUrls(
+            model_urls=list(set(self.model_urls) | set(other.model_urls)),
+            event_urls=list(set(self.event_urls) | set(other.event_urls)),
+            artifact_urls=list(set(self.artifact_urls) | set(other.artifact_urls)),
+        )
+
 
 @attr.s(auto_attribs=True)
 class CleanupResult:
@@ -79,6 +89,17 @@ class CleanupResult:
     updated_models: int
     deleted_models: int
     urls: TaskUrls = None
+
+    def __add__(self, other: "CleanupResult"):
+        if not other:
+            return self
+
+        return CleanupResult(
+            updated_children=self.updated_children + other.updated_children,
+            updated_models=self.updated_models + other.updated_models,
+            deleted_models=self.deleted_models + other.deleted_models,
+            urls=self.urls + other.urls if self.urls else other.urls,
+        )
 
 
 def collect_plot_image_urls(company: str, task: str) -> Set[str]:
@@ -224,7 +245,7 @@ def verify_task_children_and_ouptuts(task: Task, force: bool) -> TaskOutputs[Mod
                 models=len(models.published),
             )
 
-    if task.models.output:
+    if task.models and task.models.output:
         with TimingContext("mongo", "get_task_output_model"):
             model_ids = [m.model for m in task.models.output]
             for output_model in Model.objects(id__in=model_ids):
@@ -243,11 +264,13 @@ def verify_task_children_and_ouptuts(task: Task, force: bool) -> TaskOutputs[Mod
         with TimingContext("mongo", "get_execution_models"):
             model_ids = models.draft.ids
             dependent_tasks = Task.objects(models__input__model__in=model_ids).only(
-                "id", "models__input"
+                "id", "models"
             )
             input_models = {
                 m.model
-                for m in chain.from_iterable(t.models.input for t in dependent_tasks)
+                for m in chain.from_iterable(
+                    t.models.input for t in dependent_tasks if t.models
+                )
             }
             if input_models:
                 models.draft = DocumentGroup(

@@ -69,16 +69,6 @@ class TestService(TestCase, TestServiceInterface):
             delete_params=delete_params,
         )
 
-    def create_temp_version(self, *, client=None, **kwargs) -> str:
-        return self._create_temp_helper(
-            service="datasets",
-            create_endpoint="create_version",
-            delete_endpoint="delete_version",
-            object_name="version",
-            create_params=kwargs,
-            client=client,
-        )
-
     def setUp(self, version="1.7"):
         self._api = APIClient(base_url=f"http://localhost:8008/v{version}")
         self._deferred = []

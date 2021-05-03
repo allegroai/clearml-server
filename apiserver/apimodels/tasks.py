@@ -7,6 +7,7 @@ from jsonmodels.validators import Enum, Length
 
 from apiserver.apimodels import DictField, ListField
 from apiserver.apimodels.base import UpdateResponse
+from apiserver.apimodels.batch import BatchRequest, BatchResponse
 from apiserver.database.model.task.task import (
     TaskType,
     ArtifactModes,
@@ -52,7 +53,7 @@ class ResetResponse(UpdateResponse):
     dequeued = DictField()
     frames = DictField()
     events = DictField()
-    model_deleted = IntField()
+    deleted_models = IntField()
     urls = DictField()
 
 
@@ -228,6 +229,54 @@ class ArchiveRequest(MultiTaskRequest):
 
 class ArchiveResponse(models.Base):
     archived = IntField()
+
+
+class TaskBatchRequest(BatchRequest):
+    status_reason = StringField(default="")
+    status_message = StringField(default="")
+
+
+class StopManyRequest(TaskBatchRequest):
+    force = BoolField(default=False)
+
+
+class StopManyResponse(BatchResponse):
+    stopped = IntField(required=True)
+
+
+class ArchiveManyRequest(TaskBatchRequest):
+    pass
+
+
+class ArchiveManyResponse(BatchResponse):
+    archived = IntField(required=True)
+
+
+class EnqueueManyRequest(TaskBatchRequest):
+    queue = StringField()
+
+
+class EnqueueManyResponse(BatchResponse):
+    queued = IntField()
+
+
+class DeleteManyRequest(TaskBatchRequest):
+    move_to_trash = BoolField(default=True)
+    return_file_urls = BoolField(default=False)
+    delete_output_models = BoolField(default=True)
+    force = BoolField(default=False)
+
+
+class ResetManyRequest(TaskBatchRequest):
+    clear_all = BoolField(default=False)
+    return_file_urls = BoolField(default=False)
+    delete_output_models = BoolField(default=True)
+    force = BoolField(default=False)
+
+
+class PublishManyRequest(TaskBatchRequest):
+    publish_model = BoolField(default=True)
+    force = BoolField(default=False)
 
 
 class ModelItemType(object):

@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import Sequence
+from functools import partial
+from typing import Sequence, Tuple, Set
 
+import attr
 from mongoengine import Q, EmbeddedDocument
 
 from apiserver import database
@@ -17,11 +19,19 @@ from apiserver.apimodels.models import (
     DeleteModelRequest,
     DeleteMetadataRequest,
     AddOrUpdateMetadataRequest,
+    ModelsPublishManyRequest,
+    ModelsPublishManyResponse,
+    ModelsDeleteManyRequest,
+    ModelsDeleteManyResponse,
+    ModelsArchiveManyRequest,
+    ModelsArchiveManyResponse,
 )
+from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, project_ids_with_children
 from apiserver.bll.task import TaskBLL
-from apiserver.bll.task.utils import deleted_prefix
+from apiserver.bll.task.task_operations import publish_task
+from apiserver.bll.util import run_batch_operation
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import validate_id
@@ -80,7 +90,7 @@ def get_by_task_id(call: APICall, company_id, _):
         task = Task.get(_only=["models"], **query)
         if not task:
             raise errors.bad_request.InvalidTaskId(**query)
-        if not task.models.output:
+        if not task.models or not task.models.output:
             raise errors.bad_request.MissingTaskFields(field="models.output")
 
         model_id = task.models.output[-1].model
@@ -198,17 +208,6 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
     )
 
 
-def _get_company_model(company_id: str, model_id: str, only_fields=None) -> Model:
-    query = dict(company=company_id, id=model_id)
-    qs = Model.objects(**query)
-    if only_fields:
-        qs = qs.only(*only_fields)
-    model = qs.first()
-    if not model:
-        raise errors.bad_request.InvalidModelId(**query)
-    return model
-
-
 @endpoint("models.update_for_task", required_fields=["task"])
 def update_for_task(call: APICall, company_id, _):
     if call.requested_endpoint_version > ModelsBackwardsCompatibility.max_version:
@@ -242,7 +241,7 @@ def update_for_task(call: APICall, company_id, _):
             )
 
         if override_model_id:
-            model = _get_company_model(
+            model = ModelBLL.get_company_model_by_id(
                 company_id=company_id, model_id=override_model_id
             )
         else:
@@ -253,7 +252,7 @@ def update_for_task(call: APICall, company_id, _):
             if "comment" not in call.data:
                 call.data["comment"] = f"Created by task `{task.name}` ({task.id})"
 
-            if task.models.output:
+            if task.models and task.models.output:
                 # model exists, update
                 model_id = task.models.output[-1].model
                 res = _update_model(call, company_id, model_id=model_id).to_struct()
@@ -272,7 +271,9 @@ def update_for_task(call: APICall, company_id, _):
                 company=company_id,
                 project=task.project,
                 framework=task.execution.framework,
-                parent=task.models.input[0].model if task.models.input else None,
+                parent=task.models.input[0].model
+                if task.models and task.models.input
+                else None,
                 design=task.execution.model_desc,
                 labels=task.execution.model_labels,
                 ready=(task.status == TaskStatus.published),
@@ -377,7 +378,9 @@ def edit(call: APICall, company_id, _):
     model_id = call.data["model"]
 
     with translate_errors_context():
-        model = _get_company_model(company_id=company_id, model_id=model_id)
+        model = ModelBLL.get_company_model_by_id(
+            company_id=company_id, model_id=model_id
+        )
 
         fields = parse_model_fields(call, create_fields)
         fields = prepare_update_fields(call, company_id, fields)
@@ -423,7 +426,9 @@ def _update_model(call: APICall, company_id, model_id=None):
     model_id = model_id or call.data["model"]
 
     with translate_errors_context():
-        model = _get_company_model(company_id=company_id, model_id=model_id)
+        model = ModelBLL.get_company_model_by_id(
+            company_id=company_id, model_id=model_id
+        )
 
         data = prepare_update_fields(call, company_id, call.data)
 
@@ -463,94 +468,131 @@ def update(call, company_id, _):
     request_data_model=PublishModelRequest,
     response_data_model=PublishModelResponse,
 )
-def set_ready(call: APICall, company_id, req_model: PublishModelRequest):
-    updated, published_task_data = TaskBLL.model_set_ready(
-        model_id=req_model.model,
+def set_ready(call: APICall, company_id: str, request: PublishModelRequest):
+    updated, published_task = ModelBLL.publish_model(
+        model_id=request.model,
         company_id=company_id,
-        publish_task=req_model.publish_task,
-        force_publish_task=req_model.force_publish_task,
+        force_publish_task=request.force_publish_task,
+        publish_task_func=publish_task if request.publish_task else None,
+    )
+    call.result.data_model = PublishModelResponse(
+        updated=updated, published_task=published_task
     )
 
-    call.result.data_model = PublishModelResponse(
-        updated=updated,
-        published_task=ModelTaskPublishResponse(**published_task_data)
-        if published_task_data
-        else None,
+
+@attr.s(auto_attribs=True)
+class PublishRes:
+    published: int = 0
+    published_tasks: Sequence = []
+
+    def __add__(self, other: Tuple[int, ModelTaskPublishResponse]):
+        published, response = other
+        return PublishRes(
+            published=self.published + published,
+            published_tasks=[*self.published_tasks, *([response] if response else [])],
+        )
+
+
+@endpoint(
+    "models.publish_many",
+    request_data_model=ModelsPublishManyRequest,
+    response_data_model=ModelsPublishManyResponse,
+)
+def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            ModelBLL.publish_model,
+            company_id=company_id,
+            force_publish_task=request.force_publish_task,
+            publish_task_func=publish_task if request.publish_task else None,
+        ),
+        ids=request.ids,
+        init_res=PublishRes(),
+    )
+
+    call.result.data_model = ModelsPublishManyResponse(
+        published=res.published, published_tasks=res.published_tasks, failures=failures,
     )
 
 
 @endpoint("models.delete", request_data_model=DeleteModelRequest)
 def delete(call: APICall, company_id, request: DeleteModelRequest):
-    model_id = request.model
-    force = request.force
-
-    with translate_errors_context():
-        model = _get_company_model(
-            company_id=company_id,
-            model_id=model_id,
-            only_fields=("id", "task", "project", "uri"),
+    del_count, model = ModelBLL.delete_model(
+        model_id=request.model, company_id=company_id, force=request.force
+    )
+    if del_count:
+        _reset_cached_tags(
+            company_id, projects=[model.project] if model.project else []
         )
-        deleted_model_id = f"{deleted_prefix}{model_id}"
 
-        using_tasks = Task.objects(models__input__model=model_id).only("id")
-        if using_tasks:
-            if not force:
-                raise errors.bad_request.ModelInUse(
-                    "as execution model, use force=True to delete",
-                    num_tasks=len(using_tasks),
-                )
-            # update deleted model id in using tasks
-            Task._get_collection().update_many(
-                filter={"_id": {"$in": [t.id for t in using_tasks]}},
-                update={"$set": {"models.input.$[elem].model": deleted_model_id}},
-                array_filters=[{"elem.model": model_id}],
-                upsert=False,
-            )
+    call.result.data = dict(deleted=del_count > 0, url=model.uri)
 
-        if model.task:
-            task: Task = Task.objects(id=model.task).first()
-            if task and task.status == TaskStatus.published:
-                if not force:
-                    raise errors.bad_request.ModelCreatingTaskExists(
-                        "and published, use force=True to delete", task=model.task
-                    )
-                if task.models.output and model_id in task.models.output:
-                    now = datetime.utcnow()
-                    Task._get_collection().update_one(
-                        filter={"_id": model.task, "models.output.model": model_id},
-                        update={
-                            "$set": {
-                                "models.output.$[elem].model": deleted_model_id,
-                                "output.error": f"model deleted on {now.isoformat()}",
-                            },
-                            "last_change": now,
-                        },
-                        array_filters=[{"elem.model": model_id}],
-                        upsert=False,
-                    )
 
-        del_count = Model.objects(id=model_id, company=company_id).delete()
-        if del_count:
-            _reset_cached_tags(company_id, projects=[model.project])
-        call.result.data = dict(deleted=del_count > 0, url=model.uri,)
+@attr.s(auto_attribs=True)
+class DeleteRes:
+    deleted: int = 0
+    projects: Set = set()
+    urls: Set = set()
+
+    def __add__(self, other: Tuple[int, Model]):
+        del_count, model = other
+        return DeleteRes(
+            deleted=self.deleted + del_count,
+            projects=self.projects | {model.project},
+            urls=self.urls | {model.uri},
+        )
+
+
+@endpoint(
+    "models.delete_many",
+    request_data_model=ModelsDeleteManyRequest,
+    response_data_model=ModelsDeleteManyResponse,
+)
+def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(ModelBLL.delete_model, company_id=company_id, force=request.force),
+        ids=request.ids,
+        init_res=DeleteRes(),
+    )
+    if res.deleted:
+        _reset_cached_tags(company_id, projects=list(res.projects))
+
+    res.urls.discard(None)
+    call.result.data_model = ModelsDeleteManyResponse(
+        deleted=res.deleted, urls=list(res.urls), failures=failures,
+    )
+
+
+@endpoint(
+    "models.archive_many",
+    request_data_model=ModelsArchiveManyRequest,
+    response_data_model=ModelsArchiveManyResponse,
+)
+def archive_many(call: APICall, company_id, request: ModelsArchiveManyRequest):
+    archived, failures = run_batch_operation(
+        func=partial(ModelBLL.archive_model, company_id=company_id),
+        ids=request.ids,
+        init_res=0,
+    )
+    call.result.data_model = ModelsArchiveManyResponse(
+        archived=archived, failures=failures,
+    )
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)
 def make_public(call: APICall, company_id, request: MakePublicRequest):
-    with translate_errors_context():
-        call.result.data = Model.set_public(
-            company_id, ids=request.ids, invalid_cls=InvalidModelId, enabled=True
-        )
+    call.result.data = Model.set_public(
+        company_id, ids=request.ids, invalid_cls=InvalidModelId, enabled=True
+    )
 
 
 @endpoint(
     "models.make_private", min_version="2.9", request_data_model=MakePublicRequest
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
-    with translate_errors_context():
-        call.result.data = Model.set_public(
-            company_id, request.ids, invalid_cls=InvalidModelId, enabled=False
-        )
+    call.result.data = Model.set_public(
+        company_id, request.ids, invalid_cls=InvalidModelId, enabled=False
+    )
 
 
 @endpoint("models.move", request_data_model=MoveRequest)
@@ -560,17 +602,16 @@ def move(call: APICall, company_id: str, request: MoveRequest):
             "project or project_name is required"
         )
 
-    with translate_errors_context():
-        return {
-            "project_id": project_bll.move_under_project(
-                entity_cls=Model,
-                user=call.identity.user,
-                company=company_id,
-                ids=request.ids,
-                project=request.project,
-                project_name=request.project_name,
-            )
-        }
+    return {
+        "project_id": project_bll.move_under_project(
+            entity_cls=Model,
+            user=call.identity.user,
+            company=company_id,
+            ids=request.ids,
+            project=request.project,
+            project_name=request.project_name,
+        )
+    }
 
 
 @endpoint("models.add_or_update_metadata", min_version="2.13")
@@ -578,7 +619,7 @@ def add_or_update_metadata(
     _: APICall, company_id: str, request: AddOrUpdateMetadataRequest
 ):
     model_id = request.model
-    _get_company_model(company_id=company_id, model_id=model_id)
+    ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
 
     return {
         "updated": metadata_add_or_update(
@@ -590,6 +631,8 @@ def add_or_update_metadata(
 @endpoint("models.delete_metadata", min_version="2.13")
 def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest):
     model_id = request.model
-    _get_company_model(company_id=company_id, model_id=model_id, only_fields=("id",))
+    ModelBLL.get_company_model_by_id(
+        company_id=company_id, model_id=model_id, only_fields=("id",)
+    )
 
     return {"updated": metadata_delete(cls=Model, _id=model_id, keys=request.keys)}

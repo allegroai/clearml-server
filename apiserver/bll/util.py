@@ -1,10 +1,21 @@
 import functools
 import itertools
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import Optional, Callable, Dict, Any, Set, Iterable
+from typing import (
+    Optional,
+    Callable,
+    Dict,
+    Any,
+    Set,
+    Iterable,
+    Tuple,
+    Sequence,
+    TypeVar,
+)
 
 from boltons import iterutils
 
+from apiserver.apierrors import APIError
 from apiserver.database.model import AttributedDocument
 from apiserver.database.model.settings import Settings
 
@@ -96,3 +107,28 @@ def parallel_chunked_decorator(func: Callable = None, chunk_size: int = 100):
             )
 
     return wrapper
+
+
+T = TypeVar("T")
+
+
+def run_batch_operation(
+    func: Callable[[str], T], init_res: T, ids: Sequence[str]
+) -> Tuple[T, Sequence]:
+    res = init_res
+    failures = list()
+    for _id in ids:
+        try:
+            res += func(_id)
+        except APIError as err:
+            failures.append(
+                {
+                    "id": _id,
+                    "error": {
+                        "codes": [err.code, err.subcode],
+                        "msg": err.msg,
+                        "data": err.error_data,
+                    },
+                }
+            )
+    return res, failures

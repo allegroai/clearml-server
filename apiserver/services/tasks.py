@@ -1,6 +1,7 @@
 from copy import deepcopy
 from datetime import datetime
-from typing import Sequence, Union, Tuple
+from functools import partial
+from typing import Sequence, Union, Tuple, Set
 
 import attr
 import dpath
@@ -8,7 +9,7 @@ from mongoengine import EmbeddedDocument, Q
 from mongoengine.queryset.transform import COMPARISON_OPERATORS
 from pymongo import UpdateOne
 
-from apiserver.apierrors import errors, APIError
+from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidTaskId
 from apiserver.apimodels.base import (
     UpdateResponse,
@@ -47,8 +48,18 @@ from apiserver.apimodels.tasks import (
     AddUpdateModelRequest,
     DeleteModelsRequest,
     ModelItemType,
+    StopManyResponse,
+    StopManyRequest,
+    EnqueueManyRequest,
+    EnqueueManyResponse,
+    ResetManyRequest,
+    ArchiveManyRequest,
+    ArchiveManyResponse,
+    DeleteManyRequest,
+    PublishManyRequest,
 )
 from apiserver.bll.event import EventBLL
+from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, project_ids_with_children
 from apiserver.bll.queue import QueueBLL
@@ -69,19 +80,23 @@ from apiserver.bll.task.param_utils import (
     params_unprepare_from_saved,
     escape_paths,
 )
-from apiserver.bll.task.task_cleanup import cleanup_task
+from apiserver.bll.task.task_cleanup import CleanupResult
+from apiserver.bll.task.task_operations import (
+    stop_task,
+    enqueue_task,
+    reset_task,
+    archive_task,
+    delete_task,
+    publish_task,
+)
 from apiserver.bll.task.utils import update_task, deleted_prefix, get_task_for_update
-from apiserver.bll.util import SetFieldsResolver
+from apiserver.bll.util import SetFieldsResolver, run_batch_operation
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model import EntityVisibility
 from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
     Task,
     TaskStatus,
     Script,
-    DEFAULT_LAST_ITERATION,
-    Execution,
-    ArtifactModes,
     ModelItem,
 )
 from apiserver.database.utils import get_fields_attr, parse_from_call, get_options
@@ -199,9 +214,7 @@ def get_all_ex(call: APICall, company_id, _):
         with TimingContext("mongo", "task_get_all_ex"):
             _process_include_subprojects(call_data)
             tasks = Task.get_many_with_join(
-                company=company_id,
-                query_dict=call_data,
-                allow_public=True,  # required in case projection is requested for public dataset/versions
+                company=company_id, query_dict=call_data, allow_public=True,
             )
         unprepare_from_saved(call, tasks)
         call.result.data = {"tasks": tasks}
@@ -235,7 +248,7 @@ def get_all(call: APICall, company_id, _):
                 company=company_id,
                 parameters=call_data,
                 query_dict=call_data,
-                allow_public=True,  # required in case projection is requested for public dataset/versions
+                allow_public=True,
             )
         unprepare_from_saved(call, tasks)
         call.result.data = {"tasks": tasks}
@@ -263,7 +276,7 @@ def stop(call: APICall, company_id, req_model: UpdateRequest):
 
     """
     call.result.data_model = UpdateResponse(
-        **TaskBLL.stop_task(
+        **stop_task(
             task_id=req_model.task,
             company_id=company_id,
             user_name=call.identity.user_name,
@@ -271,6 +284,34 @@ def stop(call: APICall, company_id, req_model: UpdateRequest):
             force=req_model.force,
         )
     )
+
+
+@attr.s(auto_attribs=True)
+class StopRes:
+    stopped: int = 0
+
+    def __add__(self, other: dict):
+        return StopRes(stopped=self.stopped + 1)
+
+
+@endpoint(
+    "tasks.stop_many",
+    request_data_model=StopManyRequest,
+    response_data_model=StopManyResponse,
+)
+def stop_many(call: APICall, company_id, request: StopManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            stop_task,
+            company_id=company_id,
+            user_name=call.identity.user_name,
+            status_reason=request.status_reason,
+            force=request.force,
+        ),
+        ids=request.ids,
+        init_res=StopRes(),
+    )
+    call.result.data_model = StopManyResponse(stopped=res.stopped, failures=failures)
 
 
 @endpoint(
@@ -792,61 +833,44 @@ def delete_configuration(
     request_data_model=EnqueueRequest,
     response_data_model=EnqueueResponse,
 )
-def enqueue(call: APICall, company_id, req_model: EnqueueRequest):
-    task_id = req_model.task
-    queue_id = req_model.queue
-    status_message = req_model.status_message
-    status_reason = req_model.status_reason
+def enqueue(call: APICall, company_id, request: EnqueueRequest):
+    queued, res = enqueue_task(
+        task_id=request.task,
+        company_id=company_id,
+        queue_id=request.queue,
+        status_message=request.status_message,
+        status_reason=request.status_reason,
+    )
+    call.result.data_model = EnqueueResponse(queued=queued, **res)
 
-    if not queue_id:
-        # try to get default queue
-        queue_id = queue_bll.get_default(company_id).id
 
-    with translate_errors_context():
-        query = dict(id=task_id, company=company_id)
-        task = Task.get_for_writing(
-            _only=("type", "script", "execution", "status", "project", "id"), **query
-        )
-        if not task:
-            raise errors.bad_request.InvalidTaskId(**query)
+@attr.s(auto_attribs=True)
+class EnqueueRes:
+    queued: int = 0
 
-        res = EnqueueResponse(
-            **ChangeStatusRequest(
-                task=task,
-                new_status=TaskStatus.queued,
-                status_reason=status_reason,
-                status_message=status_message,
-                allow_same_state_transition=False,
-            ).execute()
-        )
+    def __add__(self, other: Tuple[int, dict]):
+        queued, _ = other
+        return EnqueueRes(queued=self.queued + queued)
 
-        try:
-            queue_bll.add_task(
-                company_id=company_id, queue_id=queue_id, task_id=task.id
-            )
-        except Exception:
-            # failed enqueueing, revert to previous state
-            ChangeStatusRequest(
-                task=task,
-                current_status_override=TaskStatus.queued,
-                new_status=task.status,
-                force=True,
-                status_reason="failed enqueueing",
-            ).execute()
-            raise
 
-        # set the current queue ID in the task
-        if task.execution:
-            Task.objects(**query).update(execution__queue=queue_id, multi=False)
-        else:
-            Task.objects(**query).update(
-                execution=Execution(queue=queue_id), multi=False
-            )
-
-        res.queued = 1
-        res.fields.update(**{"execution.queue": queue_id})
-
-        call.result.data_model = res
+@endpoint(
+    "tasks.enqueue_many",
+    request_data_model=EnqueueManyRequest,
+    response_data_model=EnqueueManyResponse,
+)
+def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            enqueue_task,
+            company_id=company_id,
+            queue_id=request.queue,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
+        ),
+        ids=request.ids,
+        init_res=EnqueueRes(),
+    )
+    call.result.data_model = EnqueueManyResponse(queued=res.queued, failures=failures)
 
 
 @endpoint(
@@ -878,85 +902,66 @@ def dequeue(call: APICall, company_id, request: UpdateRequest):
     "tasks.reset", request_data_model=ResetRequest, response_data_model=ResetResponse
 )
 def reset(call: APICall, company_id, request: ResetRequest):
-    task = TaskBLL.get_task_with_access(
-        request.task, company_id=company_id, requires_write_access=True
-    )
-
-    force = request.force
-
-    if not force and task.status == TaskStatus.published:
-        raise errors.bad_request.InvalidTaskStatus(task_id=task.id, status=task.status)
-
-    api_results = {}
-    updates = {}
-
-    try:
-        dequeued = TaskBLL.dequeue(task, company_id, silent_fail=True)
-    except APIError:
-        # dequeue may fail if the task was not enqueued
-        pass
-    else:
-        if dequeued:
-            api_results.update(dequeued=dequeued)
-
-    cleaned_up = cleanup_task(
-        task,
-        force=force,
-        update_children=False,
+    dequeued, cleanup_res, updates = reset_task(
+        task_id=request.task,
+        company_id=company_id,
+        force=request.force,
         return_file_urls=request.return_file_urls,
         delete_output_models=request.delete_output_models,
-    )
-    api_results.update(attr.asdict(cleaned_up))
-
-    updates.update(
-        set__last_iteration=DEFAULT_LAST_ITERATION,
-        set__last_metrics={},
-        set__metric_stats={},
-        set__models__output=[],
-        unset__output__result=1,
-        unset__output__error=1,
-        unset__last_worker=1,
-        unset__last_worker_report=1,
+        clear_all=request.clear_all,
     )
 
-    if request.clear_all:
-        updates.update(
-            set__execution=Execution(), unset__script=1,
-        )
-    else:
-        updates.update(unset__execution__queue=1)
-        if task.execution and task.execution.artifacts:
-            updates.update(
-                set__execution__artifacts={
-                    key: artifact
-                    for key, artifact in task.execution.artifacts.items()
-                    if artifact.mode == ArtifactModes.input
-                }
-            )
-
-    res = ResetResponse(
-        **ChangeStatusRequest(
-            task=task,
-            new_status=TaskStatus.created,
-            force=force,
-            status_reason="reset",
-            status_message="reset",
-        ).execute(
-            started=None,
-            completed=None,
-            published=None,
-            active_duration=None,
-            **updates,
-        )
-    )
-
+    res = ResetResponse(**updates, dequeued=dequeued)
     # do not return artifacts since they are not serializable
     res.fields.pop("execution.artifacts", None)
 
-    for key, value in api_results.items():
+    for key, value in attr.asdict(cleanup_res).items():
         setattr(res, key, value)
 
     call.result.data_model = res
+
+
+@attr.s(auto_attribs=True)
+class ResetRes:
+    reset: int = 0
+    dequeued: int = 0
+    cleanup_res: CleanupResult = None
+
+    def __add__(self, other: Tuple[dict, CleanupResult, dict]):
+        dequeued, other_res, _ = other
+        dequeued = dequeued.get("removed", 0) if dequeued else 0
+        return ResetRes(
+            reset=self.reset + 1,
+            dequeued=self.dequeued + dequeued,
+            cleanup_res=self.cleanup_res + other_res if self.cleanup_res else other_res,
+        )
+
+
+@endpoint("tasks.reset_many", request_data_model=ResetManyRequest)
+def reset_many(call: APICall, company_id, request: ResetManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            reset_task,
+            company_id=company_id,
+            force=request.force,
+            return_file_urls=request.return_file_urls,
+            delete_output_models=request.delete_output_models,
+            clear_all=request.clear_all,
+        ),
+        ids=request.ids,
+        init_res=ResetRes(),
+    )
+
+    if res.cleanup_res:
+        cleanup_res = dict(
+            deleted_models=res.cleanup_res.deleted_models,
+            urls=attr.asdict(res.cleanup_res.urls),
+        )
+    else:
+        cleanup_res = {}
+    call.result.data = dict(
+        reset=res.reset, dequeued=res.dequeued, **cleanup_res, failures=failures,
+    )
 
 
 @endpoint(
@@ -965,77 +970,93 @@ def reset(call: APICall, company_id, request: ResetRequest):
     response_data_model=ArchiveResponse,
 )
 def archive(call: APICall, company_id, request: ArchiveRequest):
-    archived = 0
     tasks = TaskBLL.assert_exists(
         company_id,
         task_ids=request.tasks,
         only=("id", "execution", "status", "project", "system_tags"),
     )
+    archived = 0
     for task in tasks:
-        try:
-            TaskBLL.dequeue_and_change_status(
-                task, company_id, request.status_message, request.status_reason,
-            )
-        except APIError:
-            # dequeue may fail if the task was not enqueued
-            pass
-        task.update(
+        archived += archive_task(
+            company_id=company_id,
+            task=task,
             status_message=request.status_message,
             status_reason=request.status_reason,
-            system_tags=sorted(
-                set(task.system_tags) | {EntityVisibility.archived.value}
-            ),
-            last_change=datetime.utcnow(),
         )
-
-        archived += 1
 
     call.result.data_model = ArchiveResponse(archived=archived)
 
 
+@endpoint(
+    "tasks.archive_many",
+    request_data_model=ArchiveManyRequest,
+    response_data_model=ArchiveManyResponse,
+)
+def archive_many(call: APICall, company_id, request: ArchiveManyRequest):
+    archived, failures = run_batch_operation(
+        func=partial(
+            archive_task,
+            company_id=company_id,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
+        ),
+        ids=request.ids,
+        init_res=0,
+    )
+    call.result.data_model = ArchiveManyResponse(archived=archived, failures=failures)
+
+
 @endpoint("tasks.delete", request_data_model=DeleteRequest)
 def delete(call: APICall, company_id, request: DeleteRequest):
-    task = TaskBLL.get_task_with_access(
-        request.task, company_id=company_id, requires_write_access=True
+    deleted, task, cleanup_res = delete_task(
+        task_id=request.task,
+        company_id=company_id,
+        move_to_trash=request.move_to_trash,
+        force=request.force,
+        return_file_urls=request.return_file_urls,
+        delete_output_models=request.delete_output_models,
     )
+    if deleted:
+        _reset_cached_tags(company_id, projects=[task.project] if task.project else [])
+    call.result.data = dict(deleted=bool(deleted), **attr.asdict(cleanup_res))
 
-    move_to_trash = request.move_to_trash
-    force = request.force
 
-    if task.status != TaskStatus.created and not force:
-        raise errors.bad_request.TaskCannotBeDeleted(
-            "due to status, use force=True",
-            task=task.id,
-            expected=TaskStatus.created,
-            current=task.status,
+@attr.s(auto_attribs=True)
+class DeleteRes:
+    deleted: int = 0
+    projects: Set = set()
+    cleanup_res: CleanupResult = None
+
+    def __add__(self, other: Tuple[int, Task, CleanupResult]):
+        del_count, task, other_res = other
+
+        return DeleteRes(
+            deleted=self.deleted + del_count,
+            projects=self.projects | {task.project},
+            cleanup_res=self.cleanup_res + other_res if self.cleanup_res else other_res,
         )
 
-    with translate_errors_context():
-        result = cleanup_task(
-            task,
-            force=force,
+
+@endpoint("tasks.delete_many", request_data_model=DeleteManyRequest)
+def delete_many(call: APICall, company_id, request: DeleteManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            delete_task,
+            company_id=company_id,
+            move_to_trash=request.move_to_trash,
+            force=request.force,
             return_file_urls=request.return_file_urls,
             delete_output_models=request.delete_output_models,
-        )
+        ),
+        ids=request.ids,
+        init_res=DeleteRes(),
+    )
 
-        if move_to_trash:
-            collection_name = task._get_collection_name()
-            archived_collection = "{}__trash".format(collection_name)
-            task.switch_collection(archived_collection)
-            try:
-                # A simple save() won't do due to mongoengine caching (nothing will be saved), so we have to force
-                # an insert. However, if for some reason such an ID exists, let's make sure we'll keep going.
-                with TimingContext("mongo", "save_task"):
-                    task.save(force_insert=True)
-            except Exception:
-                pass
-            task.switch_collection(collection_name)
+    if res.deleted:
+        _reset_cached_tags(company_id, projects=list(res.projects))
 
-        task.delete()
-        _reset_cached_tags(company_id, projects=[task.project])
-        update_project_time(task.project)
-
-        call.result.data = dict(deleted=True, **attr.asdict(result))
+    cleanup_res = attr.asdict(res.cleanup_res) if res.cleanup_res else {}
+    call.result.data = dict(deleted=res.deleted, **cleanup_res, failures=failures)
 
 
 @endpoint(
@@ -1043,17 +1064,44 @@ def delete(call: APICall, company_id, request: DeleteRequest):
     request_data_model=PublishRequest,
     response_data_model=PublishResponse,
 )
-def publish(call: APICall, company_id, req_model: PublishRequest):
-    call.result.data_model = PublishResponse(
-        **TaskBLL.publish_task(
-            task_id=req_model.task,
-            company_id=company_id,
-            publish_model=req_model.publish_model,
-            force=req_model.force,
-            status_reason=req_model.status_reason,
-            status_message=req_model.status_message,
-        )
+def publish(call: APICall, company_id, request: PublishRequest):
+    updates = publish_task(
+        task_id=request.task,
+        company_id=company_id,
+        force=request.force,
+        publish_model_func=ModelBLL.publish_model if request.publish_model else None,
+        status_reason=request.status_reason,
+        status_message=request.status_message,
     )
+    call.result.data_model = PublishResponse(**updates)
+
+
+@attr.s(auto_attribs=True)
+class PublishRes:
+    published: int = 0
+
+    def __add__(self, other: dict):
+        return PublishRes(published=self.published + 1)
+
+
+@endpoint("tasks.publish_many", request_data_model=PublishManyRequest)
+def publish_many(call: APICall, company_id, request: PublishManyRequest):
+    res, failures = run_batch_operation(
+        func=partial(
+            publish_task,
+            company_id=company_id,
+            force=request.force,
+            publish_model_func=ModelBLL.publish_model
+            if request.publish_model
+            else None,
+            status_reason=request.status_reason,
+            status_message=request.status_message,
+        ),
+        ids=request.ids,
+        init_res=PublishRes(),
+    )
+
+    call.result.data = dict(published=res.published, failures=failures)
 
 
 @endpoint(

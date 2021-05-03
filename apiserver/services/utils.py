@@ -28,16 +28,23 @@ def get_tags_response(ret: dict) -> dict:
 
 def conform_output_tags(call: APICall, documents: Union[dict, Sequence[dict]]):
     """
+    Make sure that tags are always returned sorted
     For old clients both tags and system tags are returned in 'tags' field
     """
-    if call.requested_endpoint_version >= PartialVersion("2.3"):
-        return
     if isinstance(documents, dict):
         documents = [documents]
+
+    merge_tags = call.requested_endpoint_version < PartialVersion("2.3")
     for doc in documents:
-        system_tags = doc.get("system_tags")
-        if system_tags:
-            doc["tags"] = list(set(doc.get("tags", [])) | set(system_tags))
+        if merge_tags:
+            system_tags = doc.get("system_tags")
+            if system_tags:
+                doc["tags"] = list(set(doc.get("tags", [])) | set(system_tags))
+
+        for field in ("system_tags", "tags"):
+            tags = doc.get(field)
+            if tags:
+                doc[field] = sorted(tags)
 
 
 def conform_tag_fields(call: APICall, document: dict, validate=False):

@@ -465,6 +465,7 @@ class PrePopulate:
         task_models = chain.from_iterable(
             models
             for task in entities[cls.task_cls]
+            if task.models
             for models in (task.models.input, task.models.output)
             if models
         )
