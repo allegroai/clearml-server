@@ -5,6 +5,15 @@ class TestTaskParent(TestService):
     def setUp(self, version="2.12"):
         super().setUp(version=version)
 
+    def test_query_by_parents(self):
+        parent = self.new_task()
+        child = self.new_task(name="Test parent task1", parent=parent)
+        tasks = self.api.tasks.get_all_ex(parent=[parent]).tasks
+        self.assertEqual([t.id for t in tasks], [child])
+
+        tasks = self.api.tasks.get_all(parent=parent).tasks
+        self.assertEqual([t.id for t in tasks], [child])
+
     def test_query_by_project(self):
         # stand alone task
         parent_sa_name = "Test parent parent standalone"
@@ -74,6 +83,6 @@ class TestTaskParent(TestService):
 
     def new_task(self, **kwargs):
         self.update_missing(
-            kwargs, type="testing", name="test project tags", input=dict(view=dict())
+            kwargs, type="testing", name="test task parents", input=dict(view=dict())
         )
         return self.create_temp("tasks", **kwargs)

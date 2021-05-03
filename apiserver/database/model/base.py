@@ -271,7 +271,8 @@ class GetMixin(PropsMixin):
         - AND can be achieved using a preceding "__$all" or "__$and" value (operator)
         """
         if not isinstance(data, (list, tuple)):
-            raise MakeGetAllQueryError("expected list", field)
+            data = [data]
+            # raise MakeGetAllQueryError("expected list", field)
 
         # TODO: backwards compatibility only for older API versions
         helper = cls.ListFieldBucketHelper(legacy=True)
