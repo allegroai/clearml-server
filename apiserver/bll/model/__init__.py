@@ -50,7 +50,7 @@ class ModelBLL:
                     id=model.task, data=task_publish_res
                 )
 
-        updated = model.update(upsert=False, ready=True)
+        updated = model.update(upsert=False, ready=True, last_update=datetime.utcnow())
         return updated, published_task
 
     @classmethod
@@ -110,7 +110,8 @@ class ModelBLL:
             company_id=company_id, model_id=model_id, only_fields=("id",)
         )
         archived = Model.objects(company=company_id, id=model_id).update(
-            add_to_set__system_tags=EntityVisibility.archived.value
+            add_to_set__system_tags=EntityVisibility.archived.value,
+            last_update=datetime.utcnow(),
         )
 
         return archived

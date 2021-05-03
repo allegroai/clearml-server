@@ -32,6 +32,7 @@ class Model(DbModelMixin, Document):
             "parent",
             "project",
             "task",
+            "last_update",
             "metadata.key",
             "metadata.type",
             ("company", "framework"),
@@ -66,6 +67,7 @@ class Model(DbModelMixin, Document):
             "task",
             "parent",
         ),
+        datetime_fields=("last_update",),
     )
 
     id = StringField(primary_key=True)
@@ -84,6 +86,7 @@ class Model(DbModelMixin, Document):
     design = SafeDictField()
     labels = ModelLabels()
     ready = BooleanField(required=True)
+    last_update = DateTimeField()
     ui_cache = SafeDictField(
         default=dict, user_set_allowed=True, exclude_by_default=True
     )

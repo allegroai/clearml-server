@@ -188,6 +188,8 @@ create_fields = {
     "metadata": list,
 }
 
+last_update_fields = ("uri", "framework", "design", "labels", "ready", "metadata")
+
 
 def parse_model_fields(call, valid_fields):
     fields = parse_from_call(call.data, valid_fields, Model.get_fields())
@@ -270,9 +272,11 @@ def update_for_task(call: APICall, company_id, _):
             fields = parse_model_fields(call, create_fields)
 
             # create and save model
+            now = datetime.utcnow()
             model = Model(
                 id=database.utils.id(),
-                created=datetime.utcnow(),
+                created=now,
+                last_update=now,
                 user=call.identity.user,
                 company=company_id,
                 project=task.project,
@@ -331,11 +335,13 @@ def create(call: APICall, company_id, req_model: CreateModelRequest):
         validate_metadata(fields.get("metadata"))
 
         # create and save model
+        now = datetime.utcnow()
         model = Model(
             id=database.utils.id(),
             user=call.identity.user,
             company=company_id,
-            created=datetime.utcnow(),
+            created=now,
+            last_update=now,
             **fields,
         )
         model.save()
@@ -415,6 +421,9 @@ def edit(call: APICall, company_id, _):
             )
 
         if fields:
+            if any(uf in fields for uf in last_update_fields):
+                fields.update(last_update=datetime.utcnow())
+
             updated = model.update(upsert=False, **fields)
             if updated:
                 new_project = fields.get("project", model.project)
@@ -455,6 +464,9 @@ def _update_model(call: APICall, company_id, model_id=None):
 
         updated_count, updated_fields = Model.safe_update(company_id, model.id, data)
         if updated_count:
+            if any(uf in updated_fields for uf in last_update_fields):
+                model.update(upsert=False, last_update=datetime.utcnow())
+
             new_project = updated_fields.get("project", model.project)
             if new_project != model.project:
                 _reset_cached_tags(company_id, projects=[new_project, model.project])
@@ -631,11 +643,13 @@ def add_or_update_metadata(
     model_id = request.model
     ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
 
-    return {
-        "updated": metadata_add_or_update(
-            cls=Model, _id=model_id, items=get_metadata_from_api(request.metadata),
-        )
-    }
+    updated = metadata_add_or_update(
+        cls=Model, _id=model_id, items=get_metadata_from_api(request.metadata),
+    )
+    if updated:
+        Model.objects(id=model_id).update_one(last_update=datetime.utcnow())
+
+    return {"updated": updated}
 
 
 @endpoint("models.delete_metadata", min_version="2.13")
@@ -645,4 +659,8 @@ def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest)
         company_id=company_id, model_id=model_id, only_fields=("id",)
     )
 
-    return {"updated": metadata_delete(cls=Model, _id=model_id, keys=request.keys)}
+    updated = metadata_delete(cls=Model, _id=model_id, keys=request.keys)
+    if updated:
+        Model.objects(id=model_id).update_one(last_update=datetime.utcnow())
+
+    return {"updated": updated}
