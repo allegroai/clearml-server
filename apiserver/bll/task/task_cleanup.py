@@ -1,4 +1,3 @@
-from collections import defaultdict
 from itertools import chain
 from operator import attrgetter
 from typing import Sequence, Generic, Callable, Type, Iterable, TypeVar, List, Set
@@ -133,7 +132,7 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
 
     task_metrics = {task: set(metrics)}
     scroll_id = None
-    urls = defaultdict(set)
+    urls = set()
     while True:
         res = event_bll.debug_images_iterator.get_task_events(
             company_id=company,
@@ -142,17 +141,16 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
             state_id=scroll_id,
         )
         if not res.metric_events or not any(
-            events for _, _, events in res.metric_events
+            iterations for _, iterations in res.metric_events
         ):
             break
 
         scroll_id = res.next_scroll_id
-        for _, metric, iterations in res.metric_events:
-            metric_urls = set(ev.get("url") for it in iterations for ev in it["events"])
-            metric_urls.discard(None)
-            urls[metric].update(metric_urls)
+        for task, iterations in res.metric_events:
+            urls.update(ev.get("url") for it in iterations for ev in it["events"])
 
-    return set(chain.from_iterable(urls.values()))
+    urls.discard({None})
+    return urls
 
 
 def cleanup_task(

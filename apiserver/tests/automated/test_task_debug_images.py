@@ -130,11 +130,11 @@ class TestTaskDebugImages(TestService):
 
         # test empty
         res = self.api.events.debug_images(metrics=[{"task": task}], iters=5)
-        self.assertFalse(res.metrics)
+        self.assertFalse(res.metrics[0].iterations)
         res = self.api.events.debug_images(
             metrics=[{"task": task}], iters=5, scroll_id=res.scroll_id, refresh=True
         )
-        self.assertFalse(res.metrics)
+        self.assertFalse(res.metrics[0].iterations)
 
         # test not empty
         metrics = {
@@ -180,10 +180,9 @@ class TestTaskDebugImages(TestService):
         )
 
         # with refresh there are new metrics and existing ones are updated
-        metrics.update(update)
         self._assertTaskMetrics(
             task=task,
-            expected_metrics=metrics,
+            expected_metrics=update,
             iterations=1,
             scroll_id=scroll_id,
             refresh=True,
@@ -202,17 +201,16 @@ class TestTaskDebugImages(TestService):
         res = self.api.events.debug_images(
             metrics=[{"task": task}], iters=1, scroll_id=scroll_id, refresh=refresh
         )
-        self.assertEqual(set(m.metric for m in res.metrics), set(expected_metrics))
         if not iterations:
             self.assertTrue(all(m.iterations == [] for m in res.metrics))
             return res.scroll_id
 
+        expected_variants = set((m, var) for m, vars_ in expected_metrics.items() for var in vars_)
         for metric_data in res.metrics:
-            expected_variants = set(expected_metrics[metric_data.metric])
             self.assertEqual(len(metric_data.iterations), iterations)
             for it_data in metric_data.iterations:
                 self.assertEqual(
-                    set(e.variant for e in it_data.events), expected_variants
+                    set((e.metric, e.variant) for e in it_data.events), expected_variants
                 )
 
         return res.scroll_id
@@ -227,7 +225,7 @@ class TestTaskDebugImages(TestService):
         res = self.api.events.debug_images(
             metrics=[{"task": task, "metric": metric}], iters=5,
         )
-        self.assertFalse(res.metrics)
+        self.assertFalse(res.metrics[0].iterations)
 
         # create events
         events = [
@@ -295,7 +293,6 @@ class TestTaskDebugImages(TestService):
         )
         data = res["metrics"][0]
         self.assertEqual(data["task"], task)
-        self.assertEqual(data["metric"], metric)
         left_iterations = max(0, max(unique_images) - expected_page * iters)
         self.assertEqual(len(data["iterations"]), min(iters, left_iterations))
         for it in data["iterations"]:

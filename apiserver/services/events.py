@@ -628,13 +628,12 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
         metrics=[
             MetricEvents(
                 task=task,
-                metric=metric,
                 iterations=[
                     IterationEvents(iter=iteration["iter"], events=iteration["events"])
                     for iteration in iterations
                 ],
             )
-            for (task, metric, iterations) in result.metric_events
+            for (task, iterations) in result.metric_events
         ],
     )
 

@@ -89,7 +89,6 @@ class IterationEvents(Base):
 
 class MetricEvents(Base):
     task: str = StringField()
-    metric: str = StringField()
     iterations: Sequence[IterationEvents] = ListField(items_types=IterationEvents)
 
 
