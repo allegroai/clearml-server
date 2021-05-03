@@ -40,7 +40,7 @@ def artifacts_unprepare_from_saved(fields):
     nested_set(
         fields,
         artifacts_field,
-        value=sorted(artifacts.values(), key=itemgetter("key", "mode")),
+        value=sorted(artifacts.values(), key=itemgetter("key")),
     )
 
 

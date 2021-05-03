@@ -8,6 +8,7 @@ from apiserver.database.model.base import GetMixin
 from apiserver.database.utils import partition_tags
 from apiserver.service_repo import APICall
 from apiserver.utilities.dicts import nested_set, nested_get, nested_delete
+from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from apiserver.utilities.partial_version import PartialVersion
 
 
@@ -94,6 +95,42 @@ def validate_tags(tags: Sequence[str], system_tags: Sequence[str]):
             raise errors.bad_request.FieldsValueError(
                 "unsupported tag prefix", values=unsupported
             )
+
+
+def escape_dict(data: dict) -> dict:
+    if not data:
+        return data
+
+    return {ParameterKeyEscaper.escape(k): v for k, v in data.items()}
+
+
+def unescape_dict(data: dict) -> dict:
+    if not data:
+        return data
+
+    return {ParameterKeyEscaper.unescape(k): v for k, v in data.items()}
+
+
+def escape_dict_field(fields: dict, path: Union[str, Sequence[str]]):
+    if isinstance(path, str):
+        path = (path,)
+
+    data = nested_get(fields, path)
+    if not data or not isinstance(data, dict):
+        return
+
+    nested_set(fields, path, escape_dict(data))
+
+
+def unescape_dict_field(fields: dict, path: Union[str, Sequence[str]]):
+    if isinstance(path, str):
+        path = (path,)
+
+    data = nested_get(fields, path)
+    if not data or not isinstance(data, dict):
+        return
+
+    nested_set(fields, path, unescape_dict(data))
 
 
 class ModelsBackwardsCompatibility:

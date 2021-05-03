@@ -28,13 +28,14 @@ from apiserver.database.model.task.task import (
     ArtifactModes,
     ModelItem,
     Models,
+    DEFAULT_ARTIFACT_MODE,
 )
 from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
 from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
 from apiserver.service_repo import APICall
-from apiserver.services.utils import validate_tags
+from apiserver.services.utils import validate_tags, escape_dict_field, escape_dict
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .artifacts import artifacts_prepare_for_save
@@ -216,6 +217,8 @@ class TaskBLL:
                 if legacy_value is not None:
                     params_dict["execution"] = legacy_value
 
+            escape_dict_field(execution_overrides, "model_labels")
+
             execution_dict.update(execution_overrides)
 
         params_prepare_for_save(params_dict, previous_task=task)
@@ -225,7 +228,7 @@ class TaskBLL:
             execution_dict["artifacts"] = {
                 k: a
                 for k, a in artifacts.items()
-                if a.get("mode") != ArtifactModes.output
+                if a.get("mode", DEFAULT_ARTIFACT_MODE) != ArtifactModes.output
             }
         execution_dict.pop("queue", None)
 
@@ -276,7 +279,7 @@ class TaskBLL:
                 if task.output
                 else None,
                 models=Models(input=input_models or task.models.input),
-                container=container or task.container,
+                container=escape_dict(container) or task.container,
                 execution=execution_dict,
                 configuration=params_dict.get("configuration") or task.configuration,
                 hyperparams=params_dict.get("hyperparams") or task.hyperparams,

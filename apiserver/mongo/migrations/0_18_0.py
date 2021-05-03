@@ -3,6 +3,7 @@ from datetime import datetime
 from pymongo.collection import Collection
 from pymongo.database import Database
 
+from apiserver.services.utils import escape_dict
 from apiserver.utilities.dicts import nested_get
 from .utils import _drop_all_indices_from_collections
 
@@ -97,7 +98,34 @@ def _migrate_docker_cmd(db: Database):
         )
 
 
+def _migrate_model_labels(db: Database):
+    tasks: Collection = db["task"]
+
+    fields = ("execution.model_labels", "container")
+    query = {"$or": [{field: {"$nin": [None, {}]}} for field in fields]}
+
+    for doc in tasks.find(filter=query, projection=fields):
+        set_commands = {}
+        for field in fields:
+            data = nested_get(doc, field.split("."))
+            if not data:
+                continue
+            escaped = escape_dict(data)
+            if data == escaped:
+                continue
+            set_commands[field] = escaped
+
+        if set_commands:
+            tasks.update_one(
+                {"_id": doc["_id"]},
+                {
+                    "$set": set_commands
+                }
+            )
+
+
 def migrate_backend(db: Database):
     _migrate_task_models(db)
     _migrate_docker_cmd(db)
+    _migrate_model_labels(db)
     _drop_all_indices_from_collections(db, ["task*"])

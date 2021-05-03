@@ -47,9 +47,9 @@ class TestTasksArtifacts(TestService):
         self._assertTaskArtifacts([a for a in artifacts if a["mode"] != "output"], res)
 
         new_artifacts = [
-            dict(key="x", type="str", uri="x_test"),
-            dict(key="y", type="int", uri="y_test"),
-            dict(key="z", type="int", uri="y_test"),
+            dict(key="x", type="str", uri="x_test", mode="input"),
+            dict(key="y", type="int", uri="y_test", mode="input"),
+            dict(key="z", type="int", uri="y_test", mode="input"),
         ]
         new_task = self.api.tasks.clone(
             task=task, execution_overrides={"artifacts": new_artifacts}

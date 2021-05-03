@@ -202,7 +202,6 @@ class TestTasksEdit(TestService):
         for task in tasks:
             self.assertIn(system_tag, task.system_tags)
             self.assertIn("archived", task.system_tags)
-            self.assertNotIn("queue", task.execution)
             self.assertIn(status_message, task.status_message)
             self.assertIn(status_reason, task.status_reason)
 
