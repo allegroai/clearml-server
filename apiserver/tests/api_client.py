@@ -154,7 +154,7 @@ class APIClient:
         self.http_session.mount("https://", adapter)
 
         if impersonated_user_id:
-            self.http_session.headers["X-Trains-Impersonate-As"] = impersonated_user_id
+            self.http_session.headers["X-ClearML-Impersonate-As"] = impersonated_user_id
 
         if not self.session_token:
             self.login()
@@ -211,7 +211,7 @@ class APIClient:
         headers = {"Content-Type": "application/json"}
         headers.update(headers_overrides)
         if is_async:
-            headers["X-Trains-Async"] = "1"
+            headers["X-ClearML-Async"] = "1"
 
         if not isinstance(data, six.string_types):
             data = json.dumps(data)
@@ -241,7 +241,7 @@ class APIClient:
             call_id = res.meta.call_id
             async_res_url = "%s/async.result?id=%s" % (self.base_url, call_id)
             async_res_headers = headers.copy()
-            async_res_headers.pop("X-Trains-Async")
+            async_res_headers.pop("X-ClearML-Async")
             while not got_result:
                 log.info("Got 202. Checking async result for %s (%s)" % (url, call_id))
                 http_res = self.http_session.get(

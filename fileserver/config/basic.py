@@ -5,6 +5,7 @@ from os import getenv
 from os.path import expandvars
 from pathlib import Path
 
+from boltons.iterutils import first
 from pyhocon import ConfigTree, ConfigFactory
 from pyparsing import (
     ParseFatalException,
@@ -13,12 +14,10 @@ from pyparsing import (
     ParseSyntaxException,
 )
 
-DEFAULT_EXTRA_CONFIG_PATH = "/opt/trains/config"
-EXTRA_CONFIG_PATH_ENV_KEY = "TRAINS_CONFIG_DIR"
+DEFAULT_EXTRA_CONFIG_PATH = "/opt/clearml/config"
+PREFIXES = ("CLEARML", "TRAINS")
 EXTRA_CONFIG_PATH_SEP = ":"
-
 EXTRA_CONFIG_VALUES_ENV_KEY_SEP = "__"
-EXTRA_CONFIG_VALUES_ENV_KEY_PREFIX = f"TRAINS{EXTRA_CONFIG_VALUES_ENV_KEY_SEP}"
 
 
 class BasicConfig:
@@ -29,7 +28,15 @@ class BasicConfig:
         if not self.folder.is_dir():
             raise ValueError("Invalid configuration folder")
 
-        self.prefix = "trains"
+        self.extra_config_path_env_key = [
+            f"{p.upper()}_CONFIG_DIR" for p in PREFIXES
+        ]
+
+        self.prefix = PREFIXES[0]
+        self.extra_config_values_env_key_prefix = [
+            f"{p.upper()}{EXTRA_CONFIG_VALUES_ENV_KEY_SEP}"
+            for p in reversed(PREFIXES)
+        ]
 
         self._load()
 
@@ -50,24 +57,22 @@ class BasicConfig:
         path = ".".join((self.prefix, Path(name).stem))
         return logging.getLogger(path)
 
-    @staticmethod
-    def _read_extra_env_config_values():
+    def _read_extra_env_config_values(self):
         """ Loads extra configuration from environment-injected values """
         result = ConfigTree()
-        prefix = EXTRA_CONFIG_VALUES_ENV_KEY_PREFIX
 
-        keys = sorted(k for k in os.environ if k.startswith(prefix))
-        for key in keys:
-            path = key[len(prefix) :].replace(EXTRA_CONFIG_VALUES_ENV_KEY_SEP, ".").lower()
-            result = ConfigTree.merge_configs(
-                result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
-            )
+        for prefix in self.extra_config_values_env_key_prefix:
+            keys = sorted(k for k in os.environ if k.startswith(prefix))
+            for key in keys:
+                path = key[len(prefix) :].replace(EXTRA_CONFIG_VALUES_ENV_KEY_SEP, ".").lower()
+                result = ConfigTree.merge_configs(
+                    result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
+                )
 
         return result
 
-    @staticmethod
-    def _read_env_paths(key):
-        value = getenv(EXTRA_CONFIG_PATH_ENV_KEY, DEFAULT_EXTRA_CONFIG_PATH)
+    def _read_env_paths(self):
+        value = first(map(getenv, self.extra_config_path_env_key), DEFAULT_EXTRA_CONFIG_PATH)
         if value is None:
             return
         paths = [
@@ -79,11 +84,11 @@ class BasicConfig:
             if not path.is_dir() and str(path) != DEFAULT_EXTRA_CONFIG_PATH
         ]
         if invalid:
-            print(f"WARNING: Invalid paths in {key} env var: {' '.join(invalid)}")
+            print(f"WARNING: Invalid paths in {self.extra_config_path_env_key} env var: {' '.join(invalid)}")
         return [path for path in paths if path.is_dir()]
 
     def _load(self, verbose=True):
-        extra_config_paths = self._read_env_paths(EXTRA_CONFIG_PATH_ENV_KEY) or []
+        extra_config_paths = self._read_env_paths() or []
         extra_config_values = self._read_extra_env_config_values()
         configs = [
             self._read_recursive(path, verbose=verbose)

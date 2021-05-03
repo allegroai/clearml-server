@@ -37,12 +37,12 @@ class CheckUpdatesThread(Thread):
 
     @property
     def component_name(self) -> str:
-        return config.get("apiserver.check_for_updates.component_name", "trains-server")
+        return config.get("apiserver.check_for_updates.component_name", "clearml-server")
 
     def _check_new_version_available(self) -> Optional[_VersionResponse]:
         url = config.get(
             "apiserver.check_for_updates.url",
-            "https://updates.trains.allegro.ai/updates",
+            "https://updates.clear.ml/updates",
         )
 
         uid = Settings.get_by_key("server.uuid")

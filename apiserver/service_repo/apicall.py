@@ -5,6 +5,7 @@ from typing import Type, Optional, Union, Tuple
 
 import attr
 from jsonmodels import models
+from requests.structures import CaseInsensitiveDict
 from six import string_types
 
 from apiserver import database
@@ -313,6 +314,13 @@ class APICall(DataContainer):
     def HEADER_TRANSACTION(self):
         return self._transaction_headers[0]
 
+    _client_headers = _get_headers("Client")
+    """ Client """
+
+    @property
+    def HEADER_CLIENT(self):
+        return self._client_headers[0]
+
     _worker_headers = _get_headers("Worker")
     """ Worker (machine) ID """
 
@@ -366,7 +374,7 @@ class APICall(DataContainer):
         assert isinstance(endpoint_version, PartialVersion), endpoint_version
         self._requested_endpoint_version = endpoint_version
         self._actual_endpoint_version = None
-        self._headers = {}
+        self._headers = CaseInsensitiveDict()
         self._kpis = {}
         self._log_api = True
         if headers:
@@ -420,7 +428,7 @@ class APICall(DataContainer):
         :param header: Header name options (more than on supported, all will be cleared)
         """
         for value in header if isinstance(header, (tuple, list)) else (header,):
-            self.headers.pop(value, None)
+            self._headers.pop(value, None)
 
     def set_header(self, header, value):
         """
@@ -514,7 +522,7 @@ class APICall(DataContainer):
 
     @property
     def headers(self):
-        return self._headers
+        return dict(self._headers.items())
 
     @property
     def kpis(self):
@@ -531,6 +539,10 @@ class APICall(DataContainer):
     @trx.setter
     def trx(self, value):
         self.set_header(self._transaction_headers, value)
+
+    @property
+    def client(self):
+        return self.get_header(self._client_headers)
 
     @property
     def worker(self):

@@ -45,7 +45,7 @@ class StatisticsReporter:
     def start_reporter(cls):
         """
         Periodically send statistics reports for companies who have opted in.
-        Note: in trains we usually have only a single company
+        Note: in clearml we usually have only a single company
         """
         if not cls.supported:
             return

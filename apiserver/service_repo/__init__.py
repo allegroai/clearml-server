@@ -1,6 +1,6 @@
 from typing import Text, Sequence, Callable, Union, Type
 
-from funcsigs import signature
+from inspect import signature
 from jsonmodels import models
 
 from .apicall import APICall, APICallResult

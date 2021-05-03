@@ -9,11 +9,16 @@ from apiserver.config_repo import config
 log = config.logger(__file__)
 
 OVERRIDE_HOST_ENV_KEY = (
+    "CLEARML_ELASTIC_SERVICE_HOST",
     "TRAINS_ELASTIC_SERVICE_HOST",
     "ELASTIC_SERVICE_HOST",
     "ELASTIC_SERVICE_SERVICE_HOST",
 )
-OVERRIDE_PORT_ENV_KEY = ("TRAINS_ELASTIC_SERVICE_PORT", "ELASTIC_SERVICE_PORT")
+OVERRIDE_PORT_ENV_KEY = (
+    "CLEARML_ELASTIC_SERVICE_PORT",
+    "TRAINS_ELASTIC_SERVICE_PORT",
+    "ELASTIC_SERVICE_PORT",
+)
 
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
@@ -120,7 +125,9 @@ class ESFactory:
     @classmethod
     def get_es_timestamp_str(cls):
         now = datetime.utcnow()
-        return now.strftime("%Y-%m-%dT%H:%M:%S") + ".%03d" % (now.microsecond / 1000) + "Z"
+        return (
+            now.strftime("%Y-%m-%dT%H:%M:%S") + ".%03d" % (now.microsecond / 1000) + "Z"
+        )
 
 
 es_factory = ESFactory()

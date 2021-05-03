@@ -31,3 +31,4 @@ class GetSupportedModesResponse(Base):
     server_errors = EmbeddedField(ServerErrors)
     sso = DictField([str, type(None)])
     sso_providers = ListField([dict])
+    authenticated = BoolField(default=False)

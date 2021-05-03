@@ -17,11 +17,16 @@ log = config.logger("database")
 strict = config.get("apiserver.mongo.strict", True)
 
 OVERRIDE_HOST_ENV_KEY = (
+    "CLEARML_MONGODB_SERVICE_HOST",
     "TRAINS_MONGODB_SERVICE_HOST",
     "MONGODB_SERVICE_HOST",
     "MONGODB_SERVICE_SERVICE_HOST",
 )
-OVERRIDE_PORT_ENV_KEY = ("TRAINS_MONGODB_SERVICE_PORT", "MONGODB_SERVICE_PORT")
+OVERRIDE_PORT_ENV_KEY = (
+    "CLEARML_MONGODB_SERVICE_PORT",
+    "TRAINS_MONGODB_SERVICE_PORT",
+    "MONGODB_SERVICE_PORT",
+)
 
 
 class DatabaseEntry(models.Base):
@@ -70,7 +75,9 @@ class DatabaseFactory:
             except ValidationError as ex:
                 raise Exception("Invalid database entry `%s`: %s" % (key, ex.args[0]))
         if missing:
-            raise ValueError("Missing database configuration for %s" % ", ".join(missing))
+            raise ValueError(
+                "Missing database configuration for %s" % ", ".join(missing)
+            )
 
     @classmethod
     def get_entries(cls):

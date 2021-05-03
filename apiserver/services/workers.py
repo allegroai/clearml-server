@@ -23,10 +23,10 @@ from apiserver.apimodels.workers import (
     GetActivityReportResponse,
     ActivityReportSeries,
 )
-from apiserver.bll.util import extract_properties_to_lists
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
 from apiserver.service_repo import APICall, endpoint
+from apiserver.utilities import extract_properties_to_lists
 
 log = config.logger(__file__)
 

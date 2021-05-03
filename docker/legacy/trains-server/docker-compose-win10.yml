@@ -39,9 +39,9 @@ services:
       bootstrap.memory_lock: "true"
       cluster.name: trains
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
-      cluster.routing.allocation.disk.watermark.low: 10gb
-      cluster.routing.allocation.disk.watermark.high: 10gb
-      cluster.routing.allocation.disk.watermark.flood_stage: 10gb
+      cluster.routing.allocation.disk.watermark.low: 500mb
+      cluster.routing.allocation.disk.watermark.high: 500mb
+      cluster.routing.allocation.disk.watermark.flood_stage: 500mb
       discovery.zen.minimum_master_nodes: "1"
       discovery.type: "single-node"
       http.compression_level: "7"

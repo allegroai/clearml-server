@@ -2,6 +2,8 @@ from functools import lru_cache
 from os import getenv
 from pathlib import Path
 
+from boltons.iterutils import first
+
 from apiserver.config_repo import config
 from apiserver.version import __version__
 
@@ -9,7 +11,9 @@ root = Path(__file__).parent.parent
 
 
 def _get(prop_name, env_suffix=None, default=""):
-    value = getenv(f"TRAINS_SERVER_{env_suffix or prop_name}")
+    suffix = env_suffix or prop_name
+    keys = [f"{p}_SERVER_{suffix}" for p in ("CLEARML", "TRAINS")]
+    value = first(map(getenv, keys))
     if value:
         return value
 

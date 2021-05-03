@@ -13,10 +13,10 @@ from apiserver.apimodels.queues import (
     QueueMetrics,
 )
 from apiserver.bll.queue import QueueBLL
-from apiserver.bll.util import extract_properties_to_lists
 from apiserver.bll.workers import WorkerBLL
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import conform_tag_fields, conform_output_tags, conform_tags
+from apiserver.utilities import extract_properties_to_lists
 
 worker_bll = WorkerBLL()
 queue_bll = QueueBLL(worker_bll)
