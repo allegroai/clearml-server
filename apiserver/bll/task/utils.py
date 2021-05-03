@@ -106,7 +106,7 @@ def validate_status_change(current_status, new_status):
 
 state_machine = {
     TaskStatus.created: {TaskStatus.queued, TaskStatus.in_progress},
-    TaskStatus.queued: {TaskStatus.created, TaskStatus.in_progress},
+    TaskStatus.queued: {TaskStatus.created, TaskStatus.in_progress, TaskStatus.stopped},
     TaskStatus.in_progress: {
         TaskStatus.stopped,
         TaskStatus.failed,

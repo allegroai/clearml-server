@@ -9,6 +9,7 @@ from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidModelId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, MoveRequest
+from apiserver.apimodels.batch import BatchResponse
 from apiserver.apimodels.models import (
     CreateModelRequest,
     CreateModelResponse,
@@ -24,7 +25,6 @@ from apiserver.apimodels.models import (
     ModelsDeleteManyRequest,
     ModelsDeleteManyResponse,
     ModelsArchiveManyRequest,
-    ModelsArchiveManyResponse,
 )
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -533,7 +533,7 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
     )
 
     call.result.data_model = ModelsPublishManyResponse(
-        published=res.published, published_tasks=res.published_tasks, failures=failures,
+        succeeded=res.published, published_tasks=res.published_tasks, failures=failures,
     )
 
 
@@ -581,14 +581,14 @@ def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
 
     res.urls.discard(None)
     call.result.data_model = ModelsDeleteManyResponse(
-        deleted=res.deleted, urls=list(res.urls), failures=failures,
+        succeeded=res.deleted, urls=list(res.urls), failures=failures,
     )
 
 
 @endpoint(
     "models.archive_many",
     request_data_model=ModelsArchiveManyRequest,
-    response_data_model=ModelsArchiveManyResponse,
+    response_data_model=BatchResponse,
 )
 def archive_many(call: APICall, company_id, request: ModelsArchiveManyRequest):
     archived, failures = run_batch_operation(
@@ -596,9 +596,7 @@ def archive_many(call: APICall, company_id, request: ModelsArchiveManyRequest):
         ids=request.ids,
         init_res=0,
     )
-    call.result.data_model = ModelsArchiveManyResponse(
-        archived=archived, failures=failures,
-    )
+    call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)

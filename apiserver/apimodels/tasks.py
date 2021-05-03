@@ -7,7 +7,7 @@ from jsonmodels.validators import Enum, Length
 
 from apiserver.apimodels import DictField, ListField
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.apimodels.batch import BatchRequest, BatchResponse
+from apiserver.apimodels.batch import BatchRequest
 from apiserver.database.model.task.task import (
     TaskType,
     ArtifactModes,
@@ -241,24 +241,12 @@ class StopManyRequest(TaskBatchRequest):
     force = BoolField(default=False)
 
 
-class StopManyResponse(BatchResponse):
-    stopped = IntField(required=True)
-
-
 class ArchiveManyRequest(TaskBatchRequest):
     pass
 
 
-class ArchiveManyResponse(BatchResponse):
-    archived = IntField(required=True)
-
-
 class EnqueueManyRequest(TaskBatchRequest):
     queue = StringField()
-
-
-class EnqueueManyResponse(BatchResponse):
-    queued = IntField()
 
 
 class DeleteManyRequest(TaskBatchRequest):

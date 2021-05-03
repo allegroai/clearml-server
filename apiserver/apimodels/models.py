@@ -55,12 +55,7 @@ class ModelsArchiveManyRequest(BatchRequest):
     pass
 
 
-class ModelsArchiveManyResponse(BatchResponse):
-    archived = fields.IntField(required=True)
-
-
 class ModelsDeleteManyResponse(BatchResponse):
-    deleted = fields.IntField()
     urls = fields.ListField([str])
 
 
@@ -84,7 +79,6 @@ class ModelsPublishManyRequest(BatchRequest):
 
 
 class ModelsPublishManyResponse(BatchResponse):
-    published = fields.IntField(required=True)
     published_tasks = fields.ListField([ModelTaskPublishResponse])
 
 

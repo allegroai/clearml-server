@@ -1,7 +1,10 @@
+import os
+import re
 from datetime import datetime
 
 from pymongo.collection import Collection
 from pymongo.database import Database
+from pymongo.errors import DuplicateKeyError
 
 from apiserver.database.model.task.task import TaskModelTypes, TaskModelNames
 from apiserver.services.utils import escape_dict
@@ -94,8 +97,39 @@ def _migrate_model_labels(db: Database):
             tasks.update_one({"_id": doc["_id"]}, {"$set": set_commands})
 
 
+def _migrate_project_names(db: Database):
+    projects: Collection = db["project"]
+
+    regx = re.compile("/", re.IGNORECASE)
+    for doc in projects.find(filter={"name": regx, "path": {"$in": [None, []]}}):
+        name = doc.get("name")
+        if not name:
+            continue
+
+        max_tries = int(os.getenv("CLEARML_MIGRATION_PROJECT_RENAME_MAX_TRIES", 10))
+        iteration = 0
+        for iteration in range(max_tries):
+            new_name = name.replace("/", "_" * (iteration + 1))
+            try:
+                projects.update_one(
+                    {"_id": doc["_id"]},
+                    {
+                        "$set": {"name": new_name}
+                    }
+                )
+                break
+            except DuplicateKeyError:
+                pass
+
+        if iteration >= max_tries - 1:
+            print(
+                f"Could not upgrade the name {name} of the project {doc.get('_id')}"
+            )
+
+
 def migrate_backend(db: Database):
     _migrate_task_models(db)
     _migrate_docker_cmd(db)
     _migrate_model_labels(db)
+    _migrate_project_names(db)
     _drop_all_indices_from_collections(db, ["task*"])

@@ -3,7 +3,7 @@ from typing import Sequence
 from jsonmodels.models import Base
 from jsonmodels.validators import Length
 
-from apiserver.apimodels import ListField
+from apiserver.apimodels import ListField, IntField
 
 
 class BatchRequest(Base):
@@ -11,4 +11,5 @@ class BatchRequest(Base):
 
 
 class BatchResponse(Base):
+    succeeded: int = IntField()
     failures: Sequence[dict] = ListField([dict])

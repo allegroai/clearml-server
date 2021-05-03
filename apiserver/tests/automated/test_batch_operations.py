@@ -21,7 +21,7 @@ class TestBatchOperations(TestService):
 
         # enqueue
         res = self.api.tasks.enqueue_many(ids=ids)
-        self.assertEqual(res.queued, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertEqual({t.status for t in data}, {"queued"})
@@ -30,14 +30,14 @@ class TestBatchOperations(TestService):
         for t in tasks:
             self.api.tasks.started(task=t)
         res = self.api.tasks.stop_many(ids=ids)
-        self.assertEqual(res.stopped, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertEqual({t.status for t in data}, {"stopped"})
 
         # publish
         res = self.api.tasks.publish_many(ids=ids, publish_model=False)
-        self.assertEqual(res.published, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertEqual({t.status for t in data}, {"published"})
@@ -46,7 +46,7 @@ class TestBatchOperations(TestService):
         res = self.api.tasks.reset_many(
             ids=ids, delete_output_models=True, return_file_urls=True, force=True
         )
-        self.assertEqual(res.reset, 2)
+        self.assertEqual(res.succeeded, 2)
         self.assertEqual(res.deleted_models, 2)
         self.assertEqual(set(res.urls.model_urls), {"uri_0", "uri_1"})
         self._assert_failures(res, [missing_id])
@@ -55,7 +55,7 @@ class TestBatchOperations(TestService):
 
         # archive
         res = self.api.tasks.archive_many(ids=ids)
-        self.assertEqual(res.archived, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertTrue(all("archived" in t.system_tags for t in data))
@@ -64,7 +64,7 @@ class TestBatchOperations(TestService):
         res = self.api.tasks.delete_many(
             ids=ids, delete_output_models=True, return_file_urls=True
         )
-        self.assertEqual(res.deleted, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks
         self.assertEqual(data, [])
@@ -84,13 +84,13 @@ class TestBatchOperations(TestService):
         res = self.api.models.publish_many(
             ids=ids, publish_task=True, force_publish_task=True
         )
-        self.assertEqual(res.published, 1)
+        self.assertEqual(res.succeeded, 1)
         self.assertEqual(res.published_tasks[0].id, task)
         self._assert_failures(res, [ids[1], missing_id])
 
         # archive
         res = self.api.models.archive_many(ids=ids)
-        self.assertEqual(res.archived, 2)
+        self.assertEqual(res.succeeded, 2)
         self._assert_failures(res, [missing_id])
         data = self.api.models.get_all_ex(id=ids).models
         for m in data:
@@ -98,7 +98,7 @@ class TestBatchOperations(TestService):
 
         # delete
         res = self.api.models.delete_many(ids=[*models, missing_id], force=True)
-        self.assertEqual(res.deleted, 2)
+        self.assertEqual(res.succeeded, 2)
         self.assertEqual(set(res.urls), set(uris))
         self._assert_failures(res, [missing_id])
         data = self.api.models.get_all_ex(id=ids).models

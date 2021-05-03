@@ -17,6 +17,7 @@ from apiserver.apimodels.base import (
     MakePublicRequest,
     MoveRequest,
 )
+from apiserver.apimodels.batch import BatchResponse
 from apiserver.apimodels.tasks import (
     StartedResponse,
     ResetResponse,
@@ -47,13 +48,10 @@ from apiserver.apimodels.tasks import (
     ArchiveRequest,
     AddUpdateModelRequest,
     DeleteModelsRequest,
-    StopManyResponse,
     StopManyRequest,
     EnqueueManyRequest,
-    EnqueueManyResponse,
     ResetManyRequest,
     ArchiveManyRequest,
-    ArchiveManyResponse,
     DeleteManyRequest,
     PublishManyRequest,
 )
@@ -299,7 +297,7 @@ class StopRes:
 @endpoint(
     "tasks.stop_many",
     request_data_model=StopManyRequest,
-    response_data_model=StopManyResponse,
+    response_data_model=BatchResponse,
 )
 def stop_many(call: APICall, company_id, request: StopManyRequest):
     res, failures = run_batch_operation(
@@ -313,7 +311,7 @@ def stop_many(call: APICall, company_id, request: StopManyRequest):
         ids=request.ids,
         init_res=StopRes(),
     )
-    call.result.data_model = StopManyResponse(stopped=res.stopped, failures=failures)
+    call.result.data_model = BatchResponse(succeeded=res.stopped, failures=failures)
 
 
 @endpoint(
@@ -867,7 +865,7 @@ class EnqueueRes:
 @endpoint(
     "tasks.enqueue_many",
     request_data_model=EnqueueManyRequest,
-    response_data_model=EnqueueManyResponse,
+    response_data_model=BatchResponse,
 )
 def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
     res, failures = run_batch_operation(
@@ -881,7 +879,7 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
         ids=request.ids,
         init_res=EnqueueRes(),
     )
-    call.result.data_model = EnqueueManyResponse(queued=res.queued, failures=failures)
+    call.result.data_model = BatchResponse(succeeded=res.queued, failures=failures)
 
 
 @endpoint(
@@ -971,7 +969,7 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
     else:
         cleanup_res = {}
     call.result.data = dict(
-        reset=res.reset, dequeued=res.dequeued, **cleanup_res, failures=failures,
+        succeeded=res.reset, dequeued=res.dequeued, **cleanup_res, failures=failures,
     )
 
 
@@ -1001,7 +999,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
 @endpoint(
     "tasks.archive_many",
     request_data_model=ArchiveManyRequest,
-    response_data_model=ArchiveManyResponse,
+    response_data_model=BatchResponse,
 )
 def archive_many(call: APICall, company_id, request: ArchiveManyRequest):
     archived, failures = run_batch_operation(
@@ -1014,7 +1012,7 @@ def archive_many(call: APICall, company_id, request: ArchiveManyRequest):
         ids=request.ids,
         init_res=0,
     )
-    call.result.data_model = ArchiveManyResponse(archived=archived, failures=failures)
+    call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
 
 
 @endpoint("tasks.delete", request_data_model=DeleteRequest)
@@ -1067,7 +1065,7 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
         _reset_cached_tags(company_id, projects=list(res.projects))
 
     cleanup_res = attr.asdict(res.cleanup_res) if res.cleanup_res else {}
-    call.result.data = dict(deleted=res.deleted, **cleanup_res, failures=failures)
+    call.result.data = dict(succeeded=res.deleted, **cleanup_res, failures=failures)
 
 
 @endpoint(
@@ -1095,7 +1093,11 @@ class PublishRes:
         return PublishRes(published=self.published + 1)
 
 
-@endpoint("tasks.publish_many", request_data_model=PublishManyRequest)
+@endpoint(
+    "tasks.publish_many",
+    request_data_model=PublishManyRequest,
+    response_data_model=BatchResponse,
+)
 def publish_many(call: APICall, company_id, request: PublishManyRequest):
     res, failures = run_batch_operation(
         func=partial(
@@ -1112,7 +1114,7 @@ def publish_many(call: APICall, company_id, request: PublishManyRequest):
         init_res=PublishRes(),
     )
 
-    call.result.data = dict(published=res.published, failures=failures)
+    call.result.data_model = BatchResponse(succeeded=res.published, failures=failures)
 
 
 @endpoint(
