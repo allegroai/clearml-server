@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Any, TypeVar, Sequence
 
 from boltons.iterutils import first
-from pyhocon import ConfigTree, ConfigFactory
+from pyhocon import ConfigTree, ConfigFactory, ConfigValues
 from pyparsing import (
     ParseFatalException,
     ParseException,
@@ -94,7 +94,7 @@ class BasicConfig:
                     .replace(self.extra_config_values_env_key_sep, ".")
                     .lower()
                 )
-                result = ConfigTree.merge_configs(
+                result = self._merge_configs(
                     result, ConfigFactory.parse_string(f"{path}: {os.environ[key]}")
                 )
 
@@ -126,12 +126,39 @@ class BasicConfig:
         configs = [self._read_recursive(path) for path in self._paths]
 
         return reduce(
-            lambda last, config: ConfigTree.merge_configs(
+            lambda last, config: self._merge_configs(
                 last, config, copy_trees=True
             ),
             configs + [extra_config_values],
             ConfigTree(),
         )
+
+    @classmethod
+    def _merge_configs(cls, a, b, copy_trees=False, override_prefix="-"):
+        """Based on pyhocon.ConfigTree.merge_configs, with dict override support using a `-` key prefix"""
+        for key, value in b.items():
+            override = key.startswith(override_prefix)
+            if override:
+                key = key[len(override_prefix):]
+            # if key is in both a and b and both values are dictionary then merge it otherwise override it
+            if not override and key in a and isinstance(a[key], ConfigTree) and isinstance(b[key], ConfigTree):
+                if copy_trees:
+                    a[key] = a[key].copy()
+                cls._merge_configs(a[key], b[key], copy_trees=copy_trees)
+            else:
+                if isinstance(value, ConfigValues):
+                    value.parent = a
+                    value.key = key
+                    if key in a:
+                        value.overriden_value = a[key]
+                a[key] = value
+                if a.root:
+                    if b.root:
+                        a.history[key] = a.history.get(key, []) + b.history.get(key, [value])
+                    else:
+                        a.history[key] = a.history.get(key, []) + [value]
+
+        return a
 
     def _read_recursive(self, conf_root) -> ConfigTree:
         conf = ConfigTree()
