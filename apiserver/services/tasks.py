@@ -849,7 +849,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
         if dequeued:
             api_results.update(dequeued=dequeued)
 
-    cleaned_up = cleanup_task(task, force)
+    cleaned_up = cleanup_task(task, force=force, update_children=False)
     api_results.update(attr.asdict(cleaned_up))
 
     updates.update(
@@ -984,7 +984,7 @@ class CleanupResult(object):
     deleted_models = attr.ib(type=int)
 
 
-def cleanup_task(task: Task, force: bool = False):
+def cleanup_task(task: Task, force: bool = False, update_children=True):
     """
     Validate task deletion and delete/modify all its output.
     :param task: task object
@@ -993,7 +993,7 @@ def cleanup_task(task: Task, force: bool = False):
     """
     models, child_tasks = get_outputs_for_deletion(task, force)
     deleted_task_id = trash_task_id(task.id)
-    if child_tasks:
+    if child_tasks and update_children:
         with TimingContext("mongo", "update_task_children"):
             updated_children = child_tasks.update(parent=deleted_task_id)
     else:
@@ -1005,7 +1005,7 @@ def cleanup_task(task: Task, force: bool = False):
     else:
         deleted_models = 0
 
-    if models.published:
+    if models.published and update_children:
         with TimingContext("mongo", "update_task_models"):
             updated_models = models.published.objects().update(task=deleted_task_id)
     else:
@@ -1095,7 +1095,7 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
         )
 
     with translate_errors_context():
-        result = cleanup_task(task, force)
+        result = cleanup_task(task, force=force)
 
         if move_to_trash:
             collection_name = task._get_collection_name()
