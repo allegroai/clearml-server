@@ -56,4 +56,5 @@ class ProjectsGetRequest(models.Base):
     stats_for_state = ActualEnumField(EntityVisibility, default=EntityVisibility.active)
     non_public = fields.BoolField(default=False)
     active_users = fields.ListField(str)
+    check_own_contents = fields.BoolField(default=False)
     shallow_search = fields.BoolField(default=False)

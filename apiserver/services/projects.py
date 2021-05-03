@@ -89,13 +89,15 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_tag_fields(call, call.data)
     allow_public = not request.non_public
+    data = call.data
+    requested_ids = data.get("id")
     with TimingContext("mongo", "projects_get_all"):
         data = call.data
         if request.active_users:
             ids = project_bll.get_projects_with_active_user(
                 company=company_id,
                 users=request.active_users,
-                project_ids=data.get("id"),
+                project_ids=requested_ids,
                 allow_public=allow_public,
             )
             if not ids:
@@ -108,6 +110,17 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
         projects = Project.get_many_with_join(
             company=company_id, query_dict=data, allow_public=allow_public,
         )
+
+        if request.check_own_contents and requested_ids:
+            existing_requested_ids = {
+                project["id"] for project in projects if project["id"] in requested_ids
+            }
+            if existing_requested_ids:
+                contents = project_bll.calc_own_contents(
+                    company=company_id, project_ids=list(existing_requested_ids)
+                )
+                for project in projects:
+                    project.update(**contents.get(project["id"], {}))
 
         conform_output_tags(call, projects)
         if not request.include_stats:

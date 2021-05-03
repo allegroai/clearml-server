@@ -21,7 +21,7 @@ from mongoengine import Q, Document
 from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.config_repo import config
-from apiserver.database.model import EntityVisibility
+from apiserver.database.model import EntityVisibility, AttributedDocument
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, external_task_types
@@ -672,3 +672,48 @@ class ProjectBLL:
             project_ids = _ids_with_children(project_ids)
             query &= Q(project__in=project_ids)
         return Model.objects(query).distinct(field="framework")
+
+    @classmethod
+    def calc_own_contents(cls, company: str, project_ids: Sequence[str]) -> Dict[str, dict]:
+        """
+        Returns the amount of task/dataviews/models per requested project
+        Use separate aggregation calls on Task/Dataview/Model instead of lookup
+        aggregation on projects in order not to hit memory limits on large tasks
+        """
+        if not project_ids:
+            return {}
+
+        pipeline = [
+            {
+                "$match": {
+                    "company": {"$in": [None, "", company]},
+                    "project": {"$in": project_ids},
+                }
+            },
+            {
+                "$project": {"project": 1}
+            },
+            {
+                "$group": {
+                    "_id": "$project",
+                    "count": {"$sum": 1},
+                }
+            }
+        ]
+
+        def get_agrregate_res(cls_: Type[AttributedDocument]) -> dict:
+            return {
+                data["_id"]: data["count"]
+                for data in cls_.aggregate(pipeline)
+            }
+
+        with TimingContext("mongo", "get_security_groups"):
+            tasks = get_agrregate_res(Task)
+            models = get_agrregate_res(Model)
+            return {
+                pid: {
+                    "own_tasks": tasks.get(pid, 0),
+                    "own_models": models.get(pid, 0),
+                }
+                for pid in project_ids
+            }

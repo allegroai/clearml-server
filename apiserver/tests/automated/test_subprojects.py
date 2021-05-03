@@ -169,6 +169,23 @@ class TestSubProjects(TestService):
 
         self.api.projects.delete(project=project1, force=True)
 
+    def test_get_all_with_check_own_contents(self):
+        project1, _ = self._temp_project_with_tasks(name="project1x")
+        project2 = self._temp_project(name="project2x")
+        self._temp_project_with_tasks(name="project2x/project22")
+        self._temp_model(project=project1)
+
+        res = self.api.projects.get_all_ex(
+            id=[project1, project2], check_own_contents=True
+        ).projects
+        res1 = next(p for p in res if p.id == project1)
+        self.assertEqual(res1.own_tasks, 2)
+        self.assertEqual(res1.own_models, 1)
+
+        res2 = next(p for p in res if p.id == project2)
+        self.assertEqual(res2.own_tasks, 0)
+        self.assertEqual(res2.own_models, 0)
+
     def test_get_all_with_stats(self):
         project4, _ = self._temp_project_with_tasks(name="project1/project3/project4")
         project5, _ = self._temp_project_with_tasks(name="project1/project3/project5")
