@@ -16,7 +16,6 @@ from apiserver.apimodels.models import (
     GetFrameworksRequest,
     DeleteModelRequest,
 )
-from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
@@ -38,7 +37,6 @@ from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
-model_bll = ModelBLL()
 project_bll = ProjectBLL()
 
 
@@ -131,7 +129,7 @@ def get_all(call: APICall, company_id, _):
 def get_frameworks(call: APICall, company_id, request: GetFrameworksRequest):
     call.result.data = {
         "frameworks": sorted(
-            model_bll.get_frameworks(company_id, project_ids=request.projects)
+            project_bll.get_model_frameworks(company_id, project_ids=request.projects)
         )
     }
 

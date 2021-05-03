@@ -1,8 +1,20 @@
+import itertools
 from collections import defaultdict
 from datetime import datetime
+from functools import reduce
 from itertools import groupby
 from operator import itemgetter
-from typing import Sequence, Optional, Type, Tuple, Dict
+from typing import (
+    Sequence,
+    Optional,
+    Type,
+    Tuple,
+    Dict,
+    Set,
+    TypeVar,
+    Callable,
+    Mapping,
+)
 
 from mongoengine import Q, Document
 
@@ -12,35 +24,122 @@ from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, TaskStatus
-from apiserver.database.utils import get_options
+from apiserver.database.model.task.task import Task, TaskStatus, external_task_types
+from apiserver.database.utils import get_options, get_company_or_none_constraint
 from apiserver.timing_context import TimingContext
-from apiserver.tools import safe_get
+from apiserver.utilities.dicts import nested_get
+from .sub_projects import (
+    _reposition_project_with_children,
+    _ensure_project,
+    _validate_project_name,
+    _update_subproject_names,
+    _save_under_parent,
+    _get_sub_projects,
+    _ids_with_children,
+    _ids_with_parents,
+)
 
 log = config.logger(__file__)
 
 
 class ProjectBLL:
     @classmethod
-    def get_active_users(
-        cls, company, project_ids: Sequence, user_ids: Optional[Sequence] = None
-    ) -> set:
+    def merge_project(
+        cls, company, source_id: str, destination_id: str
+    ) -> Tuple[int, int, Set[str]]:
         """
-        Get the set of user ids that created tasks/models in the given projects
-        If project_ids is empty then all projects are examined
-        If user_ids are passed then only subset of these users is returned
+        Move all the tasks and sub projects from the source project to the destination
+        Remove the source project
+        Return the amounts of moved entities and subprojects + set of all the affected project ids
         """
-        with TimingContext("mongo", "active_users_in_projects"):
-            res = set()
-            query = Q(company=company)
-            if project_ids:
-                query &= Q(project__in=project_ids)
-            if user_ids:
-                query &= Q(user__in=user_ids)
-            for cls_ in (Task, Model):
-                res |= set(cls_.objects(query).distinct(field="user"))
+        with TimingContext("mongo", "move_project"):
+            if source_id == destination_id:
+                raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
+                    parent=source_id
+                )
+            source = Project.get(company, source_id)
+            destination = Project.get(company, destination_id)
 
-            return res
+            moved_entities = 0
+            for entity_type in (Task, Model):
+                moved_entities += entity_type.objects(
+                    company=company,
+                    project=source_id,
+                    system_tags__nin=[EntityVisibility.archived.value],
+                ).update(upsert=False, project=destination_id)
+
+            moved_sub_projects = 0
+            for child in Project.objects(company=company, parent=source_id):
+                _reposition_project_with_children(project=child, parent=destination)
+                moved_sub_projects += 1
+
+            affected = {source.id, *(source.path or [])}
+            source.delete()
+
+            if destination:
+                destination.update(last_update=datetime.utcnow())
+                affected.update({destination.id, *(destination.path or [])})
+
+        return moved_entities, moved_sub_projects, affected
+
+    @classmethod
+    def move_project(
+        cls, company: str, user: str, project_id: str, new_location: str
+    ) -> Tuple[int, Set[str]]:
+        """
+        Move project with its sub projects from its current location to the target one.
+        If the target location does not exist then it will be created. If it exists then
+        it should be writable. The source location should be writable too.
+        Return the number of moved projects + set of all the affected project ids
+        """
+        with TimingContext("mongo", "move_project"):
+            project = Project.get(company, project_id)
+            old_parent_id = project.parent
+            old_parent = (
+                Project.get_for_writing(company=project.company, id=old_parent_id)
+                if old_parent_id
+                else None
+            )
+            new_parent = _ensure_project(company=company, user=user, name=new_location)
+            new_parent_id = new_parent.id if new_parent else None
+            if old_parent_id == new_parent_id:
+                raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
+                    location=new_parent.name if new_parent else ""
+                )
+
+            moved = _reposition_project_with_children(project, parent=new_parent)
+
+            now = datetime.utcnow()
+            affected = set()
+            for p in filter(None, (old_parent, new_parent)):
+                p.update(last_update=now)
+                affected.update({p.id, *(p.path or [])})
+
+            return moved, affected
+
+    @classmethod
+    def update(cls, company: str, project_id: str, **fields):
+        with TimingContext("mongo", "projects_update"):
+            project = Project.get_for_writing(company=company, id=project_id)
+            if not project:
+                raise errors.bad_request.InvalidProjectId(id=project_id)
+
+            new_name = fields.pop("name", None)
+            if new_name:
+                new_name, new_location = _validate_project_name(new_name)
+                old_name, old_location = _validate_project_name(project.name)
+                if new_location != old_location:
+                    raise errors.bad_request.CannotUpdateProjectLocation(name=new_name)
+                fields["name"] = new_name
+
+            fields["last_update"] = datetime.utcnow()
+            updated = project.update(upsert=False, **fields)
+
+            if new_name:
+                project.name = new_name
+                _update_subproject_names(project=project)
+
+            return updated
 
     @classmethod
     def create(
@@ -57,6 +156,7 @@ class ProjectBLL:
         Create a new project.
         Returns project ID
         """
+        name, location = _validate_project_name(name)
         now = datetime.utcnow()
         project = Project(
             id=database.utils.id(),
@@ -70,7 +170,11 @@ class ProjectBLL:
             created=now,
             last_update=now,
         )
-        project.save()
+        parent = _ensure_project(company=company, user=user, name=location)
+        _save_under_parent(project=project, parent=parent)
+        if parent:
+            parent.update(last_update=now)
+
         return project.id
 
     @classmethod
@@ -98,6 +202,7 @@ class ProjectBLL:
                 raise errors.bad_request.InvalidProjectId(id=project_id)
             return project_id
 
+        project_name, _ = _validate_project_name(project_name)
         project = Project.objects(company=company, name=project_name).only("id").first()
         if project:
             return project.id
@@ -265,18 +370,48 @@ class ProjectBLL:
 
         return status_count_pipeline, runtime_pipeline
 
+    T = TypeVar("T")
+
+    @staticmethod
+    def aggregate_project_data(
+        func: Callable[[T, T], T],
+        project_ids: Sequence[str],
+        child_projects: Mapping[str, Sequence[Project]],
+        data: Mapping[str, T],
+    ) -> Dict[str, T]:
+        """
+        Given a list of project ids and data collected over these projects and their subprojects
+        For each project aggregates the data from all of its subprojects
+        """
+        aggregated = {}
+        if not data:
+            return aggregated
+        for pid in project_ids:
+            relevant_projects = {p.id for p in child_projects.get(pid, [])} | {pid}
+            relevant_data = [data for p, data in data.items() if p in relevant_projects]
+            if not relevant_data:
+                continue
+            aggregated[pid] = reduce(func, relevant_data)
+        return aggregated
+
     @classmethod
     def get_project_stats(
         cls,
         company: str,
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
-    ) -> Dict[str, dict]:
+    ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
-            return {}
+            return {}, {}
 
+        child_projects = _get_sub_projects(project_ids, _only=("id", "name"))
+        project_ids_with_children = set(project_ids) | {
+            c.id for c in itertools.chain.from_iterable(child_projects.values())
+        }
         status_count_pipeline, runtime_pipeline = cls.make_projects_get_all_pipelines(
-            company, project_ids=project_ids, specific_state=specific_state
+            company,
+            project_ids=list(project_ids_with_children),
+            specific_state=specific_state,
         )
 
         default_counts = dict.fromkeys(get_options(TaskStatus), 0)
@@ -298,29 +433,98 @@ class ProjectBLL:
                     }
                 )
 
+        def sum_status_count(
+            a: Mapping[str, Mapping], b: Mapping[str, Mapping]
+        ) -> Dict[str, dict]:
+            return {
+                section: {
+                    status: nested_get(a, (section, status), 0)
+                    + nested_get(b, (section, status), 0)
+                    for status in set(a.get(section, {})) | set(b.get(section, {}))
+                }
+                for section in set(a) | set(b)
+            }
+
+        status_count = cls.aggregate_project_data(
+            func=sum_status_count,
+            project_ids=project_ids,
+            child_projects=child_projects,
+            data=status_count,
+        )
+
         runtime = {
             result["_id"]: {k: v for k, v in result.items() if k != "_id"}
             for result in Task.aggregate(runtime_pipeline)
         }
 
-        def get_status_counts(project_id, section):
-            path = "/".join((project_id, section))
+        def sum_runtime(
+            a: Mapping[str, Mapping], b: Mapping[str, Mapping]
+        ) -> Dict[str, dict]:
             return {
-                "total_runtime": safe_get(runtime, path, 0),
-                "status_count": safe_get(status_count, path, default_counts),
+                section: a.get(section, 0) + b.get(section, 0)
+                for section in set(a) | set(b)
+            }
+
+        runtime = cls.aggregate_project_data(
+            func=sum_runtime,
+            project_ids=project_ids,
+            child_projects=child_projects,
+            data=runtime,
+        )
+
+        def get_status_counts(project_id, section):
+            return {
+                "total_runtime": nested_get(runtime, (project_id, section), 0),
+                "status_count": nested_get(
+                    status_count, (project_id, section), default_counts
+                ),
             }
 
         report_for_states = [
             s for s in EntityVisibility if not specific_state or specific_state == s
         ]
 
-        return {
+        stats = {
             project: {
                 task_state.value: get_status_counts(project, task_state.value)
                 for task_state in report_for_states
             }
             for project in project_ids
         }
+
+        children = {
+            project: sorted(
+                [{"id": c.id, "name": c.name} for c in child_projects.get(project, [])],
+                key=itemgetter("name"),
+            )
+            for project in project_ids
+        }
+        return stats, children
+
+    @classmethod
+    def get_active_users(
+        cls,
+        company,
+        project_ids: Sequence[str],
+        user_ids: Optional[Sequence[str]] = None,
+    ) -> set:
+        """
+        Get the set of user ids that created tasks/models/dataviews in the given projects
+        If project_ids is empty then all projects are examined
+        If user_ids are passed then only subset of these users is returned
+        """
+        with TimingContext("mongo", "active_users_in_projects"):
+            res = set()
+            query = Q(company=company)
+            if project_ids:
+                project_ids = _ids_with_children(project_ids)
+                query &= Q(project__in=project_ids)
+            if user_ids:
+                query &= Q(user__in=user_ids)
+            for cls_ in (Task, Model):
+                res |= set(cls_.objects(query).distinct(field="user"))
+
+            return res
 
     @classmethod
     def get_projects_with_active_user(
@@ -330,13 +534,83 @@ class ProjectBLL:
         project_ids: Optional[Sequence[str]] = None,
         allow_public: bool = True,
     ) -> Sequence[str]:
-        """Get the projects ids where user created any tasks"""
-        company = (
-            {"company__in": [None, "", company]}
-            if allow_public
-            else {"company": company}
+        """
+        Get the projects ids where user created any tasks including all the parents of these projects
+        If project ids are specified then filter the results by these project ids
+        """
+        query = Q(user__in=users)
+
+        if allow_public:
+            query &= get_company_or_none_constraint(company)
+        else:
+            query &= Q(company=company)
+
+        if project_ids:
+            query &= Q(project__in=_ids_with_children(project_ids))
+
+        res = Task.objects(query).distinct(field="project")
+        if not res:
+            return res
+
+        ids_with_parents = _ids_with_parents(res)
+        if project_ids:
+            return [pid for pid in ids_with_parents if pid in project_ids]
+
+        return ids_with_parents
+
+    @classmethod
+    def get_task_parents(
+        cls,
+        company_id: str,
+        projects: Sequence[str],
+        state: Optional[EntityVisibility] = None,
+    ) -> Sequence[dict]:
+        """
+        Get list of unique parent tasks sorted by task name for the passed company projects
+        If projects is None or empty then get parents for all the company tasks
+        """
+        query = Q(company=company_id)
+        if projects:
+            projects = _ids_with_children(projects)
+            query &= Q(project__in=projects)
+        if state == EntityVisibility.archived:
+            query &= Q(system_tags__in=[EntityVisibility.archived.value])
+        elif state == EntityVisibility.active:
+            query &= Q(system_tags__nin=[EntityVisibility.archived.value])
+
+        parent_ids = set(Task.objects(query).distinct("parent"))
+        if not parent_ids:
+            return []
+
+        parents = Task.get_many_with_join(
+            company_id,
+            query=Q(id__in=parent_ids),
+            allow_public=True,
+            override_projection=("id", "name", "project.name"),
         )
-        projects = {"project__in": project_ids} if project_ids else {}
-        return Task.objects(**company, user__in=users, **projects).distinct(
-            field="project"
-        )
+        return sorted(parents, key=itemgetter("name"))
+
+    @classmethod
+    def get_task_types(cls, company, project_ids: Optional[Sequence]) -> set:
+        """
+        Return the list of unique task types used by company and public tasks
+        If project ids passed then only tasks from these projects are considered
+        """
+        query = get_company_or_none_constraint(company)
+        if project_ids:
+            project_ids = _ids_with_children(project_ids)
+            query &= Q(project__in=project_ids)
+        res = Task.objects(query).distinct(field="type")
+        return set(res).intersection(external_task_types)
+
+    @classmethod
+    def get_model_frameworks(cls, company, project_ids: Optional[Sequence]) -> Sequence:
+        """
+        Return the list of unique frameworks used by company and public models
+        If project ids passed then only models from these projects are considered
+        """
+        query = get_company_or_none_constraint(company)
+        if project_ids:
+            project_ids = _ids_with_children(project_ids)
+            query &= Q(project__in=project_ids)
+        return Model.objects(query).distinct(field="framework")

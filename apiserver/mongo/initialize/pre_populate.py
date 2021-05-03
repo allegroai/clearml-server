@@ -33,6 +33,7 @@ from mongoengine import Q
 
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType
+from apiserver.bll.project import project_ids_with_children
 from apiserver.bll.task.artifacts import get_artifact_id
 from apiserver.bll.task.param_utils import (
     split_param_name,
@@ -424,6 +425,22 @@ class PrePopulate:
         return items
 
     @classmethod
+    def _check_projects_hierarchy(cls, projects: Set[Project]):
+        """
+        For any exported project all its parents up to the root should be present
+        """
+        if not projects:
+            return
+
+        project_ids = {p.id for p in projects}
+        orphans = [p.id for p in projects if p.parent and p.parent not in project_ids]
+        if not orphans:
+            return
+
+        print(f"ERROR: the following projects are exported without their parents: {orphans}")
+        exit(1)
+
+    @classmethod
     def _resolve_entities(
         cls,
         experiments: Sequence[str] = None,
@@ -434,6 +451,7 @@ class PrePopulate:
 
         if projects:
             print("Reading projects...")
+            projects = project_ids_with_children(projects)
             entities[cls.project_cls].update(
                 cls._resolve_type(cls.project_cls, projects)
             )
@@ -462,6 +480,8 @@ class PrePopulate:
             )
             project_ids = {p.id for p in entities[cls.project_cls]}
             entities[cls.project_cls].update(o for o in objs if o.id not in project_ids)
+
+        cls._check_projects_hierarchy(entities[cls.project_cls])
 
         model_ids = {
             model_id
@@ -634,11 +654,12 @@ class PrePopulate:
         """
         Export the requested experiments, projects and models and return the list of artifact files
         Always do the export on sorted items since the order of items influence hash
+        The projects should be sorted by name so that on import the hierarchy is correctly restored from top to bottom
         """
         artifacts = []
         now = datetime.utcnow()
         for cls_ in sorted(entities, key=attrgetter("__name__")):
-            items = sorted(entities[cls_], key=attrgetter("id"))
+            items = sorted(entities[cls_], key=attrgetter("name", "id"))
             if not items:
                 continue
             base_filename = cls._get_base_filename(cls_)

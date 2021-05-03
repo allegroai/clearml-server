@@ -26,7 +26,6 @@ from apiserver.database.model.task.task import (
     TaskStatusMessage,
     TaskSystemTags,
     ArtifactModes,
-    external_task_types,
 )
 from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
@@ -50,18 +49,6 @@ class TaskBLL:
     def __init__(self, events_es=None, redis=None):
         self.events_es = events_es or es_factory.connect("events")
         self.redis: StrictRedis = redis or redman.connection("apiserver")
-
-    @classmethod
-    def get_types(cls, company, project_ids: Optional[Sequence]) -> set:
-        """
-        Return the list of unique task types used by company and public tasks
-        If project ids passed then only tasks from these projects are considered
-        """
-        query = get_company_or_none_constraint(company)
-        if project_ids:
-            query &= Q(project__in=project_ids)
-        res = Task.objects(query).distinct(field="type")
-        return set(res).intersection(external_task_types)
 
     @staticmethod
     def get_task_with_access(

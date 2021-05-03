@@ -216,7 +216,7 @@ def get_all(call: APICall, company_id, _):
 @endpoint("tasks.get_types", request_data_model=GetTypesRequest)
 def get_types(call: APICall, company_id, request: GetTypesRequest):
     call.result.data = {
-        "types": list(task_bll.get_types(company_id, project_ids=request.projects))
+        "types": list(project_bll.get_task_types(company_id, project_ids=request.projects))
     }
 
 

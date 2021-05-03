@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Sequence
 
 import attr
@@ -8,13 +7,13 @@ from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidProjectId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, IdResponse
 from apiserver.apimodels.projects import (
-    GetHyperParamReq,
-    ProjectReq,
+    GetHyperParamRequest,
+    ProjectRequest,
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
     ProjectsGetRequest,
-    DeleteRequest,
+    DeleteRequest, MoveRequest, MergeRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -47,10 +46,6 @@ create_fields = {
     "default_output_destination": None,
 }
 
-get_all_query_options = Project.QueryParameterOptions(
-    pattern_fields=("name", "description"), list_fields=("tags", "system_tags", "id"),
-)
-
 
 @endpoint("projects.get_by_id", required_fields=["project"])
 def get_by_id(call):
@@ -72,27 +67,46 @@ def get_by_id(call):
         call.result.data = {"project": project_dict}
 
 
+def _adjust_search_parameters(data: dict, shallow_search: bool):
+    """
+    1. Make sure that there is no external query on path
+    2. If not shallow_search and parent is provided then parent can be at any place in path
+    3. If shallow_search and no parent provided then use a top level parent
+    """
+    data.pop("path", None)
+    if not shallow_search:
+        if "parent" in data:
+            data["path"] = data.pop("parent")
+        return
+
+    if "parent" not in data:
+        data["parent"] = [None, ""]
+
+
 @endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_tag_fields(call, call.data)
     allow_public = not request.non_public
+    shallow_search = request.shallow_search or request.include_stats
     with TimingContext("mongo", "projects_get_all"):
+        data = call.data
         if request.active_users:
             ids = project_bll.get_projects_with_active_user(
                 company=company_id,
                 users=request.active_users,
-                project_ids=call.data.get("id"),
+                project_ids=data.get("id"),
                 allow_public=allow_public,
             )
             if not ids:
                 call.result.data = {"projects": []}
                 return
-            call.data["id"] = ids
+            data["id"] = ids
+
+        _adjust_search_parameters(data, shallow_search=shallow_search)
 
         projects = Project.get_many_with_join(
             company=company_id,
-            query_dict=call.data,
-            query_options=get_all_query_options,
+            query_dict=data,
             allow_public=allow_public,
         )
 
@@ -102,7 +116,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             return
 
         project_ids = {project["id"] for project in projects}
-        stats = project_bll.get_project_stats(
+        stats, children = project_bll.get_project_stats(
             company=company_id,
             project_ids=list(project_ids),
             specific_state=request.stats_for_state,
@@ -110,6 +124,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
         for project in projects:
             project["stats"] = stats[project["id"]]
+            project["sub_projects"] = children[project["id"]]
 
         call.result.data = {"projects": projects}
 
@@ -117,12 +132,13 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 @endpoint("projects.get_all")
 def get_all(call: APICall):
     conform_tag_fields(call, call.data)
+    data = call.data
+    _adjust_search_parameters(data, shallow_search=data.get("shallow_search", False))
     with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
         projects = Project.get_many(
             company=call.identity.company,
-            query_dict=call.data,
-            query_options=get_all_query_options,
-            parameters=call.data,
+            query_dict=data,
+            parameters=data,
             allow_public=True,
         )
         conform_output_tags(call, projects)
@@ -161,22 +177,15 @@ def update(call: APICall):
     :return: updated - `int` - number of projects updated
              fields - `[string]` - updated fields
     """
-    project_id = call.data["project"]
-
-    with translate_errors_context():
-        project = Project.get_for_writing(company=call.identity.company, id=project_id)
-        if not project:
-            raise errors.bad_request.InvalidProjectId(id=project_id)
-
-        fields = parse_from_call(
-            call.data, create_fields, Project.get_fields(), discard_none_values=False
-        )
-        conform_tag_fields(call, fields, validate=True)
-        fields["last_update"] = datetime.utcnow()
-        with TimingContext("mongo", "projects_update"):
-            updated = project.update(upsert=False, **fields)
-        conform_output_tags(call, fields)
-        call.result.data_model = UpdateResponse(updated=updated, fields=fields)
+    fields = parse_from_call(
+        call.data, create_fields, Project.get_fields(), discard_none_values=False
+    )
+    conform_tag_fields(call, fields, validate=True)
+    updated = ProjectBLL.update(
+        company=call.identity.company, project_id=call.data["project"], **fields
+    )
+    conform_output_tags(call, fields)
+    call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
 
 def _reset_cached_tags(company: str, projects: Sequence[str]):
@@ -184,20 +193,47 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
     org_bll.reset_tags(company, Tags.Model, projects=projects)
 
 
+@endpoint("projects.move", request_data_model=MoveRequest)
+def move(call: APICall, company: str, request: MoveRequest):
+    moved, affected_projects = ProjectBLL.move_project(
+        company=company,
+        user=call.identity.user,
+        project_id=request.project,
+        new_location=request.new_location,
+    )
+    _reset_cached_tags(company, projects=list(affected_projects))
+
+    call.result.data = {"moved": moved}
+
+
+@endpoint("projects.merge", request_data_model=MergeRequest)
+def merge(call: APICall, company: str, request: MergeRequest):
+    moved_entitites, moved_projects, affected_projects = ProjectBLL.merge_project(
+        company, source_id=request.project, destination_id=request.destination_project
+    )
+
+    _reset_cached_tags(company, projects=list(affected_projects))
+
+    call.result.data = {
+        "moved_entities": moved_entitites,
+        "moved_projects": moved_projects,
+    }
+
+
 @endpoint("projects.delete", request_data_model=DeleteRequest)
 def delete(call: APICall, company_id: str, request: DeleteRequest):
-    res = delete_project(
+    res, affected_projects = delete_project(
         company=company_id,
         project_id=request.project,
         force=request.force,
         delete_contents=request.delete_contents,
     )
-    _reset_cached_tags(company_id, projects=[request.project])
+    _reset_cached_tags(company_id, projects=list(affected_projects))
     call.result.data = {**attr.asdict(res)}
 
 
-@endpoint("projects.get_unique_metric_variants", request_data_model=ProjectReq)
-def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectReq):
+@endpoint("projects.get_unique_metric_variants", request_data_model=ProjectRequest)
+def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectRequest):
 
     metrics = task_bll.get_unique_metric_variants(
         company_id, [request.project] if request.project else None
@@ -209,9 +245,9 @@ def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectR
 @endpoint(
     "projects.get_hyper_parameters",
     min_version="2.9",
-    request_data_model=GetHyperParamReq,
+    request_data_model=GetHyperParamRequest,
 )
-def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamReq):
+def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamRequest):
 
     total, remaining, parameters = TaskBLL.get_aggregated_project_parameters(
         company_id,
@@ -303,7 +339,7 @@ def get_task_parents(
     call: APICall, company_id: str, request: ProjectTaskParentsRequest
 ):
     call.result.data = {
-        "parents": org_bll.get_parent_tasks(
+        "parents": project_bll.get_task_parents(
             company_id, projects=request.projects, state=request.tasks_state
         )
     }

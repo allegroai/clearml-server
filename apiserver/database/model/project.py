@@ -1,4 +1,4 @@
-from mongoengine import StringField, DateTimeField, IntField
+from mongoengine import StringField, DateTimeField, IntField, ListField
 
 from apiserver.database import Database, strict
 from apiserver.database.fields import StrippedStringField, SafeSortedListField
@@ -10,13 +10,15 @@ class Project(AttributedDocument):
 
     get_all_query_options = GetMixin.QueryParameterOptions(
         pattern_fields=("name", "description"),
-        list_fields=("tags", "system_tags", "id"),
+        list_fields=("tags", "system_tags", "id", "parent", "path"),
     )
 
     meta = {
         "db_alias": Database.backend,
         "strict": strict,
         "indexes": [
+            "parent",
+            "path",
             ("company", "name"),
             {
                 "name": "%s.project.main_text_index" % Database.backend,
@@ -44,3 +46,5 @@ class Project(AttributedDocument):
     logo_url = StringField()
     logo_blob = StringField(exclude_by_default=True)
     company_origin = StringField(exclude_by_default=True)
+    parent = StringField(reference_field="Project")
+    path = ListField(StringField(required=True), exclude_by_default=True)

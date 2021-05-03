@@ -5,6 +5,7 @@ from mongoengine import Q
 from redis import Redis
 
 from apiserver.config_repo import config
+from apiserver.bll.project import project_ids_with_children
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task
@@ -40,7 +41,7 @@ class _TagsCache:
                 if vals:
                     query &= GetMixin.get_list_field_query(name, vals)
         if project:
-            query &= Q(project=project)
+            query &= Q(project__in=project_ids_with_children([project]))
 
         return self.db_cls.objects(query).distinct(field)
 
