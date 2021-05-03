@@ -1,9 +1,11 @@
 from typing import Sequence
 
+from jsonmodels.fields import StringField
 from jsonmodels.models import Base
 from jsonmodels.validators import Length
 
-from apiserver.apimodels import ListField, IntField
+from apiserver.apimodels import ListField
+from apiserver.apimodels.base import UpdateResponse
 
 
 class BatchRequest(Base):
@@ -11,5 +13,13 @@ class BatchRequest(Base):
 
 
 class BatchResponse(Base):
-    succeeded: int = IntField()
-    failures: Sequence[dict] = ListField([dict])
+    succeeded: Sequence[dict] = ListField([dict])
+    failed: Sequence[dict] = ListField([dict])
+
+
+class UpdateBatchItem(UpdateResponse):
+    id: str = StringField()
+
+
+class UpdateBatchResponse(BatchResponse):
+    succeeded: Sequence[UpdateBatchItem] = ListField(UpdateBatchItem)

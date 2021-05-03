@@ -1,13 +1,12 @@
 from typing import Sequence
 
-import six
 from jsonmodels import models
 from jsonmodels.fields import StringField, BoolField, IntField, EmbeddedField
 from jsonmodels.validators import Enum, Length
 
 from apiserver.apimodels import DictField, ListField
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.apimodels.batch import BatchRequest
+from apiserver.apimodels.batch import BatchRequest, UpdateBatchItem, BatchResponse
 from apiserver.database.model.task.task import (
     TaskType,
     ArtifactModes,
@@ -45,17 +44,41 @@ class EnqueueResponse(UpdateResponse):
     queued = IntField()
 
 
+class EnqueueBatchItem(UpdateBatchItem):
+    queued: bool = BoolField()
+
+
+class EnqueueManyResponse(BatchResponse):
+    succeeded: Sequence[EnqueueBatchItem] = ListField(EnqueueBatchItem)
+
+
 class DequeueResponse(UpdateResponse):
     dequeued = IntField()
 
 
+class DequeueBatchItem(UpdateBatchItem):
+    dequeued: bool = BoolField()
+
+
+class DequeueManyResponse(BatchResponse):
+    succeeded: Sequence[DequeueBatchItem] = ListField(DequeueBatchItem)
+
+
 class ResetResponse(UpdateResponse):
-    deleted_indices = ListField(items_types=six.string_types)
     dequeued = DictField()
-    frames = DictField()
     events = DictField()
     deleted_models = IntField()
     urls = DictField()
+
+
+class ResetBatchItem(UpdateBatchItem):
+    dequeued: bool = BoolField()
+    deleted_models = IntField()
+    urls = DictField()
+
+
+class ResetManyResponse(BatchResponse):
+    succeeded: Sequence[ResetBatchItem] = ListField(ResetBatchItem)
 
 
 class TaskRequest(models.Base):
@@ -87,10 +110,6 @@ class SetRequirementsRequest(TaskRequest):
 
 class PublishRequest(UpdateRequest):
     publish_model = BoolField(default=True)
-
-
-class PublishResponse(UpdateResponse):
-    pass
 
 
 class TaskData(models.Base):

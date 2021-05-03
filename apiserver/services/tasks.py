@@ -1,7 +1,7 @@
 from copy import deepcopy
 from datetime import datetime
 from functools import partial
-from typing import Sequence, Union, Tuple, Set
+from typing import Sequence, Union, Tuple
 
 import attr
 import dpath
@@ -17,12 +17,15 @@ from apiserver.apimodels.base import (
     MakePublicRequest,
     MoveRequest,
 )
-from apiserver.apimodels.batch import BatchResponse
+from apiserver.apimodels.batch import (
+    BatchResponse,
+    UpdateBatchResponse,
+    UpdateBatchItem,
+)
 from apiserver.apimodels.tasks import (
     StartedResponse,
     ResetResponse,
     PublishRequest,
-    PublishResponse,
     CreateRequest,
     UpdateRequest,
     SetRequirementsRequest,
@@ -54,6 +57,12 @@ from apiserver.apimodels.tasks import (
     DeleteManyRequest,
     PublishManyRequest,
     TaskBatchRequest,
+    EnqueueManyResponse,
+    EnqueueBatchItem,
+    DequeueBatchItem,
+    DequeueManyResponse,
+    ResetManyResponse,
+    ResetBatchItem,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -77,10 +86,10 @@ from apiserver.bll.task.param_utils import (
     params_unprepare_from_saved,
     escape_paths,
 )
-from apiserver.bll.task.task_cleanup import CleanupResult
 from apiserver.bll.task.task_operations import (
     stop_task,
     enqueue_task,
+    dequeue_task,
     reset_task,
     archive_task,
     delete_task,
@@ -287,21 +296,13 @@ def stop(call: APICall, company_id, req_model: UpdateRequest):
     )
 
 
-@attr.s(auto_attribs=True)
-class StopRes:
-    stopped: int = 0
-
-    def __add__(self, other: dict):
-        return StopRes(stopped=self.stopped + 1)
-
-
 @endpoint(
     "tasks.stop_many",
     request_data_model=StopManyRequest,
-    response_data_model=BatchResponse,
+    response_data_model=UpdateBatchResponse,
 )
 def stop_many(call: APICall, company_id, request: StopManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             stop_task,
             company_id=company_id,
@@ -310,9 +311,11 @@ def stop_many(call: APICall, company_id, request: StopManyRequest):
             force=request.force,
         ),
         ids=request.ids,
-        init_res=StopRes(),
     )
-    call.result.data_model = BatchResponse(succeeded=res.stopped, failures=failures)
+    call.result.data_model = UpdateBatchResponse(
+        succeeded=[UpdateBatchItem(id=_id, **res) for _id, res in results],
+        failed=failures,
+    )
 
 
 @endpoint(
@@ -854,22 +857,13 @@ def enqueue(call: APICall, company_id, request: EnqueueRequest):
     call.result.data_model = EnqueueResponse(queued=queued, **res)
 
 
-@attr.s(auto_attribs=True)
-class EnqueueRes:
-    queued: int = 0
-
-    def __add__(self, other: Tuple[int, dict]):
-        queued, _ = other
-        return EnqueueRes(queued=self.queued + queued)
-
-
 @endpoint(
     "tasks.enqueue_many",
     request_data_model=EnqueueManyRequest,
-    response_data_model=BatchResponse,
+    response_data_model=EnqueueManyResponse,
 )
 def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             enqueue_task,
             company_id=company_id,
@@ -879,9 +873,14 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
             validate=request.validate_tasks,
         ),
         ids=request.ids,
-        init_res=EnqueueRes(),
     )
-    call.result.data_model = BatchResponse(succeeded=res.queued, failures=failures)
+    call.result.data_model = EnqueueManyResponse(
+        succeeded=[
+            EnqueueBatchItem(id=_id, queued=bool(queued), **res)
+            for _id, (queued, res) in results
+        ],
+        failed=failures,
+    )
 
 
 @endpoint(
@@ -890,23 +889,37 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
     response_data_model=DequeueResponse,
 )
 def dequeue(call: APICall, company_id, request: UpdateRequest):
-    task = TaskBLL.get_task_with_access(
-        request.task,
+    dequeued, res = dequeue_task(
+        task_id=request.task,
         company_id=company_id,
-        only=("id", "execution", "status", "project", "enqueue_status"),
-        requires_write_access=True,
+        status_message=request.status_message,
+        status_reason=request.status_reason,
     )
-    res = DequeueResponse(
-        **TaskBLL.dequeue_and_change_status(
-            task,
-            company_id,
+    call.result.data_model = DequeueResponse(dequeued=dequeued, **res)
+
+
+@endpoint(
+    "tasks.dequeue_many",
+    request_data_model=TaskBatchRequest,
+    response_data_model=DequeueManyResponse,
+)
+def dequeue_many(call: APICall, company_id, request: TaskBatchRequest):
+    results, failures = run_batch_operation(
+        func=partial(
+            dequeue_task,
+            company_id=company_id,
             status_message=request.status_message,
             status_reason=request.status_reason,
-        )
+        ),
+        ids=request.ids,
     )
-
-    res.dequeued = 1
-    call.result.data_model = res
+    call.result.data_model = DequeueManyResponse(
+        succeeded=[
+            DequeueBatchItem(id=_id, dequeued=bool(dequeued), **res)
+            for _id, (dequeued, res) in results
+        ],
+        failed=failures,
+    )
 
 
 @endpoint(
@@ -932,25 +945,13 @@ def reset(call: APICall, company_id, request: ResetRequest):
     call.result.data_model = res
 
 
-@attr.s(auto_attribs=True)
-class ResetRes:
-    reset: int = 0
-    dequeued: int = 0
-    cleanup_res: CleanupResult = None
-
-    def __add__(self, other: Tuple[dict, CleanupResult, dict]):
-        dequeued, other_res, _ = other
-        dequeued = dequeued.get("removed", 0) if dequeued else 0
-        return ResetRes(
-            reset=self.reset + 1,
-            dequeued=self.dequeued + dequeued,
-            cleanup_res=self.cleanup_res + other_res if self.cleanup_res else other_res,
-        )
-
-
-@endpoint("tasks.reset_many", request_data_model=ResetManyRequest)
+@endpoint(
+    "tasks.reset_many",
+    request_data_model=ResetManyRequest,
+    response_data_model=ResetManyResponse,
+)
 def reset_many(call: APICall, company_id, request: ResetManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             reset_task,
             company_id=company_id,
@@ -960,18 +961,26 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
             clear_all=request.clear_all,
         ),
         ids=request.ids,
-        init_res=ResetRes(),
     )
 
-    if res.cleanup_res:
-        cleanup_res = dict(
-            deleted_models=res.cleanup_res.deleted_models,
-            urls=attr.asdict(res.cleanup_res.urls) if res.cleanup_res.urls else {},
-        )
-    else:
-        cleanup_res = {}
-    call.result.data = dict(
-        succeeded=res.reset, dequeued=res.dequeued, **cleanup_res, failures=failures,
+    def clean_res(res: dict) -> dict:
+        # do not return artifacts since they are not serializable
+        fields = res.get("fields")
+        if fields:
+            fields.pop("execution.artifacts", None)
+        return res
+
+    call.result.data_model = ResetManyResponse(
+        succeeded=[
+            ResetBatchItem(
+                id=_id,
+                dequeued=bool(dequeued.get("removed")) if dequeued else False,
+                **attr.asdict(cleanup),
+                **clean_res(res),
+            )
+            for _id, (dequeued, cleanup, res) in results
+        ],
+        failed=failures,
     )
 
 
@@ -1004,7 +1013,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     response_data_model=BatchResponse,
 )
 def archive_many(call: APICall, company_id, request: TaskBatchRequest):
-    archived, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             archive_task,
             company_id=company_id,
@@ -1012,9 +1021,11 @@ def archive_many(call: APICall, company_id, request: TaskBatchRequest):
             status_reason=request.status_reason,
         ),
         ids=request.ids,
-        init_res=0,
     )
-    call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
+    call.result.data_model = BatchResponse(
+        succeeded=[dict(id=_id, archived=bool(archived)) for _id, archived in results],
+        failed=failures,
+    )
 
 
 @endpoint(
@@ -1023,7 +1034,7 @@ def archive_many(call: APICall, company_id, request: TaskBatchRequest):
     response_data_model=BatchResponse,
 )
 def unarchive_many(call: APICall, company_id, request: TaskBatchRequest):
-    unarchived, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             unarchive_task,
             company_id=company_id,
@@ -1031,9 +1042,13 @@ def unarchive_many(call: APICall, company_id, request: TaskBatchRequest):
             status_reason=request.status_reason,
         ),
         ids=request.ids,
-        init_res=0,
     )
-    call.result.data_model = BatchResponse(succeeded=unarchived, failures=failures)
+    call.result.data_model = BatchResponse(
+        succeeded=[
+            dict(id=_id, unarchived=bool(unarchived)) for _id, unarchived in results
+        ],
+        failed=failures,
+    )
 
 
 @endpoint("tasks.delete", request_data_model=DeleteRequest)
@@ -1051,25 +1066,9 @@ def delete(call: APICall, company_id, request: DeleteRequest):
     call.result.data = dict(deleted=bool(deleted), **attr.asdict(cleanup_res))
 
 
-@attr.s(auto_attribs=True)
-class DeleteRes:
-    deleted: int = 0
-    projects: Set = set()
-    cleanup_res: CleanupResult = None
-
-    def __add__(self, other: Tuple[int, Task, CleanupResult]):
-        del_count, task, other_res = other
-
-        return DeleteRes(
-            deleted=self.deleted + del_count,
-            projects=self.projects | {task.project},
-            cleanup_res=self.cleanup_res + other_res if self.cleanup_res else other_res,
-        )
-
-
 @endpoint("tasks.delete_many", request_data_model=DeleteManyRequest)
 def delete_many(call: APICall, company_id, request: DeleteManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             delete_task,
             company_id=company_id,
@@ -1079,20 +1078,25 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
             delete_output_models=request.delete_output_models,
         ),
         ids=request.ids,
-        init_res=DeleteRes(),
     )
 
-    if res.deleted:
-        _reset_cached_tags(company_id, projects=list(res.projects))
+    if results:
+        projects = set(task.project for _, (_, task, _) in results)
+        _reset_cached_tags(company_id, projects=list(projects))
 
-    cleanup_res = attr.asdict(res.cleanup_res) if res.cleanup_res else {}
-    call.result.data = dict(succeeded=res.deleted, **cleanup_res, failures=failures)
+    call.result.data = dict(
+        succeeded=[
+            dict(id=_id, deleted=bool(deleted), **attr.asdict(cleanup_res))
+            for _id, (deleted, _, cleanup_res) in results
+        ],
+        failed=failures,
+    )
 
 
 @endpoint(
     "tasks.publish",
     request_data_model=PublishRequest,
-    response_data_model=PublishResponse,
+    response_data_model=UpdateResponse,
 )
 def publish(call: APICall, company_id, request: PublishRequest):
     updates = publish_task(
@@ -1103,24 +1107,16 @@ def publish(call: APICall, company_id, request: PublishRequest):
         status_reason=request.status_reason,
         status_message=request.status_message,
     )
-    call.result.data_model = PublishResponse(**updates)
-
-
-@attr.s(auto_attribs=True)
-class PublishRes:
-    published: int = 0
-
-    def __add__(self, other: dict):
-        return PublishRes(published=self.published + 1)
+    call.result.data_model = UpdateResponse(**updates)
 
 
 @endpoint(
     "tasks.publish_many",
     request_data_model=PublishManyRequest,
-    response_data_model=BatchResponse,
+    response_data_model=UpdateBatchResponse,
 )
 def publish_many(call: APICall, company_id, request: PublishManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             publish_task,
             company_id=company_id,
@@ -1132,10 +1128,12 @@ def publish_many(call: APICall, company_id, request: PublishManyRequest):
             status_message=request.status_message,
         ),
         ids=request.ids,
-        init_res=PublishRes(),
     )
 
-    call.result.data_model = BatchResponse(succeeded=res.published, failures=failures)
+    call.result.data_model = UpdateBatchResponse(
+        succeeded=[UpdateBatchItem(id=_id, **res) for _id, res in results],
+        failed=failures,
+    )
 
 
 @endpoint(

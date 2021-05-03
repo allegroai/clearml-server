@@ -56,13 +56,13 @@ def archive_task(
     except APIError:
         # dequeue may fail if the task was not enqueued
         pass
-    task.update(
+
+    return task.update(
         status_message=status_message,
         status_reason=status_reason,
         add_to_set__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
     )
-    return 1
 
 
 def unarchive_task(
@@ -80,6 +80,26 @@ def unarchive_task(
         pull__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
     )
+
+
+def dequeue_task(
+    task_id: str,
+    company_id: str,
+    status_message: str,
+    status_reason: str,
+) -> Tuple[int, dict]:
+    query = dict(id=task_id, company=company_id)
+    task = Task.get_for_writing(**query)
+    if not task:
+        raise errors.bad_request.InvalidTaskId(**query)
+
+    res = TaskBLL.dequeue_and_change_status(
+        task,
+        company_id,
+        status_message=status_message,
+        status_reason=status_reason,
+    )
+    return 1, res
 
 
 def enqueue_task(

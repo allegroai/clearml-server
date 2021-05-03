@@ -3,13 +3,12 @@ from six import string_types
 
 from apiserver.apimodels import ListField, DictField
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.apimodels.batch import BatchRequest, BatchResponse
+from apiserver.apimodels.batch import BatchRequest
 from apiserver.apimodels.metadata import (
     MetadataItem,
     DeleteMetadata,
     AddOrUpdateMetadata,
 )
-from apiserver.apimodels.tasks import PublishResponse as TaskPublishResponse
 
 
 class GetFrameworksRequest(models.Base):
@@ -51,10 +50,6 @@ class ModelsDeleteManyRequest(BatchRequest):
     force = fields.BoolField(default=False)
 
 
-class ModelsDeleteManyResponse(BatchResponse):
-    urls = fields.ListField([str])
-
-
 class PublishModelRequest(ModelRequest):
     force_publish_task = fields.BoolField(default=False)
     publish_task = fields.BoolField(default=True)
@@ -62,7 +57,7 @@ class PublishModelRequest(ModelRequest):
 
 class ModelTaskPublishResponse(models.Base):
     id = fields.StringField(required=True)
-    data = fields.EmbeddedField(TaskPublishResponse)
+    data = fields.EmbeddedField(UpdateResponse)
 
 
 class PublishModelResponse(UpdateResponse):
@@ -72,10 +67,6 @@ class PublishModelResponse(UpdateResponse):
 class ModelsPublishManyRequest(BatchRequest):
     force_publish_task = fields.BoolField(default=False)
     publish_task = fields.BoolField(default=True)
-
-
-class ModelsPublishManyResponse(BatchResponse):
-    published_tasks = fields.ListField([ModelTaskPublishResponse])
 
 
 class DeleteMetadataRequest(DeleteMetadata):

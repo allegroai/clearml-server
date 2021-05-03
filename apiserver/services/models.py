@@ -1,8 +1,7 @@
 from datetime import datetime
 from functools import partial
-from typing import Sequence, Tuple, Set
+from typing import Sequence
 
-import attr
 from mongoengine import Q, EmbeddedDocument
 
 from apiserver import database
@@ -15,15 +14,12 @@ from apiserver.apimodels.models import (
     CreateModelResponse,
     PublishModelRequest,
     PublishModelResponse,
-    ModelTaskPublishResponse,
     GetFrameworksRequest,
     DeleteModelRequest,
     DeleteMetadataRequest,
     AddOrUpdateMetadataRequest,
     ModelsPublishManyRequest,
-    ModelsPublishManyResponse,
     ModelsDeleteManyRequest,
-    ModelsDeleteManyResponse,
 )
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -501,26 +497,13 @@ def set_ready(call: APICall, company_id: str, request: PublishModelRequest):
     )
 
 
-@attr.s(auto_attribs=True)
-class PublishRes:
-    published: int = 0
-    published_tasks: Sequence = []
-
-    def __add__(self, other: Tuple[int, ModelTaskPublishResponse]):
-        published, response = other
-        return PublishRes(
-            published=self.published + published,
-            published_tasks=[*self.published_tasks, *([response] if response else [])],
-        )
-
-
 @endpoint(
     "models.publish_many",
     request_data_model=ModelsPublishManyRequest,
-    response_data_model=ModelsPublishManyResponse,
+    response_data_model=BatchResponse,
 )
 def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(
             ModelBLL.publish_model,
             company_id=company_id,
@@ -528,11 +511,16 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
             publish_task_func=publish_task if request.publish_task else None,
         ),
         ids=request.ids,
-        init_res=PublishRes(),
     )
 
-    call.result.data_model = ModelsPublishManyResponse(
-        succeeded=res.published, published_tasks=res.published_tasks, failures=failures,
+    call.result.data_model = BatchResponse(
+        succeeded=[
+            dict(
+                id=_id, updated=bool(updated), published_task=published_task.to_struct()
+            )
+            for _id, (updated, published_task) in results
+        ],
+        failed=failures,
     )
 
 
@@ -546,41 +534,30 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
             company_id, projects=[model.project] if model.project else []
         )
 
-    call.result.data = dict(deleted=del_count > 0, url=model.uri)
-
-
-@attr.s(auto_attribs=True)
-class DeleteRes:
-    deleted: int = 0
-    projects: Set = set()
-    urls: Set = set()
-
-    def __add__(self, other: Tuple[int, Model]):
-        del_count, model = other
-        return DeleteRes(
-            deleted=self.deleted + del_count,
-            projects=self.projects | {model.project},
-            urls=self.urls | {model.uri},
-        )
+    call.result.data = dict(deleted=bool(del_count), url=model.uri)
 
 
 @endpoint(
     "models.delete_many",
     request_data_model=ModelsDeleteManyRequest,
-    response_data_model=ModelsDeleteManyResponse,
+    response_data_model=BatchResponse,
 )
 def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
-    res, failures = run_batch_operation(
+    results, failures = run_batch_operation(
         func=partial(ModelBLL.delete_model, company_id=company_id, force=request.force),
         ids=request.ids,
-        init_res=DeleteRes(),
     )
-    if res.deleted:
-        _reset_cached_tags(company_id, projects=list(res.projects))
 
-    res.urls.discard(None)
-    call.result.data_model = ModelsDeleteManyResponse(
-        succeeded=res.deleted, urls=list(res.urls), failures=failures,
+    if results:
+        projects = set(model.project for _, (_, model) in results)
+        _reset_cached_tags(company_id, projects=list(projects))
+
+    call.result.data_model = BatchResponse(
+        succeeded=[
+            dict(id=_id, deleted=bool(deleted), url=model.uri)
+            for _id, (deleted, model) in results
+        ],
+        failed=failures,
     )
 
 
@@ -590,12 +567,13 @@ def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
     response_data_model=BatchResponse,
 )
 def archive_many(call: APICall, company_id, request: BatchRequest):
-    archived, failures = run_batch_operation(
-        func=partial(ModelBLL.archive_model, company_id=company_id),
-        ids=request.ids,
-        init_res=0,
+    results, failures = run_batch_operation(
+        func=partial(ModelBLL.archive_model, company_id=company_id), ids=request.ids,
     )
-    call.result.data_model = BatchResponse(succeeded=archived, failures=failures)
+    call.result.data_model = BatchResponse(
+        succeeded=[dict(id=_id, archived=bool(archived)) for _id, archived in results],
+        failed=failures,
+    )
 
 
 @endpoint(
@@ -604,12 +582,15 @@ def archive_many(call: APICall, company_id, request: BatchRequest):
     response_data_model=BatchResponse,
 )
 def unarchive_many(call: APICall, company_id, request: BatchRequest):
-    unarchived, failures = run_batch_operation(
-        func=partial(ModelBLL.unarchive_model, company_id=company_id),
-        ids=request.ids,
-        init_res=0,
+    results, failures = run_batch_operation(
+        func=partial(ModelBLL.unarchive_model, company_id=company_id), ids=request.ids,
     )
-    call.result.data_model = BatchResponse(succeeded=unarchived, failures=failures,)
+    call.result.data_model = BatchResponse(
+        succeeded=[
+            dict(id=_id, unarchived=bool(unarchived)) for _id, unarchived in results
+        ],
+        failed=failures,
+    )
 
 
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)

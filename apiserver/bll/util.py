@@ -113,13 +113,13 @@ T = TypeVar("T")
 
 
 def run_batch_operation(
-    func: Callable[[str], T], init_res: T, ids: Sequence[str]
-) -> Tuple[T, Sequence]:
-    res = init_res
+    func: Callable[[str], T], ids: Sequence[str]
+) -> Tuple[Sequence[Tuple[str, T]], Sequence[dict]]:
+    results = list()
     failures = list()
     for _id in ids:
         try:
-            res += func(_id)
+            results.append((_id, func(_id)))
         except APIError as err:
             failures.append(
                 {
@@ -131,4 +131,4 @@ def run_batch_operation(
                     },
                 }
             )
-    return res, failures
+    return results, failures
