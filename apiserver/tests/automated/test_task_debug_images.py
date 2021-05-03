@@ -1,6 +1,5 @@
 from functools import partial
-from typing import Sequence
-
+from typing import Sequence, Mapping
 
 from apiserver.es_factory import es_factory
 from apiserver.tests.automated import TestService
@@ -128,6 +127,98 @@ class TestTaskDebugImages(TestService):
 
     def test_task_debug_images(self):
         task = self._temp_task()
+
+        # test empty
+        res = self.api.events.debug_images(metrics=[{"task": task}], iters=5)
+        self.assertFalse(res.metrics)
+        res = self.api.events.debug_images(
+            metrics=[{"task": task}], iters=5, scroll_id=res.scroll_id, refresh=True
+        )
+        self.assertFalse(res.metrics)
+
+        # test not empty
+        metrics = {
+            "Metric1": ["Variant1", "Variant2"],
+            "Metric2": ["Variant3", "Variant4"],
+        }
+        events = [
+            self._create_task_event(
+                task=task,
+                iteration=1,
+                metric=metric,
+                variant=variant,
+                url=f"{metric}_{variant}_{1}",
+            )
+            for metric, variants in metrics.items()
+            for variant in variants
+        ]
+        self.send_batch(events)
+        scroll_id = self._assertTaskMetrics(
+            task=task, expected_metrics=metrics, iterations=1
+        )
+
+        # test refresh
+        update = {
+            "Metric2": ["Variant3", "Variant4", "Variant5"],
+            "Metric3": ["VariantA", "VariantB"],
+        }
+        events = [
+            self._create_task_event(
+                task=task,
+                iteration=2,
+                metric=metric,
+                variant=variant,
+                url=f"{metric}_{variant}_{2}",
+            )
+            for metric, variants in update.items()
+            for variant in variants
+        ]
+        self.send_batch(events)
+        # without refresh the metric states are not updated
+        scroll_id = self._assertTaskMetrics(
+            task=task, expected_metrics=metrics, iterations=0, scroll_id=scroll_id
+        )
+
+        # with refresh there are new metrics and existing ones are updated
+        metrics.update(update)
+        self._assertTaskMetrics(
+            task=task,
+            expected_metrics=metrics,
+            iterations=1,
+            scroll_id=scroll_id,
+            refresh=True,
+        )
+
+        pass
+
+    def _assertTaskMetrics(
+        self,
+        task: str,
+        expected_metrics: Mapping[str, Sequence[str]],
+        iterations,
+        scroll_id: str = None,
+        refresh=False,
+    ) -> str:
+        res = self.api.events.debug_images(
+            metrics=[{"task": task}], iters=1, scroll_id=scroll_id, refresh=refresh
+        )
+        self.assertEqual(set(m.metric for m in res.metrics), set(expected_metrics))
+        if not iterations:
+            self.assertTrue(all(m.iterations == [] for m in res.metrics))
+            return res.scroll_id
+
+        for metric_data in res.metrics:
+            expected_variants = set(expected_metrics[metric_data.metric])
+            self.assertEqual(len(metric_data.iterations), iterations)
+            for it_data in metric_data.iterations:
+                self.assertEqual(
+                    set(e.variant for e in it_data.events), expected_variants
+                )
+
+        return res.scroll_id
+
+    def test_get_debug_images_navigation(self):
+        task = self._temp_task()
         metric = "Metric1"
         variants = [("Variant1", 7), ("Variant2", 4)]
         iterations = 10
@@ -195,7 +286,7 @@ class TestTaskDebugImages(TestService):
         expected_page: int,
         iters: int = 5,
         **extra_params,
-    ):
+    ) -> str:
         res = self.api.events.debug_images(
             metrics=[{"task": task, "metric": metric}],
             iters=iters,

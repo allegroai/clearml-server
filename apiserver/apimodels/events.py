@@ -38,7 +38,7 @@ class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
 
 class TaskMetric(Base):
     task: str = StringField(required=True)
-    metric: str = StringField(required=True)
+    metric: str = StringField(default=None)
 
 
 class DebugImagesRequest(Base):

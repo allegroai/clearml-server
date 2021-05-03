@@ -594,10 +594,16 @@ def get_debug_images_v1_8(call, company_id, _):
     response_data_model=DebugImageResponse,
 )
 def get_debug_images(call, company_id, request: DebugImagesRequest):
-    task_ids = {m.task for m in request.metrics}
+    task_metrics = defaultdict(set)
+    for tm in request.metrics:
+        task_metrics[tm.task].add(tm.metric)
+    for metrics in task_metrics.values():
+        if None in metrics:
+            metrics.clear()
+
     tasks = task_bll.assert_exists(
         company_id,
-        task_ids=task_ids,
+        task_ids=list(task_metrics),
         allow_public=True,
         only=("company", "company_origin"),
     )
@@ -610,7 +616,7 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
 
     result = event_bll.debug_images_iterator.get_task_events(
         company_id=next(iter(companies)),
-        metrics=[(m.task, m.metric) for m in request.metrics],
+        task_metrics=task_metrics,
         iter_count=request.iters,
         navigate_earlier=request.navigate_earlier,
         refresh=request.refresh,

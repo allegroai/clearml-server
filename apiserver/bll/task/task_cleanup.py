@@ -110,12 +110,15 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     if not metrics:
         return set()
 
-    task_metrics = [(task, metric) for metric in metrics]
+    task_metrics = {task: set(metrics)}
     scroll_id = None
     urls = defaultdict(set)
     while True:
         res = event_bll.debug_images_iterator.get_task_events(
-            company_id=company, metrics=task_metrics, iter_count=100, state_id=scroll_id
+            company_id=company,
+            task_metrics=task_metrics,
+            iter_count=100,
+            state_id=scroll_id,
         )
         if not res.metric_events or not any(
             events for _, _, events in res.metric_events

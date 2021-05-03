@@ -3,17 +3,16 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from itertools import chain
 from operator import attrgetter, itemgetter
-from typing import Sequence, Tuple, Optional, Mapping
+from typing import Sequence, Tuple, Optional, Mapping, Set
 
 import attr
 import dpath
-from boltons.iterutils import bucketize
+from boltons.iterutils import bucketize, first
 from elasticsearch import Elasticsearch
 from jsonmodels.fields import StringField, ListField, IntField
 from jsonmodels.models import Base
 from redis import StrictRedis
 
-from apiserver.apierrors import errors
 from apiserver.apimodels import JsonSerializableMixin
 from apiserver.bll.event.event_common import (
     EventSettings,
@@ -73,7 +72,7 @@ class DebugImagesIterator:
     def get_task_events(
         self,
         company_id: str,
-        metrics: Sequence[Tuple[str, str]],
+        task_metrics: Mapping[str, Set[str]],
         iter_count: int,
         navigate_earlier: bool = True,
         refresh: bool = False,
@@ -83,8 +82,7 @@ class DebugImagesIterator:
             return DebugImagesResult()
 
         def init_state(state_: DebugImageEventsScrollState):
-            unique_metrics = set(metrics)
-            state_.metrics = self._init_metric_states(company_id, list(unique_metrics))
+            state_.metrics = self._init_metric_states(company_id, task_metrics)
 
         def validate_state(state_: DebugImageEventsScrollState):
             """
@@ -92,14 +90,8 @@ class DebugImagesIterator:
             as requested in the current call.
             Refresh the state if requested
             """
-            state_metrics = set((m.task, m.name) for m in state_.metrics)
-            if state_metrics != set(metrics):
-                raise errors.bad_request.InvalidScrollId(
-                    "Task metrics stored in the state do not match the passed ones",
-                    scroll_id=state_.id,
-                )
             if refresh:
-                self._reinit_outdated_metric_states(company_id, state_)
+                self._reinit_outdated_metric_states(company_id, state_, task_metrics)
                 for metric_state in state_.metrics:
                     metric_state.reset()
 
@@ -123,14 +115,16 @@ class DebugImagesIterator:
             return res
 
     def _reinit_outdated_metric_states(
-        self, company_id, state: DebugImageEventsScrollState
+        self,
+        company_id,
+        state: DebugImageEventsScrollState,
+        task_metrics: Mapping[str, Set[str]],
     ):
         """
         Determines the metrics for which new debug image events were added
         since their states were initialized and reinits these states
         """
-        task_ids = set(metric.task for metric in state.metrics)
-        tasks = Task.objects(id__in=list(task_ids), company=company_id).only(
+        tasks = Task.objects(id__in=list(task_metrics), company=company_id).only(
             "id", "metric_stats"
         )
 
@@ -140,6 +134,7 @@ class DebugImagesIterator:
             if not metric_stats:
                 return []
 
+            requested_metrics = task_metrics[task.id]
             return [
                 (
                     (task.id, stats.metric),
@@ -147,6 +142,7 @@ class DebugImagesIterator:
                 )
                 for stats in metric_stats.values()
                 if self.EVENT_TYPE.value in stats.event_stats_by_type
+                and (not requested_metrics or stats.metric in requested_metrics)
             ]
 
         update_times = dict(
@@ -154,32 +150,31 @@ class DebugImagesIterator:
                 get_last_update_times_for_task_metrics(task) for task in tasks
             )
         )
-        outdated_metrics = [
-            metric
-            for metric in state.metrics
-            if (metric.task, metric.name) in update_times
-            and update_times[metric.task, metric.name] > metric.timestamp
-        ]
-        state.metrics = [
-            *(metric for metric in state.metrics if metric not in outdated_metrics),
-            *(
-                self._init_metric_states(
-                    company_id,
-                    [(metric.task, metric.name) for metric in outdated_metrics],
-                )
-            ),
-        ]
+
+        metrics_to_update = defaultdict(set)
+        for (task, metric), update_time in update_times.items():
+            state_metric = first(
+                m for m in state.metrics if m.task == task and m.name == metric
+            )
+            if not state_metric or state_metric.timestamp < update_time:
+                metrics_to_update[task].add(metric)
+
+        if metrics_to_update:
+            state.metrics = [
+                *(
+                    metric
+                    for metric in state.metrics
+                    if metric.name not in metrics_to_update.get(metric.task, [])
+                ),
+                *(self._init_metric_states(company_id, metrics_to_update)),
+            ]
 
     def _init_metric_states(
-        self, company_id: str, metrics: Sequence[Tuple[str, str]]
+        self, company_id: str, task_metrics: Mapping[str, Set[str]]
     ) -> Sequence[MetricScrollState]:
         """
         Returned initialized metric scroll stated for the requested task metrics
         """
-        tasks = defaultdict(list)
-        for (task, metric) in metrics:
-            tasks[task].append(metric)
-
         with ThreadPoolExecutor(EventSettings.max_workers) as pool:
             return list(
                 chain.from_iterable(
@@ -187,30 +182,25 @@ class DebugImagesIterator:
                         partial(
                             self._init_metric_states_for_task, company_id=company_id
                         ),
-                        tasks.items(),
+                        task_metrics.items(),
                     )
                 )
             )
 
     def _init_metric_states_for_task(
-        self, task_metrics: Tuple[str, Sequence[str]], company_id: str
+        self, task_metrics: Tuple[str, Set[str]], company_id: str
     ) -> Sequence[MetricScrollState]:
         """
         Return metric scroll states for the task filled with the variant states
         for the variants that reported any debug images
         """
         task, metrics = task_metrics
+        must = [{"term": {"task": task}}, {"exists": {"field": "url"}}]
+        if metrics:
+            must.append({"terms": {"metric": list(metrics)}})
         es_req: dict = {
             "size": 0,
-            "query": {
-                "bool": {
-                    "must": [
-                        {"term": {"task": task}},
-                        {"terms": {"metric": metrics}},
-                        {"exists": {"field": "url"}},
-                    ]
-                }
-            },
+            "query": {"bool": {"must": must}},
             "aggs": {
                 "metrics": {
                     "terms": {
@@ -254,10 +244,7 @@ class DebugImagesIterator:
 
         with translate_errors_context(), TimingContext("es", "_init_metric_states"):
             es_res = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=self.EVENT_TYPE,
-                body=es_req,
+                self.es, company_id=company_id, event_type=self.EVENT_TYPE, body=es_req,
             )
         if "aggregations" not in es_res:
             return []
@@ -397,10 +384,7 @@ class DebugImagesIterator:
         }
         with translate_errors_context(), TimingContext("es", "get_debug_image_events"):
             es_res = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=self.EVENT_TYPE,
-                body=es_req,
+                self.es, company_id=company_id, event_type=self.EVENT_TYPE, body=es_req,
             )
         if "aggregations" not in es_res:
             return metric.task, metric.name, []
