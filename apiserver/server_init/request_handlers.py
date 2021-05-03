@@ -1,6 +1,9 @@
+from functools import partial
+
 from flask import request, Response, redirect
 from werkzeug.exceptions import BadRequest
 
+from apiserver.apierrors import APIError
 from apiserver.apierrors.base import BaseError
 from apiserver.config_repo import config
 from apiserver.service_repo import ServiceRepo, APICall
@@ -25,7 +28,10 @@ class RequestHandlers:
 
         try:
             call = self._create_api_call(request)
-            content, content_type = ServiceRepo.handle_call(call)
+            load_data_callback = partial(self._load_call_data, req=request)
+            content, content_type = ServiceRepo.handle_call(
+                call, load_data_callback=load_data_callback
+            )
 
             if call.result.redirect:
                 response = redirect(call.result.redirect.url, call.result.redirect.code)
@@ -137,9 +143,6 @@ class RequestHandlers:
                 auth_cookie=auth_cookie,
             )
 
-            # Update call data from request
-            self._update_call_data(call, req)
-
         except PathParsingError as ex:
             call = self._call_or_empty_with_error(call, req, ex.args[0], 400)
             call.log_api = False
@@ -156,3 +159,18 @@ class RequestHandlers:
             )
 
         return call
+
+    def _load_call_data(self, call: APICall, req):
+        """Update call data from request"""
+        try:
+            self._update_call_data(call, req)
+        except BadRequest as ex:
+            call.set_error_result(msg=ex.description, code=400)
+        except BaseError as ex:
+            call.set_error_result(msg=ex.msg, code=ex.code, subcode=ex.subcode)
+        except APIError as ex:
+            call.set_error_result(
+                msg=ex.msg, code=ex.code, subcode=ex.subcode, error_data=ex.error_data
+            )
+        except Exception as ex:
+            call.set_error_result(msg=ex.args[0] if ex.args else type(ex).__name__)

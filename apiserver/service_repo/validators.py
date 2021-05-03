@@ -14,17 +14,9 @@ from .errors import CallParsingError
 log = config.logger(__file__)
 
 
-def validate_all(call: APICall, endpoint: Endpoint):
+def validate_data(call: APICall, endpoint: Endpoint):
     """ Perform all required call/endpoint validation, update call result appropriately """
     try:
-        validate_auth(endpoint, call)
-
-        validate_role(endpoint, call)
-
-        if validate_impersonation(endpoint, call):
-            # if impersonating, validate role again
-            validate_role(endpoint, call)
-
         # todo: remove vaildate_required_fields once all endpoints have json schema
         validate_required_fields(endpoint, call)
 

@@ -13,7 +13,12 @@ from .apicall import APICall
 from .endpoint import Endpoint
 from .errors import MalformedPathError, InvalidVersionError, CallFailedError
 from .util import parse_return_stack_on_code
-from .validators import validate_all
+from .validators import (
+    validate_data,
+    validate_auth,
+    validate_role,
+    validate_impersonation,
+)
 
 log = config.logger(__file__)
 
@@ -228,18 +233,6 @@ class ServiceRepo(object):
         return subcode in subcode_list
 
     @classmethod
-    def _validate_call(cls, call: APICall) -> Optional[Endpoint]:
-        endpoint = cls._resolve_endpoint_from_call(call)
-        if call.failed:
-            return
-        validate_all(call, endpoint)
-        return endpoint
-
-    @classmethod
-    def validate_call(cls, call: APICall):
-        cls._validate_call(call)
-
-    @classmethod
     def _get_company(
         cls, call: APICall, endpoint: Endpoint = None, ignore_error: bool = False
     ) -> Optional[str]:
@@ -252,7 +245,7 @@ class ServiceRepo(object):
         return call.identity.company
 
     @classmethod
-    def handle_call(cls, call: APICall):
+    def handle_call(cls, call: APICall, load_data_callback: Callable = None):
         try:
             if call.failed:
                 raise CallFailedError()
@@ -262,7 +255,18 @@ class ServiceRepo(object):
             if call.failed:
                 raise CallFailedError()
 
-            validate_all(call, endpoint)
+            validate_auth(endpoint, call)
+            validate_role(endpoint, call)
+            if validate_impersonation(endpoint, call):
+                # if impersonating, validate role again
+                validate_role(endpoint, call)
+
+            if load_data_callback:
+                load_data_callback(call)
+                if call.failed:
+                    raise CallFailedError()
+
+            validate_data(call, endpoint)
 
             if call.failed:
                 raise CallFailedError()
