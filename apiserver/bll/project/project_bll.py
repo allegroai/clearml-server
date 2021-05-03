@@ -281,7 +281,7 @@ class ProjectBLL:
                 company=company,
                 project_id=project,
                 project_name=project_name,
-                description="Auto-generated during move",
+                description="",
             )
             extra = (
                 {"set__last_change": datetime.utcnow()}
