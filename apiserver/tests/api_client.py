@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import time
 from contextlib import contextmanager
@@ -10,16 +9,14 @@ import requests
 import six
 from boltons.iterutils import remap
 from boltons.typeutils import issubclass
-from pyhocon import ConfigFactory
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.util.retry import Retry
 
 from apiserver.apierrors.base import BaseError
+from apiserver.config_repo import config
 
-config = ConfigFactory.parse_file("api_client.conf")
-
-log = logging.getLogger("api_client")
+log = config.logger(__file__)
 
 
 class APICallResult:
@@ -111,7 +108,7 @@ class APIClient:
             self.api_key = (
                 api_key
                 or os.environ.get("SM_API_KEY")
-                or config.get("api_key")
+                or config.get("apiclient.api_key")
             )
             if not self.api_key:
                 raise ValueError("APIClient requires api_key in constructor or config")
@@ -119,7 +116,7 @@ class APIClient:
             self.secret_key = (
                 secret_key
                 or os.environ.get("SM_API_SECRET")
-                or config.get("secret_key")
+                or config.get("apiclient.secret_key")
             )
             if not self.secret_key:
                 raise ValueError(
@@ -127,7 +124,7 @@ class APIClient:
                 )
 
         self.base_url = (
-            base_url or os.environ.get("SM_API_URL") or config.get("base_url")
+            base_url or os.environ.get("SM_API_URL") or config.get("apiclient.base_url")
         )
         if not self.base_url:
             raise ValueError("APIClient requires base_url in constructor or config")
@@ -139,9 +136,9 @@ class APIClient:
 
         # create http session
         self.http_session = requests.session()
-        retries = config.get("retries", 7)
-        backoff_factor = config.get("backoff_factor", 0.3)
-        status_forcelist = config.get("status_forcelist", (500, 502, 504))
+        retries = config.get("apiclient.retries", 7)
+        backoff_factor = config.get("apiclient.backoff_factor", 0.3)
+        status_forcelist = config.get("apiclient.status_forcelist", (500, 502, 504))
         retry = Retry(
             total=retries,
             read=retries,

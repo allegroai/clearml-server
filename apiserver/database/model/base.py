@@ -193,8 +193,7 @@ class GetMixin(PropsMixin):
         """
         Pop the parameters that match the specified patterns and return
         the dictionary of matching parameters
-        For backwards compatibility with the previous version of the code
-        the None values are discarded
+        Pop None parameters since they are not the real queries
         """
         if not patterns:
             return {}
@@ -351,11 +350,7 @@ class GetMixin(PropsMixin):
         q = RegexQ()
         for action in filter(None, actions):
             q &= RegexQ(
-                **{
-                    f"{mongoengine_field}__{action}": list(
-                        set(filter(None, actions[action]))
-                    )
-                }
+                **{f"{mongoengine_field}__{action}": list(set(actions[action]))}
             )
 
         if not allow_empty:

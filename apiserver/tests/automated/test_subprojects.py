@@ -4,8 +4,10 @@ from typing import Sequence, Optional, Tuple
 from boltons.iterutils import first
 
 from apiserver.apierrors import errors
+from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import id as db_id
+from apiserver.tests.api_client import APIClient
 from apiserver.tests.automated import TestService
 
 
@@ -14,7 +16,14 @@ class TestSubProjects(TestService):
         super().setUp(version="2.13")
 
     def test_project_aggregations(self):
-        child = self._temp_project(name="Aggregation/Pr1")
+        """This test requires user with user_auth_only... credentials in db"""
+        user2_client = APIClient(
+            api_key=config.get("apiclient.user_auth_only"),
+            secret_key=config.get("apiclient.user_auth_only_secret"),
+            base_url=f"http://localhost:8008/v2.13",
+        )
+
+        child = self._temp_project(name="Aggregation/Pr1", client=user2_client)
         project = self.api.projects.get_all_ex(name="^Aggregation$").projects[0].id
         child_project = self.api.projects.get_all_ex(id=[child]).projects[0]
         self.assertEqual(child_project.parent.id, project)
@@ -210,12 +219,13 @@ class TestSubProjects(TestService):
 
     delete_params = dict(can_fail=True, force=True)
 
-    def _temp_project(self, name, **kwargs):
+    def _temp_project(self, name, client=None, **kwargs):
         return self.create_temp(
             "projects",
             delete_params=self.delete_params,
             name=name,
             description="",
+            client=client,
             **kwargs,
         )
 

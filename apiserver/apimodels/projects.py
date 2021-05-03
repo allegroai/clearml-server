@@ -22,7 +22,12 @@ class DeleteRequest(ProjectRequest):
     delete_contents = fields.BoolField(default=False)
 
 
-class GetHyperParamRequest(ProjectRequest):
+class ProjectOrNoneRequest(models.Base):
+    project = fields.StringField()
+    include_subprojects = fields.BoolField(default=True)
+
+
+class GetHyperParamRequest(ProjectOrNoneRequest):
     page = fields.IntField(default=0)
     page_size = fields.IntField(default=500)
 
@@ -33,6 +38,7 @@ class ProjectTagsRequest(TagsRequest):
 
 class MultiProjectRequest(models.Base):
     projects = fields.ListField(str)
+    include_subprojects = fields.BoolField(default=True)
 
 
 class ProjectTaskParentsRequest(MultiProjectRequest):

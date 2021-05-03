@@ -225,4 +225,4 @@ class TestTasksEdit(TestService):
         self.api.tasks.enqueue(task=task_id, queue=queue_id)
         task = self.api.tasks.get_all_ex(id=task_id, projection=projection).tasks[0]
         self.assertEqual(task.status, "queued")
-        self.assertEqual(task.execution.queue, queue_id)
+        self.assertEqual(task.execution.queue.id, queue_id)

@@ -47,7 +47,7 @@ from apiserver.apimodels.tasks import (
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL
+from apiserver.bll.project import ProjectBLL, project_ids_with_children
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.task import (
     TaskBLL,
@@ -152,27 +152,49 @@ def get_by_id(call: APICall, company_id, req_model: TaskRequest):
     call.result.data = {"task": task_dict}
 
 
-def escape_execution_parameters(call: APICall):
-    projection = Task.get_projection(call.data)
-    if projection:
-        Task.set_projection(call.data, escape_paths(projection))
+def escape_execution_parameters(call: APICall) -> dict:
+    if not call.data:
+        return call.data
 
-    ordering = Task.get_ordering(call.data)
+    keys = list(call.data)
+    call_data = {
+        safe_key: call.data[key] for key, safe_key in zip(keys, escape_paths(keys))
+    }
+
+    projection = Task.get_projection(call_data)
+    if projection:
+        Task.set_projection(call_data, escape_paths(projection))
+
+    ordering = Task.get_ordering(call_data)
     if ordering:
-        Task.set_ordering(call.data, escape_paths(ordering))
+        Task.set_ordering(call_data, escape_paths(ordering))
+
+    return call_data
+
+
+def _process_include_subprojects(call_data: dict):
+    include_subprojects = call_data.pop("include_subprojects", False)
+    project_ids = call_data.get("project")
+    if not project_ids or not include_subprojects:
+        return
+
+    if not isinstance(project_ids, list):
+        project_ids = [project_ids]
+    call_data["project"] = project_ids_with_children(project_ids)
 
 
 @endpoint("tasks.get_all_ex", required_fields=[])
 def get_all_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
 
-    escape_execution_parameters(call)
+    call_data = escape_execution_parameters(call)
 
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all_ex"):
+            _process_include_subprojects(call_data)
             tasks = Task.get_many_with_join(
                 company=company_id,
-                query_dict=call.data,
+                query_dict=call_data,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
         unprepare_from_saved(call, tasks)
@@ -183,12 +205,12 @@ def get_all_ex(call: APICall, company_id, _):
 def get_by_id_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
 
-    escape_execution_parameters(call)
+    call_data = escape_execution_parameters(call)
 
     with translate_errors_context():
         with TimingContext("mongo", "task_get_by_id_ex"):
             tasks = Task.get_many_with_join(
-                company=company_id, query_dict=call.data, allow_public=True,
+                company=company_id, query_dict=call_data, allow_public=True,
             )
 
         unprepare_from_saved(call, tasks)
@@ -199,14 +221,14 @@ def get_by_id_ex(call: APICall, company_id, _):
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
 
-    escape_execution_parameters(call)
+    call_data = escape_execution_parameters(call)
 
     with translate_errors_context():
         with TimingContext("mongo", "task_get_all"):
             tasks = Task.get_many(
                 company=company_id,
-                parameters=call.data,
-                query_dict=call.data,
+                parameters=call_data,
+                query_dict=call_data,
                 allow_public=True,  # required in case projection is requested for public dataset/versions
             )
         unprepare_from_saved(call, tasks)
@@ -216,7 +238,9 @@ def get_all(call: APICall, company_id, _):
 @endpoint("tasks.get_types", request_data_model=GetTypesRequest)
 def get_types(call: APICall, company_id, request: GetTypesRequest):
     call.result.data = {
-        "types": list(project_bll.get_task_types(company_id, project_ids=request.projects))
+        "types": list(
+            project_bll.get_task_types(company_id, project_ids=request.projects)
+        )
     }
 
 

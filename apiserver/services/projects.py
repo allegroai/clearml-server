@@ -8,12 +8,14 @@ from apiserver.apierrors.errors.bad_request import InvalidProjectId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, IdResponse
 from apiserver.apimodels.projects import (
     GetHyperParamRequest,
-    ProjectRequest,
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
     ProjectsGetRequest,
-    DeleteRequest, MoveRequest, MergeRequest,
+    DeleteRequest,
+    MoveRequest,
+    MergeRequest,
+    ProjectOrNoneRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -80,14 +82,13 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
         return
 
     if "parent" not in data:
-        data["parent"] = [None, ""]
+        data["parent"] = [None]
 
 
 @endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_tag_fields(call, call.data)
     allow_public = not request.non_public
-    shallow_search = request.shallow_search or request.include_stats
     with TimingContext("mongo", "projects_get_all"):
         data = call.data
         if request.active_users:
@@ -102,12 +103,10 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 return
             data["id"] = ids
 
-        _adjust_search_parameters(data, shallow_search=shallow_search)
+        _adjust_search_parameters(data, shallow_search=request.shallow_search)
 
         projects = Project.get_many_with_join(
-            company=company_id,
-            query_dict=data,
-            allow_public=allow_public,
+            company=company_id, query_dict=data, allow_public=allow_public,
         )
 
         conform_output_tags(call, projects)
@@ -147,9 +146,7 @@ def get_all(call: APICall):
 
 
 @endpoint(
-    "projects.create",
-    required_fields=["name", "description"],
-    response_data_model=IdResponse,
+    "projects.create", required_fields=["name"], response_data_model=IdResponse,
 )
 def create(call: APICall):
     identity = call.identity
@@ -232,11 +229,17 @@ def delete(call: APICall, company_id: str, request: DeleteRequest):
     call.result.data = {**attr.asdict(res)}
 
 
-@endpoint("projects.get_unique_metric_variants", request_data_model=ProjectRequest)
-def get_unique_metric_variants(call: APICall, company_id: str, request: ProjectRequest):
+@endpoint(
+    "projects.get_unique_metric_variants", request_data_model=ProjectOrNoneRequest
+)
+def get_unique_metric_variants(
+    call: APICall, company_id: str, request: ProjectOrNoneRequest
+):
 
     metrics = task_bll.get_unique_metric_variants(
-        company_id, [request.project] if request.project else None
+        company_id,
+        [request.project] if request.project else None,
+        include_subprojects=request.include_subprojects,
     )
 
     call.result.data = {"metrics": metrics}
@@ -252,6 +255,7 @@ def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamR
     total, remaining, parameters = TaskBLL.get_aggregated_project_parameters(
         company_id,
         project_ids=[request.project] if request.project else None,
+        include_subprojects=request.include_subprojects,
         page=request.page,
         page_size=request.page_size,
     )
@@ -276,6 +280,7 @@ def get_hyperparam_values(
         project_ids=request.projects,
         section=request.section,
         name=request.name,
+        include_subprojects=request.include_subprojects,
         allow_public=request.allow_public,
     )
     call.result.data = {
@@ -340,6 +345,9 @@ def get_task_parents(
 ):
     call.result.data = {
         "parents": project_bll.get_task_parents(
-            company_id, projects=request.projects, state=request.tasks_state
+            company_id,
+            projects=request.projects,
+            include_subprojects=request.include_subprojects,
+            state=request.tasks_state,
         )
     }

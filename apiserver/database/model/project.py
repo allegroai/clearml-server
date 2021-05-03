@@ -36,7 +36,7 @@ class Project(AttributedDocument):
         min_length=3,
         sparse=True,
     )
-    description = StringField(required=True)
+    description = StringField()
     created = DateTimeField(required=True)
     tags = SafeSortedListField(StringField(required=True))
     system_tags = SafeSortedListField(StringField(required=True))

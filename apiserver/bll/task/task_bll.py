@@ -13,7 +13,7 @@ import apiserver.database.utils as dbutils
 from apiserver.apierrors import errors
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL
+from apiserver.bll.project import ProjectBLL, project_ids_with_children
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
@@ -37,7 +37,12 @@ from apiserver.timing_context import TimingContext
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
-from .utils import ChangeStatusRequest, validate_status_change, update_project_time, deleted_prefix
+from .utils import (
+    ChangeStatusRequest,
+    validate_status_change,
+    update_project_time,
+    deleted_prefix,
+)
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -317,12 +322,19 @@ class TaskBLL:
             cls.validate_execution_model(task)
 
     @staticmethod
-    def get_unique_metric_variants(company_id, project_ids=None):
+    def get_unique_metric_variants(
+        company_id, project_ids: Sequence[str], include_subprojects: bool
+    ):
+        if project_ids:
+            if include_subprojects:
+                project_ids = project_ids_with_children(project_ids)
+            project_constraint = {"project": {"$in": project_ids}}
+        else:
+            project_constraint = {}
         pipeline = [
             {
                 "$match": dict(
-                    company={"$in": [None, "", company_id]},
-                    **({"project": {"$in": project_ids}} if project_ids else {}),
+                    company={"$in": [None, "", company_id]}, **project_constraint,
                 )
             },
             {"$project": {"metrics": {"$objectToArray": "$last_metrics"}}},
@@ -601,11 +613,17 @@ class TaskBLL:
     @staticmethod
     def get_aggregated_project_parameters(
         company_id,
-        project_ids: Sequence[str] = None,
+        project_ids: Sequence[str],
+        include_subprojects: bool,
         page: int = 0,
         page_size: int = 500,
     ) -> Tuple[int, int, Sequence[dict]]:
-
+        if project_ids:
+            if include_subprojects:
+                project_ids = project_ids_with_children(project_ids)
+            project_constraint = {"project": {"$in": project_ids}}
+        else:
+            project_constraint = {}
         page = max(0, page)
         page_size = max(1, page_size)
         pipeline = [
@@ -613,7 +631,7 @@ class TaskBLL:
                 "$match": {
                     "company": {"$in": [None, "", company_id]},
                     "hyperparams": {"$exists": True, "$gt": {}},
-                    **({"project": {"$in": project_ids}} if project_ids else {}),
+                    **project_constraint,
                 }
             },
             {"$project": {"sections": {"$objectToArray": "$hyperparams"}}},
@@ -687,6 +705,7 @@ class TaskBLL:
         project_ids: Sequence[str],
         section: str,
         name: str,
+        include_subprojects: bool,
         allow_public: bool = True,
     ) -> HyperParamValues:
         if allow_public:
@@ -694,6 +713,8 @@ class TaskBLL:
         else:
             company_constraint = {"company": company_id}
         if project_ids:
+            if include_subprojects:
+                project_ids = project_ids_with_children(project_ids)
             project_constraint = {"project": {"$in": project_ids}}
         else:
             project_constraint = {}

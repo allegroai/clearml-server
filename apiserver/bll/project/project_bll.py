@@ -147,7 +147,7 @@ class ProjectBLL:
         user: str,
         company: str,
         name: str,
-        description: str,
+        description: str = "",
         tags: Sequence[str] = None,
         system_tags: Sequence[str] = None,
         default_output_destination: str = None,
@@ -507,20 +507,24 @@ class ProjectBLL:
         company,
         project_ids: Sequence[str],
         user_ids: Optional[Sequence[str]] = None,
-    ) -> set:
+    ) -> Set[str]:
         """
         Get the set of user ids that created tasks/models/dataviews in the given projects
         If project_ids is empty then all projects are examined
         If user_ids are passed then only subset of these users is returned
         """
         with TimingContext("mongo", "active_users_in_projects"):
-            res = set()
             query = Q(company=company)
+            if user_ids:
+                query &= Q(user__in=user_ids)
+
+            projects_query = query
             if project_ids:
                 project_ids = _ids_with_children(project_ids)
                 query &= Q(project__in=project_ids)
-            if user_ids:
-                query &= Q(user__in=user_ids)
+                projects_query &= Q(id__in=project_ids)
+
+            res = set(Project.objects(projects_query).distinct(field="user"))
             for cls_ in (Task, Model):
                 res |= set(cls_.objects(query).distinct(field="user"))
 
@@ -545,10 +549,17 @@ class ProjectBLL:
         else:
             query &= Q(company=company)
 
+        user_projects_query = query
         if project_ids:
-            query &= Q(project__in=_ids_with_children(project_ids))
+            ids_with_children = _ids_with_children(project_ids)
+            query &= Q(project__in=ids_with_children)
+            user_projects_query &= Q(id__in=ids_with_children)
 
-        res = Task.objects(query).distinct(field="project")
+        res = {p.id for p in Project.objects(user_projects_query).only("id")}
+        for cls_ in (Task, Model):
+            res |= set(cls_.objects(query).distinct(field="project"))
+
+        res = list(res)
         if not res:
             return res
 
@@ -563,6 +574,7 @@ class ProjectBLL:
         cls,
         company_id: str,
         projects: Sequence[str],
+        include_subprojects: bool,
         state: Optional[EntityVisibility] = None,
     ) -> Sequence[dict]:
         """
@@ -571,7 +583,8 @@ class ProjectBLL:
         """
         query = Q(company=company_id)
         if projects:
-            projects = _ids_with_children(projects)
+            if include_subprojects:
+                projects = _ids_with_children(projects)
             query &= Q(project__in=projects)
         if state == EntityVisibility.archived:
             query &= Q(system_tags__in=[EntityVisibility.archived.value])

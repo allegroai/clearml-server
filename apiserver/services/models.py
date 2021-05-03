@@ -17,7 +17,7 @@ from apiserver.apimodels.models import (
     DeleteModelRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL
+from apiserver.bll.project import ProjectBLL, project_ids_with_children
 from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.utils import deleted_prefix
 from apiserver.config_repo import config
@@ -86,10 +86,22 @@ def get_by_task_id(call: APICall, company_id, _):
         call.result.data = {"model": model_dict}
 
 
+def _process_include_subprojects(call_data: dict):
+    include_subprojects = call_data.pop("include_subprojects", False)
+    project_ids = call_data.get("project")
+    if not project_ids or not include_subprojects:
+        return
+
+    if not isinstance(project_ids, list):
+        project_ids = [project_ids]
+    call_data["project"] = project_ids_with_children(project_ids)
+
+
 @endpoint("models.get_all_ex", required_fields=[])
 def get_all_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     with translate_errors_context():
+        _process_include_subprojects(call.data)
         with TimingContext("mongo", "models_get_all_ex"):
             models = Model.get_many_with_join(
                 company=company_id, query_dict=call.data, allow_public=True

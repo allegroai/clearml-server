@@ -115,7 +115,7 @@ class Execution(EmbeddedDocument, ProperDictMixin):
     framework = StringField()
     artifacts: Dict[str, Artifact] = SafeMapField(field=EmbeddedDocumentField(Artifact))
     docker_cmd = StringField()
-    queue = StringField()
+    queue = StringField(reference_field="Queue")
     """ Queue ID where task was queued """
 
 
