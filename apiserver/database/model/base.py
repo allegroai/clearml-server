@@ -306,11 +306,18 @@ class GetMixin(PropsMixin):
                         raise MakeGetAllQueryError("incorrect field format", field)
                     if not data.fields:
                         break
-                    regex = RegexWrapper(data.pattern, flags=re.IGNORECASE)
-                    sep_fields = [f.replace(".", "__") for f in data.fields]
-                    q = reduce(
-                        lambda a, x: func(a, RegexQ(**{x: regex})), sep_fields, RegexQ()
-                    )
+                    if any("._" in f for f in data.fields):
+                        q = reduce(
+                            lambda a, x: func(a, Q(__raw__={x: {"$regex": data.pattern, "$options": "i"}})),
+                            data.fields,
+                            Q()
+                        )
+                    else:
+                        regex = RegexWrapper(data.pattern, flags=re.IGNORECASE)
+                        sep_fields = [f.replace(".", "__") for f in data.fields]
+                        q = reduce(
+                            lambda a, x: func(a, RegexQ(**{x: regex})), sep_fields, RegexQ()
+                        )
                     query = query & q
 
         return query & RegexQ(**dict_query)
