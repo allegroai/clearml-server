@@ -69,7 +69,8 @@ def _apply_migrations(log: Logger):
             log.info(f"Skipping migration {script.name} (empty databases)")
         else:
             spec = importlib.util.spec_from_file_location(
-                ".".join((_parent_dir.name, _migrations, script.stem)), str(script)
+                ".".join(("apiserver", _parent_dir.name, _migrations, script.stem)),
+                str(script),
             )
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
