@@ -387,6 +387,7 @@ create_fields = {
     "hyperparams": None,
     "configuration": None,
     "script": None,
+    "runtime": None,
 }
 
 dict_fields_paths = [("execution", "model_labels"), "container"]
