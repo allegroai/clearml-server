@@ -38,6 +38,10 @@ class DatabaseFactory:
     _entries = []
 
     @classmethod
+    def _create_db_entry(cls, alias: str, settings: dict) -> DatabaseEntry:
+        return DatabaseEntry(alias=alias, **settings)
+
+    @classmethod
     def initialize(cls):
         db_entries = config.get("hosts.mongo", {})
         missing = []
@@ -56,7 +60,7 @@ class DatabaseFactory:
                 missing.append(key)
                 continue
 
-            entry = DatabaseEntry(alias=alias, **db_entries.get(key))
+            entry = cls._create_db_entry(alias=alias, settings=db_entries.get(key))
 
             if override_hostname:
                 entry.host = furl(entry.host).set(host=override_hostname).url
@@ -69,7 +73,7 @@ class DatabaseFactory:
                 log.info(
                     "Registering connection to %(alias)s (%(host)s)" % entry.to_struct()
                 )
-                register_connection(alias=alias, host=entry.host)
+                register_connection(**entry.to_struct())
 
                 cls._entries.append(entry)
             except ValidationError as ex:
@@ -98,7 +102,7 @@ class DatabaseFactory:
             # reconnection from work so workaround this
             # get_connection(entry.alias, reconnect=True)
             disconnect(entry.alias)
-            register_connection(alias=entry.alias, host=entry.host)
+            register_connection(**entry.to_struct())
             get_connection(entry.alias)
 
 
