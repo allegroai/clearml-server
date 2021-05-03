@@ -136,8 +136,9 @@ class ProjectBLL:
             updated = project.update(upsert=False, **fields)
 
             if new_name:
+                old_name = project.name
                 project.name = new_name
-                _update_subproject_names(project=project)
+                _update_subproject_names(project=project, old_name=old_name)
 
             return updated
 

@@ -133,7 +133,12 @@ def _ids_with_children(project_ids: Sequence[str]) -> Sequence[str]:
     return list({*project_ids, *(child.id for child in subprojects)})
 
 
-def _update_subproject_names(project: Project, update_path: bool = False) -> int:
+def _update_subproject_names(
+    project: Project,
+    old_name: str,
+    update_path: bool = False,
+    old_path: Sequence[str] = None,
+) -> int:
     """
     Update sub project names when the base project name changes
     Optionally update the paths
@@ -142,11 +147,11 @@ def _update_subproject_names(project: Project, update_path: bool = False) -> int
     updated = 0
     for child in child_projects[project.id]:
         child_suffix = name_separator.join(
-            child.name.split(name_separator)[len(project.path) + 1 :]
+            child.name.split(name_separator)[len(old_name.split(name_separator)) :]
         )
         updates = {"name": name_separator.join((project.name, child_suffix))}
         if update_path:
-            updates["path"] = project.path + child.path[len(project.path) :]
+            updates["path"] = project.path + child.path[len(old_path) :]
         updated += child.update(upsert=False, **updates)
 
     return updated
@@ -154,10 +159,14 @@ def _update_subproject_names(project: Project, update_path: bool = False) -> int
 
 def _reposition_project_with_children(project: Project, parent: Project) -> int:
     new_location = parent.name if parent else None
+    old_name = project.name
+    old_path = project.path
     project.name = name_separator.join(
         filter(None, (new_location, project.name.split(name_separator)[-1]))
     )
     _save_under_parent(project, parent=parent)
 
-    moved = 1 + _update_subproject_names(project=project, update_path=True)
+    moved = 1 + _update_subproject_names(
+        project=project, old_name=old_name, update_path=True, old_path=old_path
+    )
     return moved
