@@ -116,6 +116,7 @@ state_machine = {
         TaskStatus.closed,
         TaskStatus.created,
         TaskStatus.failed,
+        TaskStatus.queued,
         TaskStatus.in_progress,
         TaskStatus.published,
         TaskStatus.publishing,

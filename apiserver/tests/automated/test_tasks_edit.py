@@ -213,3 +213,16 @@ class TestTasksEdit(TestService):
             False,
         )
         self.assertFalse(task_in_queue)
+
+    def test_stopped_task_enqueue(self):
+        queue_id = self.new_queue()
+        task_id = self.new_task()
+        self.api.tasks.started(task=task_id)
+        self.api.tasks.stopped(task=task_id)
+        projection = ["*", "execution.*"]
+        task = self.api.tasks.get_all_ex(id=task_id, projection=projection).tasks[0]
+        self.assertEqual(task.status, "stopped")
+        self.api.tasks.enqueue(task=task_id, queue=queue_id)
+        task = self.api.tasks.get_all_ex(id=task_id, projection=projection).tasks[0]
+        self.assertEqual(task.status, "queued")
+        self.assertEqual(task.execution.queue, queue_id)

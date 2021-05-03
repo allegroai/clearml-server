@@ -1,3 +1,5 @@
+from jsonmodels.fields import BoolField
+
 from apiserver.apimodels.login import (
     GetSupportedModesRequest,
     GetSupportedModesResponse,
@@ -6,12 +8,12 @@ from apiserver.apimodels.login import (
     ServerErrors,
 )
 from apiserver.config import info
-from apiserver.service_repo import endpoint
+from apiserver.service_repo import endpoint, APICall
 from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
 @endpoint("login.supported_modes", response_data_model=GetSupportedModesResponse)
-def supported_modes(_, __, ___: GetSupportedModesRequest):
+def supported_modes(call: APICall, _, __: GetSupportedModesRequest):
     guest_user = FixedUser.get_guest_user()
     if guest_user:
         guest = BasicGuestMode(
@@ -31,4 +33,5 @@ def supported_modes(_, __, ___: GetSupportedModesRequest):
             missed_es_upgrade=info.missed_es_upgrade,
             es_connection_error=info.es_connection_error,
         ),
+        authenticated=call.auth is not None,
     )
