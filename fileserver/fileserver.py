@@ -4,6 +4,7 @@ import os
 from argparse import ArgumentParser
 from pathlib import Path
 
+from boltons.iterutils import first
 from flask import Flask, request, send_from_directory, safe_join, abort, Response
 from flask_compress import Compress
 from flask_cors import CORS
@@ -16,8 +17,9 @@ app = Flask(__name__)
 CORS(app, **config.get("fileserver.cors"))
 Compress(app)
 
-app.config["UPLOAD_FOLDER"] = (
-    os.environ.get("TRAINS_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
+app.config["UPLOAD_FOLDER"] = first(
+    (os.environ.get(f"{prefix}_UPLOAD_FOLDER") for prefix in ("CLEARML", "TRAINS")),
+    default=DEFAULT_UPLOAD_FOLDER,
 )
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
     "fileserver.download.cache_timeout_sec", 5 * 60
@@ -35,7 +37,7 @@ def upload():
         target.parent.mkdir(parents=True, exist_ok=True)
         file.save(str(target))
         results.append(file_path)
-    return (json.dumps(results), 200)
+    return json.dumps(results), 200
 
 
 @app.route("/<path:path>", methods=["GET"])
@@ -57,8 +59,7 @@ def download(path):
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
     path = Path(safe_join(app.config["UPLOAD_FOLDER"], path))
-
-    if not (path.exists() and path.is_file()):
+    if not path.exists() or path.is_file():
         abort(Response(f"File {str(path)} not found", 404))
 
     path.unlink()

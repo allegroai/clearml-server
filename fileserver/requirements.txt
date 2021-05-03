@@ -1,3 +1,4 @@
+boltons>=19.1.0
 Flask
 Flask-Cors>=3.0.5
 Flask-Compress>=1.4.0
