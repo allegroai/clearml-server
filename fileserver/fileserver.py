@@ -65,7 +65,7 @@ def delete(path):
             fspath(path)
         )
     )
-    if not path.exists() or path.is_file():
+    if not path.exists() or not path.is_file():
         abort(Response(f"File {str(path)} not found", 404))
 
     path.unlink()
