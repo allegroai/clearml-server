@@ -387,6 +387,7 @@ class APICall(DataContainer):
         self._requires_authorization = True
         self._host = host
         self._auth_cookie = auth_cookie
+        self._json_flags = {}
 
     @property
     def id(self):
@@ -579,6 +580,10 @@ class APICall(DataContainer):
     def auth_cookie(self):
         return self._auth_cookie
 
+    @property
+    def json_flags(self):
+        return self._json_flags
+
     def mark_end(self):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
@@ -629,7 +634,7 @@ class APICall(DataContainer):
             }
             if self.content_type.lower() == JSON_CONTENT_TYPE:
                 try:
-                    res = json.dumps(res)
+                    res = json.dumps(res, **(self._json_flags or {}))
                 except Exception as ex:
                     # JSON serialization may fail, probably problem with data or error_data so pop it and try again
                     if not (self.result.data or self.result.error_data):
