@@ -1,6 +1,8 @@
 from copy import deepcopy
 from typing import Sequence, Optional
 
+from packaging.version import parse
+
 from apiserver.tests.automated import TestService
 
 
@@ -90,14 +92,15 @@ class TestTaskModels(TestService):
         ):
             compare_models(task.models.input, input_models)
             compare_models(task.models.output, output_models)
-            self.assertEqual(
-                get_model_id(task.execution),
-                input_models[0]["model"] if input_models else None,
-            )
-            self.assertEqual(
-                get_model_id(task.output),
-                output_models[-1]["model"] if output_models else None,
-            )
+            if self._version < parse("2.13"):
+                self.assertEqual(
+                    get_model_id(task.execution),
+                    input_models[0]["model"] if input_models else None,
+                )
+                self.assertEqual(
+                    get_model_id(task.output),
+                    output_models[-1]["model"] if output_models else None,
+                )
 
     def new_task(self, **kwargs):
         self.update_missing(

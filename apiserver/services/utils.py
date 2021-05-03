@@ -144,7 +144,7 @@ class ModelsBackwardsCompatibility:
 
     @classmethod
     def prepare_for_save(cls, call: APICall, fields: dict):
-        if call.requested_endpoint_version > cls.max_version:
+        if call.requested_endpoint_version >= cls.max_version:
             return
 
         for mode, field in cls.mode_to_fields.items():
@@ -168,7 +168,7 @@ class ModelsBackwardsCompatibility:
     def unprepare_from_saved(
         cls, call: APICall, tasks_data: Union[Sequence[dict], dict]
     ):
-        if call.requested_endpoint_version > cls.max_version:
+        if call.requested_endpoint_version >= cls.max_version:
             return
 
         if isinstance(tasks_data, dict):
@@ -191,7 +191,7 @@ class DockerCmdBackwardsCompatibility:
 
     @classmethod
     def prepare_for_save(cls, call: APICall, fields: dict):
-        if call.requested_endpoint_version > cls.max_version:
+        if call.requested_endpoint_version >= cls.max_version:
             return
 
         docker_cmd = nested_get(fields, cls.field)
@@ -206,7 +206,7 @@ class DockerCmdBackwardsCompatibility:
     def unprepare_from_saved(
         cls, call: APICall, tasks_data: Union[Sequence[dict], dict]
     ):
-        if call.requested_endpoint_version > cls.max_version:
+        if call.requested_endpoint_version >= cls.max_version:
             return
 
         if isinstance(tasks_data, dict):

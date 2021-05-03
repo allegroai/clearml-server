@@ -5,6 +5,8 @@ from functools import partial
 from typing import Iterable
 from unittest import TestCase
 
+from packaging.version import parse
+
 from apiserver.tests.api_client import APIClient
 from apiserver.config_repo import config
 
@@ -72,6 +74,7 @@ class TestService(TestCase, TestServiceInterface):
     def setUp(self, version="1.7"):
         self._api = APIClient(base_url=f"http://localhost:8008/v{version}")
         self._deferred = []
+        self._version = parse(version)
         header(self.id())
 
     def tearDown(self):
