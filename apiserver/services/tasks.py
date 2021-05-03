@@ -44,6 +44,9 @@ from apiserver.apimodels.tasks import (
     DeleteArtifactsRequest,
     ArchiveResponse,
     ArchiveRequest,
+    AddUpdateModelRequest,
+    DeleteModelsRequest,
+    ModelItemType,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -79,12 +82,14 @@ from apiserver.database.model.task.task import (
     DEFAULT_LAST_ITERATION,
     Execution,
     ArtifactModes,
+    ModelItem,
 )
-from apiserver.database.utils import get_fields_attr, parse_from_call
+from apiserver.database.utils import get_fields_attr, parse_from_call, get_options
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
+    ModelsBackwardsCompatibility,
 )
 from apiserver.timing_context import TimingContext
 from apiserver.utilities.partial_version import PartialVersion
@@ -329,6 +334,7 @@ create_fields = {
     "parent": Task,
     "project": None,
     "input": None,
+    "models": None,
     "output_dest": None,
     "execution": None,
     "hyperparams": None,
@@ -341,6 +347,7 @@ def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     conform_tag_fields(call, fields, validate=True)
     params_prepare_for_save(fields, previous_task=previous_task)
     artifacts_prepare_for_save(fields)
+    ModelsBackwardsCompatibility.prepare_for_save(call, fields)
 
     # Strip all script fields (remove leading and trailing whitespace chars) to avoid unusable names and paths
     for field in task_script_stripped_fields:
@@ -361,6 +368,7 @@ def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict])
         tasks_data = [tasks_data]
 
     conform_output_tags(call, tasks_data)
+    ModelsBackwardsCompatibility.unprepare_from_saved(call, tasks_data)
 
     for data in tasks_data:
         need_legacy_params = call.requested_endpoint_version < PartialVersion("2.9")
@@ -388,6 +396,17 @@ def prepare_create_fields(
         else:
             output = Output(destination=output_dest)
         fields["output"] = output
+
+    # Add models updated time
+    models = fields.get("models")
+    if models:
+        now = datetime.utcnow()
+        for field in ("input", "output"):
+            field_models = models.get(field)
+            if not field_models:
+                continue
+            for model in field_models:
+                model["updated"] = now
 
     return prepare_for_save(call, fields, previous_task=previous_task)
 
@@ -456,6 +475,7 @@ def clone_task(call: APICall, company_id, request: CloneRequest):
         hyperparams=request.new_task_hyperparams,
         configuration=request.new_task_configuration,
         execution_overrides=request.execution_overrides,
+        input_models=request.new_task_input_models,
         validate_references=request.validate_references,
         new_project_name=request.new_project_name,
     )
@@ -886,8 +906,8 @@ def reset(call: APICall, company_id, request: ResetRequest):
         set__last_iteration=DEFAULT_LAST_ITERATION,
         set__last_metrics={},
         set__metric_stats={},
+        set__models__output=[],
         unset__output__result=1,
-        unset__output__model=1,
         unset__output__error=1,
         unset__last_worker=1,
         unset__last_worker_report=1,
@@ -1130,3 +1150,44 @@ def move(call: APICall, company_id: str, request: MoveRequest):
     update_project_time(projects)
 
     return {"project_id": project_id}
+
+
+@endpoint("tasks.add_or_update_model", min_version="2.13")
+def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequest):
+    TaskBLL.get_task_with_access(
+        request.task, company_id=company_id, requires_write_access=True, only=["id"]
+    )
+
+    models_field = f"models__{request.type}"
+    model = ModelItem(name=request.name, model=request.model, updated=datetime.utcnow())
+    query = {"id": request.task, f"{models_field}__name": request.name}
+    updated = Task.objects(**query).update_one(**{f"set__{models_field}__S": model})
+
+    updated = TaskBLL.update_statistics(
+        task_id=request.task,
+        company_id=company_id,
+        last_iteration_max=request.iteration,
+        **({f"push__{models_field}": model} if not updated else {}),
+    )
+
+    return {"updated": updated}
+
+
+@endpoint("tasks.delete_models", min_version="2.13")
+def delete_models(_: APICall, company_id: str, request: DeleteModelsRequest):
+    task = TaskBLL.get_task_with_access(
+        request.task, company_id=company_id, requires_write_access=True, only=["id"]
+    )
+
+    delete_names = {
+        type_: [m.name for m in request.models if m.type == type_]
+        for type_ in get_options(ModelItemType)
+    }
+    commands = {
+        f"pull__models__{field}__name__in": names
+        for field, names in delete_names.items()
+        if names
+    }
+
+    updated = task.update(last_change=datetime.utcnow(), **commands,)
+    return {"updated": updated}

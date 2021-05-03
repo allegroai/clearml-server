@@ -10,13 +10,14 @@ from apiserver.database import utils
 from apiserver.database import Database
 from apiserver.database.model.version import Version as DatabaseVersion
 
-migration_dir = Path(__file__).resolve().parent.with_name("migrations")
+_migrations = "migrations"
+_parent_dir = Path(__file__).resolve().parents[1]
+_migration_dir = _parent_dir / _migrations
 
 
 def check_mongo_empty() -> bool:
     return not all(
-        get_db(alias).collection_names()
-        for alias in utils.get_options(Database)
+        get_db(alias).collection_names() for alias in utils.get_options(Database)
     )
 
 
@@ -41,8 +42,8 @@ def _apply_migrations(log: Logger):
 
     log.info(f"Started mongodb migrations")
 
-    if not migration_dir.is_dir():
-        raise ValueError(f"Invalid migration dir {migration_dir}")
+    if not _migration_dir.is_dir():
+        raise ValueError(f"Invalid migration dir {_migration_dir}")
 
     empty_dbs = check_mongo_empty()
     last_version = get_last_server_version()
@@ -50,7 +51,10 @@ def _apply_migrations(log: Logger):
     try:
         new_scripts = {
             ver: path
-            for ver, path in ((parse(f.stem), f) for f in migration_dir.glob("*.py"))
+            for ver, path in (
+                (parse(f.stem.replace("_", ".")), f)
+                for f in _migration_dir.glob("*.py")
+            )
             if ver > last_version
         }
     except ValueError as ex:
@@ -64,7 +68,9 @@ def _apply_migrations(log: Logger):
         if empty_dbs:
             log.info(f"Skipping migration {script.name} (empty databases)")
         else:
-            spec = importlib.util.spec_from_file_location(script.stem, str(script))
+            spec = importlib.util.spec_from_file_location(
+                ".".join((_parent_dir.name, _migrations, script.stem)), str(script)
+            )
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -83,7 +89,7 @@ def _apply_migrations(log: Logger):
 
         DatabaseVersion(
             id=utils.id(),
-            num=script.stem,
+            num=str(script_version),
             created=datetime.utcnow(),
             desc="Applied on server startup",
         ).save()

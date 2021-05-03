@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Union, Sequence, Tuple
 
 from apiserver.apierrors import errors
@@ -5,6 +6,7 @@ from apiserver.apimodels.organization import Filter
 from apiserver.database.model.base import GetMixin
 from apiserver.database.utils import partition_tags
 from apiserver.service_repo import APICall
+from apiserver.utilities.dicts import nested_set, nested_get, nested_delete
 from apiserver.utilities.partial_version import PartialVersion
 
 
@@ -84,3 +86,47 @@ def validate_tags(tags: Sequence[str], system_tags: Sequence[str]):
             raise errors.bad_request.FieldsValueError(
                 "unsupported tag prefix", values=unsupported
             )
+
+
+class ModelsBackwardsCompatibility:
+    max_version = PartialVersion("2.13")
+    mode_to_fields = {"input": ("execution", "model"), "output": ("output", "model")}
+    models_field = "models"
+
+    @classmethod
+    def prepare_for_save(cls, call: APICall, fields: dict):
+        if call.requested_endpoint_version > cls.max_version:
+            return
+
+        for mode, field in cls.mode_to_fields.items():
+            value = nested_get(fields, field)
+            if not value:
+                continue
+
+            nested_delete(fields, field)
+
+            nested_set(
+                fields,
+                (cls.models_field, mode),
+                value=[dict(name=mode, model=value, updated=datetime.utcnow())],
+            )
+
+    @classmethod
+    def unprepare_from_saved(
+        cls, call: APICall, tasks_data: Union[Sequence[dict], dict]
+    ):
+        if call.requested_endpoint_version > cls.max_version:
+            return
+
+        if isinstance(tasks_data, dict):
+            tasks_data = [tasks_data]
+
+        for task in tasks_data:
+            for mode, field in cls.mode_to_fields.items():
+                models = nested_get(task, (cls.models_field, mode))
+                if not models:
+                    continue
+
+                model = models[0] if mode == "input" else models[-1]
+                if model:
+                    nested_set(task, field, model.get("model"))

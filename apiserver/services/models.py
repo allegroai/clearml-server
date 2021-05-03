@@ -25,14 +25,14 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import validate_id
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, TaskStatus
+from apiserver.database.model.task.task import Task, TaskStatus, ModelItem
 from apiserver.database.utils import (
     parse_from_call,
     get_company_or_none_constraint,
     filter_fields,
 )
 from apiserver.service_repo import APICall, endpoint
-from apiserver.services.utils import conform_tag_fields, conform_output_tags
+from apiserver.services.utils import conform_tag_fields, conform_output_tags, ModelsBackwardsCompatibility
 from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
@@ -61,19 +61,20 @@ def get_by_id(call: APICall, company_id, _):
 
 @endpoint("models.get_by_task_id", required_fields=["task"])
 def get_by_task_id(call: APICall, company_id, _):
+    if call.requested_endpoint_version > ModelsBackwardsCompatibility.max_version:
+        raise errors.moved_permanently.NotSupported("use models.get_by_id/get_all apis")
+
     task_id = call.data["task"]
 
     with translate_errors_context():
         query = dict(id=task_id, company=company_id)
-        task = Task.get(_only=["output"], **query)
+        task = Task.get(_only=["models"], **query)
         if not task:
             raise errors.bad_request.InvalidTaskId(**query)
-        if not task.output:
-            raise errors.bad_request.MissingTaskFields(field="output")
-        if not task.output.model:
-            raise errors.bad_request.MissingTaskFields(field="output.model")
+        if not task.models.output:
+            raise errors.bad_request.MissingTaskFields(field="models.output")
 
-        model_id = task.output.model
+        model_id = task.models.output[-1].model
         model = Model.objects(
             Q(id=model_id) & get_company_or_none_constraint(company_id)
         ).first()
@@ -186,6 +187,9 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
 
 @endpoint("models.update_for_task", required_fields=["task"])
 def update_for_task(call: APICall, company_id, _):
+    if call.requested_endpoint_version > ModelsBackwardsCompatibility.max_version:
+        raise errors.moved_permanently.NotSupported("use tasks.add_or_update_model")
+
     task_id = call.data["task"]
     uri = call.data.get("uri")
     iteration = call.data.get("iteration")
@@ -201,7 +205,7 @@ def update_for_task(call: APICall, company_id, _):
         task = Task.get_for_writing(
             id=task_id,
             company=company_id,
-            _only=["output", "execution", "name", "status", "project"],
+            _only=["models", "execution", "name", "status", "project"],
         )
         if not task:
             raise errors.bad_request.InvalidTaskId(**query)
@@ -226,12 +230,11 @@ def update_for_task(call: APICall, company_id, _):
             if "comment" not in call.data:
                 call.data["comment"] = f"Created by task `{task.name}` ({task.id})"
 
-            if task.output and task.output.model:
+            if task.models.output:
                 # model exists, update
-                res = _update_model(
-                    call, company_id, model_id=task.output.model
-                ).to_struct()
-                res.update({"id": task.output.model, "created": False})
+                model_id = task.models.output[-1].model
+                res = _update_model(call, company_id, model_id=model_id).to_struct()
+                res.update({"id": model_id, "created": False})
                 call.result.data = res
                 return
 
@@ -246,7 +249,7 @@ def update_for_task(call: APICall, company_id, _):
                 company=company_id,
                 project=task.project,
                 framework=task.execution.framework,
-                parent=task.execution.model,
+                parent=task.models.input[0].model if task.models.input else None,
                 design=task.execution.model_desc,
                 labels=task.execution.model_labels,
                 ready=(task.status == TaskStatus.published),
@@ -259,7 +262,9 @@ def update_for_task(call: APICall, company_id, _):
             task_id=task_id,
             company_id=company_id,
             last_iteration_max=iteration,
-            output__model=model.id,
+            models__output=[
+                ModelItem(model=model.id, name=model.name, updated=datetime.utcnow())
+            ],
         )
 
         call.result.data = {"id": model.id, "created": True}
@@ -465,7 +470,7 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
 
         deleted_model_id = f"{deleted_prefix}{model_id}"
 
-        using_tasks = Task.objects(execution__model=model_id).only("id")
+        using_tasks = Task.objects(models__input__model=model_id).only("id")
         if using_tasks:
             if not force:
                 raise errors.bad_request.ModelInUse(
@@ -473,23 +478,32 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
                     num_tasks=len(using_tasks),
                 )
             # update deleted model id in using tasks
-            using_tasks.update(
-                execution__model=deleted_model_id, upsert=False, multi=True
+            Task._get_collection().update_many(
+                filter={"_id": {"$in": [t.id for t in using_tasks]}},
+                update={"$set": {"models.input.$[elem].model": deleted_model_id}},
+                array_filters=[{"elem.model": model_id}],
+                upsert=False,
             )
 
         if model.task:
-            task = Task.objects(id=model.task).first()
+            task: Task = Task.objects(id=model.task).first()
             if task and task.status == TaskStatus.published:
                 if not force:
                     raise errors.bad_request.ModelCreatingTaskExists(
                         "and published, use force=True to delete", task=model.task
                     )
-                if task.output and task.output.model == model_id:
+                if task.models.output and model_id in task.models.output:
                     now = datetime.utcnow()
-                    task.update(
-                        output__model=deleted_model_id,
-                        output__error=f"model deleted on {now.isoformat()}",
-                        last_change=now,
+                    Task._get_collection().update_one(
+                        filter={"_id": model.task, "models.output.model": model_id},
+                        update={
+                            "$set": {
+                                "models.output.$[elem].model": deleted_model_id,
+                                "output.error": f"model deleted on {now.isoformat()}",
+                            },
+                            "last_change": now,
+                        },
+                        array_filters=[{"elem.model": model_id}],
                         upsert=False,
                     )
 

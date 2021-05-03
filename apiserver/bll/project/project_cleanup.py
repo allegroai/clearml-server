@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Tuple, Set, Sequence
 
 import attr
@@ -125,20 +124,29 @@ def _delete_models(projects: Sequence[str]) -> Tuple[int, Set[str]]:
         if not models:
             return 0, set()
 
-        model_ids = {m.id for m in models}
-        Task.objects(execution__model__in=model_ids, project__nin=projects).update(
-            execution__model=None
+        model_ids = list({m.id for m in models})
+
+        Task._get_collection().update_many(
+            filter={
+                "project": {"$nin": projects},
+                "models.input.model": {"$in": model_ids},
+            },
+            update={"$set": {"models.input.$[elem].model": None}},
+            array_filters=[{"elem.model": {"$in": model_ids}}],
+            upsert=False,
         )
 
-        model_tasks = {m.task for m in models if m.task}
+        model_tasks = list({m.task for m in models if m.task})
         if model_tasks:
-            now = datetime.utcnow()
-            Task.objects(
-                id__in=model_tasks, project__nin=projects, output__model__in=model_ids
-            ).update(
-                output__model=None,
-                output__error=f"model deleted on {now.isoformat()}",
-                last_change=now,
+            Task._get_collection().update_many(
+                filter={
+                    "_id": {"$in": model_tasks},
+                    "project": {"$nin": projects},
+                    "models.output.model": {"$in": model_ids},
+                },
+                update={"$set": {"models.output.$[elem].model": None}},
+                array_filters=[{"elem.model": {"$in": model_ids}}],
+                upsert=False,
             )
 
         urls = {m.uri for m in models if m.uri}

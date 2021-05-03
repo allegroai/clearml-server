@@ -49,7 +49,7 @@ from apiserver.database.model.task.task import Task, ArtifactModes, TaskStatus
 from apiserver.database.utils import get_options
 from apiserver.tools import safe_get
 from apiserver.utilities import json
-from apiserver.utilities.dicts import nested_get, nested_set
+from apiserver.utilities.dicts import nested_get, nested_set, nested_delete
 
 
 class PrePopulate:
@@ -437,7 +437,9 @@ class PrePopulate:
         if not orphans:
             return
 
-        print(f"ERROR: the following projects are exported without their parents: {orphans}")
+        print(
+            f"ERROR: the following projects are exported without their parents: {orphans}"
+        )
         exit(1)
 
     @classmethod
@@ -483,12 +485,13 @@ class PrePopulate:
 
         cls._check_projects_hierarchy(entities[cls.project_cls])
 
-        model_ids = {
-            model_id
+        task_models = chain.from_iterable(
+            models
             for task in entities[cls.task_cls]
-            for model_id in (task.output.model, task.execution.model)
-            if model_id
-        }
+            for models in (task.models.input, task.models.output)
+            if models
+        )
+        model_ids = {tm.model for tm in task_models}
         if model_ids:
             print("Reading models...")
             entities[cls.model_cls] = set(cls.model_cls.objects(id__in=list(model_ids)))
@@ -780,7 +783,32 @@ class PrePopulate:
                         artifacts_path,
                         value={get_artifact_id(a): a for a in artifacts},
                     )
-                    item = json.dumps(task_data)
+
+                models = task_data.get("models", {})
+                now = datetime.utcnow()
+                for old_field, type_ in (
+                    ("execution.model", "input"),
+                    ("output.model", "output"),
+                ):
+                    old_path = old_field.split(".")
+                    old_model = nested_get(task_data, old_path)
+                    new_models = models.get(type_, [])
+                    if old_model and not any(
+                        m
+                        for m in new_models
+                        if m.get("model") == old_model or m.get("name") == type_
+                    ):
+                        model_item = {"model": old_model, "name": type_, "updated": now}
+                        if type_ == "input":
+                            new_models = [model_item, *new_models]
+                        else:
+                            new_models = [*new_models, model_item]
+                    models[type_] = new_models
+                    nested_delete(task_data, old_path)
+                task_data["models"] = models
+
+                item = json.dumps(task_data)
+                print(item)
 
             doc = cls_.from_json(item, created=True)
             if hasattr(doc, "user"):

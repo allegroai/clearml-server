@@ -107,6 +107,11 @@ class GetTypesRequest(models.Base):
     projects = ListField(items_types=[str])
 
 
+class TaskInputModel(models.Base):
+    name = StringField()
+    model = StringField()
+
+
 class CloneRequest(TaskRequest):
     new_task_name = StringField()
     new_task_comment = StringField()
@@ -116,6 +121,7 @@ class CloneRequest(TaskRequest):
     new_task_project = StringField()
     new_task_hyperparams = DictField()
     new_task_configuration = DictField()
+    new_task_input_models = ListField([TaskInputModel])
     execution_overrides = DictField()
     validate_references = BoolField(default=False)
     new_project_name = StringField()
@@ -224,3 +230,26 @@ class ArchiveRequest(MultiTaskRequest):
 
 class ArchiveResponse(models.Base):
     archived = IntField()
+
+
+class ModelItemType(object):
+    input = "input"
+    output = "output"
+
+
+class AddUpdateModelRequest(TaskRequest):
+    name = StringField(required=True)
+    model = StringField(required=True)
+    type = StringField(required=True, validators=Enum(*get_options(ModelItemType)))
+    iteration = IntField()
+
+
+class ModelItemKey(models.Base):
+    name = StringField(required=True)
+    type = StringField(required=True, validators=Enum(*get_options(ModelItemType)))
+
+
+class DeleteModelsRequest(TaskRequest):
+    models: Sequence[ModelItemKey] = ListField(
+        [ModelItemKey], validators=Length(minimum_value=1)
+    )

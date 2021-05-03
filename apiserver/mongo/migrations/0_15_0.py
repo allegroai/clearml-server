@@ -1,15 +1,6 @@
-from collections import Collection
-from typing import Sequence
+from pymongo.database import Database
 
-from pymongo.database import Database, Collection
-
-
-def _drop_all_indices_from_collections(db: Database, names: Sequence[str]):
-    for collection_name in db.list_collection_names():
-        if collection_name not in names:
-            continue
-        collection: Collection = db[collection_name]
-        collection.drop_indexes()
+from .utils import _drop_all_indices_from_collections
 
 
 def migrate_auth(db: Database):
