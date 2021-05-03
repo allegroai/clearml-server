@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime
 
+import bcrypt
 import jwt
 from mongoengine import Q
 
@@ -31,8 +32,8 @@ def get_auth_func(auth_type):
 
 
 def authorize_token(jwt_token, *_, **__):
-    """ Validate token against service/endpoint and requests data (dicts).
-        Returns a parsed token object (auth payload)
+    """Validate token against service/endpoint and requests data (dicts).
+    Returns a parsed token object (auth payload)
     """
     try:
         return Token.from_encoded_token(jwt_token)
@@ -51,13 +52,15 @@ def authorize_token(jwt_token, *_, **__):
 
 
 def authorize_credentials(auth_data, service, action, call_data_items):
-    """ Validate credentials against service/action and request data (dicts).
-        Returns a new basic object (auth payload)
+    """Validate credentials against service/action and request data (dicts).
+    Returns a new basic object (auth payload)
     """
     try:
-        access_key, _, secret_key = base64.b64decode(auth_data.encode()).decode('latin-1').partition(':')
+        access_key, _, secret_key = (
+            base64.b64decode(auth_data.encode()).decode("latin-1").partition(":")
+        )
     except Exception as e:
-        log.exception('malformed credentials')
+        log.exception("malformed credentials")
         raise errors.unauthorized.BadCredentials(str(e))
 
     query = Q(credentials__match=Credentials(key=access_key, secret=secret_key))
@@ -67,18 +70,32 @@ def authorize_credentials(auth_data, service, action, call_data_items):
     if FixedUser.enabled():
         fixed_user = FixedUser.get_by_username(access_key)
         if fixed_user:
-            if secret_key != fixed_user.password:
-                raise errors.unauthorized.InvalidCredentials('bad username or password')
+            if FixedUser.pass_hashed():
+                if not compare_secret_key_hash(secret_key, fixed_user.password):
+                    raise errors.unauthorized.InvalidCredentials(
+                        "bad username or password"
+                    )
+            else:
+                if secret_key != fixed_user.password:
+                    raise errors.unauthorized.InvalidCredentials(
+                        "bad username or password"
+                    )
 
             if fixed_user.is_guest and not FixedUser.is_guest_endpoint(service, action):
-                raise errors.unauthorized.InvalidCredentials('endpoint not allowed for guest')
+                raise errors.unauthorized.InvalidCredentials(
+                    "endpoint not allowed for guest"
+                )
 
             query = Q(id=fixed_user.user_id)
 
-    with TimingContext("mongo", "user_by_cred"), translate_errors_context('authorizing request'):
+    with TimingContext("mongo", "user_by_cred"), translate_errors_context(
+        "authorizing request"
+    ):
         user = User.objects(query).first()
         if not user:
-            raise errors.unauthorized.InvalidCredentials('failed to locate provided credentials')
+            raise errors.unauthorized.InvalidCredentials(
+                "failed to locate provided credentials"
+            )
 
         if not fixed_user:
             # In case these are proper credentials, update last used time
@@ -87,13 +104,18 @@ def authorize_credentials(auth_data, service, action, call_data_items):
             )
 
     with TimingContext("mongo", "company_by_id"):
-        company = Company.objects(id=user.company).only('id', 'name').first()
+        company = Company.objects(id=user.company).only("id", "name").first()
 
     if not company:
-        raise errors.unauthorized.InvalidCredentials('invalid user company')
+        raise errors.unauthorized.InvalidCredentials("invalid user company")
 
-    identity = Identity(user=user.id, company=user.company, role=user.role,
-                        user_name=user.name, company_name=company.name)
+    identity = Identity(
+        user=user.id,
+        company=user.company,
+        role=user.role,
+        user_name=user.name,
+        company_name=company.name,
+    )
 
     basic = Basic(user_key=access_key, identity=identity)
 
@@ -110,3 +132,13 @@ def authorize_impersonation(user, identity, service, action, call):
         raise errors.unauthorized.InvalidCredentials("invalid user company")
 
     return Payload(auth_type=None, identity=identity)
+
+
+def compare_secret_key_hash(secret_key: str, hashed_secret: str) -> bool:
+    """
+    Compare hash for the passed secret key with the passed hash
+    :return: True if equal. Otherwise False
+    """
+    return bcrypt.checkpw(
+        secret_key.encode(), base64.b64decode(hashed_secret.encode("ascii"))
+    )

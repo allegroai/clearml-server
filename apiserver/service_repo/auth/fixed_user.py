@@ -33,6 +33,10 @@ class FixedUser:
         return cls.enabled() and config.get("services.auth.fixed_users.guest.enabled", False)
 
     @classmethod
+    def pass_hashed(cls):
+        return config.get("apiserver.auth.fixed_users.pass_hashed", False)
+
+    @classmethod
     def validate(cls):
         if not cls.enabled():
             return
