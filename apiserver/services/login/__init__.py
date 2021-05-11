@@ -1,5 +1,3 @@
-from jsonmodels.fields import BoolField
-
 from apiserver.apimodels.login import (
     GetSupportedModesRequest,
     GetSupportedModesResponse,
@@ -35,3 +33,8 @@ def supported_modes(call: APICall, _, __: GetSupportedModesRequest):
         ),
         authenticated=call.auth is not None,
     )
+
+
+@endpoint("login.logout", min_version="2.13")
+def logout(call: APICall, _, __):
+    call.result.set_auth_cookie(None)
