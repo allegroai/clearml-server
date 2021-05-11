@@ -19,7 +19,7 @@ from pyparsing import (
 
 from apiserver.utilities import json
 
-EXTRA_CONFIG_PATHS = ("/opt/clearml/config",)
+EXTRA_CONFIG_PATHS = ("/opt/trains/config", "/opt/clearml/config")
 DEFAULT_PREFIXES = ("clearml", "trains")
 EXTRA_CONFIG_PATH_SEP = ":" if platform.system() != "Windows" else ";"
 
