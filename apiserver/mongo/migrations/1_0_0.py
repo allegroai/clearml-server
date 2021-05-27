@@ -97,22 +97,6 @@ def _migrate_model_labels(db: Database):
             tasks.update_one({"_id": doc["_id"]}, {"$set": set_commands})
 
 
-def _migrate_project_description(db: Database):
-    projects: Collection = db["project"]
-    filter = {
-        "$or": [
-            {
-                "$expr": {"$lt": [{"$strLenCP": "$description"}, 100]},
-                "description": {"$regex": "^Auto-generated at ", "$options": "i"},
-            },
-            {"description": {"$regex": "^Auto-generated during move$", "$options": "i"}},
-            {"description": {"$regex": "^Auto-generated while cloning$", "$options": "i"}},
-        ]
-    }
-    for doc in projects.find(filter=filter):
-        projects.update_one({"_id": doc["_id"]}, {"$unset": {"description": 1}})
-
-
 def _migrate_project_names(db: Database):
     projects: Collection = db["project"]
 
@@ -141,5 +125,4 @@ def migrate_backend(db: Database):
     _migrate_docker_cmd(db)
     _migrate_model_labels(db)
     _migrate_project_names(db)
-    _migrate_project_description(db)
     _drop_all_indices_from_collections(db, ["task*"])
