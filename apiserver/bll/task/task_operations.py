@@ -238,6 +238,7 @@ def reset_task(
         set__last_metrics={},
         set__metric_stats={},
         set__models__output=[],
+        set__runtime={},
         unset__output__result=1,
         unset__output__error=1,
         unset__last_worker=1,
