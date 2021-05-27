@@ -5,10 +5,11 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from boltons.iterutils import first
-from flask import Flask, request, send_from_directory, safe_join, abort, Response
-from flask._compat import fspath
+from flask import Flask, request, send_from_directory, abort, Response
 from flask_compress import Compress
 from flask_cors import CORS
+from werkzeug.exceptions import NotFound
+from werkzeug.security import safe_join
 
 from config import config
 
@@ -34,7 +35,10 @@ def upload():
         if not filename:
             continue
         file_path = filename.lstrip(os.sep)
-        target = Path(safe_join(app.config["UPLOAD_FOLDER"], file_path))
+        safe_path = safe_join(app.config["UPLOAD_FOLDER"], file_path)
+        if safe_path is None:
+            raise NotFound()
+        target = Path(safe_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         file.save(str(target))
         results.append(file_path)
@@ -61,8 +65,8 @@ def download(path):
 def delete(path):
     real_path = Path(
         safe_join(
-            fspath(app.config["UPLOAD_FOLDER"]),
-            fspath(path)
+            os.fspath(app.config["UPLOAD_FOLDER"]),
+            os.fspath(path)
         )
     )
     if not real_path.exists() or not real_path.is_file():
