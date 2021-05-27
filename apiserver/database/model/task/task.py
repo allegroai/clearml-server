@@ -18,6 +18,7 @@ from apiserver.database.fields import (
     UnionField,
     SafeSortedListField,
     EmbeddedDocumentListField,
+    NullableStringField,
 )
 from apiserver.database.model import AttributedDocument
 from apiserver.database.model.base import ProperDictMixin, GetMixin
@@ -260,7 +261,7 @@ class Task(AttributedDocument):
     configuration = SafeMapField(field=EmbeddedDocumentField(ConfigurationItem))
     runtime = SafeDictField(default=dict)
     models: Models = EmbeddedDocumentField(Models, default=Models)
-    container = SafeMapField(field=StringField(default=""))
+    container = SafeMapField(field=NullableStringField())
     enqueue_status = StringField(
         choices=get_options(TaskStatus), exclude_by_default=True
     )

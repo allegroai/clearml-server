@@ -176,6 +176,13 @@ class SafeMapField(MapField, DictValidationMixin):
             self.error("Empty keys are not allowed in a MapField")
 
 
+class NullableStringField(StringField):
+    def validate(self, value):
+        if value is None:
+            return
+        super(NullableStringField, self).validate(value)
+
+
 class SafeDictField(DictField, DictValidationMixin):
     def validate(self, value):
         self._safe_validate(value)
