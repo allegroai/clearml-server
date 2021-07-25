@@ -20,9 +20,7 @@ class HistogramRequestBase(Base):
 
 class MetricVariants(Base):
     metric: str = StringField(required=True)
-    variants: Sequence[str] = ListField(
-        items_types=str, validators=Length(minimum_value=1)
-    )
+    variants: Sequence[str] = ListField(items_types=str)
 
 
 class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
