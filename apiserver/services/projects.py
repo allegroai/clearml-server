@@ -16,10 +16,14 @@ from apiserver.apimodels.projects import (
     MoveRequest,
     MergeRequest,
     ProjectOrNoneRequest,
+    ProjectRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
-from apiserver.bll.project.project_cleanup import delete_project
+from apiserver.bll.project.project_cleanup import (
+    delete_project,
+    validate_project_delete,
+)
 from apiserver.bll.task import TaskBLL
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.project import Project
@@ -228,6 +232,13 @@ def merge(call: APICall, company: str, request: MergeRequest):
         "moved_entities": moved_entitites,
         "moved_projects": moved_projects,
     }
+
+
+@endpoint("projects.validate_delete")
+def validate_delete(call: APICall, company_id: str, request: ProjectRequest):
+    call.result.data = validate_project_delete(
+        company=company_id, project_id=request.project
+    )
 
 
 @endpoint("projects.delete", request_data_model=DeleteRequest)

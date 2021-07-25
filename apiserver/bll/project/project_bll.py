@@ -554,7 +554,7 @@ class ProjectBLL:
         user_ids: Optional[Sequence[str]] = None,
     ) -> Set[str]:
         """
-        Get the set of user ids that created tasks/models/dataviews in the given projects
+        Get the set of user ids that created tasks/models in the given projects
         If project_ids is empty then all projects are examined
         If user_ids are passed then only subset of these users is returned
         """
@@ -676,8 +676,8 @@ class ProjectBLL:
     @classmethod
     def calc_own_contents(cls, company: str, project_ids: Sequence[str]) -> Dict[str, dict]:
         """
-        Returns the amount of task/dataviews/models per requested project
-        Use separate aggregation calls on Task/Dataview/Model instead of lookup
+        Returns the amount of task/models per requested project
+        Use separate aggregation calls on Task/Model instead of lookup
         aggregation on projects in order not to hit memory limits on large tasks
         """
         if not project_ids:

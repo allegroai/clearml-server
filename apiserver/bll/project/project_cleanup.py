@@ -30,6 +30,28 @@ class DeleteProjectResult:
     urls: TaskUrls = None
 
 
+def validate_project_delete(company: str, project_id: str):
+    project = Project.get_for_writing(
+        company=company, id=project_id, _only=("id", "path")
+    )
+    if not project:
+        raise errors.bad_request.InvalidProjectId(id=project_id)
+
+    project_ids = _ids_with_children([project_id])
+    ret = {}
+    for cls in (Task, Model):
+        ret[f"{cls.__name__.lower()}s"] = cls.objects(
+            project__in=project_ids,
+        ).count()
+    for cls in (Task, Model):
+        ret[f"non_archived_{cls.__name__.lower()}s"] = cls.objects(
+            project__in=project_ids,
+            system_tags__nin=[EntityVisibility.archived.value],
+        ).count()
+
+    return ret
+
+
 def delete_project(
     company: str, project_id: str, force: bool, delete_contents: bool
 ) -> Tuple[DeleteProjectResult, Set[str]]:
