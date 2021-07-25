@@ -367,7 +367,21 @@ def stop_task(
             and (datetime.utcnow() - t.last_update).total_seconds() < update_timeout
         )
 
-    if TaskSystemTags.development in task.system_tags or not is_run_by_worker(task):
+    is_queued = task.status == TaskStatus.queued
+    set_stopped = (
+        is_queued
+        or TaskSystemTags.development in task.system_tags
+        or not is_run_by_worker(task)
+    )
+
+    if set_stopped:
+        if is_queued:
+            try:
+                TaskBLL.dequeue(task, company_id=company_id, silent_fail=True)
+            except APIError:
+                # dequeue may fail if the task was not enqueued
+                pass
+
         new_status = TaskStatus.stopped
         status_message = f"Stopped by {user_name}"
     else:
