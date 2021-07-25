@@ -117,7 +117,7 @@ class GetMixin(PropsMixin):
         def __init__(self, legacy=False):
             self._legacy = legacy
 
-        def key(self, v):
+        def key(self, v) -> Optional[str]:
             if v is None:
                 self._next = self._default
                 return self._default
@@ -133,6 +133,7 @@ class GetMixin(PropsMixin):
             next_ = self._next
             if not self._sticky:
                 self._next = self._default
+
             return next_
 
         def value_transform(self, v):
@@ -273,10 +274,13 @@ class GetMixin(PropsMixin):
             ).items():
                 query &= cls.get_range_field_query(field, data)
 
-            for field in opts.fields or []:
-                data = parameters.pop(field, None)
-                if data is not None:
-                    dict_query[field] = data
+            for field, data in cls._pop_matching_params(
+                patterns=opts.fields or [], parameters=parameters
+            ).items():
+                if "._" in field or "_." in field:
+                    query &= Q(__raw__={field: data})
+                else:
+                    dict_query[field.replace(".", "__")] = data
 
             for field in opts.datetime_fields or []:
                 data = parameters.pop(field, None)
