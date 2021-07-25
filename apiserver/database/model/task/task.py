@@ -234,7 +234,7 @@ class Task(AttributedDocument):
     type = StringField(required=True, choices=get_options(TaskType))
     status = StringField(default=TaskStatus.created, choices=get_options(TaskStatus))
     status_reason = StringField()
-    status_message = StringField()
+    status_message = StringField(user_set_allowed=True)
     status_changed = DateTimeField()
     comment = StringField(user_set_allowed=True)
     created = DateTimeField(required=True, user_set_allowed=True)

@@ -1,9 +1,12 @@
 import random
+import string
+
 sys_random = random.SystemRandom()
 
 
-def get_random_string(length=12, allowed_chars='abcdefghijklmnopqrstuvwxyz'
-                                               'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'):
+def get_random_string(
+    length: int = 12, allowed_chars: str = string.ascii_letters + string.digits
+) -> str:
     """
     Returns a securely generated random string.
 
@@ -12,20 +15,20 @@ def get_random_string(length=12, allowed_chars='abcdefghijklmnopqrstuvwxyz'
 
     Taken from the django.utils.crypto module.
     """
-    return ''.join(sys_random.choice(allowed_chars) for _ in range(length))
+    return "".join(sys_random.choice(allowed_chars) for _ in range(length))
 
 
-def get_client_id(length=20):
+def get_client_id(length: int = 20) -> str:
     """
     Create a random secret key.
 
     Taken from the Django project.
     """
-    chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    chars = string.ascii_uppercase + string.digits
     return get_random_string(length, chars)
 
 
-def get_secret_key(length=50):
+def get_secret_key(length: int = 50) -> str:
     """
     Create a random secret key.
 
@@ -33,5 +36,5 @@ def get_secret_key(length=50):
     NOTE: asterisk is not supported due to issues with environment variables containing
      asterisks (in case the secret key is stored in an environment variable)
     """
-    chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    chars = string.ascii_letters + string.digits
     return get_random_string(length, chars)
