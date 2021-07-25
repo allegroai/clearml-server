@@ -854,6 +854,7 @@ def enqueue(call: APICall, company_id, request: EnqueueRequest):
         queue_id=request.queue,
         status_message=request.status_message,
         status_reason=request.status_reason,
+        force=request.force,
     )
     call.result.data_model = EnqueueResponse(queued=queued, **res)
 

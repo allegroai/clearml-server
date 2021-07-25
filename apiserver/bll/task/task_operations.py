@@ -109,6 +109,7 @@ def enqueue_task(
     status_message: str,
     status_reason: str,
     validate: bool = False,
+    force: bool = False,
 ) -> Tuple[int, dict]:
     if not queue_id:
         # try to get default queue
@@ -128,6 +129,7 @@ def enqueue_task(
         status_reason=status_reason,
         status_message=status_message,
         allow_same_state_transition=False,
+        force=force,
     ).execute(enqueue_status=task.status)
 
     try:
