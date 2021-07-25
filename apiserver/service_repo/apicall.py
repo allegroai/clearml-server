@@ -588,13 +588,18 @@ class APICall(DataContainer):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
 
-    def get_response(self, include_stack: bool = False) -> Tuple[Union[dict, str], str]:
+    def get_response(self, include_stack: bool = None) -> Tuple[Union[dict, str], str]:
         """
         Get the response for this call.
         :param include_stack: If True, stack trace stored in this call's result should
-        be included in the response (default is False)
+        be included in the response (default follows configuration)
         :return: Response data (encoded according to self.content_type) and the data's content type
         """
+        include_stack = (
+            include_stack
+            if include_stack is not None
+            else config.get("apiserver.return_stack_to_caller", False)
+        )
 
         def make_version_number(version: PartialVersion) -> Union[None, float, str]:
             """

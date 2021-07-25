@@ -10,6 +10,7 @@ def extract_properties_to_lists(
     key_names: Sequence[str],
     data: Sequence[dict],
     extract_func: Optional[Callable[[dict], Tuple]] = None,
+    target_keys: Optional[Sequence[str]] = None,
 ) -> dict:
     """
     Given a list of dictionaries and names of dictionary keys
@@ -20,9 +21,10 @@ def extract_properties_to_lists(
     :param extract_func: the optional callable that extracts properties
     from a dictionary and put them in a tuple in the order corresponding to
     key_names. If not specified then properties are extracted according to key_names
+    :param target_keys: optional alternative keys to use in the target dictionary. must be equal in length to key_names.
     """
     if not data:
         return {k: [] for k in key_names}
 
     value_sequences = zip(*map(extract_func or itemgetter(*key_names), data))
-    return dict(zip(key_names, map(list, value_sequences)))
+    return dict(zip((target_keys or key_names), map(list, value_sequences)))

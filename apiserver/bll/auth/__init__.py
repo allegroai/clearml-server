@@ -57,6 +57,7 @@ class AuthBLL:
                 api_version=str(ServiceRepo.max_endpoint_version()),
                 server_version=str(get_version()),
                 server_build=str(get_build_number()),
+                feature_set="basic",
             )
 
             return GetTokenResponse(token=token.decode("ascii"))
