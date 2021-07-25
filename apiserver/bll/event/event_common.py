@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Union, Sequence
+from typing import Union, Sequence, Mapping
 
 from boltons.typeutils import classproperty
 from elasticsearch import Elasticsearch
@@ -14,6 +14,9 @@ class EventType(Enum):
     metrics_plot = "plot"
     task_log = "log"
     all = "*"
+
+
+MetricVariants = Mapping[str, Sequence[str]]
 
 
 class EventSettings:
@@ -64,3 +67,23 @@ def delete_company_events(
 ) -> dict:
     es_index = get_index_name(company_id, event_type.value)
     return es.delete_by_query(index=es_index, body=body, **kwargs)
+
+
+def get_metric_variants_condition(
+    metric_variants: MetricVariants,
+) -> Sequence:
+    conditions = [
+        {
+            "bool": {
+                "must": [
+                    {"term": {"metric": metric}},
+                    {"terms": {"variant": variants}},
+                ]
+            }
+        }
+        if variants
+        else {"term": {"metric": metric}}
+        for metric, variants in metric_variants.items()
+    ]
+
+    return {"bool": {"should": conditions}}

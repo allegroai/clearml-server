@@ -2,7 +2,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from operator import itemgetter
-from typing import Sequence, Tuple, Optional, Mapping, Set
+from typing import Sequence, Tuple, Optional, Mapping
 
 import attr
 import dpath
@@ -18,6 +18,7 @@ from apiserver.bll.event.event_common import (
     check_empty_data,
     search_company_events,
     EventType,
+    get_metric_variants_condition,
 )
 from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.database.errors import translate_errors_context
@@ -74,7 +75,7 @@ class DebugImagesIterator:
     def get_task_events(
         self,
         company_id: str,
-        task_metrics: Mapping[str, Set[str]],
+        task_metrics: Mapping[str, dict],
         iter_count: int,
         navigate_earlier: bool = True,
         refresh: bool = False,
@@ -118,7 +119,7 @@ class DebugImagesIterator:
         self,
         company_id,
         state: DebugImageEventsScrollState,
-        task_metrics: Mapping[str, Set[str]],
+        task_metrics: Mapping[str, dict],
     ):
         """
         Determine the metrics for which new debug image events were added
@@ -158,11 +159,11 @@ class DebugImagesIterator:
         task_metrics_to_recalc = {}
         for task, metrics_times in update_times.items():
             old_metric_states = task_metric_states[task]
-            metrics_to_recalc = set(
-                m
+            metrics_to_recalc = {
+                m: task_metrics[task].get(m)
                 for m, t in metrics_times.items()
                 if m not in old_metric_states or old_metric_states[m].timestamp < t
-            )
+            }
             if metrics_to_recalc:
                 task_metrics_to_recalc[task] = metrics_to_recalc
 
@@ -196,7 +197,7 @@ class DebugImagesIterator:
         ]
 
     def _init_task_states(
-        self, company_id: str, task_metrics: Mapping[str, Set[str]]
+        self, company_id: str, task_metrics: Mapping[str, dict]
     ) -> Sequence[TaskScrollState]:
         """
         Returned initialized metric scroll stated for the requested task metrics
@@ -213,7 +214,7 @@ class DebugImagesIterator:
         ]
 
     def _init_metric_states_for_task(
-        self, task_metrics: Tuple[str, Set[str]], company_id: str
+        self, task_metrics: Tuple[str, dict], company_id: str
     ) -> Sequence[MetricState]:
         """
         Return metric scroll states for the task filled with the variant states
@@ -222,10 +223,11 @@ class DebugImagesIterator:
         task, metrics = task_metrics
         must = [{"term": {"task": task}}, {"exists": {"field": "url"}}]
         if metrics:
-            must.append({"terms": {"metric": list(metrics)}})
+            must.append(get_metric_variants_condition(metrics))
+        query = {"bool": {"must": must}}
         es_req: dict = {
             "size": 0,
-            "query": {"bool": {"must": must}},
+            "query": query,
             "aggs": {
                 "metrics": {
                     "terms": {

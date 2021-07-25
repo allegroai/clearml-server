@@ -15,6 +15,8 @@ from apiserver.bll.event.event_common import (
     EventSettings,
     search_company_events,
     check_empty_data,
+    MetricVariants,
+    get_metric_variants_condition,
 )
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
@@ -34,7 +36,12 @@ class EventMetrics:
         self.es = es
 
     def get_scalar_metrics_average_per_iter(
-        self, company_id: str, task_id: str, samples: int, key: ScalarKeyEnum
+        self,
+        company_id: str,
+        task_id: str,
+        samples: int,
+        key: ScalarKeyEnum,
+        metric_variants: MetricVariants = None,
     ) -> dict:
         """
         Get scalar metric histogram per metric and variant
@@ -46,7 +53,12 @@ class EventMetrics:
             return {}
 
         return self._get_scalar_average_per_iter_core(
-            task_id, company_id, event_type, samples, ScalarKey.resolve(key)
+            task_id=task_id,
+            company_id=company_id,
+            event_type=event_type,
+            samples=samples,
+            key=ScalarKey.resolve(key),
+            metric_variants=metric_variants,
         )
 
     def _get_scalar_average_per_iter_core(
@@ -57,6 +69,7 @@ class EventMetrics:
         samples: int,
         key: ScalarKey,
         run_parallel: bool = True,
+        metric_variants: MetricVariants = None,
     ) -> dict:
         intervals = self._get_task_metric_intervals(
             company_id=company_id,
@@ -64,6 +77,7 @@ class EventMetrics:
             task_id=task_id,
             samples=samples,
             field=key.field,
+            metric_variants=metric_variants,
         )
         if not intervals:
             return {}
@@ -197,6 +211,7 @@ class EventMetrics:
         task_id: str,
         samples: int,
         field: str = "iter",
+        metric_variants: MetricVariants = None,
     ) -> Sequence[MetricInterval]:
         """
         Calculate interval per task metric variant so that the resulting
@@ -204,9 +219,14 @@ class EventMetrics:
         Return the list og metric variant intervals as the following tuple:
         (metric, variant, interval, samples)
         """
+        must = [{"term": {"task": task_id}}]
+        if metric_variants:
+            must.append(get_metric_variants_condition(metric_variants))
+        query = {"bool": {"must": must}}
+
         es_req = {
             "size": 0,
-            "query": {"term": {"task": task_id}},
+            "query": query,
             "aggs": {
                 "metrics": {
                     "terms": {

@@ -3,6 +3,7 @@ from collections import defaultdict
 from operator import itemgetter
 
 import attr
+from typing import Sequence, Optional
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.events import (
@@ -17,9 +18,11 @@ from apiserver.apimodels.events import (
     LogOrderEnum,
     GetDebugImageSampleRequest,
     NextDebugImageSampleRequest,
+    MetricVariants as ApiMetrics,
+    TaskPlotsRequest,
 )
 from apiserver.bll.event import EventBLL
-from apiserver.bll.event.event_common import EventType
+from apiserver.bll.event.event_common import EventType, MetricVariants
 from apiserver.bll.task import TaskBLL
 from apiserver.service_repo import APICall, endpoint
 from apiserver.utilities import json
@@ -321,7 +324,7 @@ def get_task_latest_scalar_values(call, company_id, _):
     )
     last_iters = event_bll.get_last_iters(
         company_id=company_id, event_type=EventType.all, task_id=task_id, iters=1
-    )
+    ).get(task_id)
     call.result.data = dict(
         metrics=metrics,
         last_iter=last_iters[0] if last_iters else 0,
@@ -494,11 +497,22 @@ def get_task_plots_v1_7(call, company_id, _):
     )
 
 
-@endpoint("events.get_task_plots", min_version="1.8", required_fields=["task"])
-def get_task_plots(call, company_id, _):
-    task_id = call.data["task"]
-    iters = call.data.get("iters", 1)
-    scroll_id = call.data.get("scroll_id")
+def _get_metric_variants_from_request(
+    req_metrics: Sequence[ApiMetrics],
+) -> Optional[MetricVariants]:
+    if not req_metrics:
+        return None
+
+    return {m.metric: m.variants for m in req_metrics}
+
+
+@endpoint(
+    "events.get_task_plots", min_version="1.8", request_data_model=TaskPlotsRequest
+)
+def get_task_plots(call, company_id, request: TaskPlotsRequest):
+    task_id = request.task
+    iters = request.iters
+    scroll_id = request.scroll_id
 
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
@@ -509,6 +523,7 @@ def get_task_plots(call, company_id, _):
         sort=[{"iter": {"order": "desc"}}],
         last_iterations_per_plot=iters,
         scroll_id=scroll_id,
+        metric_variants=_get_metric_variants_from_request(request.metrics),
     )
 
     return_events = result.events
@@ -594,9 +609,9 @@ def get_debug_images_v1_8(call, company_id, _):
     response_data_model=DebugImageResponse,
 )
 def get_debug_images(call, company_id, request: DebugImagesRequest):
-    task_metrics = defaultdict(set)
+    task_metrics = defaultdict(dict)
     for tm in request.metrics:
-        task_metrics[tm.task].add(tm.metric)
+        task_metrics[tm.task][tm.metric] = tm.variants
     for metrics in task_metrics.values():
         if None in metrics:
             metrics.clear()
@@ -734,11 +749,11 @@ def _get_top_iter_unique_events_per_task(events, max_iters, tasks):
 
 def _get_top_iter_unique_events(events, max_iters):
     top_unique_events = defaultdict(lambda: [])
-    for e in events:
-        key = e.get("metric", "") + e.get("variant", "")
+    for ev in events:
+        key = ev.get("metric", "") + ev.get("variant", "")
         evs = top_unique_events[key]
         if len(evs) < max_iters:
-            evs.append(e)
+            evs.append(ev)
     unique_events = list(
         itertools.chain.from_iterable(list(top_unique_events.values()))
     )

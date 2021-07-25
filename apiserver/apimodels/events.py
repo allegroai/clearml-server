@@ -14,12 +14,20 @@ from apiserver.utilities.stringenum import StringEnum
 
 
 class HistogramRequestBase(Base):
-    samples: int = IntField(default=6000, validators=[Min(1), Max(6000)])
+    samples: int = IntField(default=2000, validators=[Min(1), Max(6000)])
     key: ScalarKeyEnum = ActualEnumField(ScalarKeyEnum, default=ScalarKeyEnum.iter)
+
+
+class MetricVariants(Base):
+    metric: str = StringField(required=True)
+    variants: Sequence[str] = ListField(
+        items_types=str, validators=Length(minimum_value=1)
+    )
 
 
 class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
     task: str = StringField(required=True)
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
 class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
@@ -39,6 +47,7 @@ class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
 class TaskMetric(Base):
     task: str = StringField(required=True)
     metric: str = StringField(default=None)
+    variants: Sequence[str] = ListField(items_types=str)
 
 
 class DebugImagesRequest(Base):
@@ -59,8 +68,8 @@ class TaskMetricVariant(Base):
 
 class GetDebugImageSampleRequest(TaskMetricVariant):
     iteration: Optional[int] = IntField()
-    scroll_id: Optional[str] = StringField()
     refresh: bool = BoolField(default=False)
+    scroll_id: Optional[str] = StringField()
 
 
 class NextDebugImageSampleRequest(Base):
@@ -102,3 +111,10 @@ class TaskMetricsRequest(Base):
         items_types=str, validators=[Length(minimum_value=1)]
     )
     event_type: EventType = ActualEnumField(EventType, required=True)
+
+
+class TaskPlotsRequest(Base):
+    task: str = StringField(required=True)
+    iters: int = IntField(default=1)
+    scroll_id: str = StringField()
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
