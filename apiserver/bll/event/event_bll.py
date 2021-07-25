@@ -931,12 +931,17 @@ class EventBLL(object):
         es_req: dict = {
             "size": 0,
             "aggs": {
-                "iters": {
-                    "terms": {
-                        "field": "iter",
-                        "size": iters,
-                        "order": {"_key": "desc"},
-                    }
+                "tasks": {
+                    "terms": {"field": "task"},
+                    "aggs": {
+                        "iters": {
+                            "terms": {
+                                "field": "iter",
+                                "size": iters,
+                                "order": {"_key": "desc"},
+                            }
+                        }
+                    },
                 }
             },
             "query": {"bool": {"must": [{"terms": {"task": task_ids}}]}},
@@ -944,7 +949,7 @@ class EventBLL(object):
 
         with translate_errors_context(), TimingContext("es", "task_last_iter"):
             es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
 
         if "aggregations" not in es_res:
