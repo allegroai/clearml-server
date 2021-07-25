@@ -298,8 +298,9 @@ class PrePopulate:
             if company_id is None:
                 company_id = ""
 
-            # Always use a public user for pre-populated data
-            cls.user_cls(id=user_id, name=user_name, company="").save()
+            existing_user = cls.user_cls.objects(id=user_id).only("id").first()
+            if not existing_user:
+                cls.user_cls(id=user_id, name=user_name, company=company_id).save()
 
             cls._import(zfile, company_id, user_id, metadata)
 
