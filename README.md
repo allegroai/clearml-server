@@ -20,7 +20,7 @@
 
 In v0.16, the Elasticsearch subsystem of ClearML Server has been upgraded from version 5.6 to version 7.6. This change necessitates the migration of the database contents to accommodate the change in index structure across the different versions.  
 
-Follow [this procedure](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_es7_migration.html) to migrate existing data.
+Follow [this procedure](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_es7_migration) to migrate existing data.
 
 ---
 
@@ -45,7 +45,7 @@ You can quickly [deploy](#launching-the-clearml-server)  your **ClearML Server**
 ## System design
 
 
-![Alt Text](https://allegro.ai/clearml/docs/_images/ClearML_Server_Diagram.png)
+![Alt Text](docs/ClearML_Server_Diagram.png)
 
 The **ClearML Server** has two supported configurations:
 - Single IP (domain) with the following open ports
@@ -78,15 +78,15 @@ For example, to see if port `8080` is in use:
     
 Launch The **ClearML Server** in any of the following formats:
 
-- Pre-built [AWS EC2 AMI](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_aws_ec2_ami.html)
-- Pre-built [GCP Custom Image](hhttps://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_gcp.html)
+- Pre-built [AWS EC2 AMI](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_aws_ec2_ami)
+- Pre-built [GCP Custom Image](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_gcp)
 - Pre-built Docker Image
-    - [Linux](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_linux_mac.html)
-    - [macOS](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_linux_mac.html)
-    - [Windows 10](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_win.html)
+    - [Linux](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_linux_mac)
+    - [macOS](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_linux_mac)
+    - [Windows 10](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_win)
 - Kubernetes    
-    - [Kubernetes Helm](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_kubernetes_helm.html)
-    - Manual [Kubernetes installation](https://allegro.ai/clearml/docs/docs/deploying_clearml/clearml_server_kubernetes.html)
+    - [Kubernetes Helm](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_kubernetes_helm)
+    - Manual [Kubernetes installation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_kubernetes)
 
 ## Connecting ClearML to your ClearML Server
 
@@ -138,8 +138,8 @@ Do not enqueue training / inference tasks into the `services` queue, as it will 
 
 The **ClearML Server** provides a few additional useful features, which can be manually enabled:
  
-* [Web login authentication](https://allegro.ai/clearml/docs/deploying_clearml/clearml_server_config/#web-login-authentication)
-* [Non-responsive experiments watchdog](https://allegro.ai/clearml/docs/deploying_clearml/clearml_server_config/#task_watchdog)  
+* [Web login authentication](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_config#web-login-authentication)
+* [Non-responsive experiments watchdog](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_config#non-responsive-task-watchdog)  
 
 ## Restarting ClearML Server
 
@@ -205,12 +205,12 @@ To upgrade your existing **ClearML Server** deployment:
    docker-compose -f docker-compose.yml up
    ```
 
-**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://allegro.ai/clearml/docs/docs/faq/faq.html).**
+**\* If something went wrong along the way, check our FAQ: [Common Docker Upgrade Errors](https://clear.ml/docs/latest/docs/faq/).**
 
 
 ## Community & Support
 
-If you have any questions, look to the ClearML [FAQ](https://allegro.ai/clearml/docs/docs/faq/faq.html), or
+If you have any questions, look to the ClearML [FAQ](https://clear.ml/docs/latest/docs/faq), or
 tag your questions on [stackoverflow](https://stackoverflow.com/questions/tagged/clearml) with '**clearml**' tag.
 
 For feature requests or bug reports, please use [GitHub issues](https://github.com/allegroai/clearml-server/issues).
