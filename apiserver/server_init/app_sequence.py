@@ -4,7 +4,7 @@ from hashlib import md5
 from flask import Flask
 from flask_compress import Compress
 from flask_cors import CORS
-from semantic_version import Version
+from packaging.version import Version
 
 from apiserver.database import db
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
