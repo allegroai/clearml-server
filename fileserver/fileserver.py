@@ -1,5 +1,6 @@
 """ A Simple file server for uploading and downloading files """
 import json
+import mimetypes
 import os
 from argparse import ArgumentParser
 from pathlib import Path
@@ -48,8 +49,12 @@ def upload():
 @app.route("/<path:path>", methods=["GET"])
 def download(path):
     as_attachment = "download" in request.args
+
+    _, encoding = mimetypes.guess_type(os.path.basename(path))
+    mimetype = "application/octet-stream" if encoding == "gzip" else None
+
     response = send_from_directory(
-        app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment
+        app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment, mimetype=mimetype
     )
     if config.get("fileserver.download.disable_browser_caching", False):
         headers = response.headers
