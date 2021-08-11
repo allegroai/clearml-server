@@ -190,14 +190,14 @@ To upgrade your existing **ClearML Server** deployment:
    ```
 
 1. Configure the ClearML-Agent Services (not supported on Windows installation). 
-   If `TRAINS_HOST_IP` is not provided, ClearML-Agent Services will use the external 
-   public address of the **ClearML Server**. If `TRAINS_AGENT_GIT_USER` / `TRAINS_AGENT_GIT_PASS` are not provided, 
+   If `CLEARML_HOST_IP` is not provided, ClearML-Agent Services will use the external 
+   public address of the **ClearML Server**. If `CLEARML_AGENT_GIT_USER` / `CLEARML_AGENT_GIT_PASS` are not provided, 
    the ClearML-Agent Services will not be able to access any private repositories for running service tasks.
    
    ```bash
-   export TRAINS_HOST_IP=server_host_ip_here
-   export TRAINS_AGENT_GIT_USER=git_username_here
-   export TRAINS_AGENT_GIT_PASS=git_password_here
+   export CLEARML_HOST_IP=server_host_ip_here
+   export CLEARML_AGENT_GIT_USER=git_username_here
+   export CLEARML_AGENT_GIT_PASS=git_password_here
    ```
 
 1. Spin up the docker containers, it will automatically pull the latest **ClearML Server** build    
