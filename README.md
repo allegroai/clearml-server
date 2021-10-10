@@ -30,7 +30,7 @@ Follow [this procedure](https://clear.ml/docs/latest/docs/deploying_clearml/clea
 
 The **ClearML Server** is the backend service infrastructure for [ClearML](https://github.com/allegroai/clearml).
 It allows multiple users to collaborate and manage their experiments.
-By default, **ClearML** is set up to work with the **ClearML** demo server, which is open to anyone and resets periodically.
+**ClearML** offers a [free hosted service](https://app.community.clear.ml/), which is maintained by **ClearML** and open to anyone.
 In order to host your own server, you will need to launch the **ClearML Server** and point **ClearML** to it.
 
 The **ClearML Server** contains the following components:
@@ -91,8 +91,7 @@ Launch The **ClearML Server** in any of the following formats:
 
 ## Connecting ClearML to your ClearML Server
 
-By default, the **ClearML** client is set up to work with the [**ClearML** demo server](https://demoapp.demo.clear.ml/).  
-To have the **ClearML** client use your **ClearML Server** instead:
+In order to set up the **ClearML** client to work with your **ClearML Server**:
 - Run the `clearml-init` command for an interactive setup.
 - Or manually edit `~/clearml.conf` file, making sure the server settings (`api_server`, `web_server`, `file_server`) are configured correctly, for example:
 
