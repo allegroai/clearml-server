@@ -12,7 +12,6 @@ test-reports
 .pytest_cache
 venv
 *.noseids
-build
 *.egg-info
 .cache
 .mypy_cache
