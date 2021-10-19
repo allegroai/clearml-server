@@ -17,7 +17,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            allegroai/clearml
+            allegroai/clearml-dev
           tags: |
             type=schedule
             type=ref,event=branch
