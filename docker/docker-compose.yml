@@ -8,9 +8,9 @@ services:
     image: allegroai/clearml:latest
     restart: unless-stopped
     volumes:
-    - /opt/clearml/logs:/var/log/clearml
-    - /opt/clearml/config:/opt/clearml/config
-    - /opt/clearml/data/fileserver:/mnt/fileserver
+    - logs:/var/log/clearml
+    - config:/opt/clearml/config
+    - fileserver:/mnt/fileserver
     depends_on:
       - redis
       - mongo
@@ -65,7 +65,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
     restart: unless-stopped
     volumes:
-      - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - esdata:/usr/share/elasticsearch/data
       - /usr/share/elasticsearch/logs
 
   fileserver:
@@ -78,9 +78,9 @@ services:
     image: allegroai/clearml:latest
     restart: unless-stopped
     volumes:
-    - /opt/clearml/logs:/var/log/clearml
-    - /opt/clearml/data/fileserver:/mnt/fileserver
-    - /opt/clearml/config:/opt/clearml/config
+    - logs:/var/log/clearml
+    - fileserver:/mnt/fileserver
+    - config:/opt/clearml/config
     ports:
     - "8081:8081"
 
@@ -92,8 +92,8 @@ services:
     restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
-    - /opt/clearml/data/mongo/db:/data/db
-    - /opt/clearml/data/mongo/configdb:/data/configdb
+    - mongodb:/data/db
+    - mongoconfigdb:/data/configdb
 
   redis:
     networks:
@@ -102,7 +102,7 @@ services:
     image: redis:5.0
     restart: unless-stopped
     volumes:
-    - /opt/clearml/data/redis:/data
+    - redisdata:/data
 
   webserver:
     command:
@@ -146,10 +146,19 @@ services:
       CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/clearml/agent:/root/.clearml
+      - agent:/root/.clearml
     depends_on:
       - apiserver
 
+volumes:
+  esdata: {}
+  redisdata: {}
+  mongodb: {}
+  mongoconfigdb: {}
+  logs: {}
+  config: {}
+  fileserver: {}
+  agent: {}
 networks:
   backend:
     driver: bridge
