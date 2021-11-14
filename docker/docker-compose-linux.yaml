@@ -8,9 +8,9 @@ services:
     image: allegroai/clearml:latest
     restart: unless-stopped
     volumes:
-    - c:/opt/clearml/logs:/var/log/clearml
-    - c:/opt/clearml/config:/opt/clearml/config
-    - c:/opt/clearml/data/fileserver:/mnt/fileserver
+    - /opt/clearml/logs:/var/log/clearml
+    - /opt/clearml/config:/opt/clearml/config
+    - /opt/clearml/data/fileserver:/mnt/fileserver
     depends_on:
       - redis
       - mongo
@@ -24,7 +24,7 @@ services:
       CLEARML_MONGODB_SERVICE_PORT: 27017
       CLEARML_REDIS_SERVICE_HOST: redis
       CLEARML_REDIS_SERVICE_PORT: 6379
-      CLEARML_SERVER_DEPLOYMENT_TYPE: ${CLEARML_SERVER_DEPLOYMENT_TYPE:-win10}
+      CLEARML_SERVER_DEPLOYMENT_TYPE: ${CLEARML_SERVER_DEPLOYMENT_TYPE:-linux}
       CLEARML__apiserver__pre_populate__enabled: "true"
       CLEARML__apiserver__pre_populate__zip_files: "/opt/clearml/db-pre-populate"
       CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
@@ -65,7 +65,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
     restart: unless-stopped
     volumes:
-      - c:/opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
       - /usr/share/elasticsearch/logs
 
   fileserver:
@@ -78,10 +78,9 @@ services:
     image: allegroai/clearml:latest
     restart: unless-stopped
     volumes:
-    - c:/opt/clearml/logs:/var/log/clearml
-    - c:/opt/clearml/data/fileserver:/mnt/fileserver
-    - c:/opt/clearml/config:/opt/clearml/config
-
+    - /opt/clearml/logs:/var/log/clearml
+    - /opt/clearml/data/fileserver:/mnt/fileserver
+    - /opt/clearml/config:/opt/clearml/config
     ports:
     - "8081:8081"
 
@@ -93,8 +92,8 @@ services:
     restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
-    - c:/opt/clearml/data/mongo/db:/data/db
-    - c:/opt/clearml/data/mongo/configdb:/data/configdb
+    - /opt/clearml/data/mongo/db:/data/db
+    - /opt/clearml/data/mongo/configdb:/data/configdb
 
   redis:
     networks:
@@ -103,7 +102,7 @@ services:
     image: redis:5.0
     restart: unless-stopped
     volumes:
-    - c:/opt/clearml/data/redis:/data
+    - /opt/clearml/data/redis:/data
 
   webserver:
     command:
@@ -111,8 +110,6 @@ services:
     container_name: clearml-webserver
     image: allegroai/clearml:latest
     restart: unless-stopped
-    volumes:
-    - c:/clearml/logs:/var/log/clearml
     depends_on:
       - apiserver
     ports:
@@ -121,9 +118,40 @@ services:
       - backend
       - frontend
 
+  agent-services:
+    networks:
+      - backend
+    container_name: clearml-agent-services
+    image: allegroai/clearml-agent-services:latest
+    restart: unless-stopped
+    privileged: true
+    environment:
+      CLEARML_HOST_IP: ${CLEARML_HOST_IP}
+      CLEARML_WEB_HOST: ${CLEARML_WEB_HOST:-}
+      CLEARML_API_HOST: http://apiserver:8008
+      CLEARML_FILES_HOST: ${CLEARML_FILES_HOST:-}
+      CLEARML_API_ACCESS_KEY: ${CLEARML_API_ACCESS_KEY:-}
+      CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY:-}
+      CLEARML_AGENT_GIT_USER: ${CLEARML_AGENT_GIT_USER}
+      CLEARML_AGENT_GIT_PASS: ${CLEARML_AGENT_GIT_PASS}
+      CLEARML_AGENT_UPDATE_VERSION: ${CLEARML_AGENT_UPDATE_VERSION:-">=0.17.0"}
+      CLEARML_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-}
+      AZURE_STORAGE_KEY: ${AZURE_STORAGE_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      CLEARML_WORKER_ID: "clearml-services"
+      CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/clearml/agent:/root/.clearml
+    depends_on:
+      - apiserver
+
 networks:
   backend:
     driver: bridge
   frontend:
-    name: frontend
     driver: bridge
