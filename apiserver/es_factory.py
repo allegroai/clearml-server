@@ -126,6 +126,10 @@ class ESFactory:
 
         if username and password:
             cluster_config.set("http_auth", (username, password))
+        elif not username:
+            log.info(f"Ignoring username/password since username is empty or not provided")
+        elif not password:
+            log.info(f"Ignoring username/password since password is empty or not provided")
 
         return cluster_config
 
