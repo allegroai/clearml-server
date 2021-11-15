@@ -1,9 +1,9 @@
 from datetime import datetime
 from os import getenv
-from typing import Tuple
+from typing import Tuple, Optional
 
 from boltons.iterutils import first
-from elasticsearch import Elasticsearch, Transport
+from elasticsearch import Elasticsearch
 
 from apiserver.config_repo import config
 
@@ -21,17 +21,17 @@ OVERRIDE_PORT_ENV_KEY = (
     "ELASTIC_SERVICE_PORT",
 )
 
-OVERRIDE_USERNAME_ENV_KEY = (
-    "CLEARML_ELASTIC_SERVICE_USERNAME",
-)
+OVERRIDE_USERNAME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_USERNAME",)
 
-OVERRIDE_PASSWORD_ENV_KEY = (
-    "CLEARML_ELASTIC_SERVICE_PASSWORD",
-)
+OVERRIDE_PASSWORD_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_PASSWORD",)
 
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
+
+OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
+if OVERRIDE_PORT:
+    log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
 OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))
 if OVERRIDE_USERNAME:
@@ -40,10 +40,6 @@ if OVERRIDE_USERNAME:
 OVERRIDE_PASSWORD = first(filter(None, map(getenv, OVERRIDE_PASSWORD_ENV_KEY)))
 if OVERRIDE_PASSWORD:
     log.info("Using override elastic password ********")
-
-OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
-if OVERRIDE_PORT:
-    log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
 _instances = {}
 
@@ -64,6 +60,10 @@ class InvalidClusterConfiguration(Exception):
     pass
 
 
+class MissingPasswordForElasticUser(Exception):
+    pass
+
+
 class ESFactory:
     @classmethod
     def connect(cls, cluster_name):
@@ -81,23 +81,42 @@ class ESFactory:
             if not hosts:
                 raise InvalidClusterConfiguration(cluster_name)
 
-            http_auth = cluster_config.get("http_auth", None)
-            if not cluster_config.get("secure", True):
-                http_auth = None
+            http_auth = (
+                cls.get_credentials(cluster_name)
+                if cluster_config.get("secure", True)
+                else None
+            )
+
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
-                hosts=hosts, transport_class=Transport, http_auth=http_auth, **args
+                hosts=hosts, http_auth=http_auth, **args
             )
 
         return _instances[cluster_name]
+
+    @classmethod
+    def get_credentials(cls, cluster_name: str) -> Optional[Tuple[str, str]]:
+        elastic_user = OVERRIDE_USERNAME or config.get("secure.elastic.user", None)
+        if not elastic_user:
+            return None
+
+        elastic_password = OVERRIDE_PASSWORD or config.get(
+            "secure.elastic.password", None
+        )
+        if not elastic_password:
+            raise MissingPasswordForElasticUser(
+                f"cluster={cluster_name}, username={elastic_user}"
+            )
+
+        return elastic_user, elastic_password
 
     @classmethod
     def get_all_cluster_names(cls):
         return list(config.get("hosts.elastic"))
 
     @classmethod
-    def get_override(cls, cluster_name: str) -> Tuple[str, str, str, str]:
-        return OVERRIDE_HOST, OVERRIDE_PORT, OVERRIDE_USERNAME, OVERRIDE_PASSWORD
+    def get_override_host(cls, cluster_name: str) -> Tuple[str, str]:
+        return OVERRIDE_HOST, OVERRIDE_PORT
 
     @classmethod
     def get_cluster_config(cls, cluster_name):
@@ -116,20 +135,13 @@ class ESFactory:
             for entry in cluster_config.get("hosts", []):
                 entry[key] = value
 
-        host, port, username, password = cls.get_override(cluster_name)
+        host, port = cls.get_override_host(cluster_name)
 
         if host:
             set_host_prop("host", host)
 
         if port:
             set_host_prop("port", port)
-
-        if username and password:
-            cluster_config.set("http_auth", (username, password))
-        elif not username:
-            log.info(f"Ignoring username/password since username is empty or not provided")
-        elif not password:
-            log.info(f"Ignoring username/password since password is empty or not provided")
 
         return cluster_config
 
