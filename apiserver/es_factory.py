@@ -82,6 +82,8 @@ class ESFactory:
                 raise InvalidClusterConfiguration(cluster_name)
 
             http_auth = cluster_config.get("http_auth", None)
+            if not cluster_config.get("secure", True):
+                http_auth = None
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
                 hosts=hosts, transport_class=Transport, http_auth=http_auth, **args
