@@ -19,7 +19,7 @@ services:
     environment:
       CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
       CLEARML_ELASTIC_SERVICE_PORT: 9200
-      CLEARML_ELASTIC_SERVICE_PASSWORD: elastic
+      CLEARML_ELASTIC_SERVICE_PASSWORD: ${ELASTIC_PASSWORD}
       CLEARML_MONGODB_SERVICE_HOST: mongo
       CLEARML_MONGODB_SERVICE_PORT: 27017
       CLEARML_REDIS_SERVICE_HOST: redis
@@ -40,7 +40,7 @@ services:
     container_name: clearml-elastic
     environment:
       ES_JAVA_OPTS: -Xms2g -Xmx2g
-      ELASTIC_PASSWORD: elastic
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       bootstrap.memory_lock: "true"
       cluster.name: clearml
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
