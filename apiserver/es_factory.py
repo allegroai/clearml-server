@@ -21,9 +21,25 @@ OVERRIDE_PORT_ENV_KEY = (
     "ELASTIC_SERVICE_PORT",
 )
 
+OVERRIDE_USERNAME_ENV_KEY = (
+    "CLEARML_ELASTIC_SERVICE_USERNAME",
+)
+
+OVERRIDE_PASSWORD_ENV_KEY = (
+    "CLEARML_ELASTIC_SERVICE_PASSWORD",
+)
+
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
+
+OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))
+if OVERRIDE_USERNAME:
+    log.info(f"Using override elastic username {OVERRIDE_USERNAME}")
+
+OVERRIDE_PASSWORD = first(filter(None, map(getenv, OVERRIDE_PASSWORD_ENV_KEY)))
+if OVERRIDE_PASSWORD:
+    log.info("Using override elastic password ********")
 
 OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
@@ -65,9 +81,12 @@ class ESFactory:
             if not hosts:
                 raise InvalidClusterConfiguration(cluster_name)
 
+            http_auth = cluster_config.get("http_auth", None)
+            if not cluster_config.get("secure", True):
+                http_auth = None
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
-                hosts=hosts, transport_class=Transport, **args
+                hosts=hosts, transport_class=Transport, http_auth=http_auth, **args
             )
 
         return _instances[cluster_name]
@@ -77,8 +96,8 @@ class ESFactory:
         return list(config.get("hosts.elastic"))
 
     @classmethod
-    def get_override(cls, cluster_name: str) -> Tuple[str, str]:
-        return OVERRIDE_HOST, OVERRIDE_PORT
+    def get_override(cls, cluster_name: str) -> Tuple[str, str, str, str]:
+        return OVERRIDE_HOST, OVERRIDE_PORT, OVERRIDE_USERNAME, OVERRIDE_PASSWORD
 
     @classmethod
     def get_cluster_config(cls, cluster_name):
@@ -97,13 +116,16 @@ class ESFactory:
             for entry in cluster_config.get("hosts", []):
                 entry[key] = value
 
-        host, port = cls.get_override(cluster_name)
+        host, port, username, password = cls.get_override(cluster_name)
 
         if host:
             set_host_prop("host", host)
 
         if port:
             set_host_prop("port", port)
+
+        if username and password:
+            cluster_config.set("http_auth", (username, password))
 
         return cluster_config
 
