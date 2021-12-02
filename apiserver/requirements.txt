@@ -22,7 +22,7 @@ packaging==20.3
 psutil>=5.6.5
 pyhocon>=0.3.35
 pyjwt<2.0.0
-pymongo==3.10.1
+pymongo[srv]==3.12
 python-rapidjson>=0.6.3
 redis>=2.10.5
 related>=0.7.2
