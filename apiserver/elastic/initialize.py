@@ -82,7 +82,16 @@ def check_elastic_empty() -> bool:
         es_logger.addFilter(log_filter)
         for retry in range(max_retries):
             try:
-                es = Elasticsearch(hosts=cluster_conf.get("hosts"))
+                hosts = cluster_conf.get("hosts", None)
+                http_auth = (
+                    es_factory.get_credentials("events")
+                    if cluster_conf.get("secure", True)
+                    else None
+                )
+                args = cluster_conf.get("args", {})
+                es = Elasticsearch(
+                    hosts=hosts, http_auth=http_auth, **args
+                )
                 return not es.indices.get_template(name="events*")
             except exceptions.NotFoundError as ex:
                 log.error(ex)
@@ -109,5 +118,10 @@ def init_es_data():
 
         log.info(f"Applying mappings to ES host: {hosts_config}")
         args = cluster_conf.get("args", {})
-        res = apply_mappings_to_cluster(hosts_config, name, es_args=args)
+        http_auth = (
+            es_factory.get_credentials(name)
+            if cluster_conf.get("secure", True)
+            else None
+        )
+        res = apply_mappings_to_cluster(hosts_config, name, es_args=args, http_auth=http_auth)
         log.info(res)
