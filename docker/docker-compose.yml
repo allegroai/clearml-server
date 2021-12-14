@@ -39,7 +39,7 @@ services:
       - backend
     container_name: clearml-elastic
     environment:
-      ES_JAVA_OPTS: -Xms2g -Xmx2g
+      ES_JAVA_OPTS: -Xms2g -Xmx2g -Dlog4j2.formatMsgNoLookups=true
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       bootstrap.memory_lock: "true"
       cluster.name: clearml
@@ -123,7 +123,9 @@ services:
       - backend
     container_name: clearml-agent-services
     image: allegroai/clearml-agent-services:latest
-    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
     privileged: true
     environment:
       CLEARML_HOST_IP: ${CLEARML_HOST_IP}
@@ -144,6 +146,7 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       CLEARML_WORKER_ID: "clearml-services"
       CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
+      SHUTDOWN_IF_NO_ACCESS_KEY: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/clearml/agent:/root/.clearml
