@@ -15,17 +15,26 @@
 ---
 <div align="center">
 
-**v0.16 Upgrade Notice**
+###Note regarding Apache Log4j2 Remote Code Execution (RCE) Vulnerability - CVE-2021-44228 - ESA-2021-31**
 
 </div>
 
-In v0.16, the Elasticsearch subsystem of ClearML Server has been upgraded from version 5.6 to version 7.6. This change necessitates the migration of the database contents to accommodate the change in index structure across the different versions.  
+According to [ElasticSearch's latest report](https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476), 
+supported versions of Elasticsearch (6.8.9+, 7.8+) used with recent versions of the JDK (JDK9+) **are not susceptible to either remote code execution or information leakage**
+due to Elasticsearch’s usage of the Java Security Manager.
 
-Follow [this procedure](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server_es7_migration) to migrate existing data.
+**As the latest version of ClearML Server uses Elasticsearch 7.10+ with JDK15, it is not affected by these vulnerabilities.**
+
+As a precaution, we've added the mitigation recommended by ElasticSearch to our latest [docker-compose.yml](https://github.com/allegroai/clearml-server/blob/cfccbe05c158b75e520581f86e9668291da5c70a/docker/docker-compose.yml#L42) file.
+
+While previous Elasticsearch versions (5.6.11+, 6.4.0+ and 7.0.0+) used by older ClearML Server versions are only susceptible to the information leakage vulnerability
+(which in any case **does not permit access to data within the Elasticsearch cluster**), 
+we still recommend upgrading to the latest version of ClearML Server. Alternatively, you can apply the mitigation as implemented in our latest 
+[docker-compose.yml](https://github.com/allegroai/clearml-server/blob/cfccbe05c158b75e520581f86e9668291da5c70a/docker/docker-compose.yml#L42) file.    
 
 ---
 
-### ClearML Server
+## ClearML Server
 #### *Formerly known as Trains Server*
 
 The **ClearML Server** is the backend service infrastructure for [ClearML](https://github.com/allegroai/clearml).
