@@ -32,6 +32,9 @@ While previous Elasticsearch versions (5.6.11+, 6.4.0+ and 7.0.0+) used by older
 we still recommend upgrading to the latest version of ClearML Server. Alternatively, you can apply the mitigation as implemented in our latest 
 [docker-compose.yml](https://github.com/allegroai/clearml-server/blob/cfccbe05c158b75e520581f86e9668291da5c70a/docker/docker-compose.yml#L42) file.    
 
+**Update 15 December**: A further vulnerability (CVE-2021-45046) was disclosed on December 14th.
+ElasticSearch's guidance for Elasticsearch remains unchanged by this new vulnerability, thus **not affecting ClearML Server**.
+
 ---
 
 ## ClearML Server
