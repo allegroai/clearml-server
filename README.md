@@ -25,7 +25,7 @@ due to Elasticsearch’s usage of the Java Security Manager.
 
 **As the latest version of ClearML Server uses Elasticsearch 7.10+ with JDK15, it is not affected by these vulnerabilities.**
 
-As a precaution, we've added the mitigation recommended by ElasticSearch to our latest [docker-compose.yml](https://github.com/allegroai/clearml-server/blob/cfccbe05c158b75e520581f86e9668291da5c70a/docker/docker-compose.yml#L42) file.
+As a precaution, we've upgraded the ES version to 7.16.2 and added the mitigation recommended by ElasticSearch to our latest [docker-compose.yml](https://github.com/allegroai/clearml-server/blob/cfccbe05c158b75e520581f86e9668291da5c70a/docker/docker-compose.yml#L42) file.
 
 While previous Elasticsearch versions (5.6.11+, 6.4.0+ and 7.0.0+) used by older ClearML Server versions are only susceptible to the information leakage vulnerability
 (which in any case **does not permit access to data within the Elasticsearch cluster**), 
@@ -34,6 +34,8 @@ we still recommend upgrading to the latest version of ClearML Server. Alternativ
 
 **Update 15 December**: A further vulnerability (CVE-2021-45046) was disclosed on December 14th.
 ElasticSearch's guidance for Elasticsearch remains unchanged by this new vulnerability, thus **not affecting ClearML Server**.
+
+**Update 22 December**: To keep with ElasticSearch's recommendations, we've upgraded the ES version to the newly released 7.16.2
 
 ---
 
