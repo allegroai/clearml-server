@@ -28,6 +28,8 @@ OVERRIDE_PORT_ENV_KEY = (
     "MONGODB_SERVICE_PORT",
 )
 
+OVERRIDE_CONNECTION_STRING_ENV_KEY = "CLEARML_MONGODB_SERVICE_CONNECTION_STRING"
+
 
 class DatabaseEntry(models.Base):
     host = StringField(required=True)
@@ -55,6 +57,10 @@ class DatabaseFactory:
         if override_port:
             log.info(f"Using override mongodb port {override_port}")
 
+        override_connection_string = getenv(OVERRIDE_CONNECTION_STRING_ENV_KEY)
+        if override_connection_string:
+            log.info(f"Using override mongodb connection string {override_connection_string}")
+
         for key, alias in get_items(Database).items():
             if key not in db_entries:
                 missing.append(key)
@@ -67,6 +73,9 @@ class DatabaseFactory:
 
             if override_port:
                 entry.host = furl(entry.host).set(port=override_port).url
+
+            if override_connection_string:
+                entry.host = override_connection_string
 
             try:
                 entry.validate()
