@@ -30,7 +30,7 @@ Follow [this procedure](https://clear.ml/docs/latest/docs/deploying_clearml/clea
 
 The **ClearML Server** is the backend service infrastructure for [ClearML](https://github.com/allegroai/clearml).
 It allows multiple users to collaborate and manage their experiments.
-**ClearML** offers a [free hosted service](https://app.community.clear.ml/), which is maintained by **ClearML** and open to anyone.
+**ClearML** offers a [free hosted service](https://app.clear.ml/), which is maintained by **ClearML** and open to anyone.
 In order to host your own server, you will need to launch the **ClearML Server** and point **ClearML** to it.
 
 The **ClearML Server** contains the following components:
