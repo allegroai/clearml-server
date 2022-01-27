@@ -1,9 +1,9 @@
 from datetime import datetime
 from os import getenv
-from typing import Tuple
+from typing import Tuple, Optional
 
 from boltons.iterutils import first
-from elasticsearch import Elasticsearch, Transport
+from elasticsearch import Elasticsearch
 
 from apiserver.config_repo import config
 
@@ -21,6 +21,10 @@ OVERRIDE_PORT_ENV_KEY = (
     "ELASTIC_SERVICE_PORT",
 )
 
+OVERRIDE_USERNAME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_USERNAME",)
+
+OVERRIDE_PASSWORD_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_PASSWORD",)
+
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
@@ -28,6 +32,14 @@ if OVERRIDE_HOST:
 OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override elastic port {OVERRIDE_PORT}")
+
+OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))
+if OVERRIDE_USERNAME:
+    log.info(f"Using override elastic username {OVERRIDE_USERNAME}")
+
+OVERRIDE_PASSWORD = first(filter(None, map(getenv, OVERRIDE_PASSWORD_ENV_KEY)))
+if OVERRIDE_PASSWORD:
+    log.info("Using override elastic password ********")
 
 _instances = {}
 
@@ -48,6 +60,10 @@ class InvalidClusterConfiguration(Exception):
     pass
 
 
+class MissingPasswordForElasticUser(Exception):
+    pass
+
+
 class ESFactory:
     @classmethod
     def connect(cls, cluster_name):
@@ -65,19 +81,41 @@ class ESFactory:
             if not hosts:
                 raise InvalidClusterConfiguration(cluster_name)
 
+            http_auth = (
+                cls.get_credentials(cluster_name)
+                if cluster_config.get("secure", True)
+                else None
+            )
+
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
-                hosts=hosts, transport_class=Transport, **args
+                hosts=hosts, http_auth=http_auth, **args
             )
 
         return _instances[cluster_name]
+
+    @classmethod
+    def get_credentials(cls, cluster_name: str) -> Optional[Tuple[str, str]]:
+        elastic_user = OVERRIDE_USERNAME or config.get("secure.elastic.user", None)
+        if not elastic_user:
+            return None
+
+        elastic_password = OVERRIDE_PASSWORD or config.get(
+            "secure.elastic.password", None
+        )
+        if not elastic_password:
+            raise MissingPasswordForElasticUser(
+                f"cluster={cluster_name}, username={elastic_user}"
+            )
+
+        return elastic_user, elastic_password
 
     @classmethod
     def get_all_cluster_names(cls):
         return list(config.get("hosts.elastic"))
 
     @classmethod
-    def get_override(cls, cluster_name: str) -> Tuple[str, str]:
+    def get_override_host(cls, cluster_name: str) -> Tuple[str, str]:
         return OVERRIDE_HOST, OVERRIDE_PORT
 
     @classmethod
@@ -97,7 +135,7 @@ class ESFactory:
             for entry in cluster_config.get("hosts", []):
                 entry[key] = value
 
-        host, port = cls.get_override(cluster_name)
+        host, port = cls.get_override_host(cluster_name)
 
         if host:
             set_host_prop("host", host)

@@ -19,6 +19,7 @@ services:
     environment:
       CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
       CLEARML_ELASTIC_SERVICE_PORT: 9200
+      CLEARML_ELASTIC_SERVICE_PASSWORD: ${ELASTIC_PASSWORD}
       CLEARML_MONGODB_SERVICE_HOST: mongo
       CLEARML_MONGODB_SERVICE_PORT: 27017
       CLEARML_REDIS_SERVICE_HOST: redis
@@ -38,7 +39,8 @@ services:
       - backend
     container_name: clearml-elastic
     environment:
-      ES_JAVA_OPTS: -Xms2g -Xmx2g
+      ES_JAVA_OPTS: -Xms2g -Xmx2g -Dlog4j2.formatMsgNoLookups=true
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       bootstrap.memory_lock: "true"
       cluster.name: clearml
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
@@ -60,7 +62,7 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.16.2
     restart: unless-stopped
     volumes:
       - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
@@ -86,7 +88,7 @@ services:
     networks:
       - backend
     container_name: clearml-mongo
-    image: mongo:3.6.5
+    image: mongo:3.6.23
     restart: unless-stopped
     command: --setParameter internalQueryExecMaxBlockingSortBytes=196100200
     volumes:
@@ -121,7 +123,9 @@ services:
       - backend
     container_name: clearml-agent-services
     image: allegroai/clearml-agent-services:latest
-    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
     privileged: true
     environment:
       CLEARML_HOST_IP: ${CLEARML_HOST_IP}
@@ -132,7 +136,7 @@ services:
       CLEARML_API_SECRET_KEY: ${CLEARML_API_SECRET_KEY:-}
       CLEARML_AGENT_GIT_USER: ${CLEARML_AGENT_GIT_USER}
       CLEARML_AGENT_GIT_PASS: ${CLEARML_AGENT_GIT_PASS}
-      CLEARML_AGENT_UPDATE_VERSION: ${CLEARML_AGENT_UPDATE_VERSION:->=0.17.0}
+      CLEARML_AGENT_UPDATE_VERSION: ${CLEARML_AGENT_UPDATE_VERSION:-">=0.17.0"}
       CLEARML_AGENT_DEFAULT_BASE_DOCKER: "ubuntu:18.04"
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -142,6 +146,7 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       CLEARML_WORKER_ID: "clearml-services"
       CLEARML_AGENT_DOCKER_HOST_MOUNT: "/opt/clearml/agent:/root/.clearml"
+      SHUTDOWN_IF_NO_ACCESS_KEY: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/clearml/agent:/root/.clearml
