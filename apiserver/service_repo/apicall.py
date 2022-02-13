@@ -584,6 +584,10 @@ class APICall(DataContainer):
     def json_flags(self):
         return self._json_flags
 
+    @property
+    def extra_meta_fields(self):
+        return {}
+
     def mark_end(self):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
@@ -634,6 +638,7 @@ class APICall(DataContainer):
                     "result_msg": self.result.msg,
                     "error_stack": self.result.traceback if include_stack else None,
                     "error_data": self.result.error_data,
+                    **self.extra_meta_fields,
                 },
                 "data": self.result.data,
             }
