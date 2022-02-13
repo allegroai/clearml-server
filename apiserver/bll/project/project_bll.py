@@ -499,8 +499,8 @@ class ProjectBLL:
         ) -> Dict[str, dict]:
             return {
                 section: {
-                    status: nested_get(a, (section, status), 0)
-                    + nested_get(b, (section, status), 0)
+                    status: nested_get(a, (section, status), default=0)
+                    + nested_get(b, (section, status), default=0)
                     for status in set(a.get(section, {})) | set(b.get(section, {}))
                 }
                 for section in set(a) | set(b)
@@ -535,9 +535,9 @@ class ProjectBLL:
 
         def get_status_counts(project_id, section):
             return {
-                "total_runtime": nested_get(runtime, (project_id, section), 0),
+                "total_runtime": nested_get(runtime, (project_id, section), default=0),
                 "status_count": nested_get(
-                    status_count, (project_id, section), default_counts
+                    status_count, (project_id, section), default=default_counts
                 ),
             }
 
