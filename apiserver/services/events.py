@@ -839,7 +839,7 @@ class ScalarMetricsIterRawScroll(Scroll):
     )
 
 
-@endpoint("events.scalar_metrics_iter_raw", min_version="999.0")
+@endpoint("events.scalar_metrics_iter_raw", min_version="2.16")
 def scalar_metrics_iter_raw(
     call: APICall, company_id: str, request: ScalarMetricsIterRawRequest
 ):

@@ -1,6 +1,7 @@
 from functools import partial
 
 from flask import request, Response, redirect
+from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.exceptions import BadRequest
 
 from apiserver.apierrors import APIError
@@ -10,6 +11,7 @@ from apiserver.service_repo import ServiceRepo, APICall
 from apiserver.service_repo.auth import AuthType, Token
 from apiserver.service_repo.errors import PathParsingError
 from apiserver.utilities import json
+from apiserver.utilities.dicts import nested_set
 
 log = config.logger(__file__)
 
@@ -79,6 +81,21 @@ class RequestHandlers:
             log.exception(f"Failed processing request {request.url}: {ex}")
             return f"Failed processing request {request.url}", 500
 
+    @staticmethod
+    def _apply_multi_dict(body: dict, md: ImmutableMultiDict):
+        def convert_value(v: str):
+            if v.replace(".", "", 1).isdigit():
+                return float(v) if "." in v else int(v)
+            if v in ("true", "True", "TRUE"):
+                return True
+            if v in ("false", "False", "FALSE"):
+                return False
+            return v
+
+        for k, v in md.lists():
+            v = [convert_value(x) for x in v] if (len(v) > 1 or k.endswith("[]")) else convert_value(v[0])
+            nested_set(body, k.rstrip("[]").split("."), v)
+
     def _update_call_data(self, call, req):
         """ Use request payload/form to fill call data or batched data """
         if req.content_type == "application/json-lines":
@@ -96,23 +113,12 @@ class RequestHandlers:
                     req.on_json_loading_failed(msg)
             call.batched_data = items
         else:
-            json_body = req.get_json(force=True, silent=False) if req.data else None
-            # merge form and args
-            form = req.form.copy()
-            form.update(req.args)
-            form = form.to_dict()
-            # convert string numbers to floats
-            for key in form:
-                if form[key].replace(".", "", 1).isdigit():
-                    if "." in form[key]:
-                        form[key] = float(form[key])
-                    else:
-                        form[key] = int(form[key])
-                elif form[key].lower() == "true":
-                    form[key] = True
-                elif form[key].lower() == "false":
-                    form[key] = False
-            call.data = json_body or form or {}
+            body = (req.get_json(force=True, silent=False) if req.data else None) or {}
+            if req.args:
+                self._apply_multi_dict(body, req.args)
+            if req.form:
+                self._apply_multi_dict(body, req.form)
+            call.data = body
 
     def _call_or_empty_with_error(self, call, req, msg, code=500, subcode=0):
         call = call or APICall(

@@ -310,6 +310,12 @@ class APICall(DataContainer):
     _transaction_headers = _get_headers("Trx")
     """ Transaction ID """
 
+    _redacted_headers = {
+        HEADER_AUTHORIZATION: " ",
+        "Cookie": "=",
+    }
+    """ Headers whose value should be redacted. Maps header name to partition char """
+
     @property
     def HEADER_TRANSACTION(self):
         return self._transaction_headers[0]
@@ -673,3 +679,15 @@ class APICall(DataContainer):
             error_data=error_data,
             cookies=self._result.cookies,
         )
+
+    def get_redacted_headers(self):
+        headers = self.headers.copy()
+        if not self.requires_authorization or self.auth:
+            # We won't log the authorization header if call shouldn't be authorized, or if it was successfully
+            #  authorized. This means we'll only log authorization header for calls that failed to authorize (hopefully
+            #  this will allow us to debug authorization errors).
+            for header, sep in self._redacted_headers.items():
+                if header in headers:
+                    prefix, _, redact = headers[header].partition(sep)
+                    headers[header] = prefix + sep + f"<{len(redact)} bytes redacted>"
+        return headers
