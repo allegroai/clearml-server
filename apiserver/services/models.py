@@ -183,7 +183,7 @@ create_fields = {
     "metadata": list,
 }
 
-last_update_fields = ("uri", "framework", "design", "labels", "ready", "metadata")
+last_update_fields = ("uri", "framework", "design", "labels", "ready", "metadata", "system_tags", "tags")
 
 
 def parse_model_fields(call, valid_fields):
