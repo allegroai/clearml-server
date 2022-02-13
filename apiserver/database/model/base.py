@@ -1,9 +1,21 @@
 import re
 from collections import namedtuple
 from functools import reduce, partial
-from typing import Collection, Sequence, Union, Optional, Type, Tuple, Mapping, Any, Callable
+from typing import (
+    Collection,
+    Sequence,
+    Union,
+    Optional,
+    Type,
+    Tuple,
+    Mapping,
+    Any,
+    Callable,
+    Dict,
+    List,
+)
 
-from boltons.iterutils import first, bucketize, partition
+from boltons.iterutils import first, partition
 from dateutil.parser import parse as parse_datetime
 from mongoengine import Q, Document, ListField, StringField, IntField
 from pymongo.command_cursor import CommandCursor
@@ -109,43 +121,55 @@ class GetMixin(PropsMixin):
 
     class ListFieldBucketHelper:
         op_prefix = "__$"
-        legacy_exclude_prefix = "-"
+        _legacy_exclude_prefix = "-"
+        _legacy_exclude_mongo_op = "nin"
 
-        _default = "in"
+        default_mongo_op = "in"
         _ops = {
+            # op -> (mongo_op, sticky)
             "not": ("nin", False),
+            "nop": (default_mongo_op, False),
             "all": ("all", True),
             "and": ("all", True),
         }
-        _next = _default
-        _sticky = False
 
         def __init__(self, legacy=False):
-            self._legacy = legacy
+            self._current_op = None
+            self._sticky = False
+            self._support_legacy = legacy
 
-        def key(self, v) -> Optional[str]:
+        def _key(self, v) -> Optional[Union[str, bool]]:
             if v is None:
-                self._next = self._default
-                return self._default
-            elif self._legacy and v.startswith(self.legacy_exclude_prefix):
-                self._next = self._default
-                return self._ops["not"][0]
+                self._current_op = None
+                self._sticky = False
+                return self.default_mongo_op
+            elif self._current_op:
+                current_op = self._current_op
+                if not self._sticky:
+                    self._current_op = None
+                return current_op
+            elif self._support_legacy and v.startswith(self._legacy_exclude_prefix):
+                self._current_op = None
+                return False
             elif v.startswith(self.op_prefix):
-                self._next, self._sticky = self._ops.get(
-                    v[len(self.op_prefix) :], (self._default, self._sticky)
+                self._current_op, self._sticky = self._ops.get(
+                    v[len(self.op_prefix):], (self.default_mongo_op, self._sticky)
                 )
                 return None
 
-            next_ = self._next
-            if not self._sticky:
-                self._next = self._default
+            return self.default_mongo_op
 
-            return next_
-
-        def value_transform(self, v):
-            if self._legacy and v and v.startswith(self.legacy_exclude_prefix):
-                return v[len(self.legacy_exclude_prefix) :]
-            return v
+        def get_actions(self, data: Sequence[str]) -> Dict[str, List[Union[str, None]]]:
+            actions = {}
+            for val in data:
+                key = self._key(val)
+                if key is None:
+                    continue
+                elif self._support_legacy and key is False:
+                    key = self._legacy_exclude_mongo_op
+                    val = val[len(self._legacy_exclude_prefix) :]
+                actions.setdefault(key, []).append(val)
+            return actions
 
     get_all_query_options = QueryParameterOptions()
 
@@ -261,7 +285,9 @@ class GetMixin(PropsMixin):
         Prepare a query object based on the provided query dictionary and various fields.
 
         NOTE: BE VERY CAREFUL WITH THIS CALL, as it allows creating queries that span across companies.
-
+        IMPLEMENTATION NOTE: Make sure that inside this function or the function it depends on RegexQ is always
+        used instead of Q. Otherwise we can and up with some combination that is not processed according to
+        RegexQ rules
         :param parameters_options: Specifies options for parsing the parameters (see ParametersOptions)
         :param parameters: Query dictionary (relevant keys are these specified by the various field names parameters).
             Supported parameters:
@@ -298,7 +324,7 @@ class GetMixin(PropsMixin):
                 patterns=opts.fields or [], parameters=parameters
             ).items():
                 if "._" in field or "_." in field:
-                    query &= Q(__raw__={field: data})
+                    query &= RegexQ(__raw__={field: data})
                 else:
                     dict_query[field.replace(".", "__")] = data
 
@@ -332,22 +358,31 @@ class GetMixin(PropsMixin):
                         break
                     if any("._" in f for f in data.fields):
                         q = reduce(
-                            lambda a, x: func(a, Q(__raw__={x: {"$regex": data.pattern, "$options": "i"}})),
+                            lambda a, x: func(
+                                a,
+                                RegexQ(
+                                    __raw__={
+                                        x: {"$regex": data.pattern, "$options": "i"}
+                                    }
+                                ),
+                            ),
                             data.fields,
-                            Q()
+                            RegexQ(),
                         )
                     else:
                         regex = RegexWrapper(data.pattern, flags=re.IGNORECASE)
                         sep_fields = [f.replace(".", "__") for f in data.fields]
                         q = reduce(
-                            lambda a, x: func(a, RegexQ(**{x: regex})), sep_fields, RegexQ()
+                            lambda a, x: func(a, RegexQ(**{x: regex})),
+                            sep_fields,
+                            RegexQ(),
                         )
                     query = query & q
 
         return query & RegexQ(**dict_query)
 
     @classmethod
-    def get_range_field_query(cls, field: str, data: Sequence[Optional[str]]) -> Q:
+    def get_range_field_query(cls, field: str, data: Sequence[Optional[str]]) -> RegexQ:
         """
         Return a range query for the provided field. The data should contain min and max values
         Both intervals are included. For open range queries either min or max can be None
@@ -371,14 +406,14 @@ class GetMixin(PropsMixin):
         if max_val is not None:
             query[f"{mongoengine_field}__lte"] = max_val
 
-        q = Q(**query)
+        q = RegexQ(**query)
         if min_val is None:
-            q |= Q(**{mongoengine_field: None})
+            q |= RegexQ(**{mongoengine_field: None})
 
         return q
 
     @classmethod
-    def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> Q:
+    def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> RegexQ:
         """
         Get a proper mongoengine Q object that represents an "or" query for the provided values
         with respect to the given list field, with support for "none of empty" in case a None value
@@ -392,13 +427,15 @@ class GetMixin(PropsMixin):
             data = [data]
             # raise MakeGetAllQueryError("expected list", field)
 
-        # TODO: backwards compatibility only for older API versions
-        helper = cls.ListFieldBucketHelper(legacy=True)
-        actions = bucketize(
-            data, key=helper.key, value_transform=helper.value_transform
-        )
+        actions = cls.ListFieldBucketHelper(legacy=True).get_actions(data)
+        allow_empty = False
+        default_op_actions = actions.get(cls.ListFieldBucketHelper.default_mongo_op)
+        if default_op_actions and None in default_op_actions:
+            allow_empty = True
+            default_op_actions.remove(None)
+            if not default_op_actions:
+                actions.pop(cls.ListFieldBucketHelper.default_mongo_op)
 
-        allow_empty = None in actions.get("in", {})
         mongoengine_field = field.replace(".", "__")
 
         q = RegexQ()
@@ -412,8 +449,9 @@ class GetMixin(PropsMixin):
 
         return (
             q
-            | Q(**{f"{mongoengine_field}__exists": False})
-            | Q(**{mongoengine_field: []})
+            | RegexQ(**{f"{mongoengine_field}__exists": False})
+            | RegexQ(**{mongoengine_field: []})
+            | RegexQ(**{mongoengine_field: None})
         )
 
     @classmethod
@@ -701,9 +739,7 @@ class GetMixin(PropsMixin):
                 override_collation=override_collation,
             )
             return cls.get_data_with_scroll_and_filter_support(
-                query_dict=query_dict,
-                data_getter=data_getter,
-                ret_params=ret_params,
+                query_dict=query_dict, data_getter=data_getter, ret_params=ret_params,
             )
 
         return cls._get_many_no_company(

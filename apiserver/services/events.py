@@ -1,4 +1,5 @@
 import itertools
+import math
 from collections import defaultdict
 from operator import itemgetter
 from typing import Sequence, Optional
@@ -844,10 +845,15 @@ def scalar_metrics_iter_raw(
 ):
     key = request.key or ScalarKeyEnum.iter
     scalar_key = ScalarKey.resolve(key)
+    if request.batch_size and request.batch_size < 0:
+        raise errors.bad_request.ValidationError(
+            "batch_size should be non negative number"
+        )
 
     if not request.scroll_id:
         from_key_value = None
         total = None
+        request.batch_size = request.batch_size or 10_000
     else:
         try:
             scroll = ScalarMetricsIterRawScroll.from_scroll_id(request.scroll_id)
@@ -861,9 +867,7 @@ def scalar_metrics_iter_raw(
 
         from_key_value = scalar_key.cast_value(scroll.from_key_value)
         total = scroll.total
-
-        scroll.request.batch_size = request.batch_size or scroll.request.batch_size
-        request = scroll.request
+        request.batch_size = request.batch_size or scroll.request.batch_size
 
     task_id = request.task
 
@@ -884,38 +888,45 @@ def scalar_metrics_iter_raw(
     batch_size = min(
         request.batch_size,
         int(
-            config.get("services.events.events_retrieval.max_raw_scalars_size", 10_000)
+            config.get("services.events.events_retrieval.max_raw_scalars_size", 200_000)
         ),
     )
 
-    res = event_bll.events_iterator.get_task_events(
-        event_type=EventType.metrics_scalar,
-        company_id=task.company,
-        task_id=task_id,
-        batch_size=batch_size,
-        navigate_earlier=False,
-        from_key_value=from_key_value,
-        metric_variants=metric_variants,
-        key=key,
-    )
+    events = []
+    for iteration in range(0, math.ceil(batch_size / 10_000)):
+        res = event_bll.events_iterator.get_task_events(
+            event_type=EventType.metrics_scalar,
+            company_id=task.company,
+            task_id=task_id,
+            batch_size=min(batch_size, 10_000),
+            navigate_earlier=False,
+            from_key_value=from_key_value,
+            metric_variants=metric_variants,
+            key=key,
+        )
+        if not res.events:
+            break
+        events.extend(res.events)
+        from_key_value = str(events[-1][scalar_key.field])
 
     key = str(key)
-
     variants = {
         variant: extract_properties_to_lists(
             ["value", scalar_key.field], events, target_keys=["y", key]
         )
-        for variant, events in bucketize(res.events, key=itemgetter("variant")).items()
+        for variant, events in bucketize(events, key=itemgetter("variant")).items()
     }
 
+    call.kpis["events"] = len(events)
+
     scroll = ScalarMetricsIterRawScroll(
-        from_key_value=str(res.events[-1][scalar_key.field]) if res.events else None,
+        from_key_value=str(events[-1][scalar_key.field]) if events else None,
         total=total,
         request=request,
     )
 
     return make_response(
-        returned=len(res.events),
+        returned=len(events),
         total=total,
         scroll_id=scroll.get_scroll_id(),
         variants=variants,

@@ -102,6 +102,7 @@ class LogEventsRequest(TaskEventsRequestBase):
 
 
 class ScalarMetricsIterRawRequest(TaskEventsRequestBase):
+    batch_size: int = IntField()
     key: ScalarKeyEnum = ActualEnumField(ScalarKeyEnum, default=ScalarKeyEnum.iter)
     metric: MetricVariants = EmbeddedField(MetricVariants, required=True)
     count_total: bool = BoolField(default=False)

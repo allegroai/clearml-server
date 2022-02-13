@@ -12,9 +12,6 @@ from apiserver.tests.automated import TestService
 
 
 class TestTaskEvents(TestService):
-    def setUp(self, version="2.9"):
-        super().setUp(version=version)
-
     def _temp_task(self, name="test task events"):
         task_input = dict(
             name=name, type="training", input=dict(mapping={}, view=dict(entries=[])),
@@ -256,6 +253,45 @@ class TestTaskEvents(TestService):
                     task_data = variant_data[t]
                     self.assertEqual(len(task_data["x"]), iterations)
                     self.assertEqual(len(task_data["y"]), iterations)
+
+    def test_task_metric_raw(self):
+        metric = "Metric1"
+        variant = "Variant1"
+        iter_count = 100
+        task = self._temp_task()
+        events = [
+            {
+                **self._create_task_event("training_stats_scalar", task, iteration),
+                "metric": metric,
+                "variant": variant,
+                "value": iteration,
+            }
+            for iteration in range(iter_count)
+        ]
+        self.send_batch(events)
+
+        batch_size = 15
+        metric_param = {"metric": metric, "variants": [variant]}
+        res = self.api.events.scalar_metrics_iter_raw(
+            task=task, batch_size=batch_size, metric=metric_param, count_total=True
+        )
+        self.assertEqual(res.total, len(events))
+        self.assertTrue(res.scroll_id)
+        res_iters = []
+        res_ys = []
+        calls = 0
+        while res.returned or calls > 10:
+            calls += 1
+            res_iters.extend(res.variants[variant]["iter"])
+            res_ys.extend(res.variants[variant]["y"])
+            scroll_id = res.scroll_id
+            res = self.api.events.scalar_metrics_iter_raw(
+                task=task, metric=metric_param, scroll_id=scroll_id
+            )
+
+        self.assertEqual(calls, len(events) // batch_size + 1)
+        self.assertEqual(res_iters, [ev["iter"] for ev in events])
+        self.assertEqual(res_ys, [ev["value"] for ev in events])
 
     def test_task_metric_value_intervals(self):
         metric = "Metric1"
