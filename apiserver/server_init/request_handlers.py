@@ -7,7 +7,7 @@ from apiserver.apierrors import APIError
 from apiserver.apierrors.base import BaseError
 from apiserver.config_repo import config
 from apiserver.service_repo import ServiceRepo, APICall
-from apiserver.service_repo.auth import AuthType
+from apiserver.service_repo.auth import AuthType, Token
 from apiserver.service_repo.errors import PathParsingError
 from apiserver.utilities import json
 
@@ -52,17 +52,25 @@ class RequestHandlers:
             if call.result.cookies:
                 for key, value in call.result.cookies.items():
                     kwargs = config.get("apiserver.auth.cookies").copy()
+                    if value is None:
+                        # Removing a cookie
+                        kwargs["max_age"] = 0
+                        kwargs["expires"] = 0
+                        value = ""
+                    elif not company:
+                        # Setting a cookie, let's try to figure out the company
+                        # noinspection PyBroadException
+                        try:
+                            company = Token.decode_identity(value).company
+                        except Exception:
+                            pass
+
                     if company:
                         try:
                             # use no default value to allow setting a null domain as well
                             kwargs["domain"] = config.get(f"apiserver.auth.cookies_domain_override.{company}")
                         except KeyError:
                             pass
-
-                    if value is None:
-                        kwargs["max_age"] = 0
-                        kwargs["expires"] = 0
-                        value = ""
 
                     response.set_cookie(key, value, **kwargs)
 

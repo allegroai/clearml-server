@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import lru_cache
 from os import getenv
 from typing import Tuple, Optional
 
@@ -81,11 +82,7 @@ class ESFactory:
             if not hosts:
                 raise InvalidClusterConfiguration(cluster_name)
 
-            http_auth = (
-                cls.get_credentials(cluster_name)
-                if cluster_config.get("secure", True)
-                else None
-            )
+            http_auth = cls.get_credentials(cluster_name)
 
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
@@ -95,7 +92,11 @@ class ESFactory:
         return _instances[cluster_name]
 
     @classmethod
-    def get_credentials(cls, cluster_name: str) -> Optional[Tuple[str, str]]:
+    def get_credentials(cls, cluster_name: str, cluster_config: dict = None) -> Optional[Tuple[str, str]]:
+        cluster_config = cluster_config or cls.get_cluster_config(cluster_name)
+        if not cluster_config.get("secure", True):
+            return None
+
         elastic_user = OVERRIDE_USERNAME or config.get("secure.elastic.user", None)
         if not elastic_user:
             return None
@@ -119,6 +120,7 @@ class ESFactory:
         return OVERRIDE_HOST, OVERRIDE_PORT
 
     @classmethod
+    @lru_cache()
     def get_cluster_config(cls, cluster_name):
         """
         Returns cluster config for the specified cluster path
