@@ -111,8 +111,12 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
         _adjust_search_parameters(data, shallow_search=request.shallow_search)
 
+        ret_params = {}
         projects = Project.get_many_with_join(
-            company=company_id, query_dict=data, allow_public=allow_public,
+            company=company_id,
+            query_dict=data,
+            allow_public=allow_public,
+            ret_params=ret_params,
         )
 
         if request.check_own_contents and requested_ids:
@@ -128,7 +132,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
         conform_output_tags(call, projects)
         if not request.include_stats:
-            call.result.data = {"projects": projects}
+            call.result.data = {"projects": projects, **ret_params}
             return
 
         project_ids = {project["id"] for project in projects}
@@ -142,7 +146,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             project["stats"] = stats[project["id"]]
             project["sub_projects"] = children[project["id"]]
 
-        call.result.data = {"projects": projects}
+        call.result.data = {"projects": projects, **ret_params}
 
 
 @endpoint("projects.get_all")
@@ -151,15 +155,17 @@ def get_all(call: APICall):
     data = call.data
     _adjust_search_parameters(data, shallow_search=data.get("shallow_search", False))
     with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
+        ret_params = {}
         projects = Project.get_many(
             company=call.identity.company,
             query_dict=data,
             parameters=data,
             allow_public=True,
+            ret_params=ret_params,
         )
         conform_output_tags(call, projects)
 
-        call.result.data = {"projects": projects}
+        call.result.data = {"projects": projects, **ret_params}
 
 
 @endpoint(

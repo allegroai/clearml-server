@@ -124,11 +124,15 @@ def get_all_ex(call: APICall, company_id, _):
     with translate_errors_context():
         _process_include_subprojects(call.data)
         with TimingContext("mongo", "models_get_all_ex"):
+            ret_params = {}
             models = Model.get_many_with_join(
-                company=company_id, query_dict=call.data, allow_public=True
+                company=company_id,
+                query_dict=call.data,
+                allow_public=True,
+                ret_params=ret_params,
             )
         conform_output_tags(call, models)
-        call.result.data = {"models": models}
+        call.result.data = {"models": models, **ret_params}
 
 
 @endpoint("models.get_by_id_ex", required_fields=["id"])
@@ -148,14 +152,16 @@ def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     with translate_errors_context():
         with TimingContext("mongo", "models_get_all"):
+            ret_params = {}
             models = Model.get_many(
                 company=company_id,
                 parameters=call.data,
                 query_dict=call.data,
                 allow_public=True,
+                ret_params=ret_params,
             )
         conform_output_tags(call, models)
-        call.result.data = {"models": models}
+        call.result.data = {"models": models, **ret_params}
 
 
 @endpoint("models.get_frameworks", request_data_model=GetFrameworksRequest)

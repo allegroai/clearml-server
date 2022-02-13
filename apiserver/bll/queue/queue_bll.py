@@ -126,14 +126,27 @@ class QueueBLL(object):
                 )
             queue.delete()
 
-    def get_all(self, company_id: str, query_dict: dict) -> Sequence[dict]:
+    def get_all(
+        self,
+        company_id: str,
+        query_dict: dict,
+        ret_params: dict = None,
+    ) -> Sequence[dict]:
         """Get all the queues according to the query"""
         with translate_errors_context():
             return Queue.get_many(
-                company=company_id, parameters=query_dict, query_dict=query_dict
+                company=company_id,
+                parameters=query_dict,
+                query_dict=query_dict,
+                ret_params=ret_params,
             )
 
-    def get_queue_infos(self, company_id: str, query_dict: dict) -> Sequence[dict]:
+    def get_queue_infos(
+        self,
+        company_id: str,
+        query_dict: dict,
+        ret_params: dict = None,
+    ) -> Sequence[dict]:
         """
         Get infos on all the company queues, including queue tasks and workers
         """
@@ -143,6 +156,7 @@ class QueueBLL(object):
                 company=company_id,
                 query_dict=query_dict,
                 override_projection=projection,
+                ret_params=ret_params,
             )
 
             queue_workers = defaultdict(list)

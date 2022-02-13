@@ -71,7 +71,7 @@ class TestService(TestCase, TestServiceInterface):
             delete_params=delete_params,
         )
 
-    def setUp(self, version="1.7"):
+    def setUp(self, version="999.0"):
         self._api = APIClient(base_url=f"http://localhost:8008/v{version}")
         self._deferred = []
         self._version = parse(version)

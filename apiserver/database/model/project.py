@@ -11,6 +11,7 @@ class Project(AttributedDocument):
     get_all_query_options = GetMixin.QueryParameterOptions(
         pattern_fields=("name", "description"),
         list_fields=("tags", "system_tags", "id", "parent", "path"),
+        range_fields=("last_update",),
     )
 
     meta = {

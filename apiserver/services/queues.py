@@ -48,21 +48,29 @@ def get_by_id(call: APICall):
 @endpoint("queues.get_all_ex", min_version="2.4")
 def get_all_ex(call: APICall):
     conform_tag_fields(call, call.data)
+    ret_params = {}
     queues = queue_bll.get_queue_infos(
-        company_id=call.identity.company, query_dict=call.data
+        company_id=call.identity.company,
+        query_dict=call.data,
+        ret_params=ret_params,
     )
     conform_output_tags(call, queues)
 
-    call.result.data = {"queues": queues}
+    call.result.data = {"queues": queues, **ret_params}
 
 
 @endpoint("queues.get_all", min_version="2.4")
 def get_all(call: APICall):
     conform_tag_fields(call, call.data)
-    queues = queue_bll.get_all(company_id=call.identity.company, query_dict=call.data)
+    ret_params = {}
+    queues = queue_bll.get_all(
+        company_id=call.identity.company,
+        query_dict=call.data,
+        ret_params=ret_params,
+    )
     conform_output_tags(call, queues)
 
-    call.result.data = {"queues": queues}
+    call.result.data = {"queues": queues, **ret_params}
 
 
 @endpoint("queues.create", min_version="2.4", request_data_model=CreateRequest)
