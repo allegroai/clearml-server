@@ -162,6 +162,8 @@ def delete_task(
     force: bool,
     return_file_urls: bool,
     delete_output_models: bool,
+    status_message: str,
+    status_reason: str,
 ) -> Tuple[int, Task, CleanupResult]:
     task = TaskBLL.get_task_with_access(
         task_id, company_id=company_id, requires_write_access=True
@@ -178,6 +180,17 @@ def delete_task(
             expected=TaskStatus.created,
             current=task.status,
         )
+
+    try:
+        TaskBLL.dequeue_and_change_status(
+            task,
+            company_id=company_id,
+            status_message=status_message,
+            status_reason=status_reason,
+        )
+    except APIError:
+        # dequeue may fail if the task was not enqueued
+        pass
 
     cleanup_res = cleanup_task(
         task,
@@ -354,6 +367,7 @@ def stop_task(
             "system_tags",
             "last_worker",
             "last_update",
+            "execution.queue",
         ),
         requires_write_access=True,
     )

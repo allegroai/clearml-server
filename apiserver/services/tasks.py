@@ -1050,6 +1050,8 @@ def delete(call: APICall, company_id, request: DeleteRequest):
         force=request.force,
         return_file_urls=request.return_file_urls,
         delete_output_models=request.delete_output_models,
+        status_message=request.status_message,
+        status_reason=request.status_reason,
     )
     if deleted:
         _reset_cached_tags(company_id, projects=[task.project] if task.project else [])
@@ -1066,6 +1068,8 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
             force=request.force,
             return_file_urls=request.return_file_urls,
             delete_output_models=request.delete_output_models,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
         ),
         ids=request.ids,
     )
