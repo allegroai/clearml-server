@@ -60,7 +60,7 @@ class DatabaseFactory:
                 log.info(f"Using override mongodb host {override_hostname}")
             if override_port:
                 log.info(f"Using override mongodb port {override_port}")
-                
+
         for key, alias in get_items(Database).items():
             if key not in db_entries:
                 missing.append(key)
