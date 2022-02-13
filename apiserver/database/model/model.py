@@ -1,7 +1,6 @@
 from typing import Sequence
 
 from mongoengine import (
-    Document,
     StringField,
     DateTimeField,
     BooleanField,
@@ -14,17 +13,15 @@ from apiserver.database.fields import (
     SafeDictField,
     SafeSortedListField,
 )
-from apiserver.database.model import DbModelMixin
+from apiserver.database.model import AttributedDocument
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.metadata import MetadataItem
 from apiserver.database.model.model_labels import ModelLabels
-from apiserver.database.model.company import Company
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task
-from apiserver.database.model.user import User
 
 
-class Model(DbModelMixin, Document):
+class Model(AttributedDocument):
     meta = {
         "db_alias": Database.backend,
         "strict": strict,
@@ -73,8 +70,6 @@ class Model(DbModelMixin, Document):
     id = StringField(primary_key=True)
     name = StrippedStringField(user_set_allowed=True, min_length=3)
     parent = StringField(reference_field="Model", required=False)
-    user = StringField(required=True, reference_field=User)
-    company = StringField(required=True, reference_field=Company)
     project = StringField(reference_field=Project, user_set_allowed=True)
     created = DateTimeField(required=True, user_set_allowed=True)
     task = StringField(reference_field=Task)
