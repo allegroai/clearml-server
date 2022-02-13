@@ -140,6 +140,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             company=company_id,
             project_ids=list(project_ids),
             specific_state=request.stats_for_state,
+            include_children=request.stats_with_children,
         )
 
         for project in projects:

@@ -456,11 +456,16 @@ class ProjectBLL:
         company: str,
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
+        include_children: bool = True,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
 
-        child_projects = _get_sub_projects(project_ids, _only=("id", "name"))
+        child_projects = (
+            _get_sub_projects(project_ids, _only=("id", "name"))
+            if include_children
+            else {}
+        )
         project_ids_with_children = set(project_ids) | {
             c.id for c in itertools.chain.from_iterable(child_projects.values())
         }

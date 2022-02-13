@@ -53,6 +53,7 @@ class ProjectHyperparamValuesRequest(MultiProjectRequest):
 
 class ProjectsGetRequest(models.Base):
     include_stats = fields.BoolField(default=False)
+    stats_with_children = fields.BoolField(default=True)
     stats_for_state = ActualEnumField(EntityVisibility, default=EntityVisibility.active)
     non_public = fields.BoolField(default=False)
     active_users = fields.ListField(str)
