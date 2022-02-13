@@ -4,6 +4,8 @@ Module for polymorphism over different types of X axes in scalar aggregations
 from abc import ABC, abstractmethod
 from enum import auto
 
+from typing import Any
+
 from apiserver.utilities import extract_properties_to_lists
 from apiserver.utilities.stringenum import StringEnum
 from apiserver.config_repo import config
@@ -96,6 +98,10 @@ class ScalarKey(ABC):
         """
         return int(iter_data[self.bucket_key_key]), iter_data["avg_val"]["value"]
 
+    def cast_value(self, value: Any) -> Any:
+        """Cast value to appropriate type"""
+        return value
+
 
 class TimestampKey(ScalarKey):
     """
@@ -117,6 +123,9 @@ class TimestampKey(ScalarKey):
             }
         }
 
+    def cast_value(self, value: Any) -> int:
+        return int(value)
+
 
 class IterKey(ScalarKey):
     """
@@ -133,6 +142,9 @@ class IterKey(ScalarKey):
                 "histogram": {"field": "iter", "interval": interval, "min_doc_count": 1}
             }
         }
+
+    def cast_value(self, value: Any) -> int:
+        return int(value)
 
 
 class ISOTimeKey(ScalarKey):

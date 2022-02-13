@@ -24,13 +24,13 @@ from apiserver.bll.event.event_common import (
     MetricVariants,
     get_metric_variants_condition,
 )
+from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
 from apiserver.bll.event.event_metrics import EventMetrics
-from apiserver.bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -73,7 +73,7 @@ class EventBLL(object):
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
         self.debug_sample_history = DebugSampleHistory(es=self.es, redis=self.redis)
-        self.log_events_iterator = LogEventsIterator(es=self.es)
+        self.events_iterator = EventsIterator(es=self.es)
 
     @property
     def metrics(self) -> EventMetrics:
