@@ -7,7 +7,7 @@ from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidProjectId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, IdResponse
 from apiserver.apimodels.projects import (
-    GetHyperParamRequest,
+    GetParamsRequest,
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
@@ -19,12 +19,11 @@ from apiserver.apimodels.projects import (
     ProjectRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL
+from apiserver.bll.project import ProjectBLL, ProjectQueries
 from apiserver.bll.project.project_cleanup import (
     delete_project,
     validate_project_delete,
 )
-from apiserver.bll.task import TaskBLL
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.project import Project
 from apiserver.database.utils import (
@@ -41,8 +40,8 @@ from apiserver.services.utils import (
 from apiserver.timing_context import TimingContext
 
 org_bll = OrgBLL()
-task_bll = TaskBLL()
 project_bll = ProjectBLL()
+project_queries = ProjectQueries()
 
 create_fields = {
     "name": None,
@@ -267,7 +266,7 @@ def get_unique_metric_variants(
     call: APICall, company_id: str, request: ProjectOrNoneRequest
 ):
 
-    metrics = task_bll.get_unique_metric_variants(
+    metrics = project_queries.get_unique_metric_variants(
         company_id,
         [request.project] if request.project else None,
         include_subprojects=request.include_subprojects,
@@ -276,14 +275,31 @@ def get_unique_metric_variants(
     call.result.data = {"metrics": metrics}
 
 
+@endpoint("projects.get_model_metadata_keys",)
+def get_model_metadata_keys(call: APICall, company_id: str, request: GetParamsRequest):
+    total, remaining, keys = project_queries.get_model_metadata_keys(
+        company_id,
+        project_ids=[request.project] if request.project else None,
+        include_subprojects=request.include_subprojects,
+        page=request.page,
+        page_size=request.page_size,
+    )
+
+    call.result.data = {
+        "total": total,
+        "remaining": remaining,
+        "keys": keys,
+    }
+
+
 @endpoint(
     "projects.get_hyper_parameters",
     min_version="2.9",
-    request_data_model=GetHyperParamRequest,
+    request_data_model=GetParamsRequest,
 )
-def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamRequest):
+def get_hyper_parameters(call: APICall, company_id: str, request: GetParamsRequest):
 
-    total, remaining, parameters = TaskBLL.get_aggregated_project_parameters(
+    total, remaining, parameters = project_queries.get_aggregated_project_parameters(
         company_id,
         project_ids=[request.project] if request.project else None,
         include_subprojects=request.include_subprojects,
@@ -306,7 +322,7 @@ def get_hyper_parameters(call: APICall, company_id: str, request: GetHyperParamR
 def get_hyperparam_values(
     call: APICall, company_id: str, request: ProjectHyperparamValuesRequest
 ):
-    total, values = task_bll.get_hyperparam_distinct_values(
+    total, values = project_queries.get_hyperparam_distinct_values(
         company_id,
         project_ids=request.projects,
         section=request.section,

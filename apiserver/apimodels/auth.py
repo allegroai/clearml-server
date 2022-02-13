@@ -75,11 +75,16 @@ class CreateUserResponse(Base):
 class Credentials(Base):
     access_key = StringField(required=True)
     secret_key = StringField(required=True)
+    label = StringField()
 
 
 class CredentialsResponse(Credentials):
     secret_key = StringField()
     last_used = DateTimeField(default=None)
+
+
+class CreateCredentialsRequest(Base):
+    label = StringField()
 
 
 class CreateCredentialsResponse(Base):

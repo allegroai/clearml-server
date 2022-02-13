@@ -6,9 +6,6 @@ from apiserver.tests.automated import TestService
 
 
 class TestQueueAndModelMetadata(TestService):
-    def setUp(self, version="2.13"):
-        super().setUp(version=version)
-
     meta1 = [{"key": "test_key", "type": "str", "value": "test_value"}]
 
     def test_queue_metas(self):
@@ -28,6 +25,23 @@ class TestQueueAndModelMetadata(TestService):
         model_id = self._temp_model("TestMetadata1")
         self.api.models.edit(model=model_id, metadata=[self.meta1[0]])
         self._assertMeta(service=service, entity=entity, _id=model_id, meta=self.meta1)
+
+    def test_project_meta_query(self):
+        self._temp_model("TestMetadata", metadata=self.meta1)
+        project = self.temp_project(name="MetaParent")
+        self._temp_model(
+            "TestMetadata2",
+            project=project,
+            metadata=[
+                {"key": "test_key", "type": "str", "value": "test_value"},
+                {"key": "test_key2", "type": "str", "value": "test_value"},
+            ],
+        )
+        res = self.api.projects.get_model_metadata_keys()
+        self.assertTrue({"test_key", "test_key2"}.issubset(set(res["keys"])))
+        res = self.api.projects.get_model_metadata_keys(include_subprojects=False)
+        self.assertTrue("test_key" in res["keys"])
+        self.assertFalse("test_key2" in res["keys"])
 
     def _test_meta_operations(
         self, service: APIClient.Service, entity: str, _id: str,
@@ -72,3 +86,12 @@ class TestQueueAndModelMetadata(TestService):
         return self.create_temp(
             "models", uri="file://test", name=name, labels={}, **kwargs
         )
+
+    def temp_project(self, **kwargs) -> str:
+        self.update_missing(
+            kwargs,
+            name="Test models meta",
+            description="test",
+            delete_params=dict(force=True),
+        )
+        return self.create_temp("projects", **kwargs)

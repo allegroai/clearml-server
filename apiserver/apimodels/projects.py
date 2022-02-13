@@ -27,7 +27,7 @@ class ProjectOrNoneRequest(models.Base):
     include_subprojects = fields.BoolField(default=True)
 
 
-class GetHyperParamRequest(ProjectOrNoneRequest):
+class GetParamsRequest(ProjectOrNoneRequest):
     page = fields.IntField(default=0)
     page_size = fields.IntField(default=500)
 

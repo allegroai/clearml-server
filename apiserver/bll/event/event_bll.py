@@ -534,6 +534,7 @@ class EventBLL(object):
         sort=None,
         size: int = 500,
         scroll_id: str = None,
+        no_scroll: bool = False,
         metric_variants: MetricVariants = None,
     ):
         if scroll_id == self.empty_scroll:
@@ -611,7 +612,7 @@ class EventBLL(object):
                     event_type=event_type,
                     body=es_req,
                     ignore=404,
-                    scroll="1h",
+                    **({} if no_scroll else {"scroll": "1h"}),
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
@@ -680,6 +681,7 @@ class EventBLL(object):
         sort=None,
         size=500,
         scroll_id=None,
+        no_scroll=False,
     ) -> TaskEventsResult:
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -740,7 +742,7 @@ class EventBLL(object):
                     event_type=event_type,
                     body=es_req,
                     ignore=404,
-                    scroll="1h",
+                    **({} if no_scroll else {"scroll": "1h"}),
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)

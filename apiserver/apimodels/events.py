@@ -135,4 +135,5 @@ class TaskPlotsRequest(Base):
     task: str = StringField(required=True)
     iters: int = IntField(default=1)
     scroll_id: str = StringField()
+    no_scroll: bool = BoolField(default=False)
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)

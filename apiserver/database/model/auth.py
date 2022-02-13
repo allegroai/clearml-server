@@ -48,6 +48,7 @@ class Credentials(EmbeddedDocument):
     meta = {"strict": False}
     key = StringField(required=True)
     secret = StringField(required=True)
+    label = StringField()
     last_used = DateTimeField()
 
 

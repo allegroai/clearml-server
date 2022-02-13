@@ -1,6 +1,6 @@
 import itertools
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 from itertools import groupby
 from operator import itemgetter
@@ -306,6 +306,7 @@ class ProjectBLL:
             return project
 
     archived_tasks_cond = {"$in": [EntityVisibility.archived.value, "$system_tags"]}
+    visibility_states = [EntityVisibility.archived, EntityVisibility.active]
 
     @classmethod
     def make_projects_get_all_pipelines(
@@ -367,6 +368,26 @@ class ProjectBLL:
             },
         ]
 
+        def completed_after_subquery(additional_cond, time_thresh: datetime):
+            return {
+                # the sum of
+                "$sum": {
+                    # for each task
+                    "$cond": {
+                        # if completed after the time_thresh
+                        "if": {
+                            "$and": [
+                                "$completed",
+                                {"$gt": ["$completed", time_thresh]},
+                                additional_cond,
+                            ]
+                        },
+                        "then": 1,
+                        "else": 0,
+                    }
+                }
+            }
+
         def runtime_subquery(additional_cond):
             return {
                 # the sum of
@@ -397,16 +418,19 @@ class ProjectBLL:
             }
 
         group_step = {"_id": "$project"}
-
-        for state in EntityVisibility:
+        time_thresh = datetime.utcnow() - timedelta(hours=24)
+        for state in cls.visibility_states:
             if specific_state and state != specific_state:
                 continue
-            if state == EntityVisibility.active:
-                group_step[state.value] = runtime_subquery(
-                    {"$not": cls.archived_tasks_cond}
-                )
-            elif state == EntityVisibility.archived:
-                group_step[state.value] = runtime_subquery(cls.archived_tasks_cond)
+            cond = (
+                cls.archived_tasks_cond
+                if state == EntityVisibility.archived
+                else {"$not": cls.archived_tasks_cond}
+            )
+            group_step[state.value] = runtime_subquery(cond)
+            group_step[f"{state.value}_recently_completed"] = completed_after_subquery(
+                cond, time_thresh=time_thresh
+            )
 
         runtime_pipeline = [
             # only count run time for these types of tasks
@@ -534,15 +558,24 @@ class ProjectBLL:
         )
 
         def get_status_counts(project_id, section):
+            project_runtime = runtime.get(project_id, {})
+            project_section_statuses = nested_get(
+                status_count, (project_id, section), default=default_counts
+            )
             return {
-                "total_runtime": nested_get(runtime, (project_id, section), default=0),
-                "status_count": nested_get(
-                    status_count, (project_id, section), default=default_counts
+                "status_count": project_section_statuses,
+                "running_tasks": project_section_statuses.get(TaskStatus.in_progress),
+                "total_tasks": sum(project_section_statuses.values()),
+                "total_runtime": project_runtime.get(section, 0),
+                "completed_tasks": project_runtime.get(
+                    f"{section}_recently_completed", 0
                 ),
             }
 
         report_for_states = [
-            s for s in EntityVisibility if not specific_state or specific_state == s
+            s
+            for s in cls.visibility_states
+            if not specific_state or specific_state == s
         ]
 
         stats = {

@@ -142,7 +142,9 @@ class GetMixin(PropsMixin):
             self.allow_empty = False
 
         def _get_op(self, v: str, translate: bool = False) -> Optional[str]:
-            op = v[len(self.op_prefix):] if v and v.startswith(self.op_prefix) else None
+            op = (
+                v[len(self.op_prefix) :] if v and v.startswith(self.op_prefix) else None
+            )
             if translate:
                 tup = self._ops.get(op, None)
                 return tup[0] if tup else None
@@ -177,7 +179,9 @@ class GetMixin(PropsMixin):
                 "all": Q.AND,
             }
             data = (x for x in data if x is not None)
-            first_op = self._get_op(next(data, ""), translate=True) or self.default_mongo_op
+            first_op = (
+                self._get_op(next(data, ""), translate=True) or self.default_mongo_op
+            )
             return op_to_res.get(first_op, self.default_mongo_op)
 
         def get_actions(self, data: Sequence[str]) -> Dict[str, List[Union[str, None]]]:
@@ -202,13 +206,20 @@ class GetMixin(PropsMixin):
         id = StringField(primary_key=True)
         position = IntField(default=0)
 
-    cache_manager = RedisCacheManager(
-        state_class=GetManyScrollState,
-        redis=redman.connection("apiserver"),
-        expiration_interval=config.get(
-            "services._mongo.scroll_state_expiration_seconds", 600
-        ),
-    )
+    _cache_manager = None
+
+    @classmethod
+    def get_cache_manager(cls):
+        if not cls._cache_manager:
+            cls._cache_manager = RedisCacheManager(
+                state_class=cls.GetManyScrollState,
+                redis=redman.connection("apiserver"),
+                expiration_interval=config.get(
+                    "services._mongo.scroll_state_expiration_seconds", 600
+                ),
+            )
+
+        return cls._cache_manager
 
     @classmethod
     def get(
@@ -463,10 +474,7 @@ class GetMixin(PropsMixin):
         if not queries:
             q = RegexQ()
         else:
-            q = RegexQCombination(
-                operation=global_op,
-                children=queries
-            )
+            q = RegexQCombination(operation=global_op, children=queries)
 
         if not helper.allow_empty:
             return q
@@ -609,7 +617,7 @@ class GetMixin(PropsMixin):
         state: Optional[cls.GetManyScrollState] = None
         if "scroll_id" in query_dict:
             size = cls.validate_scroll_size(query_dict)
-            state = cls.cache_manager.get_or_create_state_core(
+            state = cls.get_cache_manager().get_or_create_state_core(
                 query_dict.get("scroll_id")
             )
             if query_dict.get("refresh_scroll"):
@@ -625,7 +633,7 @@ class GetMixin(PropsMixin):
             if not state:
                 return
             state.position = query_dict[cls._start_key]
-            cls.cache_manager.set_state(state)
+            cls.get_cache_manager().set_state(state)
             if ret_params is not None:
                 ret_params["scroll_id"] = state.id
 

@@ -198,6 +198,9 @@ class TestTags(TestService):
     def assertProjectStats(self, project: AttrDict):
         self.assertEqual(set(project.stats.keys()), {"active"})
         self.assertAlmostEqual(project.stats.active.total_runtime, 1, places=0)
+        self.assertEqual(project.stats.active.completed_tasks, 1)
+        self.assertEqual(project.stats.active.total_tasks, 1)
+        self.assertEqual(project.stats.active.running_tasks, 0)
         for status, count in project.stats.active.status_count.items():
             self.assertEqual(count, 1 if status == "stopped" else 0)
 

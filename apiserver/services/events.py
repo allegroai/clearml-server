@@ -361,6 +361,7 @@ def get_scalar_metric_data(call, company_id, _):
     task_id = call.data["task"]
     metric = call.data["metric"]
     scroll_id = call.data.get("scroll_id")
+    no_scroll = call.data.get("no_scroll", False)
 
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
@@ -372,6 +373,7 @@ def get_scalar_metric_data(call, company_id, _):
         sort=[{"iter": {"order": "desc"}}],
         metric=metric,
         scroll_id=scroll_id,
+        no_scroll=no_scroll,
     )
 
     call.result.data = dict(
@@ -494,6 +496,7 @@ def get_multi_task_plots(call, company_id, req_model):
     task_ids = call.data["tasks"]
     iters = call.data.get("iters", 1)
     scroll_id = call.data.get("scroll_id")
+    no_scroll = call.data.get("no_scroll", False)
 
     tasks = task_bll.assert_exists(
         company_id=call.identity.company,
@@ -515,6 +518,7 @@ def get_multi_task_plots(call, company_id, req_model):
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
+        no_scroll=no_scroll,
     )
 
     tasks = {t.id: t.name for t in tasks}
@@ -593,6 +597,7 @@ def get_task_plots(call, company_id, request: TaskPlotsRequest):
         sort=[{"iter": {"order": "desc"}}],
         last_iterations_per_plot=iters,
         scroll_id=scroll_id,
+        no_scroll=request.no_scroll,
         metric_variants=_get_metric_variants_from_request(request.metrics),
     )
 

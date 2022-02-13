@@ -2,7 +2,11 @@ from datetime import datetime
 
 from apiserver import database
 from apiserver.apierrors import errors
-from apiserver.apimodels.auth import GetTokenResponse, CreateUserRequest, Credentials as CredModel
+from apiserver.apimodels.auth import (
+    GetTokenResponse,
+    CreateUserRequest,
+    Credentials as CredModel,
+)
 from apiserver.apimodels.users import CreateRequest as Users_CreateRequest
 from apiserver.bll.user import UserBLL
 from apiserver.config_repo import config
@@ -145,7 +149,7 @@ class AuthBLL:
 
     @classmethod
     def create_credentials(
-        cls, user_id: str, company_id: str, role: str = None
+        cls, user_id: str, company_id: str, role: str = None, label: str = None,
     ) -> CredModel:
 
         with translate_errors_context():
@@ -154,7 +158,9 @@ class AuthBLL:
             if not user:
                 raise errors.bad_request.InvalidUserId(**query)
 
-            cred = CredModel(access_key=get_client_id(), secret_key=get_secret_key())
+            cred = CredModel(
+                access_key=get_client_id(), secret_key=get_secret_key(), label=label
+            )
             user.credentials.append(
                 Credentials(key=cred.access_key, secret=cred.secret_key)
             )
