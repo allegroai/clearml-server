@@ -21,6 +21,11 @@ OVERRIDE_PORT_ENV_KEY = (
     "TRAINS_REDIS_SERVICE_PORT",
     "REDIS_SERVICE_PORT",
 )
+OVERRIDE_PASSWORD_ENV_KEY = (
+    "CLEARML_REDIS_SERVICE_PASSWORD",
+    "TRAINS_REDIS_SERVICE_PASSWORD",
+    "REDIS_SERVICE_PASSWORD",
+)
 
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
@@ -29,6 +34,8 @@ if OVERRIDE_HOST:
 OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override redis port {OVERRIDE_PORT}")
+
+OVERRIDE_PASSWORD = first(filter(None, map(getenv, OVERRIDE_PASSWORD_ENV_KEY)))
 
 
 class MyPubSubWorkerThread(threading.Thread):
@@ -131,6 +138,7 @@ class RedisManager(object):
         for alias, alias_config in redis_config_dict.items():
 
             alias_config = alias_config.as_plain_ordered_dict()
+            alias_config["password"] = config.get(f"secure.redis.{alias}.password", None)
 
             is_cluster = alias_config.get("cluster", False)
 
@@ -141,6 +149,10 @@ class RedisManager(object):
             port = OVERRIDE_PORT or alias_config.get("port", None)
             if port:
                 alias_config["port"] = port
+
+            password = OVERRIDE_PASSWORD or alias_config.get("password", None)
+            if password:
+                alias_config["password"] = password
 
             db = alias_config.get("db", 0)
 
