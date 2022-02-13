@@ -1173,7 +1173,7 @@ def add_or_update_artifacts(
             company_id=company_id,
             task_id=request.task,
             artifacts=request.artifacts,
-            force=request.force,
+            force=True,
         )
     }
 
@@ -1189,7 +1189,7 @@ def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest)
             company_id=company_id,
             task_id=request.task,
             artifact_ids=request.artifacts,
-            force=request.force,
+            force=True,
         )
     }
 

@@ -82,14 +82,10 @@ class TestTasksArtifacts(TestService):
 
         # test edit running task
         self.api.tasks.started(task=task)
-        with self.api.raises(InvalidTaskStatus):
-            self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit)
-        self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit, force=True)
+        self.api.tasks.add_or_update_artifacts(task=task, artifacts=edit)
         res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
         self._assertTaskArtifacts(artifacts, res)
-        with self.api.raises(InvalidTaskStatus):
-            self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}])
-        self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}], force=True)
+        self.api.tasks.delete_artifacts(task=task, artifacts=[{"key": artifacts[-1]["key"]}])
         res = self.api.tasks.get_all_ex(id=[task]).tasks[0]
         self._assertTaskArtifacts(artifacts[0: len(artifacts) - 1], res)
 
