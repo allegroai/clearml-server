@@ -10,12 +10,12 @@ from typing import (
 from redis import StrictRedis
 
 from apiserver.config_repo import config
+from apiserver.database.model.model import Model
+from apiserver.database.model.task.task import Task
 from apiserver.redis_manager import redman
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from .sub_projects import _ids_with_children
-from ...database.model.model import Model
-from ...database.model.task.task import Task
 
 log = config.logger(__file__)
 
