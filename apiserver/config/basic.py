@@ -79,6 +79,8 @@ class BasicConfig:
     def logger(self, name: str) -> logging.Logger:
         if Path(name).is_file():
             name = Path(name).stem
+            if name == "__init__" and Path(name).parent.stem:
+                name = Path(name).parent.stem
         path = ".".join((self.prefix, name))
         return logging.getLogger(path)
 
