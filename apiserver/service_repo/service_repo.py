@@ -10,6 +10,7 @@ from apiserver.apierrors import APIError, errors
 from apiserver.config_repo import config
 from apiserver.utilities.partial_version import PartialVersion
 from .apicall import APICall
+from .auth import Identity
 from .endpoint import Endpoint
 from .errors import MalformedPathError, InvalidVersionError, CallFailedError
 from .util import parse_return_stack_on_code
@@ -233,19 +234,27 @@ class ServiceRepo(object):
         return subcode in subcode_list
 
     @classmethod
-    def _get_company(
+    def _get_identity(
         cls, call: APICall, endpoint: Endpoint = None, ignore_error: bool = False
-    ) -> Optional[str]:
+    ) -> Optional[Identity]:
         authorize = endpoint and endpoint.authorize
         if ignore_error or not authorize:
             try:
-                return call.identity.company
+                return call.identity
             except Exception:
                 return None
-        return call.identity.company
+        return call.identity
+
+    @classmethod
+    def _get_company(
+        cls, call: APICall, endpoint: Endpoint = None, ignore_error: bool = False
+    ) -> Optional[str]:
+        identity = cls._get_identity(call, endpoint=endpoint, ignore_error=ignore_error)
+        return None if identity is None else identity.company
 
     @classmethod
     def handle_call(cls, call: APICall, load_data_callback: Callable = None):
+        company = None
         try:
             if call.failed:
                 raise CallFailedError()
@@ -316,4 +325,4 @@ class ServiceRepo(object):
                 else:
                     log.error(console_msg)
 
-        return content, content_type
+        return content, content_type, company

@@ -901,6 +901,9 @@ class GetMixin(PropsMixin):
         search_text = parameters.get(cls._search_text_key)
         order_by = cls.validate_order_by(parameters=parameters, search_text=search_text)
         start, size = cls.validate_paging(parameters=parameters)
+        if size is not None and size <= 0:
+            return []
+
         include, exclude = cls.split_projection(
             cls.get_projection(parameters, override_projection)
         )
@@ -937,18 +940,23 @@ class GetMixin(PropsMixin):
 
         # add paging
         ret = []
-        for qs in query_sets:
-            qs_size = qs.count()
-            if qs_size < start:
-                start -= qs_size
-                continue
+        last_set = len(query_sets) - 1
+        for i, qs in enumerate(query_sets):
+            last_size = len(ret)
             ret.extend(
-                obj.to_proper_dict(only=include) for obj in qs.skip(start).limit(size)
+                obj.to_proper_dict(only=include)
+                for obj in (qs.skip(start) if start else qs).limit(size)
             )
-            if len(ret) >= size:
+            added = len(ret) - last_size
+
+            if added > 0:
+                start = 0
+                size = max(0, size - added)
+            elif i != last_set:
+                start -= min(start, qs.count())
+
+            if size <= 0:
                 break
-            start = 0
-            size -= len(ret)
 
         return ret
 

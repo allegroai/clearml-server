@@ -29,7 +29,7 @@ class RequestHandlers:
         try:
             call = self._create_api_call(request)
             load_data_callback = partial(self._load_call_data, req=request)
-            content, content_type = ServiceRepo.handle_call(
+            content, content_type, company = ServiceRepo.handle_call(
                 call, load_data_callback=load_data_callback
             )
 
@@ -51,14 +51,20 @@ class RequestHandlers:
 
             if call.result.cookies:
                 for key, value in call.result.cookies.items():
-                    kwargs = config.get("apiserver.auth.cookies")
+                    kwargs = config.get("apiserver.auth.cookies").copy()
+                    if company:
+                        try:
+                            # use no default value to allow setting a null domain as well
+                            kwargs["domain"] = config.get(f"apiserver.auth.cookies_domain_override.{company}")
+                        except KeyError:
+                            pass
+
                     if value is None:
-                        kwargs = kwargs.copy()
                         kwargs["max_age"] = 0
                         kwargs["expires"] = 0
-                        response.set_cookie(key, "", **kwargs)
-                    else:
-                        response.set_cookie(key, value, **kwargs)
+                        value = ""
+
+                    response.set_cookie(key, value, **kwargs)
 
             return response
         except Exception as ex:
