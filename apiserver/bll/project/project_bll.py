@@ -57,10 +57,14 @@ class ProjectBLL:
         with TimingContext("mongo", "move_project"):
             if source_id == destination_id:
                 raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
-                    parent=source_id
+                    source=source_id
                 )
             source = Project.get(company, source_id)
             destination = Project.get(company, destination_id)
+            if source_id in destination.path:
+                raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
+                    source=source_id, destination=destination_id
+                )
 
             children = _get_sub_projects(
                 [source.id], _only=("id", "name", "parent", "path")
@@ -140,7 +144,14 @@ class ProjectBLL:
                 raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
                     location=new_parent.name if new_parent else ""
                 )
-
+            if (
+                new_parent
+                and project_id == new_parent.id
+                or project_id in new_parent.path
+            ):
+                raise errors.bad_request.ProjectCannotBeMovedUnderItself(
+                    project=project_id, parent=new_parent.id
+                )
             moved = _reposition_project_with_children(
                 project, children=children, parent=new_parent
             )
