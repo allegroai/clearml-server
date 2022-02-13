@@ -275,23 +275,6 @@ def get_unique_metric_variants(
     call.result.data = {"metrics": metrics}
 
 
-@endpoint("projects.get_model_metadata_keys",)
-def get_model_metadata_keys(call: APICall, company_id: str, request: GetParamsRequest):
-    total, remaining, keys = project_queries.get_model_metadata_keys(
-        company_id,
-        project_ids=[request.project] if request.project else None,
-        include_subprojects=request.include_subprojects,
-        page=request.page,
-        page_size=request.page_size,
-    )
-
-    call.result.data = {
-        "total": total,
-        "remaining": remaining,
-        "keys": keys,
-    }
-
-
 @endpoint(
     "projects.get_hyper_parameters",
     min_version="2.9",

@@ -10,7 +10,6 @@ from typing import (
 from redis import StrictRedis
 
 from apiserver.config_repo import config
-from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task
 from apiserver.redis_manager import redman
 from apiserver.utilities.dicts import nested_get
@@ -240,50 +239,3 @@ class ProjectQueries:
 
         result = Task.aggregate(pipeline)
         return [r["metrics"][0] for r in result]
-
-    @classmethod
-    def get_model_metadata_keys(
-        cls,
-        company_id,
-        project_ids: Sequence[str],
-        include_subprojects: bool,
-        page: int = 0,
-        page_size: int = 500,
-    ) -> Tuple[int, int, Sequence[dict]]:
-        page = max(0, page)
-        page_size = max(1, page_size)
-        pipeline = [
-            {
-                "$match": {
-                    **cls._get_company_constraint(company_id),
-                    **cls._get_project_constraint(project_ids, include_subprojects),
-                    "metadata": {"$exists": True, "$ne": []},
-                }
-            },
-            {"$project": {"metadata": 1}},
-            {"$unwind": "$metadata"},
-            {"$group": {"_id": "$metadata.key"}},
-            {"$sort": {"_id": 1}},
-            {"$skip": page * page_size},
-            {"$limit": page_size},
-            {
-                "$group": {
-                    "_id": 1,
-                    "total": {"$sum": 1},
-                    "results": {"$push": "$$ROOT"},
-                }
-            },
-        ]
-
-        result = next(Model.aggregate(pipeline), None)
-
-        total = 0
-        remaining = 0
-        results = []
-
-        if result:
-            total = int(result.get("total", -1))
-            results = [r.get("_id") for r in result.get("results", [])]
-            remaining = max(0, total - (len(results) + page * page_size))
-
-        return total, remaining, results
