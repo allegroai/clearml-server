@@ -3,8 +3,7 @@ FROM centos/nodejs-12-centos7 AS webapp
 USER root
 WORKDIR /opt
 
-RUN git clone https://github.com/allegroai/clearml-web.git
-RUN mv clearml-web /opt/open-webapp
+COPY webserver /opt/open-webapp
 COPY --chmod=744 docker/build/internal_files/build_webapp.sh /tmp/internal_files/
 RUN /bin/bash -c '/tmp/internal_files/build_webapp.sh'
 

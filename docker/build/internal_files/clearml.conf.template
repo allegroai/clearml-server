@@ -72,6 +72,28 @@ http {
             add_header Cache-Control 'no-cache';
         }
 
+        location /${NAMESPACE}-clearml {
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:80;
+            rewrite /${NAMESPACE}-clearml/(.*) /$1  break;
+        }
+
+        location /${NAMESPACE}-clearml/api {
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:80/api;
+            rewrite /${NAMESPACE}-clearml/api/(.*) /api/$1  break;
+        }
+
+        location /${NAMESPACE}-clearml/files {
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:80/files;
+            rewrite /${NAMESPACE}-clearml/files/(.*) /files/$1  break;
+            rewrite /${NAMESPACE}-clearml/files /files/  break;
+        }
+
         location /api {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header Host $host;
@@ -84,6 +106,7 @@ http {
             proxy_set_header Host $host;
             proxy_pass ${NGINX_FILESERVER_ADDR};
             rewrite /files/(.*) /$1  break;
+            rewrite /files /  break;
         }
 
         error_page 404 /404.html;
