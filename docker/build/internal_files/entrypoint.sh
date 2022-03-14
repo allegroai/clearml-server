@@ -49,7 +49,11 @@ EOF
     export NGINX_APISERVER_ADDR=${NGINX_APISERVER_ADDRESS:-http://apiserver:8008}
     export NGINX_FILESERVER_ADDR=${NGINX_FILESERVER_ADDRESS:-http://fileserver:8081}
 
-    envsubst '${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR}' < /etc/nginx/clearml.conf.template > /etc/nginx/nginx.conf
+    envsubst '${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR} ${NAMESPACE}' < /etc/nginx/clearml.conf.template > /etc/nginx/nginx.conf
+    cp /usr/share/nginx/html/index.html /usr/share/nginx/html/index.html.origin
+    envsubst '${NAMESPACE}' < /usr/share/nginx/html/index.html.origin > /usr/share/nginx/html/index.html
+    cp /usr/share/nginx/html/env.js /usr/share/nginx/html/env.js.origin
+    envsubst '${NAMESPACE}' < /usr/share/nginx/html/env.js.origin > /usr/share/nginx/html/env.js
 
     #start the server
     /usr/sbin/nginx -g "daemon off;"
