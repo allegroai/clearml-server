@@ -113,7 +113,7 @@ class WorkerBLL:
             res = self.redis.delete(
                 company_id, self._get_worker_key(company_id, user_id, worker)
             )
-        if not res:
+        if not res and not config.get("apiserver.workers.auto_unregister", False):
             raise bad_request.WorkerNotRegistered(worker=worker)
 
     def status_report(
