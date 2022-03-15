@@ -29,6 +29,12 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
 )
 
 
+@app.after_request
+def after_request(response):
+    response.headers["server"] = config.get("fileserver.response.headers.server", "clearml")
+    return response
+
+
 @app.route("/", methods=["POST"])
 def upload():
     results = []
