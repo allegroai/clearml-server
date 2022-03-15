@@ -162,7 +162,7 @@ class AuthBLL:
                 access_key=get_client_id(), secret_key=get_secret_key(), label=label
             )
             user.credentials.append(
-                Credentials(key=cred.access_key, secret=cred.secret_key)
+                Credentials(key=cred.access_key, secret=cred.secret_key, label=label)
             )
             user.save()
 

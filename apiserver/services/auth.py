@@ -161,7 +161,10 @@ def get_credentials(call: APICall, _, __):
         call.result.data_model = GetCredentialsResponse(
             credentials=[
                 CredentialsResponse(
-                    access_key=c.key, last_used=c.last_used, label=c.label
+                    access_key=c.key,
+                    last_used=c.last_used,
+                    label=c.label,
+                    last_used_from=c.last_used_from,
                 )
                 for c in user.credentials
             ]

@@ -81,6 +81,7 @@ class Credentials(Base):
 class CredentialsResponse(Credentials):
     secret_key = StringField()
     last_used = DateTimeField(default=None)
+    last_used_from = StringField()
 
 
 class CreateCredentialsRequest(Base):

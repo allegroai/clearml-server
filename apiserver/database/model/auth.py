@@ -50,6 +50,7 @@ class Credentials(EmbeddedDocument):
     secret = StringField(required=True)
     label = StringField()
     last_used = DateTimeField()
+    last_used_from = StringField()
 
 
 class User(DbModelMixin, AuthDocument):
