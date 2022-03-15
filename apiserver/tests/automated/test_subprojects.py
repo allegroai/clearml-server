@@ -199,10 +199,10 @@ class TestSubProjects(TestService):
         res1 = next(p for p in res if p.id == project1)
         self.assertEqual(res1.stats["active"]["status_count"]["created"], 0)
         self.assertEqual(res1.stats["active"]["status_count"]["stopped"], 2)
+        self.assertEqual(res1.stats["active"]["status_count"]["in_progress"], 0)
         self.assertEqual(res1.stats["active"]["total_runtime"], 2)
-        self.assertEqual(res1.stats["active"]["completed_tasks"], 2)
+        self.assertEqual(res1.stats["active"]["completed_tasks_24h"], 2)
         self.assertEqual(res1.stats["active"]["total_tasks"], 2)
-        self.assertEqual(res1.stats["active"]["running_tasks"], 0)
         self.assertEqual(
             {sp.name for sp in res1.sub_projects},
             {
@@ -214,10 +214,10 @@ class TestSubProjects(TestService):
         res2 = next(p for p in res if p.id == project2)
         self.assertEqual(res2.stats["active"]["status_count"]["created"], 0)
         self.assertEqual(res2.stats["active"]["status_count"]["stopped"], 0)
+        self.assertEqual(res2.stats["active"]["status_count"]["in_progress"], 0)
+        self.assertEqual(res2.stats["active"]["status_count"]["completed"], 0)
         self.assertEqual(res2.stats["active"]["total_runtime"], 0)
-        self.assertEqual(res2.stats["active"]["completed_tasks"], 0)
         self.assertEqual(res2.stats["active"]["total_tasks"], 0)
-        self.assertEqual(res2.stats["active"]["running_tasks"], 0)
         self.assertEqual(res2.sub_projects, [])
 
     def _run_tasks(self, *tasks):

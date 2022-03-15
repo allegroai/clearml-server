@@ -17,6 +17,7 @@ from apiserver.apimodels.projects import (
     MergeRequest,
     ProjectOrNoneRequest,
     ProjectRequest,
+    ProjectModelMetadataValuesRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, ProjectQueries
@@ -35,7 +36,7 @@ from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
     get_tags_filter_dictionary,
-    get_tags_response,
+    sort_tags_response,
 )
 from apiserver.timing_context import TimingContext
 
@@ -124,7 +125,9 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             }
             if existing_requested_ids:
                 contents = project_bll.calc_own_contents(
-                    company=company_id, project_ids=list(existing_requested_ids)
+                    company=company_id,
+                    project_ids=list(existing_requested_ids),
+                    filter_=request.include_stats_filter,
                 )
                 for project in projects:
                     project.update(**contents.get(project["id"], {}))
@@ -140,6 +143,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             project_ids=list(project_ids),
             specific_state=request.stats_for_state,
             include_children=request.stats_with_children,
+            filter_=request.include_stats_filter,
         )
 
         for project in projects:
@@ -292,6 +296,23 @@ def get_model_metadata_keys(call: APICall, company_id: str, request: GetParamsRe
     }
 
 
+@endpoint("projects.get_model_metadata_values")
+def get_model_metadata_values(
+    call: APICall, company_id: str, request: ProjectModelMetadataValuesRequest
+):
+    total, values = project_queries.get_model_metadata_distinct_values(
+        company_id,
+        project_ids=request.projects,
+        key=request.key,
+        include_subprojects=request.include_subprojects,
+        allow_public=request.allow_public,
+    )
+    call.result.data = {
+        "total": total,
+        "values": values,
+    }
+
+
 @endpoint(
     "projects.get_hyper_parameters",
     min_version="2.9",
@@ -322,7 +343,7 @@ def get_hyper_parameters(call: APICall, company_id: str, request: GetParamsReque
 def get_hyperparam_values(
     call: APICall, company_id: str, request: ProjectHyperparamValuesRequest
 ):
-    total, values = project_queries.get_hyperparam_distinct_values(
+    total, values = project_queries.get_task_hyperparam_distinct_values(
         company_id,
         project_ids=request.projects,
         section=request.section,
@@ -336,6 +357,17 @@ def get_hyperparam_values(
     }
 
 
+@endpoint("projects.get_project_tags")
+def get_tags(call: APICall, company, request: ProjectTagsRequest):
+    tags, system_tags = project_bll.get_project_tags(
+        company,
+        include_system=request.include_system,
+        filter_=get_tags_filter_dictionary(request.filter),
+        projects=request.projects,
+    )
+    call.result.data = sort_tags_response({"tags": tags, "system_tags": system_tags})
+
+
 @endpoint(
     "projects.get_task_tags", min_version="2.8", request_data_model=ProjectTagsRequest
 )
@@ -347,7 +379,7 @@ def get_tags(call: APICall, company, request: ProjectTagsRequest):
         filter_=get_tags_filter_dictionary(request.filter),
         projects=request.projects,
     )
-    call.result.data = get_tags_response(ret)
+    call.result.data = sort_tags_response(ret)
 
 
 @endpoint(
@@ -361,7 +393,7 @@ def get_tags(call: APICall, company, request: ProjectTagsRequest):
         filter_=get_tags_filter_dictionary(request.filter),
         projects=request.projects,
     )
-    call.result.data = get_tags_response(ret)
+    call.result.data = sort_tags_response(ret)
 
 
 @endpoint(

@@ -28,25 +28,33 @@ class TestQueueAndModelMetadata(TestService):
     def test_project_meta_query(self):
         self._temp_model("TestMetadata", metadata=self.meta1)
         project = self.temp_project(name="MetaParent")
+        test_key = "test_key"
+        test_key2 = "test_key2"
+        test_value = "test_value"
+        test_value2 = "test_value2"
         model_id = self._temp_model(
             "TestMetadata2",
             project=project,
             metadata={
-                "test_key": {"key": "test_key", "type": "str", "value": "test_value"},
-                "test_key2": {"key": "test_key2", "type": "str", "value": "test_value"},
+                test_key: {"key": test_key, "type": "str", "value": test_value},
+                test_key2: {"key": test_key2, "type": "str", "value": test_value2},
             },
         )
         res = self.api.projects.get_model_metadata_keys()
-        self.assertTrue({"test_key", "test_key2"}.issubset(set(res["keys"])))
+        self.assertTrue({test_key, test_key2}.issubset(set(res["keys"])))
         res = self.api.projects.get_model_metadata_keys(include_subprojects=False)
-        self.assertTrue("test_key" in res["keys"])
-        self.assertFalse("test_key2" in res["keys"])
+        self.assertTrue(test_key in res["keys"])
+        self.assertFalse(test_key2 in res["keys"])
 
         model = self.api.models.get_all_ex(
             id=[model_id], only_fields=["metadata.test_key"]
         ).models[0]
-        self.assertTrue("test_key" in model.metadata)
-        self.assertFalse("test_key2" in model.metadata)
+        self.assertTrue(test_key in model.metadata)
+        self.assertFalse(test_key2 in model.metadata)
+
+        res = self.api.projects.get_model_metadata_values(key=test_key)
+        self.assertEqual(res.total, 1)
+        self.assertEqual(res["values"], [test_value])
 
     def _test_meta_operations(
         self, service: APIClient.Service, entity: str, _id: str,

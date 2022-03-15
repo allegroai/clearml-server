@@ -1,6 +1,6 @@
 import json
 from collections import OrderedDict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import (
     Sequence,
     Optional,
@@ -28,12 +28,21 @@ class ProjectQueries:
     def _get_project_constraint(
         project_ids: Sequence[str], include_subprojects: bool
     ) -> dict:
+        """
+        If passed projects is None means top level projects
+        If passed projects is empty means no project filtering
+        """
         if include_subprojects:
-            if project_ids is None:
+            if not project_ids:
                 return {}
             project_ids = _ids_with_children(project_ids)
 
-        return {"project": {"$in": project_ids if project_ids is not None else [None]}}
+        if project_ids is None:
+            project_ids = [None]
+        if not project_ids:
+            return {}
+
+        return {"project": {"$in": project_ids}}
 
     @staticmethod
     def _get_company_constraint(company_id: str, allow_public: bool = True) -> dict:
@@ -106,16 +115,11 @@ class ProjectQueries:
 
         return total, remaining, results
 
-    HyperParamValues = Tuple[int, Sequence[str]]
+    ParamValues = Tuple[int, Sequence[str]]
 
-    def _get_cached_hyperparam_values(
-        self, key: str, last_update: datetime
-    ) -> Optional[HyperParamValues]:
-        allowed_delta = timedelta(
-            seconds=config.get(
-                "services.tasks.hyperparam_values.cache_allowed_outdate_sec", 60
-            )
-        )
+    def _get_cached_param_values(
+        self, key: str, last_update: datetime, allowed_delta_sec=0
+    ) -> Optional[ParamValues]:
         try:
             cached = self.redis.get(key)
             if not cached:
@@ -123,12 +127,12 @@ class ProjectQueries:
 
             data = json.loads(cached)
             cached_last_update = datetime.fromtimestamp(data["last_update"])
-            if (last_update - cached_last_update) < allowed_delta:
+            if (last_update - cached_last_update).total_seconds() <= allowed_delta_sec:
                 return data["total"], data["values"]
         except Exception as ex:
-            log.error(f"Error retrieving hyperparam cached values: {str(ex)}")
+            log.error(f"Error retrieving params cached values: {str(ex)}")
 
-    def get_hyperparam_distinct_values(
+    def get_task_hyperparam_distinct_values(
         self,
         company_id: str,
         project_ids: Sequence[str],
@@ -136,7 +140,7 @@ class ProjectQueries:
         name: str,
         include_subprojects: bool,
         allow_public: bool = True,
-    ) -> HyperParamValues:
+    ) -> ParamValues:
         company_constraint = self._get_company_constraint(company_id, allow_public)
         project_constraint = self._get_project_constraint(
             project_ids, include_subprojects
@@ -158,8 +162,12 @@ class ProjectQueries:
 
         redis_key = f"hyperparam_values_{company_id}_{'_'.join(project_ids)}_{section}_{name}_{allow_public}"
         last_update = last_updated_task.last_update or datetime.utcnow()
-        cached_res = self._get_cached_hyperparam_values(
-            key=redis_key, last_update=last_update
+        cached_res = self._get_cached_param_values(
+            key=redis_key,
+            last_update=last_update,
+            allowed_delta_sec=config.get(
+                "services.tasks.hyperparam_values.cache_allowed_outdate_sec", 60
+            ),
         )
         if cached_res:
             return cached_res
@@ -290,3 +298,73 @@ class ProjectQueries:
             remaining = max(0, total - (len(results) + page * page_size))
 
         return total, remaining, results
+
+    def get_model_metadata_distinct_values(
+        self,
+        company_id: str,
+        project_ids: Sequence[str],
+        key: str,
+        include_subprojects: bool,
+        allow_public: bool = True,
+    ) -> ParamValues:
+        company_constraint = self._get_company_constraint(company_id, allow_public)
+        project_constraint = self._get_project_constraint(
+            project_ids, include_subprojects
+        )
+        key_path = f"metadata.{ParameterKeyEscaper.escape(key)}"
+        last_updated_model = (
+            Model.objects(
+                **company_constraint,
+                **project_constraint,
+                **{f"{key_path.replace('.', '__')}__exists": True},
+            )
+            .only("last_update")
+            .order_by("-last_update")
+            .limit(1)
+            .first()
+        )
+        if not last_updated_model:
+            return 0, []
+
+        redis_key = f"modelmetadata_values_{company_id}_{'_'.join(project_ids)}_{key}_{allow_public}"
+        last_update = last_updated_model.last_update or datetime.utcnow()
+        cached_res = self._get_cached_param_values(
+            key=redis_key, last_update=last_update
+        )
+        if cached_res:
+            return cached_res
+
+        max_values = config.get("services.models.metadata_values.max_count", 100)
+        pipeline = [
+            {
+                "$match": {
+                    **company_constraint,
+                    **project_constraint,
+                    key_path: {"$exists": True},
+                }
+            },
+            {"$project": {"value": f"${key_path}.value"}},
+            {"$group": {"_id": "$value"}},
+            {"$sort": {"_id": 1}},
+            {"$limit": max_values},
+            {
+                "$group": {
+                    "_id": 1,
+                    "total": {"$sum": 1},
+                    "results": {"$push": "$$ROOT._id"},
+                }
+            },
+        ]
+
+        result = next(Model.aggregate(pipeline, collation=Model._numeric_locale), None)
+        if not result:
+            return 0, []
+
+        total = int(result.get("total", 0))
+        values = result.get("results", [])
+
+        ttl = config.get("services.models.metadata_values.cache_ttl_sec", 86400)
+        cached = dict(last_update=last_update.timestamp(), total=total, values=values)
+        self.redis.setex(redis_key, ttl, json.dumps(cached))
+
+        return total, values

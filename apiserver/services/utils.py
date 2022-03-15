@@ -23,7 +23,7 @@ def get_tags_filter_dictionary(input_: Filter) -> dict:
     }
 
 
-def get_tags_response(ret: dict) -> dict:
+def sort_tags_response(ret: dict) -> dict:
     return {field: sorted(vals) for field, vals in ret.items()}
 
 

@@ -14,6 +14,7 @@ from typing import (
     TypeVar,
     Callable,
     Mapping,
+    Any,
 )
 
 from mongoengine import Q, Document
@@ -22,6 +23,7 @@ from apiserver import database
 from apiserver.apierrors import errors
 from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility, AttributedDocument
+from apiserver.database.model.base import GetMixin
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, external_task_types
@@ -204,6 +206,7 @@ class ProjectBLL:
         tags: Sequence[str] = None,
         system_tags: Sequence[str] = None,
         default_output_destination: str = None,
+        parent_creation_params: dict = None,
     ) -> str:
         """
         Create a new project.
@@ -226,7 +229,12 @@ class ProjectBLL:
             created=now,
             last_update=now,
         )
-        parent = _ensure_project(company=company, user=user, name=location)
+        parent = _ensure_project(
+            company=company,
+            user=user,
+            name=location,
+            creation_params=parent_creation_params,
+        )
         _save_under_parent(project=project, parent=parent)
         if parent:
             parent.update(last_update=now)
@@ -244,13 +252,14 @@ class ProjectBLL:
         tags: Sequence[str] = None,
         system_tags: Sequence[str] = None,
         default_output_destination: str = None,
+        parent_creation_params: dict = None,
     ) -> str:
         """
         Find a project named `project_name` or create a new one.
         Returns project ID
         """
         if not project_id and not project_name:
-            raise ValueError("project id or name required")
+            raise errors.bad_request.ValidationError("project id or name required")
 
         if project_id:
             project = Project.objects(company=company, id=project_id).only("id").first()
@@ -271,6 +280,7 @@ class ProjectBLL:
             tags=tags,
             system_tags=system_tags,
             default_output_destination=default_output_destination,
+            parent_creation_params=parent_creation_params,
         )
 
     @classmethod
@@ -314,6 +324,7 @@ class ProjectBLL:
         company_id: str,
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
+        filter_: Mapping[str, Any] = None,
     ) -> Tuple[Sequence, Sequence]:
         archived = EntityVisibility.archived.value
 
@@ -337,10 +348,9 @@ class ProjectBLL:
         status_count_pipeline = [
             # count tasks per project per status
             {
-                "$match": {
-                    "company": {"$in": [None, "", company_id]},
-                    "project": {"$in": project_ids},
-                }
+                "$match": cls.get_match_conditions(
+                    company=company_id, project_ids=project_ids, filter_=filter_
+                )
             },
             ensure_valid_fields(),
             {
@@ -455,8 +465,9 @@ class ProjectBLL:
             # only count run time for these types of tasks
             {
                 "$match": {
-                    "company": {"$in": [None, "", company_id]},
-                    "project": {"$in": project_ids},
+                    **cls.get_match_conditions(
+                        company=company_id, project_ids=project_ids, filter_=filter_
+                    ),
                     **get_state_filter(),
                 }
             },
@@ -500,6 +511,7 @@ class ProjectBLL:
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
         include_children: bool = True,
+        filter_: Mapping[str, Any] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
@@ -516,6 +528,7 @@ class ProjectBLL:
             company,
             project_ids=list(project_ids_with_children),
             specific_state=specific_state,
+            filter_=filter_,
         )
 
         default_counts = dict.fromkeys(get_options(TaskStatus), 0)
@@ -589,10 +602,9 @@ class ProjectBLL:
 
             return {
                 "status_count": project_section_statuses,
-                "running_tasks": project_section_statuses.get(TaskStatus.in_progress),
                 "total_tasks": sum(project_section_statuses.values()),
                 "total_runtime": project_runtime.get(section, 0),
-                "completed_tasks": project_runtime.get(
+                "completed_tasks_24h": project_runtime.get(
                     f"{section}_recently_completed", 0
                 ),
                 "last_task_run": get_time_or_none(
@@ -653,6 +665,30 @@ class ProjectBLL:
             return res
 
     @classmethod
+    def get_project_tags(
+        cls,
+        company_id: str,
+        include_system: bool,
+        projects: Sequence[str] = None,
+        filter_: Dict[str, Sequence[str]] = None,
+    ) -> Tuple[Sequence[str], Sequence[str]]:
+        with TimingContext("mongo", "get_tags_from_db"):
+            query = Q(company=company_id)
+            if filter_:
+                for name, vals in filter_.items():
+                    if vals:
+                        query &= GetMixin.get_list_field_query(name, vals)
+
+            if projects:
+                query &= Q(id__in=_ids_with_children(projects))
+
+            tags = Project.objects(query).distinct("tags")
+            system_tags = (
+                Project.objects(query).distinct("system_tags") if include_system else []
+            )
+            return tags, system_tags
+
+    @classmethod
     def get_projects_with_active_user(
         cls,
         company: str,
@@ -708,6 +744,7 @@ class ProjectBLL:
             if include_subprojects:
                 projects = _ids_with_children(projects)
             query &= Q(project__in=projects)
+
         if state == EntityVisibility.archived:
             query &= Q(system_tags__in=[EntityVisibility.archived.value])
         elif state == EntityVisibility.active:
@@ -735,6 +772,7 @@ class ProjectBLL:
         if project_ids:
             project_ids = _ids_with_children(project_ids)
             query &= Q(project__in=project_ids)
+
         res = Task.objects(query).distinct(field="type")
         return set(res).intersection(external_task_types)
 
@@ -750,9 +788,34 @@ class ProjectBLL:
             query &= Q(project__in=project_ids)
         return Model.objects(query).distinct(field="framework")
 
+    @staticmethod
+    def get_match_conditions(
+        company: str, project_ids: Sequence[str], filter_: Mapping[str, Any]
+    ):
+        conditions = {
+            "company": {"$in": [None, "", company]},
+            "project": {"$in": project_ids},
+        }
+        if not filter_:
+            return conditions
+
+        for field in ("tags", "system_tags"):
+            field_filter = filter_.get(field)
+            if not field_filter:
+                continue
+            if not isinstance(field_filter, list) or not all(
+                isinstance(t, str) for t in field_filter
+            ):
+                raise errors.bad_request.ValidationError(
+                    f"List of strings expected for the field: {field}"
+                )
+            conditions[field] = {"$in": field_filter}
+
+        return conditions
+
     @classmethod
     def calc_own_contents(
-        cls, company: str, project_ids: Sequence[str]
+        cls, company: str, project_ids: Sequence[str], filter_: Mapping[str, Any] = None
     ) -> Dict[str, dict]:
         """
         Returns the amount of task/models per requested project
@@ -764,13 +827,12 @@ class ProjectBLL:
 
         pipeline = [
             {
-                "$match": {
-                    "company": {"$in": [None, "", company]},
-                    "project": {"$in": project_ids},
-                }
+                "$match": cls.get_match_conditions(
+                    company=company, project_ids=project_ids, filter_=filter_
+                )
             },
             {"$project": {"project": 1}},
-            {"$group": {"_id": "$project", "count": {"$sum": 1}}}
+            {"$group": {"_id": "$project", "count": {"$sum": 1}}},
         ]
 
         def get_agrregate_res(cls_: Type[AttributedDocument]) -> dict:
