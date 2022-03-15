@@ -1,10 +1,8 @@
-from typing import Sequence
-
 from mongoengine import (
     StringField,
     DateTimeField,
     BooleanField,
-    EmbeddedDocumentListField,
+    EmbeddedDocumentField,
 )
 
 from apiserver.database import Database, strict
@@ -12,6 +10,7 @@ from apiserver.database.fields import (
     StrippedStringField,
     SafeDictField,
     SafeSortedListField,
+    SafeMapField,
 )
 from apiserver.database.model import AttributedDocument
 from apiserver.database.model.base import GetMixin
@@ -22,6 +21,10 @@ from apiserver.database.model.task.task import Task
 
 
 class Model(AttributedDocument):
+    _field_collation_overrides = {
+        "metadata.": AttributedDocument._numeric_locale,
+    }
+
     meta = {
         "db_alias": Database.backend,
         "strict": strict,
@@ -30,8 +33,6 @@ class Model(AttributedDocument):
             "project",
             "task",
             "last_update",
-            "metadata.key",
-            "metadata.type",
             ("company", "framework"),
             ("company", "name"),
             ("company", "user"),
@@ -63,6 +64,7 @@ class Model(AttributedDocument):
             "project",
             "task",
             "parent",
+            "metadata.*",
         ),
         datetime_fields=("last_update",),
     )
@@ -86,6 +88,6 @@ class Model(AttributedDocument):
         default=dict, user_set_allowed=True, exclude_by_default=True
     )
     company_origin = StringField(exclude_by_default=True)
-    metadata: Sequence[MetadataItem] = EmbeddedDocumentListField(
-        MetadataItem, default=list, user_set_allowed=True
+    metadata = SafeMapField(
+        field=EmbeddedDocumentField(MetadataItem), user_set_allowed=True
     )

@@ -2,7 +2,7 @@ from jsonmodels import validators
 from jsonmodels.fields import StringField, IntField, BoolField, FloatField
 from jsonmodels.models import Base
 
-from apiserver.apimodels import ListField
+from apiserver.apimodels import ListField, DictField
 from apiserver.apimodels.metadata import (
     MetadataItem,
     DeleteMetadata,
@@ -19,11 +19,16 @@ class CreateRequest(Base):
     name = StringField(required=True)
     tags = ListField(items_types=[str])
     system_tags = ListField(items_types=[str])
-    metadata = ListField(items_types=[MetadataItem])
+    metadata = DictField(value_types=[MetadataItem])
 
 
 class QueueRequest(Base):
     queue = StringField(required=True)
+
+
+class GetNextTaskRequest(QueueRequest):
+    queue = StringField(required=True)
+    get_task_info = BoolField(default=False)
 
 
 class DeleteRequest(QueueRequest):
@@ -34,7 +39,7 @@ class UpdateRequest(QueueRequest):
     name = StringField()
     tags = ListField(items_types=[str])
     system_tags = ListField(items_types=[str])
-    metadata = ListField(items_types=[MetadataItem])
+    metadata = DictField(value_types=[MetadataItem])
 
 
 class TaskRequest(QueueRequest):

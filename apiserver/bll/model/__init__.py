@@ -7,6 +7,7 @@ from apiserver.bll.task.utils import deleted_prefix
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus
+from .metadata import Metadata
 
 
 class ModelBLL:

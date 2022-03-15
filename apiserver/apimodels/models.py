@@ -30,7 +30,7 @@ class CreateModelRequest(models.Base):
     ready = fields.BoolField(default=True)
     ui_cache = DictField()
     task = fields.StringField()
-    metadata = ListField(items_types=[MetadataItem])
+    metadata = DictField(value_types=[MetadataItem])
 
 
 class CreateModelResponse(models.Base):

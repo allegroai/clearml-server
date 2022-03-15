@@ -32,7 +32,7 @@ class QueueBLL(object):
         name: str,
         tags: Optional[Sequence[str]] = None,
         system_tags: Optional[Sequence[str]] = None,
-        metadata: Optional[Sequence[dict]] = None,
+        metadata: Optional[dict] = None,
     ) -> Queue:
         """Creates a queue"""
         with translate_errors_context():

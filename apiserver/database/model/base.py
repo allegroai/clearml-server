@@ -95,6 +95,7 @@ class GetMixin(PropsMixin):
     }
     MultiFieldParameters = namedtuple("MultiFieldParameters", "pattern fields")
 
+    _numeric_locale = {"locale": "en_US", "numericOrdering": True}
     _field_collation_overrides = {}
 
     class QueryParameterOptions(object):
@@ -599,7 +600,7 @@ class GetMixin(PropsMixin):
         return size
 
     @classmethod
-    def get_data_with_scroll_and_filter_support(
+    def get_data_with_scroll_support(
         cls,
         query_dict: dict,
         data_getter: Callable[[], Sequence[dict]],
@@ -629,15 +630,12 @@ class GetMixin(PropsMixin):
         if cls._start_key in query_dict:
             query_dict[cls._start_key] = query_dict[cls._start_key] + len(data)
 
-        def update_state(returned_len: int):
-            if not state:
-                return
+        if state:
             state.position = query_dict[cls._start_key]
             cls.get_cache_manager().set_state(state)
             if ret_params is not None:
                 ret_params["scroll_id"] = state.id
 
-        update_state(len(data))
         return data
 
     @classmethod
@@ -770,7 +768,7 @@ class GetMixin(PropsMixin):
                 override_projection=override_projection,
                 override_collation=override_collation,
             )
-            return cls.get_data_with_scroll_and_filter_support(
+            return cls.get_data_with_scroll_support(
                 query_dict=query_dict, data_getter=data_getter, ret_params=ret_params,
             )
 

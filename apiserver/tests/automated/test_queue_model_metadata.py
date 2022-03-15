@@ -1,12 +1,11 @@
 from functools import partial
-from typing import Sequence
 
 from apiserver.tests.api_client import APIClient
 from apiserver.tests.automated import TestService
 
 
 class TestQueueAndModelMetadata(TestService):
-    meta1 = [{"key": "test_key", "type": "str", "value": "test_value"}]
+    meta1 = {"test_key": {"key": "test_key", "type": "str", "value": "test_value"}}
 
     def test_queue_metas(self):
         queue_id = self._temp_queue("TestMetadata", metadata=self.meta1)
@@ -23,8 +22,31 @@ class TestQueueAndModelMetadata(TestService):
         )
 
         model_id = self._temp_model("TestMetadata1")
-        self.api.models.edit(model=model_id, metadata=[self.meta1[0]])
+        self.api.models.edit(model=model_id, metadata=self.meta1)
         self._assertMeta(service=service, entity=entity, _id=model_id, meta=self.meta1)
+
+    def test_project_meta_query(self):
+        self._temp_model("TestMetadata", metadata=self.meta1)
+        project = self.temp_project(name="MetaParent")
+        model_id = self._temp_model(
+            "TestMetadata2",
+            project=project,
+            metadata={
+                "test_key": {"key": "test_key", "type": "str", "value": "test_value"},
+                "test_key2": {"key": "test_key2", "type": "str", "value": "test_value"},
+            },
+        )
+        res = self.api.projects.get_model_metadata_keys()
+        self.assertTrue({"test_key", "test_key2"}.issubset(set(res["keys"])))
+        res = self.api.projects.get_model_metadata_keys(include_subprojects=False)
+        self.assertTrue("test_key" in res["keys"])
+        self.assertFalse("test_key2" in res["keys"])
+
+        model = self.api.models.get_all_ex(
+            id=[model_id], only_fields=["metadata.test_key"]
+        ).models[0]
+        self.assertTrue("test_key" in model.metadata)
+        self.assertFalse("test_key2" in model.metadata)
 
     def _test_meta_operations(
         self, service: APIClient.Service, entity: str, _id: str,
@@ -32,11 +54,11 @@ class TestQueueAndModelMetadata(TestService):
         assert_meta = partial(self._assertMeta, service=service, entity=entity)
         assert_meta(_id=_id, meta=self.meta1)
 
-        meta2 = [
-            {"key": "test1", "type": "str", "value": "data1"},
-            {"key": "test2", "type": "str", "value": "data2"},
-            {"key": "test3", "type": "str", "value": "data3"},
-        ]
+        meta2 = {
+            "test1": {"key": "test1", "type": "str", "value": "data1"},
+            "test2": {"key": "test2", "type": "str", "value": "data2"},
+            "test3": {"key": "test3", "type": "str", "value": "data3"},
+        }
         service.update(**{entity: _id, "metadata": meta2})
         assert_meta(_id=_id, meta=meta2)
 
@@ -48,16 +70,17 @@ class TestQueueAndModelMetadata(TestService):
         ]
         res = service.add_or_update_metadata(**{entity: _id, "metadata": updates})
         self.assertEqual(res.updated, 1)
-        assert_meta(_id=_id, meta=[meta2[0], *updates])
+        assert_meta(_id=_id, meta={**meta2, **{u["key"]: u for u in updates}})
 
         res = service.delete_metadata(
             **{entity: _id, "keys": [f"test{idx}" for idx in range(2, 6)]}
         )
         self.assertEqual(res.updated, 1)
-        assert_meta(_id=_id, meta=meta2[:1])
+        # noinspection PyTypeChecker
+        assert_meta(_id=_id, meta=dict(list(meta2.items())[:1]))
 
     def _assertMeta(
-        self, service: APIClient.Service, entity: str, _id: str, meta: Sequence[dict]
+        self, service: APIClient.Service, entity: str, _id: str, meta: dict
     ):
         res = service.get_all_ex(id=[_id])[f"{entity}s"][0]
         self.assertEqual(res.metadata, meta)

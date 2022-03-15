@@ -388,6 +388,17 @@ class ProjectBLL:
                 }
             }
 
+        def max_started_subquery(condition):
+            return {
+                "$max": {
+                    "$cond": {
+                        "if": condition,
+                        "then": "$started",
+                        "else": datetime.min,
+                    }
+                }
+            }
+
         def runtime_subquery(additional_cond):
             return {
                 # the sum of
@@ -431,14 +442,22 @@ class ProjectBLL:
             group_step[f"{state.value}_recently_completed"] = completed_after_subquery(
                 cond, time_thresh=time_thresh
             )
+            group_step[f"{state.value}_max_task_started"] = max_started_subquery(cond)
+
+        def get_state_filter() -> dict:
+            if not specific_state:
+                return {}
+            if specific_state == EntityVisibility.archived:
+                return {"system_tags": {"$eq": EntityVisibility.archived.value}}
+            return {"system_tags": {"$ne": EntityVisibility.archived.value}}
 
         runtime_pipeline = [
             # only count run time for these types of tasks
             {
                 "$match": {
                     "company": {"$in": [None, "", company_id]},
-                    "type": {"$in": ["training", "testing", "annotation"]},
                     "project": {"$in": project_ids},
+                    **get_state_filter(),
                 }
             },
             ensure_valid_fields(),
@@ -547,6 +566,8 @@ class ProjectBLL:
         ) -> Dict[str, dict]:
             return {
                 section: a.get(section, 0) + b.get(section, 0)
+                if not section.endswith("max_task_started")
+                else max(a.get(section) or datetime.min, b.get(section) or datetime.min)
                 for section in set(a) | set(b)
             }
 
@@ -562,6 +583,10 @@ class ProjectBLL:
             project_section_statuses = nested_get(
                 status_count, (project_id, section), default=default_counts
             )
+
+            def get_time_or_none(value):
+                return value if value != datetime.min else None
+
             return {
                 "status_count": project_section_statuses,
                 "running_tasks": project_section_statuses.get(TaskStatus.in_progress),
@@ -569,6 +594,9 @@ class ProjectBLL:
                 "total_runtime": project_runtime.get(section, 0),
                 "completed_tasks": project_runtime.get(
                     f"{section}_recently_completed", 0
+                ),
+                "last_task_run": get_time_or_none(
+                    project_runtime.get(f"{section}_max_task_started", datetime.min)
                 ),
             }
 
@@ -723,7 +751,9 @@ class ProjectBLL:
         return Model.objects(query).distinct(field="framework")
 
     @classmethod
-    def calc_own_contents(cls, company: str, project_ids: Sequence[str]) -> Dict[str, dict]:
+    def calc_own_contents(
+        cls, company: str, project_ids: Sequence[str]
+    ) -> Dict[str, dict]:
         """
         Returns the amount of task/models per requested project
         Use separate aggregation calls on Task/Model instead of lookup
@@ -739,30 +769,17 @@ class ProjectBLL:
                     "project": {"$in": project_ids},
                 }
             },
-            {
-                "$project": {"project": 1}
-            },
-            {
-                "$group": {
-                    "_id": "$project",
-                    "count": {"$sum": 1},
-                }
-            }
+            {"$project": {"project": 1}},
+            {"$group": {"_id": "$project", "count": {"$sum": 1}}}
         ]
 
         def get_agrregate_res(cls_: Type[AttributedDocument]) -> dict:
-            return {
-                data["_id"]: data["count"]
-                for data in cls_.aggregate(pipeline)
-            }
+            return {data["_id"]: data["count"] for data in cls_.aggregate(pipeline)}
 
         with TimingContext("mongo", "get_security_groups"):
             tasks = get_agrregate_res(Task)
             models = get_agrregate_res(Model)
             return {
-                pid: {
-                    "own_tasks": tasks.get(pid, 0),
-                    "own_models": models.get(pid, 0),
-                }
+                pid: {"own_tasks": tasks.get(pid, 0), "own_models": models.get(pid, 0)}
                 for pid in project_ids
             }
