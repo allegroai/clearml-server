@@ -13,12 +13,15 @@ from werkzeug.exceptions import NotFound
 from werkzeug.security import safe_join
 
 from config import config
+from utils import get_env_bool
 
 DEFAULT_UPLOAD_FOLDER = "/mnt/fileserver"
 
 app = Flask(__name__)
 CORS(app, **config.get("fileserver.cors"))
-Compress(app)
+
+if get_env_bool("CLEARML_COMPRESS_RESP", default=True):
+    Compress(app)
 
 app.config["UPLOAD_FOLDER"] = first(
     (os.environ.get(f"{prefix}_UPLOAD_FOLDER") for prefix in ("CLEARML", "TRAINS")),
@@ -29,9 +32,17 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
 )
 
 
+@app.before_request
+def before_request():
+    if request.content_encoding:
+        return f"Content encoding is not supported ({request.content_encoding})", 415
+
+
 @app.after_request
 def after_request(response):
-    response.headers["server"] = config.get("fileserver.response.headers.server", "clearml")
+    response.headers["server"] = config.get(
+        "fileserver.response.headers.server", "clearml"
+    )
     return response
 
 
@@ -60,7 +71,10 @@ def download(path):
     mimetype = "application/octet-stream" if encoding == "gzip" else None
 
     response = send_from_directory(
-        app.config["UPLOAD_FOLDER"], path, as_attachment=as_attachment, mimetype=mimetype
+        app.config["UPLOAD_FOLDER"],
+        path,
+        as_attachment=as_attachment,
+        mimetype=mimetype,
     )
     if config.get("fileserver.download.disable_browser_caching", False):
         headers = response.headers
@@ -74,12 +88,7 @@ def download(path):
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    real_path = Path(
-        safe_join(
-            os.fspath(app.config["UPLOAD_FOLDER"]),
-            os.fspath(path)
-        )
-    )
+    real_path = Path(safe_join(os.fspath(app.config["UPLOAD_FOLDER"]), os.fspath(path)))
     if not real_path.exists() or not real_path.is_file():
         abort(Response(f"File {str(path)} not found", 404))
 
