@@ -95,8 +95,8 @@ class DataContainer(object):
     @raw_data.setter
     def raw_data(self, value):
         assert isinstance(
-            value, string_types + (types.GeneratorType,)
-        ), "Raw data must be a string type or generator"
+            value, string_types + (types.GeneratorType, bytes)
+        ), "Raw data must be a string type or bytes or generator"
         self._raw_data = value
 
     @property
@@ -394,6 +394,10 @@ class APICall(DataContainer):
         self._host = host
         self._auth_cookie = auth_cookie
         self._json_flags = {}
+
+    @property
+    def files(self):
+        return self._files
 
     @property
     def id(self):
