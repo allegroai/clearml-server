@@ -18,6 +18,7 @@ log = config.logger(__file__)
 
 class RequestHandlers:
     _request_strip_prefix = config.get("apiserver.request.strip_prefix", None)
+    _server_header = config.get("apiserver.response.headers.server", "clearml")
 
     def before_app_first_request(self):
         pass
@@ -27,6 +28,9 @@ class RequestHandlers:
             return "", 200
         if "/static/" in request.path:
             return
+
+        if request.content_encoding:
+            return f"Content encoding is not supported ({request.content_encoding})", 415
 
         try:
             call = self._create_api_call(request)
@@ -80,6 +84,10 @@ class RequestHandlers:
         except Exception as ex:
             log.exception(f"Failed processing request {request.url}: {ex}")
             return f"Failed processing request {request.url}", 500
+
+    def after_request(self, response):
+        response.headers["server"] = self._server_header
+        return response
 
     @staticmethod
     def _apply_multi_dict(body: dict, md: ImmutableMultiDict):

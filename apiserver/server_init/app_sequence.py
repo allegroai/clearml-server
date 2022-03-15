@@ -25,6 +25,7 @@ from apiserver.server_init.request_handlers import RequestHandlers
 from apiserver.service_repo import ServiceRepo
 from apiserver.sync import distributed_lock
 from apiserver.updates import check_updates_thread
+from apiserver.utilities.env import get_bool
 from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
@@ -46,10 +47,13 @@ class AppSequence:
     def _attach_request_handlers(self, request_handlers: RequestHandlers):
         self.app.before_first_request(request_handlers.before_app_first_request)
         self.app.before_request(request_handlers.before_request)
+        self.app.after_request(request_handlers.after_request)
 
     def _configure(self):
         CORS(self.app, **config.get("apiserver.cors"))
-        Compress(self.app)
+
+        if get_bool("CLEARML_COMPRESS_RESP", default=True):
+            Compress(self.app)
 
         self.app.config["SECRET_KEY"] = config.get(
             "secure.http.session_secret.apiserver"
