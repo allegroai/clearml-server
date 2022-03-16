@@ -72,26 +72,26 @@ http {
             add_header Cache-Control 'no-cache';
         }
 
-        location /${NAMESPACE}-clearml {
+        location /${CLEARML_SERVER_ROOT_URL} {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header Host $host;
             proxy_pass http://localhost:80;
-            rewrite /${NAMESPACE}-clearml/(.*) /$1  break;
+            rewrite /${CLEARML_SERVER_ROOT_URL}/(.*) /$1  break;
         }
 
-        location /${NAMESPACE}-clearml/api {
+        location /${CLEARML_SERVER_ROOT_URL}/api {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header Host $host;
             proxy_pass http://localhost:80/api;
-            rewrite /${NAMESPACE}-clearml/api/(.*) /api/$1  break;
+            rewrite /${CLEARML_SERVER_ROOT_URL}/api/(.*) /api/$1  break;
         }
 
-        location /${NAMESPACE}-clearml/files {
+        location /${CLEARML_SERVER_ROOT_URL}/files {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header Host $host;
             proxy_pass http://localhost:80/files;
-            rewrite /${NAMESPACE}-clearml/files/(.*) /files/$1  break;
-            rewrite /${NAMESPACE}-clearml/files /files/  break;
+            rewrite /${CLEARML_SERVER_ROOT_URL}/files/(.*) /files/$1  break;
+            rewrite /${CLEARML_SERVER_ROOT_URL}/files /files/  break;
         }
 
         location /api {
