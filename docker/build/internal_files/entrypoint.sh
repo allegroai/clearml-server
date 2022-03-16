@@ -48,9 +48,9 @@ EOF
 
     export NGINX_APISERVER_ADDR=${NGINX_APISERVER_ADDRESS:-http://apiserver:8008}
     export NGINX_FILESERVER_ADDR=${NGINX_FILESERVER_ADDRESS:-http://fileserver:8081}
-    export CLEARML_SERVER_ROOT_URL=${CLEARML_SERVER_ROOT_URL:-ROOT}
+    export CLEARML_SERVER_ROOT_PATH=${CLEARML_SERVER_ROOT_PATH:-ROOT}
 
-    envsubst '${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR} ${CLEARML_SERVER_ROOT_URL}' < /etc/nginx/clearml.conf.template > /etc/nginx/nginx.conf
+    envsubst '${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR} ${CLEARML_SERVER_ROOT_PATH}' < /etc/nginx/clearml.conf.template > /etc/nginx/nginx.conf
 
     #start the server
     /usr/sbin/nginx -g "daemon off;"
