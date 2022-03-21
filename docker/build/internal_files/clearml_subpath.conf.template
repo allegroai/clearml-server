@@ -1,0 +1,21 @@
+location /${CLEARML_SERVER_SUB_PATH} {
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header Host $host;
+    proxy_pass http://localhost:80;
+    rewrite /${CLEARML_SERVER_SUB_PATH}/(.*) /$1  break;
+}
+
+location /${CLEARML_SERVER_SUB_PATH}/api {
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header Host $host;
+    proxy_pass http://localhost:80/api;
+    rewrite /${CLEARML_SERVER_SUB_PATH}/api/(.*) /api/$1  break;
+}
+
+location /${CLEARML_SERVER_SUB_PATH}/files {
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header Host $host;
+    proxy_pass http://localhost:80/files;
+    rewrite /${CLEARML_SERVER_SUB_PATH}/files/(.*) /files/$1  break;
+    rewrite /${CLEARML_SERVER_SUB_PATH}/files /files/  break;
+}

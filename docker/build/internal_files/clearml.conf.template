@@ -41,6 +41,7 @@ http {
         server_name  _;
         root         /usr/share/nginx/html;
         proxy_http_version 1.1;
+        client_max_body_size 0;
 
         # comppression
         gzip            on;
@@ -64,34 +65,15 @@ http {
         # Load configuration files for the default server block.
         include /etc/nginx/default.d/*.conf;
 
+        # Load configuration files for the custom server block.
+        include /etc/nginx/custom.d/*.conf;
+
         location / {
             try_files $uri$args $uri$args/ $uri index.html /index.html;
         }
 
         location /version.json {
             add_header Cache-Control 'no-cache';
-        }
-
-        location /${CLEARML_SERVER_ROOT_PATH} {
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header Host $host;
-            proxy_pass http://localhost:80;
-            rewrite /${CLEARML_SERVER_ROOT_PATH}/(.*) /$1  break;
-        }
-
-        location /${CLEARML_SERVER_ROOT_PATH}/api {
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header Host $host;
-            proxy_pass http://localhost:80/api;
-            rewrite /${CLEARML_SERVER_ROOT_PATH}/api/(.*) /api/$1  break;
-        }
-
-        location /${CLEARML_SERVER_ROOT_PATH}/files {
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header Host $host;
-            proxy_pass http://localhost:80/files;
-            rewrite /${CLEARML_SERVER_ROOT_PATH}/files/(.*) /files/$1  break;
-            rewrite /${CLEARML_SERVER_ROOT_PATH}/files /files/  break;
         }
 
         location /api {
@@ -106,7 +88,6 @@ http {
             proxy_set_header Host $host;
             proxy_pass ${NGINX_FILESERVER_ADDR};
             rewrite /files/(.*) /$1  break;
-            rewrite /files /  break;
         }
 
         error_page 404 /404.html;

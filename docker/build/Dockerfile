@@ -20,6 +20,7 @@ COPY --from=staging_image /opt/clearml/ /opt/clearml/
 
 COPY --chmod=744 docker/build/internal_files/final_image_preparation.sh /tmp/internal_files/
 COPY docker/build/internal_files/clearml.conf.template /tmp/internal_files/
+COPY docker/build/internal_files/clearml_subpath.conf.template /tmp/internal_files/
 RUN /bin/bash -c '/tmp/internal_files/final_image_preparation.sh'
 
 COPY --from=webapp /opt/open-webapp/build /usr/share/nginx/html
