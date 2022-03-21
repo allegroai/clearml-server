@@ -56,9 +56,7 @@ EOF
       envsubst '${CLEARML_SERVER_SUB_PATH}' < /etc/nginx/clearml_subpath.conf.template > /etc/nginx/custom.d/clearml_subpath.conf
       cp /usr/share/nginx/html/env.js /usr/share/nginx/html/env.js.origin
       envsubst '${CLEARML_SERVER_SUB_PATH}' < /usr/share/nginx/html/env.js.origin > /usr/share/nginx/html/env.js
-      sed 's/BASE_HREF/\/'${CLEARML_SERVER_SUB_PATH}'\//' /usr/share/nginx/html/index.html.origin > /usr/share/nginx/html/index.html
-    else
-      sed 's/BASE_HREF/\//' /usr/share/nginx/html/index.html.origin > /usr/share/nginx/html/index.html
+      sed 's/href="\/"/href="\/'${CLEARML_SERVER_SUB_PATH}'\/"/' /usr/share/nginx/html/index.html.origin > /usr/share/nginx/html/index.html
     fi
 
     #start the server
