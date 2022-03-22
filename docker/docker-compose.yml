@@ -108,6 +108,8 @@ services:
     command:
     - webserver
     container_name: clearml-webserver
+    # environment:
+    #  CLEARML_SERVER_SUB_PATH : clearml-web # Allow Clearml to be served with a URL path prefix.
     image: allegroai/clearml:latest
     restart: unless-stopped
     depends_on:

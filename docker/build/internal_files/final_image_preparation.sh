@@ -15,4 +15,5 @@ ln -s /dev/stdout /var/log/nginx/access.log
 ln -s /dev/stderr /var/log/nginx/error.log
 mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.orig
 mv /tmp/internal_files/clearml.conf.template /etc/nginx/clearml.conf.template
+mv /tmp/internal_files/clearml_subpath.conf.template /etc/nginx/clearml_subpath.conf.template
 yum clean all
