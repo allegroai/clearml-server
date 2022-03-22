@@ -65,9 +65,6 @@ http {
         # Load configuration files for the default server block.
         include /etc/nginx/default.d/*.conf;
 
-        # Load configuration files for the custom server block.
-        include /etc/nginx/custom.d/*.conf;
-
         location / {
             try_files $uri$args $uri$args/ $uri index.html /index.html;
         }
