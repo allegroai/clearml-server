@@ -49,6 +49,21 @@ class RedisCacheManager(Generic[T]):
     def _get_redis_key(self, state_id):
         return f"{self.state_class}/{state_id}"
 
+    def get_or_create_state_core(
+        self,
+        state_id=None,
+        init_state: Callable[[T], None] = _do_nothing,
+        validate_state: Callable[[T], None] = _do_nothing,
+    ) -> T:
+        state = self.get_state(state_id) if state_id else None
+        if state:
+            validate_state(state)
+        else:
+            state = self.state_class(id=database.utils.id())
+            init_state(state)
+
+        return state
+
     @contextmanager
     def get_or_create_state(
         self,
@@ -66,12 +81,9 @@ class RedisCacheManager(Generic[T]):
         :param validate_state: user callback to validate the state if retrieved from cache
         Should throw an exception if the state is not valid. If not passed then no validation is done
         """
-        state = self.get_state(state_id) if state_id else None
-        if state:
-            validate_state(state)
-        else:
-            state = self.state_class(id=database.utils.id())
-            init_state(state)
+        state = self.get_or_create_state_core(
+            state_id=state_id, init_state=init_state, validate_state=validate_state
+        )
 
         try:
             yield state

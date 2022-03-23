@@ -66,12 +66,19 @@ def delete_company_events(
     es: Elasticsearch, company_id: str, event_type: EventType, body: dict, **kwargs
 ) -> dict:
     es_index = get_index_name(company_id, event_type.value)
-    return es.delete_by_query(index=es_index, body=body, **kwargs)
+    return es.delete_by_query(
+        index=es_index, body=body, conflicts="proceed", **kwargs
+    )
 
 
-def get_metric_variants_condition(
-    metric_variants: MetricVariants,
-) -> Sequence:
+def count_company_events(
+    es: Elasticsearch, company_id: str, event_type: EventType, body: dict, **kwargs
+) -> dict:
+    es_index = get_index_name(company_id, event_type.value)
+    return es.count(index=es_index, body=body, **kwargs)
+
+
+def get_metric_variants_condition(metric_variants: MetricVariants,) -> Sequence:
     conditions = [
         {
             "bool": {

@@ -13,6 +13,7 @@ from apiserver.apimodels.auth import (
     CredentialsResponse,
     RevokeCredentialsRequest,
     EditUserReq,
+    CreateCredentialsRequest,
 )
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.bll.auth import AuthBLL
@@ -58,9 +59,13 @@ def get_token_for_user(call: APICall, _: str, request: GetTokenForUserRequest):
     """ Generates a token based on a requested user and company. INTERNAL. """
     if call.identity.role not in Role.get_system_roles():
         if call.identity.role != Role.admin and call.identity.user != request.user:
-            raise errors.bad_request.InvalidUserId("cannot generate token for another user")
+            raise errors.bad_request.InvalidUserId(
+                "cannot generate token for another user"
+            )
         if call.identity.company != request.company:
-            raise errors.bad_request.InvalidId("cannot generate token in another company")
+            raise errors.bad_request.InvalidId(
+                "cannot generate token in another company"
+            )
 
     call.result.data_model = AuthBLL.get_token_for_user(
         user_id=request.user,
@@ -93,7 +98,10 @@ def validate_token_endpoint(call: APICall, _, __):
 )
 def create_user(call: APICall, _, request: CreateUserRequest):
     """ Create a user from. INTERNAL. """
-    if call.identity.role not in Role.get_system_roles() and request.company != call.identity.company:
+    if (
+        call.identity.role not in Role.get_system_roles()
+        and request.company != call.identity.company
+    ):
         raise errors.bad_request.InvalidId("cannot create user in another company")
 
     user_id = AuthBLL.create_user(request=request, call=call)
@@ -101,7 +109,7 @@ def create_user(call: APICall, _, request: CreateUserRequest):
 
 
 @endpoint("auth.create_credentials", response_data_model=CreateCredentialsResponse)
-def create_credentials(call: APICall, _, __):
+def create_credentials(call: APICall, _, request: CreateCredentialsRequest):
     if _is_protected_user(call.identity.user):
         raise errors.bad_request.InvalidUserId("protected identity")
 
@@ -109,6 +117,7 @@ def create_credentials(call: APICall, _, __):
         user_id=call.identity.user,
         company_id=call.identity.company,
         role=call.identity.role,
+        label=request.label,
     )
     call.result.data_model = CreateCredentialsResponse(credentials=credentials)
 
@@ -151,7 +160,12 @@ def get_credentials(call: APICall, _, __):
         # we return ONLY the key IDs, never the secrets (want a secret? create new credentials)
         call.result.data_model = GetCredentialsResponse(
             credentials=[
-                CredentialsResponse(access_key=c.key, last_used=c.last_used)
+                CredentialsResponse(
+                    access_key=c.key,
+                    last_used=c.last_used,
+                    label=c.label,
+                    last_used_from=c.last_used_from,
+                )
                 for c in user.credentials
             ]
         )

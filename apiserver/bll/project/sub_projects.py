@@ -25,7 +25,9 @@ def _validate_project_name(project_name: str) -> Tuple[str, str]:
     return name_separator.join(name_parts), name_separator.join(name_parts[:-1])
 
 
-def _ensure_project(company: str, user: str, name: str) -> Optional[Project]:
+def _ensure_project(
+    company: str, user: str, name: str, creation_params: dict = None
+) -> Optional[Project]:
     """
     Makes sure that the project with the given name exists
     If needed auto-create the project and all the missing projects in the path to it
@@ -48,9 +50,9 @@ def _ensure_project(company: str, user: str, name: str) -> Optional[Project]:
         created=now,
         last_update=now,
         name=name,
-        description="",
+        **(creation_params or dict(description="")),
     )
-    parent = _ensure_project(company, user, location)
+    parent = _ensure_project(company, user, location, creation_params=creation_params)
     _save_under_parent(project=project, parent=parent)
     if parent:
         parent.update(last_update=now)

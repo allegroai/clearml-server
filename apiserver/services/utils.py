@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Union, Sequence, Tuple
 
 from apiserver.apierrors import errors
-from apiserver.apimodels.metadata import MetadataItem as ApiMetadataItem
 from apiserver.apimodels.organization import Filter
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.task.task import TaskModelTypes, TaskModelNames
@@ -24,7 +23,7 @@ def get_tags_filter_dictionary(input_: Filter) -> dict:
     }
 
 
-def get_tags_response(ret: dict) -> dict:
+def sort_tags_response(ret: dict) -> dict:
     return {field: sorted(vals) for field, vals in ret.items()}
 
 
@@ -222,22 +221,38 @@ class DockerCmdBackwardsCompatibility:
                 nested_set(task, cls.field, docker_cmd)
 
 
-def validate_metadata(metadata: Sequence[dict]):
+def escape_metadata(document: dict):
+    """
+    Escape special characters in metadata keys
+    """
+    metadata = document.get("metadata")
     if not metadata:
         return
 
-    keys = [m.get("key") for m in metadata]
-    unique_keys = set(keys)
-    unique_keys.discard(None)
-    if len(keys) != len(set(keys)):
-        raise errors.bad_request.ValidationError("Metadata keys should be unique")
+    document["metadata"] = {
+        ParameterKeyEscaper.escape(k): v
+        for k, v in metadata.items()
+    }
 
 
-def get_metadata_from_api(api_metadata: Sequence[ApiMetadataItem]) -> Sequence:
-    if not api_metadata:
-        return api_metadata
+def unescape_metadata(call: APICall, documents: Union[dict, Sequence[dict]]):
+    """
+    Unescape special characters in metadata keys
+    """
+    if isinstance(documents, dict):
+        documents = [documents]
 
-    metadata = [m.to_struct() for m in api_metadata]
-    validate_metadata(metadata)
+    old_client = call.requested_endpoint_version <= PartialVersion("2.16")
+    for doc in documents:
+        if old_client and "metadata" in doc:
+            doc["metadata"] = []
+            continue
 
-    return metadata
+        metadata = doc.get("metadata")
+        if not metadata:
+            continue
+
+        doc["metadata"] = {
+            ParameterKeyEscaper.unescape(k): v
+            for k, v in metadata.items()
+        }

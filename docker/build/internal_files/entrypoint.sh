@@ -48,8 +48,15 @@ EOF
 
     export NGINX_APISERVER_ADDR=${NGINX_APISERVER_ADDRESS:-http://apiserver:8008}
     export NGINX_FILESERVER_ADDR=${NGINX_FILESERVER_ADDRESS:-http://fileserver:8081}
-
     envsubst '${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR}' < /etc/nginx/clearml.conf.template > /etc/nginx/nginx.conf
+
+    if [[ -n "${CLEARML_SERVER_SUB_PATH}" ]]; then
+      envsubst '${CLEARML_SERVER_SUB_PATH}' < /etc/nginx/clearml_subpath.conf.template > /etc/nginx/default.d/clearml_subpath.conf
+      cp /usr/share/nginx/html/env.js /usr/share/nginx/html/env.js.origin
+      envsubst '${CLEARML_SERVER_SUB_PATH}' < /usr/share/nginx/html/env.js.origin > /usr/share/nginx/html/env.js
+      cp /usr/share/nginx/html/index.html /usr/share/nginx/html/index.html.origin
+      sed 's/href="\/"/href="\/'${CLEARML_SERVER_SUB_PATH}'\/"/' /usr/share/nginx/html/index.html.origin > /usr/share/nginx/html/index.html
+    fi
 
     #start the server
     /usr/sbin/nginx -g "daemon off;"

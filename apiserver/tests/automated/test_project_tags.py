@@ -4,10 +4,29 @@ from apiserver.tests.automated import TestService
 
 
 class TestProjectTags(TestService):
-    def setUp(self, version="2.12"):
-        super().setUp(version=version)
+    def test_project_own_tags(self):
+        p1_tags = ["Tag 1", "Tag 2"]
+        p1 = self.create_temp(
+            "projects", name="Test project tags1", description="test", tags=p1_tags
+        )
+        p2_tags = ["Tag 1", "Tag 3"]
+        p2 = self.create_temp(
+            "projects",
+            name="Test project tags2",
+            description="test",
+            tags=p2_tags,
+            system_tags=["hidden"],
+        )
 
-    def test_project_tags(self):
+        res = self.api.projects.get_project_tags(projects=[p1, p2])
+        self.assertEqual(set(res.tags), set(p1_tags) | set(p2_tags))
+
+        res = self.api.projects.get_project_tags(
+            projects=[p1, p2], filter={"system_tags": ["__$not", "hidden"]}
+        )
+        self.assertEqual(res.tags, p1_tags)
+
+    def test_project_entities_tags(self):
         tags_1 = ["Test tag 1", "Test tag 2"]
         tags_2 = ["Test tag 3", "Test tag 4"]
 

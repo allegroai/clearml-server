@@ -32,7 +32,7 @@ class QueueBLL(object):
         name: str,
         tags: Optional[Sequence[str]] = None,
         system_tags: Optional[Sequence[str]] = None,
-        metadata: Optional[Sequence[dict]] = None,
+        metadata: Optional[dict] = None,
     ) -> Queue:
         """Creates a queue"""
         with translate_errors_context():
@@ -126,14 +126,27 @@ class QueueBLL(object):
                 )
             queue.delete()
 
-    def get_all(self, company_id: str, query_dict: dict) -> Sequence[dict]:
+    def get_all(
+        self,
+        company_id: str,
+        query_dict: dict,
+        ret_params: dict = None,
+    ) -> Sequence[dict]:
         """Get all the queues according to the query"""
         with translate_errors_context():
             return Queue.get_many(
-                company=company_id, parameters=query_dict, query_dict=query_dict
+                company=company_id,
+                parameters=query_dict,
+                query_dict=query_dict,
+                ret_params=ret_params,
             )
 
-    def get_queue_infos(self, company_id: str, query_dict: dict) -> Sequence[dict]:
+    def get_queue_infos(
+        self,
+        company_id: str,
+        query_dict: dict,
+        ret_params: dict = None,
+    ) -> Sequence[dict]:
         """
         Get infos on all the company queues, including queue tasks and workers
         """
@@ -143,6 +156,7 @@ class QueueBLL(object):
                 company=company_id,
                 query_dict=query_dict,
                 override_projection=projection,
+                ret_params=ret_params,
             )
 
             queue_workers = defaultdict(list)
@@ -173,13 +187,15 @@ class QueueBLL(object):
             if any(e.task == task_id for e in queue.entries):
                 raise errors.bad_request.TaskAlreadyQueued(task=task_id)
 
-            self.metrics.log_queue_metrics_to_es(company_id=company_id, queues=[queue])
-
             entry = Entry(added=datetime.utcnow(), task=task_id)
             query = dict(id=queue_id, company=company_id)
             res = Queue.objects(entries__task__ne=task_id, **query).update_one(
                 push__entries=entry, last_update=datetime.utcnow(), upsert=False
             )
+
+            queue.reload()
+            self.metrics.log_queue_metrics_to_es(company_id=company_id, queues=[queue])
+
             if not res:
                 raise errors.bad_request.InvalidQueueOrTaskNotQueued(
                     task=task_id, **query
@@ -219,13 +235,15 @@ class QueueBLL(object):
             queue = self.get_queue_with_task(
                 company_id=company_id, queue_id=queue_id, task_id=task_id
             )
-            self.metrics.log_queue_metrics_to_es(company_id, queues=[queue])
 
             entries_to_remove = [e for e in queue.entries if e.task == task_id]
             query = dict(id=queue_id, company=company_id)
             res = Queue.objects(entries__task=task_id, **query).update_one(
                 pull_all__entries=entries_to_remove, last_update=datetime.utcnow()
             )
+
+            queue.reload()
+            self.metrics.log_queue_metrics_to_es(company_id=company_id, queues=[queue])
 
             return len(entries_to_remove) if res else 0
 

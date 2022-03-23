@@ -13,17 +13,19 @@ from apiserver.apimodels.queues import (
     QueueMetrics,
     AddOrUpdateMetadataRequest,
     DeleteMetadataRequest,
+    GetNextTaskRequest,
 )
+from apiserver.bll.model import Metadata
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.workers import WorkerBLL
-from apiserver.database.model.metadata import metadata_add_or_update, metadata_delete
-from apiserver.database.model.queue import Queue
+from apiserver.database.model.task.task import Task
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
     conform_tags,
-    get_metadata_from_api,
+    escape_metadata,
+    unescape_metadata,
 )
 from apiserver.utilities import extract_properties_to_lists
 
@@ -36,6 +38,7 @@ def get_by_id(call: APICall, company_id, req_model: QueueRequest):
     queue = queue_bll.get_by_id(company_id, req_model.queue)
     queue_dict = queue.to_proper_dict()
     conform_output_tags(call, queue_dict)
+    unescape_metadata(call, queue_dict)
     call.result.data = {"queue": queue_dict}
 
 
@@ -48,21 +51,28 @@ def get_by_id(call: APICall):
 @endpoint("queues.get_all_ex", min_version="2.4")
 def get_all_ex(call: APICall):
     conform_tag_fields(call, call.data)
+    ret_params = {}
+
+    Metadata.escape_query_parameters(call)
     queues = queue_bll.get_queue_infos(
-        company_id=call.identity.company, query_dict=call.data
+        company_id=call.identity.company, query_dict=call.data, ret_params=ret_params,
     )
     conform_output_tags(call, queues)
-
-    call.result.data = {"queues": queues}
+    unescape_metadata(call, queues)
+    call.result.data = {"queues": queues, **ret_params}
 
 
 @endpoint("queues.get_all", min_version="2.4")
 def get_all(call: APICall):
     conform_tag_fields(call, call.data)
-    queues = queue_bll.get_all(company_id=call.identity.company, query_dict=call.data)
+    ret_params = {}
+    Metadata.escape_query_parameters(call)
+    queues = queue_bll.get_all(
+        company_id=call.identity.company, query_dict=call.data, ret_params=ret_params,
+    )
     conform_output_tags(call, queues)
-
-    call.result.data = {"queues": queues}
+    unescape_metadata(call, queues)
+    call.result.data = {"queues": queues, **ret_params}
 
 
 @endpoint("queues.create", min_version="2.4", request_data_model=CreateRequest)
@@ -75,7 +85,7 @@ def create(call: APICall, company_id, request: CreateRequest):
         name=request.name,
         tags=tags,
         system_tags=system_tags,
-        metadata=get_metadata_from_api(request.metadata),
+        metadata=Metadata.metadata_from_api(request.metadata),
     )
     call.result.data = {"id": queue.id}
 
@@ -89,10 +99,12 @@ def create(call: APICall, company_id, request: CreateRequest):
 def update(call: APICall, company_id, req_model: UpdateRequest):
     data = call.data_model_for_partial_update
     conform_tag_fields(call, data, validate=True)
+    escape_metadata(data)
     updated, fields = queue_bll.update(
         company_id=company_id, queue_id=req_model.queue, **data
     )
     conform_output_tags(call, fields)
+    unescape_metadata(call, fields)
     call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
 
@@ -113,11 +125,19 @@ def add_task(call: APICall, company_id, req_model: TaskRequest):
     }
 
 
-@endpoint("queues.get_next_task", min_version="2.4", request_data_model=QueueRequest)
-def get_next_task(call: APICall, company_id, req_model: QueueRequest):
-    task = queue_bll.get_next_task(company_id=company_id, queue_id=req_model.queue)
-    if task:
-        call.result.data = {"entry": task.to_proper_dict()}
+@endpoint("queues.get_next_task", request_data_model=GetNextTaskRequest)
+def get_next_task(call: APICall, company_id, req_model: GetNextTaskRequest):
+    entry = queue_bll.get_next_task(
+        company_id=company_id, queue_id=req_model.queue
+    )
+    if entry:
+        data = {"entry": entry.to_proper_dict()}
+        if req_model.get_task_info:
+            task = Task.objects(id=entry.task).first()
+            if task:
+                data["task_info"] = {"company": task.company, "user": task.user}
+
+        call.result.data = data
 
 
 @endpoint("queues.remove_task", min_version="2.4", request_data_model=TaskRequest)
@@ -237,21 +257,19 @@ def get_queue_metrics(
 
 @endpoint("queues.add_or_update_metadata", min_version="2.13")
 def add_or_update_metadata(
-    _: APICall, company_id: str, request: AddOrUpdateMetadataRequest
+    call: APICall, company_id: str, request: AddOrUpdateMetadataRequest
 ):
     queue_id = request.queue
-    queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
-
+    queue = queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
     return {
-        "updated": metadata_add_or_update(
-            cls=Queue, _id=queue_id, items=get_metadata_from_api(request.metadata),
+        "updated": Metadata.edit_metadata(
+            queue, items=request.metadata, replace_metadata=request.replace_metadata
         )
     }
 
 
 @endpoint("queues.delete_metadata", min_version="2.13")
-def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest):
+def delete_metadata(call: APICall, company_id: str, request: DeleteMetadataRequest):
     queue_id = request.queue
-    queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
-
-    return {"updated": metadata_delete(cls=Queue, _id=queue_id, keys=request.keys)}
+    queue = queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
+    return {"updated": Metadata.delete_metadata(queue, keys=request.keys)}

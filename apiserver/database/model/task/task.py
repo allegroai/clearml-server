@@ -159,11 +159,10 @@ external_task_types = set(get_options(TaskType))
 
 
 class Task(AttributedDocument):
-    _numeric_locale = {"locale": "en_US", "numericOrdering": True}
     _field_collation_overrides = {
-        "execution.parameters.": _numeric_locale,
-        "last_metrics.": _numeric_locale,
-        "hyperparams.": _numeric_locale,
+        "execution.parameters.": AttributedDocument._numeric_locale,
+        "last_metrics.": AttributedDocument._numeric_locale,
+        "hyperparams.": AttributedDocument._numeric_locale,
     }
 
     meta = {
@@ -184,7 +183,10 @@ class Task(AttributedDocument):
             ("company", "type", "system_tags", "status"),
             ("company", "project", "type", "system_tags", "status"),
             ("status", "last_update"),  # for maintenance tasks
-            {"fields": ["company", "project"], "collation": _numeric_locale},
+            {
+                "fields": ["company", "project"],
+                "collation": AttributedDocument._numeric_locale,
+            },
             {
                 "name": "%s.task.main_text_index" % Database.backend,
                 "fields": [

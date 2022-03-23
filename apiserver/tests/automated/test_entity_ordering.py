@@ -38,7 +38,7 @@ class TestEntityOrdering(TestService):
         self._assertGetTasksWithOrdering(order_by=order_field, page=0, page_size=20)
 
         field_vals = []
-        page_size = 2
+        page_size = 4
         num_pages = 5
         for page in range(num_pages):
             paged_tasks = self._get_page_tasks(

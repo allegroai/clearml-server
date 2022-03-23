@@ -4,7 +4,12 @@ from threading import Lock
 from typing import Sequence
 
 import six
-from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
+from mongoengine import (
+    EmbeddedDocumentField,
+    EmbeddedDocumentListField,
+    EmbeddedDocument,
+    Document,
+)
 from mongoengine.base import get_document
 
 from apiserver.database.fields import (
@@ -24,6 +29,13 @@ class PropsMixin(object):
 
     __cached_dpath_computed_fields_lock = Lock()
     __cached_dpath_computed_fields = None
+
+    _document_classes = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if issubclass(cls, (Document, EmbeddedDocument)):
+            PropsMixin._document_classes[cls._class_name] = cls
 
     @classmethod
     def get_fields(cls):
@@ -57,8 +69,14 @@ class PropsMixin(object):
         def resolve_doc(v):
             if not isinstance(v, six.string_types):
                 return v
-            if v == 'self':
+
+            if v == "self":
                 return cls_.owner_document
+
+            doc_cls = PropsMixin._document_classes.get(v)
+            if doc_cls:
+                return doc_cls
+
             return get_document(v)
 
         fields = {k: resolve_doc(v) for k, v in res.items()}
@@ -72,7 +90,7 @@ class PropsMixin(object):
                 ).document_type
                 fields.update(
                     {
-                        '.'.join((field, subfield)): doc
+                        ".".join((field, subfield)): doc
                         for subfield, doc in PropsMixin._get_fields_with_attr(
                             embedded_doc_cls, attr
                         ).items()
@@ -80,10 +98,10 @@ class PropsMixin(object):
                 )
 
         collect_embedded_docs(EmbeddedDocumentField, lambda x: x)
-        collect_embedded_docs(EmbeddedDocumentListField, attrgetter('field'))
-        collect_embedded_docs(LengthRangeEmbeddedDocumentListField, attrgetter('field'))
-        collect_embedded_docs(UniqueEmbeddedDocumentListField, attrgetter('field'))
-        collect_embedded_docs(EmbeddedDocumentSortedListField, attrgetter('field'))
+        collect_embedded_docs(EmbeddedDocumentListField, attrgetter("field"))
+        collect_embedded_docs(LengthRangeEmbeddedDocumentListField, attrgetter("field"))
+        collect_embedded_docs(UniqueEmbeddedDocumentListField, attrgetter("field"))
+        collect_embedded_docs(EmbeddedDocumentSortedListField, attrgetter("field"))
 
         return fields
 
@@ -94,7 +112,7 @@ class PropsMixin(object):
         for depth, part in enumerate(parts):
             if current_cls is None:
                 raise ValueError(
-                    'Invalid path (non-document encountered at %s)' % parts[: depth - 1]
+                    "Invalid path (non-document encountered at %s)" % parts[: depth - 1]
                 )
             try:
                 field_name, field = next(
@@ -103,7 +121,7 @@ class PropsMixin(object):
                     if k == part
                 )
             except StopIteration:
-                raise ValueError('Invalid field path %s' % parts[:depth])
+                raise ValueError("Invalid field path %s" % parts[:depth])
 
             translated_parts.append(part)
 
@@ -119,7 +137,7 @@ class PropsMixin(object):
                 ),
             ):
                 current_cls = field.field.document_type
-                translated_parts.append('*')
+                translated_parts.append("*")
             else:
                 current_cls = None
 
@@ -128,7 +146,7 @@ class PropsMixin(object):
     @classmethod
     def get_reference_fields(cls):
         if cls.__cached_reference_fields is None:
-            fields = cls._get_fields_with_attr(cls, 'reference_field')
+            fields = cls._get_fields_with_attr(cls, "reference_field")
             cls.__cached_reference_fields = OrderedDict(sorted(fields.items()))
         return cls.__cached_reference_fields
 
@@ -143,12 +161,12 @@ class PropsMixin(object):
     @classmethod
     def get_exclude_fields(cls):
         if cls.__cached_exclude_fields is None:
-            fields = cls._get_fields_with_attr(cls, 'exclude_by_default')
+            fields = cls._get_fields_with_attr(cls, "exclude_by_default")
             cls.__cached_exclude_fields = OrderedDict(sorted(fields.items()))
         return cls.__cached_exclude_fields
 
     @classmethod
-    def get_dpath_translated_path(cls, path, separator='.'):
+    def get_dpath_translated_path(cls, path, separator="."):
         if cls.__cached_dpath_computed_fields is None:
             cls.__cached_dpath_computed_fields = {}
         if path not in cls.__cached_dpath_computed_fields:

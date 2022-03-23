@@ -24,13 +24,13 @@ from apiserver.bll.event.event_common import (
     MetricVariants,
     get_metric_variants_condition,
 )
+from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
 from apiserver.bll.event.event_metrics import EventMetrics
-from apiserver.bll.event.log_events_iterator import LogEventsIterator, TaskEventsResult
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -73,7 +73,7 @@ class EventBLL(object):
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
         self.debug_sample_history = DebugSampleHistory(es=self.es, redis=self.redis)
-        self.log_events_iterator = LogEventsIterator(es=self.es)
+        self.events_iterator = EventsIterator(es=self.es)
 
     @property
     def metrics(self) -> EventMetrics:
@@ -534,6 +534,7 @@ class EventBLL(object):
         sort=None,
         size: int = 500,
         scroll_id: str = None,
+        no_scroll: bool = False,
         metric_variants: MetricVariants = None,
     ):
         if scroll_id == self.empty_scroll:
@@ -611,7 +612,7 @@ class EventBLL(object):
                     event_type=event_type,
                     body=es_req,
                     ignore=404,
-                    scroll="1h",
+                    **({} if no_scroll else {"scroll": "1h"}),
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)
@@ -680,6 +681,7 @@ class EventBLL(object):
         sort=None,
         size=500,
         scroll_id=None,
+        no_scroll=False,
     ) -> TaskEventsResult:
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -740,7 +742,7 @@ class EventBLL(object):
                     event_type=event_type,
                     body=es_req,
                     ignore=404,
-                    scroll="1h",
+                    **({} if no_scroll else {"scroll": "1h"}),
                 )
 
         events, total_events, next_scroll_id = self._get_events_from_es_res(es_res)

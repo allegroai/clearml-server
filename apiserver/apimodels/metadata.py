@@ -1,7 +1,7 @@
 from typing import Sequence
 
 from jsonmodels import validators
-from jsonmodels.fields import StringField
+from jsonmodels.fields import StringField, BoolField
 from jsonmodels.models import Base
 
 from apiserver.apimodels import ListField
@@ -21,3 +21,4 @@ class AddOrUpdateMetadata(Base):
     metadata: Sequence[MetadataItem] = ListField(
         [MetadataItem], validators=validators.Length(minimum_value=1)
     )
+    replace_metadata = BoolField(default=False)

@@ -2,9 +2,6 @@ from apiserver.tests.automated import TestService
 
 
 class TestOrganization(TestService):
-    def setUp(self, version="2.12"):
-        super().setUp(version=version)
-
     def test_get_user_companies(self):
         company = self.api.organization.get_user_companies().companies[0]
         self.assertEqual(len(company.owners), company.allocated)

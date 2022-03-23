@@ -37,15 +37,12 @@ def deep_merge(source: dict, override: dict) -> dict:
 
 def nested_get(
     dictionary: Mapping,
-    path: Union[Sequence[str], str],
+    path: Sequence[str],
     default: Optional[Union[Any, Callable]] = None,
 ) -> Any:
-    if isinstance(path, str):
-        path = [path]
-
     node = dictionary
     for key in path:
-        if key not in node:
+        if not node or key not in node:
             if callable(default):
                 return default()
             return default

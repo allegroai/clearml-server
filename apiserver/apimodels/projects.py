@@ -1,6 +1,6 @@
 from jsonmodels import models, fields
 
-from apiserver.apimodels import ListField, ActualEnumField
+from apiserver.apimodels import ListField, ActualEnumField, DictField
 from apiserver.apimodels.organization import TagsRequest
 from apiserver.database.model import EntityVisibility
 
@@ -27,7 +27,7 @@ class ProjectOrNoneRequest(models.Base):
     include_subprojects = fields.BoolField(default=True)
 
 
-class GetHyperParamRequest(ProjectOrNoneRequest):
+class GetParamsRequest(ProjectOrNoneRequest):
     page = fields.IntField(default=0)
     page_size = fields.IntField(default=500)
 
@@ -51,8 +51,15 @@ class ProjectHyperparamValuesRequest(MultiProjectRequest):
     allow_public = fields.BoolField(default=True)
 
 
+class ProjectModelMetadataValuesRequest(MultiProjectRequest):
+    key = fields.StringField(required=True)
+    allow_public = fields.BoolField(default=True)
+
+
 class ProjectsGetRequest(models.Base):
     include_stats = fields.BoolField(default=False)
+    include_stats_filter = DictField()
+    stats_with_children = fields.BoolField(default=True)
     stats_for_state = ActualEnumField(EntityVisibility, default=EntityVisibility.active)
     non_public = fields.BoolField(default=False)
     active_users = fields.ListField(str)

@@ -12,6 +12,9 @@ from .payload import Payload
 token_secret = config.get('secure.auth.token_secret')
 
 
+log = config.logger(__file__)
+
+
 class Token(Payload):
     default_expiration_sec = config.get('apiserver.auth.default_expiration_sec')
 
@@ -94,3 +97,14 @@ class Token(Payload):
             token.exp = now + timedelta(seconds=expiration_sec)
 
         return token.encode(**extra_payload)
+
+    @classmethod
+    def decode_identity(cls, encoded_token):
+        # noinspection PyBroadException
+        try:
+            from ..auth import Identity
+
+            decoded = cls.decode(encoded_token, verify=False)
+            return Identity.from_dict(decoded.get("identity", {}))
+        except Exception as ex:
+            log.error(f"Failed parsing identity from encoded token: {ex}")

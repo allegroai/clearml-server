@@ -69,7 +69,7 @@ def validate_auth(endpoint, call):
         auth = call.authorization or ""
         auth_type, _, auth_data = auth.partition(" ")
         authorize_func = get_auth_func(auth_type)
-        call.auth = authorize_func(auth_data, service, action, call.batched_data)
+        call.auth = authorize_func(auth_data, service, action, call)
     except Exception:
         if endpoint.authorize:
             # if endpoint requires authorization, re-raise exception

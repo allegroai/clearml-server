@@ -1,26 +1,41 @@
 import re
 from collections import namedtuple
-from functools import reduce
-from typing import Collection, Sequence, Union, Optional, Type, Tuple, Mapping, Any
+from functools import reduce, partial
+from typing import (
+    Collection,
+    Sequence,
+    Union,
+    Optional,
+    Type,
+    Tuple,
+    Mapping,
+    Any,
+    Callable,
+    Dict,
+    List,
+)
 
-from boltons.iterutils import first, bucketize, partition
+from boltons.iterutils import first, partition
 from dateutil.parser import parse as parse_datetime
-from mongoengine import Q, Document, ListField, StringField
+from mongoengine import Q, Document, ListField, StringField, IntField
 from pymongo.command_cursor import CommandCursor
 
 from apiserver.apierrors import errors
 from apiserver.apierrors.base import BaseError
+from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.config_repo import config
+from apiserver.database import Database
 from apiserver.database.errors import MakeGetAllQueryError
 from apiserver.database.projection import project_dict, ProjectionHelper
 from apiserver.database.props import PropsMixin
-from apiserver.database.query import RegexQ, RegexWrapper
+from apiserver.database.query import RegexQ, RegexWrapper, RegexQCombination
 from apiserver.database.utils import (
     get_company_or_none_constraint,
     get_fields_choices,
     field_does_not_exist,
     field_exists,
 )
+from apiserver.redis_manager import redman
 
 log = config.logger("dbmodel")
 
@@ -70,6 +85,9 @@ class GetMixin(PropsMixin):
     _ordering_key = "order_by"
     _search_text_key = "search_text"
 
+    _start_key = "start"
+    _size_key = "size"
+
     _multi_field_param_sep = "__"
     _multi_field_param_prefix = {
         ("_any_", "_or_"): lambda a, b: a | b,
@@ -77,6 +95,7 @@ class GetMixin(PropsMixin):
     }
     MultiFieldParameters = namedtuple("MultiFieldParameters", "pattern fields")
 
+    _numeric_locale = {"locale": "en_US", "numericOrdering": True}
     _field_collation_overrides = {}
 
     class QueryParameterOptions(object):
@@ -103,45 +122,105 @@ class GetMixin(PropsMixin):
 
     class ListFieldBucketHelper:
         op_prefix = "__$"
-        legacy_exclude_prefix = "-"
+        _legacy_exclude_prefix = "-"
+        _legacy_exclude_mongo_op = "nin"
 
-        _default = "in"
+        default_mongo_op = "in"
         _ops = {
+            # op -> (mongo_op, sticky)
             "not": ("nin", False),
+            "nop": (default_mongo_op, False),
             "all": ("all", True),
             "and": ("all", True),
+            "any": (default_mongo_op, True),
+            "or": (default_mongo_op, True),
         }
-        _next = _default
-        _sticky = False
 
         def __init__(self, legacy=False):
-            self._legacy = legacy
+            self._current_op = None
+            self._sticky = False
+            self._support_legacy = legacy
+            self.allow_empty = False
 
-        def key(self, v) -> Optional[str]:
+        def _get_op(self, v: str, translate: bool = False) -> Optional[str]:
+            op = (
+                v[len(self.op_prefix) :] if v and v.startswith(self.op_prefix) else None
+            )
+            if translate:
+                tup = self._ops.get(op, None)
+                return tup[0] if tup else None
+            return op
+
+        def _key(self, v) -> Optional[Union[str, bool]]:
             if v is None:
-                self._next = self._default
-                return self._default
-            elif self._legacy and v.startswith(self.legacy_exclude_prefix):
-                self._next = self._default
-                return self._ops["not"][0]
-            elif v.startswith(self.op_prefix):
-                self._next, self._sticky = self._ops.get(
-                    v[len(self.op_prefix) :], (self._default, self._sticky)
-                )
+                self.allow_empty = True
                 return None
 
-            next_ = self._next
-            if not self._sticky:
-                self._next = self._default
+            op = self._get_op(v)
+            if op is not None:
+                # operator - set state and return None
+                self._current_op, self._sticky = self._ops.get(
+                    op, (self.default_mongo_op, self._sticky)
+                )
+                return None
+            elif self._current_op:
+                current_op = self._current_op
+                if not self._sticky:
+                    self._current_op = None
+                return current_op
+            elif self._support_legacy and v.startswith(self._legacy_exclude_prefix):
+                self._current_op = None
+                return False
 
-            return next_
+            return self.default_mongo_op
 
-        def value_transform(self, v):
-            if self._legacy and v and v.startswith(self.legacy_exclude_prefix):
-                return v[len(self.legacy_exclude_prefix) :]
-            return v
+        def get_global_op(self, data: Sequence[str]) -> int:
+            op_to_res = {
+                "in": Q.OR,
+                "all": Q.AND,
+            }
+            data = (x for x in data if x is not None)
+            first_op = (
+                self._get_op(next(data, ""), translate=True) or self.default_mongo_op
+            )
+            return op_to_res.get(first_op, self.default_mongo_op)
+
+        def get_actions(self, data: Sequence[str]) -> Dict[str, List[Union[str, None]]]:
+            actions = {}
+
+            for val in data:
+                key = self._key(val)
+                if key is None:
+                    continue
+                elif self._support_legacy and key is False:
+                    key = self._legacy_exclude_mongo_op
+                    val = val[len(self._legacy_exclude_prefix) :]
+                actions.setdefault(key, []).append(val)
+
+            return actions
 
     get_all_query_options = QueryParameterOptions()
+
+    class GetManyScrollState(ProperDictMixin, Document):
+        meta = {"db_alias": Database.backend, "strict": False}
+
+        id = StringField(primary_key=True)
+        position = IntField(default=0)
+
+    _cache_manager = None
+
+    @classmethod
+    def get_cache_manager(cls):
+        if not cls._cache_manager:
+            cls._cache_manager = RedisCacheManager(
+                state_class=cls.GetManyScrollState,
+                redis=redman.connection("apiserver"),
+                expiration_interval=config.get(
+                    "services._mongo.scroll_state_expiration_seconds", 600
+                ),
+            )
+
+        return cls._cache_manager
 
     @classmethod
     def get(
@@ -241,7 +320,9 @@ class GetMixin(PropsMixin):
         Prepare a query object based on the provided query dictionary and various fields.
 
         NOTE: BE VERY CAREFUL WITH THIS CALL, as it allows creating queries that span across companies.
-
+        IMPLEMENTATION NOTE: Make sure that inside this function or the functions it depends on RegexQ is always
+        used instead of Q. Otherwise we can and up with some combination that is not processed according to
+        RegexQ rules
         :param parameters_options: Specifies options for parsing the parameters (see ParametersOptions)
         :param parameters: Query dictionary (relevant keys are these specified by the various field names parameters).
             Supported parameters:
@@ -278,7 +359,7 @@ class GetMixin(PropsMixin):
                 patterns=opts.fields or [], parameters=parameters
             ).items():
                 if "._" in field or "_." in field:
-                    query &= Q(__raw__={field: data})
+                    query &= RegexQ(__raw__={field: data})
                 else:
                     dict_query[field.replace(".", "__")] = data
 
@@ -312,22 +393,31 @@ class GetMixin(PropsMixin):
                         break
                     if any("._" in f for f in data.fields):
                         q = reduce(
-                            lambda a, x: func(a, Q(__raw__={x: {"$regex": data.pattern, "$options": "i"}})),
+                            lambda a, x: func(
+                                a,
+                                RegexQ(
+                                    __raw__={
+                                        x: {"$regex": data.pattern, "$options": "i"}
+                                    }
+                                ),
+                            ),
                             data.fields,
-                            Q()
+                            RegexQ(),
                         )
                     else:
                         regex = RegexWrapper(data.pattern, flags=re.IGNORECASE)
                         sep_fields = [f.replace(".", "__") for f in data.fields]
                         q = reduce(
-                            lambda a, x: func(a, RegexQ(**{x: regex})), sep_fields, RegexQ()
+                            lambda a, x: func(a, RegexQ(**{x: regex})),
+                            sep_fields,
+                            RegexQ(),
                         )
                     query = query & q
 
         return query & RegexQ(**dict_query)
 
     @classmethod
-    def get_range_field_query(cls, field: str, data: Sequence[Optional[str]]) -> Q:
+    def get_range_field_query(cls, field: str, data: Sequence[Optional[str]]) -> RegexQ:
         """
         Return a range query for the provided field. The data should contain min and max values
         Both intervals are included. For open range queries either min or max can be None
@@ -351,14 +441,14 @@ class GetMixin(PropsMixin):
         if max_val is not None:
             query[f"{mongoengine_field}__lte"] = max_val
 
-        q = Q(**query)
+        q = RegexQ(**query)
         if min_val is None:
-            q |= Q(**{mongoengine_field: None})
+            q |= RegexQ(**{mongoengine_field: None})
 
         return q
 
     @classmethod
-    def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> Q:
+    def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> RegexQ:
         """
         Get a proper mongoengine Q object that represents an "or" query for the provided values
         with respect to the given list field, with support for "none of empty" in case a None value
@@ -370,30 +460,31 @@ class GetMixin(PropsMixin):
         """
         if not isinstance(data, (list, tuple)):
             data = [data]
-            # raise MakeGetAllQueryError("expected list", field)
 
-        # TODO: backwards compatibility only for older API versions
         helper = cls.ListFieldBucketHelper(legacy=True)
-        actions = bucketize(
-            data, key=helper.key, value_transform=helper.value_transform
-        )
+        global_op = helper.get_global_op(data)
+        actions = helper.get_actions(data)
 
-        allow_empty = None in actions.get("in", {})
         mongoengine_field = field.replace(".", "__")
 
-        q = RegexQ()
-        for action in filter(None, actions):
-            q &= RegexQ(
-                **{f"{mongoengine_field}__{action}": list(set(actions[action]))}
-            )
+        queries = [
+            RegexQ(**{f"{mongoengine_field}__{action}": list(set(actions[action]))})
+            for action in filter(None, actions)
+        ]
 
-        if not allow_empty:
+        if not queries:
+            q = RegexQ()
+        else:
+            q = RegexQCombination(operation=global_op, children=queries)
+
+        if not helper.allow_empty:
             return q
 
         return (
             q
-            | Q(**{f"{mongoengine_field}__exists": False})
-            | Q(**{mongoengine_field: []})
+            | RegexQ(**{f"{mongoengine_field}__exists": False})
+            | RegexQ(**{mongoengine_field: []})
+            | RegexQ(**{mongoengine_field: None})
         )
 
     @classmethod
@@ -421,27 +512,41 @@ class GetMixin(PropsMixin):
         return order_by
 
     @classmethod
-    def validate_paging(
-        cls, parameters=None, default_page=None, default_page_size=None
-    ):
-        """ Validate and extract paging info from from the provided dictionary. Supports default values. """
-        if parameters is None:
-            parameters = {}
-        default_page = parameters.get("page", default_page)
-        if default_page is None:
-            return None, None
-        default_page_size = parameters.get("page_size", default_page_size)
-        if not default_page_size:
-            raise errors.bad_request.MissingRequiredFields(
-                "page_size is required when page is requested", field="page_size"
-            )
-        elif default_page < 0:
+    def validate_paging(cls, parameters=None, default_page=0, default_page_size=None):
+        """
+        Validate and extract paging info from from the provided dictionary. Supports default values.
+        If page is specified then it should be non-negative, if page size is specified then it should be positive
+        If page size is specified and page is not then 0 page is assumed
+        If page is specified then page size should be specified too
+        """
+        parameters = parameters or {}
+
+        start = parameters.get(cls._start_key)
+        if start is not None:
+            return start, cls.validate_scroll_size(parameters)
+
+        max_page_size = config.get("services._mongo.max_page_size", 500)
+        page = parameters.get("page", default_page)
+        if page is not None and page < 0:
             raise errors.bad_request.ValidationError("page must be >=0", field="page")
-        elif default_page_size < 1:
+
+        page_size = parameters.get("page_size", default_page_size or max_page_size)
+        if page_size is not None and page_size < 1:
             raise errors.bad_request.ValidationError(
                 "page_size must be >0", field="page_size"
             )
-        return default_page, default_page_size
+
+        if page_size is not None:
+            page = page or 0
+            page_size = min(page_size, max_page_size)
+            return page * page_size, page_size
+
+        if page is not None:
+            raise errors.bad_request.MissingRequiredFields(
+                "page_size is required when page is requested", field="page_size"
+            )
+
+        return None, None
 
     @classmethod
     def get_projection(cls, parameters, override_projection=None, **__):
@@ -486,6 +591,54 @@ class GetMixin(PropsMixin):
         cls.set_ordering(parameters, cls.get_ordering(parameters) or value)
 
     @classmethod
+    def validate_scroll_size(cls, query_dict: dict) -> int:
+        size = query_dict.get(cls._size_key)
+        if not size or not isinstance(size, int) or size < 1:
+            raise errors.bad_request.ValidationError(
+                "Integer size parameter greater than 1 should be provided when working with scroll"
+            )
+        return size
+
+    @classmethod
+    def get_data_with_scroll_support(
+        cls,
+        query_dict: dict,
+        data_getter: Callable[[], Sequence[dict]],
+        ret_params: dict,
+    ) -> Sequence[dict]:
+        """
+        Retrieves the data by calling the provided data_getter api
+        If scroll parameters are specified then put the query_dict 'start' parameter to the last
+        scroll position and continue retrievals from that position
+        If refresh_scroll is requested then bring once more the data from the beginning
+        till the current scroll position
+        In the end the scroll position is updated and accumulated frames are returned
+        """
+        query_dict = query_dict or {}
+        state: Optional[cls.GetManyScrollState] = None
+        if "scroll_id" in query_dict:
+            size = cls.validate_scroll_size(query_dict)
+            state = cls.get_cache_manager().get_or_create_state_core(
+                query_dict.get("scroll_id")
+            )
+            if query_dict.get("refresh_scroll"):
+                query_dict[cls._size_key] = max(state.position, size)
+                state.position = 0
+            query_dict[cls._start_key] = state.position
+
+        data = data_getter()
+        if cls._start_key in query_dict:
+            query_dict[cls._start_key] = query_dict[cls._start_key] + len(data)
+
+        if state:
+            state.position = query_dict[cls._start_key]
+            cls.get_cache_manager().set_state(state)
+            if ret_params is not None:
+                ret_params["scroll_id"] = state.id
+
+        return data
+
+    @classmethod
     def get_many_with_join(
         cls,
         company,
@@ -495,6 +648,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection=None,
         expand_reference_ids=True,
+        ret_params: dict = None,
     ):
         """
         Fetch all documents matching a provided query with support for joining referenced documents according to the
@@ -530,6 +684,7 @@ class GetMixin(PropsMixin):
             query=query,
             query_options=query_options,
             allow_public=allow_public,
+            ret_params=ret_params,
         )
 
         def projection_func(doc_type, projection, ids):
@@ -560,6 +715,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection: Collection[str] = None,
         return_dicts=True,
+        ret_params: dict = None,
     ):
         """
         Fetch all documents matching a provided query. Supported several built-in options
@@ -605,11 +761,15 @@ class GetMixin(PropsMixin):
         _query = (q & query) if query else q
 
         if return_dicts:
-            return cls._get_many_override_none_ordering(
+            data_getter = partial(
+                cls._get_many_override_none_ordering,
                 query=_query,
                 parameters=parameters,
                 override_projection=override_projection,
                 override_collation=override_collation,
+            )
+            return cls.get_data_with_scroll_support(
+                query_dict=query_dict, data_getter=data_getter, ret_params=ret_params,
             )
 
         return cls._get_many_no_company(
@@ -662,7 +822,7 @@ class GetMixin(PropsMixin):
         order_by = cls.validate_order_by(parameters=parameters, search_text=search_text)
         if order_by and not override_collation:
             override_collation = cls._get_collation_override(order_by[0])
-        page, page_size = cls.validate_paging(parameters=parameters)
+        start, size = cls.validate_paging(parameters=parameters)
         include, exclude = cls.split_projection(
             cls.get_projection(parameters, override_projection)
         )
@@ -683,9 +843,9 @@ class GetMixin(PropsMixin):
         if exclude:
             qs = qs.exclude(*exclude)
 
-        if page is not None and page_size:
+        if start is not None and size:
             # add paging
-            qs = qs.skip(page * page_size).limit(page_size)
+            qs = qs.skip(start).limit(size)
 
         return qs
 
@@ -746,7 +906,10 @@ class GetMixin(PropsMixin):
         parameters = parameters or {}
         search_text = parameters.get(cls._search_text_key)
         order_by = cls.validate_order_by(parameters=parameters, search_text=search_text)
-        page, page_size = cls.validate_paging(parameters=parameters)
+        start, size = cls.validate_paging(parameters=parameters)
+        if size is not None and size <= 0:
+            return []
+
         include, exclude = cls.split_projection(
             cls.get_projection(parameters, override_projection)
         )
@@ -778,25 +941,28 @@ class GetMixin(PropsMixin):
         if exclude:
             query_sets = [qs.exclude(*exclude) for qs in query_sets]
 
-        if page is None or not page_size:
+        if start is None or not size:
             return [obj.to_proper_dict(only=include) for qs in query_sets for obj in qs]
 
         # add paging
         ret = []
-        start = page * page_size
-        for qs in query_sets:
-            qs_size = qs.count()
-            if qs_size < start:
-                start -= qs_size
-                continue
+        last_set = len(query_sets) - 1
+        for i, qs in enumerate(query_sets):
+            last_size = len(ret)
             ret.extend(
                 obj.to_proper_dict(only=include)
-                for obj in qs.skip(start).limit(page_size)
+                for obj in (qs.skip(start) if start else qs).limit(size)
             )
-            if len(ret) >= page_size:
+            added = len(ret) - last_size
+
+            if added > 0:
+                start = 0
+                size = max(0, size - added)
+            elif i != last_set:
+                start -= min(start, qs.count())
+
+            if size <= 0:
                 break
-            start = 0
-            page_size -= len(ret)
 
         return ret
 

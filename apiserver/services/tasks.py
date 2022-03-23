@@ -221,11 +221,15 @@ def get_all_ex(call: APICall, company_id, _):
 
     with TimingContext("mongo", "task_get_all_ex"):
         _process_include_subprojects(call_data)
+        ret_params = {}
         tasks = Task.get_many_with_join(
-            company=company_id, query_dict=call_data, allow_public=True,
+            company=company_id,
+            query_dict=call_data,
+            allow_public=True,
+            ret_params=ret_params,
         )
     unprepare_from_saved(call, tasks)
-    call.result.data = {"tasks": tasks}
+    call.result.data = {"tasks": tasks, **ret_params}
 
 
 @endpoint("tasks.get_by_id_ex", required_fields=["id"])
@@ -250,14 +254,16 @@ def get_all(call: APICall, company_id, _):
     call_data = escape_execution_parameters(call)
 
     with TimingContext("mongo", "task_get_all"):
+        ret_params = {}
         tasks = Task.get_many(
             company=company_id,
             parameters=call_data,
             query_dict=call_data,
             allow_public=True,
+            ret_params=ret_params,
         )
     unprepare_from_saved(call, tasks)
-    call.result.data = {"tasks": tasks}
+    call.result.data = {"tasks": tasks, **ret_params}
 
 
 @endpoint("tasks.get_types", request_data_model=GetTypesRequest)
@@ -1050,6 +1056,8 @@ def delete(call: APICall, company_id, request: DeleteRequest):
         force=request.force,
         return_file_urls=request.return_file_urls,
         delete_output_models=request.delete_output_models,
+        status_message=request.status_message,
+        status_reason=request.status_reason,
     )
     if deleted:
         _reset_cached_tags(company_id, projects=[task.project] if task.project else [])
@@ -1066,6 +1074,8 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
             force=request.force,
             return_file_urls=request.return_file_urls,
             delete_output_models=request.delete_output_models,
+            status_message=request.status_message,
+            status_reason=request.status_reason,
         ),
         ids=request.ids,
     )
@@ -1163,7 +1173,7 @@ def add_or_update_artifacts(
             company_id=company_id,
             task_id=request.task,
             artifacts=request.artifacts,
-            force=request.force,
+            force=True,
         )
     }
 
@@ -1179,7 +1189,7 @@ def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest)
             company_id=company_id,
             task_id=request.task,
             artifact_ids=request.artifacts,
-            force=request.force,
+            force=True,
         )
     }
 

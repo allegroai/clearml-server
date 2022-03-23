@@ -1,11 +1,8 @@
-from typing import Sequence
-
 from mongoengine import (
-    Document,
     StringField,
     DateTimeField,
     BooleanField,
-    EmbeddedDocumentListField,
+    EmbeddedDocumentField,
 )
 
 from apiserver.database import Database, strict
@@ -13,18 +10,21 @@ from apiserver.database.fields import (
     StrippedStringField,
     SafeDictField,
     SafeSortedListField,
+    SafeMapField,
 )
-from apiserver.database.model import DbModelMixin
+from apiserver.database.model import AttributedDocument
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.metadata import MetadataItem
 from apiserver.database.model.model_labels import ModelLabels
-from apiserver.database.model.company import Company
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task
-from apiserver.database.model.user import User
 
 
-class Model(DbModelMixin, Document):
+class Model(AttributedDocument):
+    _field_collation_overrides = {
+        "metadata.": AttributedDocument._numeric_locale,
+    }
+
     meta = {
         "db_alias": Database.backend,
         "strict": strict,
@@ -33,8 +33,6 @@ class Model(DbModelMixin, Document):
             "project",
             "task",
             "last_update",
-            "metadata.key",
-            "metadata.type",
             ("company", "framework"),
             ("company", "name"),
             ("company", "user"),
@@ -66,6 +64,7 @@ class Model(DbModelMixin, Document):
             "project",
             "task",
             "parent",
+            "metadata.*",
         ),
         datetime_fields=("last_update",),
     )
@@ -73,8 +72,6 @@ class Model(DbModelMixin, Document):
     id = StringField(primary_key=True)
     name = StrippedStringField(user_set_allowed=True, min_length=3)
     parent = StringField(reference_field="Model", required=False)
-    user = StringField(required=True, reference_field=User)
-    company = StringField(required=True, reference_field=Company)
     project = StringField(reference_field=Project, user_set_allowed=True)
     created = DateTimeField(required=True, user_set_allowed=True)
     task = StringField(reference_field=Task)
@@ -91,6 +88,6 @@ class Model(DbModelMixin, Document):
         default=dict, user_set_allowed=True, exclude_by_default=True
     )
     company_origin = StringField(exclude_by_default=True)
-    metadata: Sequence[MetadataItem] = EmbeddedDocumentListField(
-        MetadataItem, default=list, user_set_allowed=True
+    metadata = SafeMapField(
+        field=EmbeddedDocumentField(MetadataItem), user_set_allowed=True
     )

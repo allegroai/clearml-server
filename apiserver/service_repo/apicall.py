@@ -95,8 +95,8 @@ class DataContainer(object):
     @raw_data.setter
     def raw_data(self, value):
         assert isinstance(
-            value, string_types + (types.GeneratorType,)
-        ), "Raw data must be a string type or generator"
+            value, string_types + (types.GeneratorType, bytes)
+        ), "Raw data must be a string type or bytes or generator"
         self._raw_data = value
 
     @property
@@ -310,6 +310,12 @@ class APICall(DataContainer):
     _transaction_headers = _get_headers("Trx")
     """ Transaction ID """
 
+    _redacted_headers = {
+        HEADER_AUTHORIZATION: " ",
+        "Cookie": "=",
+    }
+    """ Headers whose value should be redacted. Maps header name to partition char """
+
     @property
     def HEADER_TRANSACTION(self):
         return self._transaction_headers[0]
@@ -388,6 +394,10 @@ class APICall(DataContainer):
         self._host = host
         self._auth_cookie = auth_cookie
         self._json_flags = {}
+
+    @property
+    def files(self):
+        return self._files
 
     @property
     def id(self):
@@ -584,6 +594,10 @@ class APICall(DataContainer):
     def json_flags(self):
         return self._json_flags
 
+    @property
+    def extra_meta_fields(self):
+        return {}
+
     def mark_end(self):
         self._end_ts = time.time()
         self._duration = int((self._end_ts - self._start_ts) * 1000)
@@ -634,6 +648,7 @@ class APICall(DataContainer):
                     "result_msg": self.result.msg,
                     "error_stack": self.result.traceback if include_stack else None,
                     "error_data": self.result.error_data,
+                    **self.extra_meta_fields,
                 },
                 "data": self.result.data,
             }
@@ -668,3 +683,15 @@ class APICall(DataContainer):
             error_data=error_data,
             cookies=self._result.cookies,
         )
+
+    def get_redacted_headers(self):
+        headers = self.headers.copy()
+        if not self.requires_authorization or self.auth:
+            # We won't log the authorization header if call shouldn't be authorized, or if it was successfully
+            #  authorized. This means we'll only log authorization header for calls that failed to authorize (hopefully
+            #  this will allow us to debug authorization errors).
+            for header, sep in self._redacted_headers.items():
+                if header in headers:
+                    prefix, _, redact = headers[header].partition(sep)
+                    headers[header] = prefix + sep + f"<{len(redact)} bytes redacted>"
+        return headers

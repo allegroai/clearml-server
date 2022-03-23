@@ -133,6 +133,32 @@ class TestTags(TestService):
         ).models
         self.assertFound(model_id, [], models)
 
+    def testQueueTags(self):
+        q_id = self._temp_queue(system_tags=["default"])
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["default"]
+        ).queues
+        self.assertFound(q_id, ["default"], queues)
+
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["-default"]
+        ).queues
+        self.assertNotFound(q_id, queues)
+
+        self.api.queues.update(queue=q_id, system_tags=[])
+        queues = self.api.queues.get_all_ex(
+            name="Test tags", system_tags=["-default"]
+        ).queues
+        self.assertFound(q_id, [], queues)
+
+        # test default queue
+        queues = self.api.queues.get_all(system_tags=["default"]).queues
+        if queues:
+            self.assertEqual(queues[0].id, self.api.queues.get_default().id)
+        else:
+            self.api.queues.update(queue=q_id, system_tags=["default"])
+            self.assertEqual(q_id, self.api.queues.get_default().id)
+
     def testTaskTags(self):
         task_id = self._temp_task(
             name="Test tags", system_tags=["active"]
@@ -169,35 +195,11 @@ class TestTags(TestService):
         task = self.api.tasks.get_by_id(task=task_id).task
         self.assertEqual(task.status, "stopped")
 
-    def testQueueTags(self):
-        q_id = self._temp_queue(system_tags=["default"])
-        queues = self.api.queues.get_all_ex(
-            name="Test tags", system_tags=["default"]
-        ).queues
-        self.assertFound(q_id, ["default"], queues)
-
-        queues = self.api.queues.get_all_ex(
-            name="Test tags", system_tags=["-default"]
-        ).queues
-        self.assertNotFound(q_id, queues)
-
-        self.api.queues.update(queue=q_id, system_tags=[])
-        queues = self.api.queues.get_all_ex(
-            name="Test tags", system_tags=["-default"]
-        ).queues
-        self.assertFound(q_id, [], queues)
-
-        # test default queue
-        queues = self.api.queues.get_all(system_tags=["default"]).queues
-        if queues:
-            self.assertEqual(queues[0].id, self.api.queues.get_default().id)
-        else:
-            self.api.queues.update(queue=q_id, system_tags=["default"])
-            self.assertEqual(q_id, self.api.queues.get_default().id)
-
     def assertProjectStats(self, project: AttrDict):
         self.assertEqual(set(project.stats.keys()), {"active"})
         self.assertAlmostEqual(project.stats.active.total_runtime, 1, places=0)
+        self.assertEqual(project.stats.active.completed_tasks_24h, 1)
+        self.assertEqual(project.stats.active.total_tasks, 1)
         for status, count in project.stats.active.status_count.items():
             self.assertEqual(count, 1 if status == "stopped" else 0)
 

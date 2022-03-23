@@ -51,7 +51,7 @@ def authorize_token(jwt_token, *_, **__):
         )
 
 
-def authorize_credentials(auth_data, service, action, call_data_items):
+def authorize_credentials(auth_data, service, action, call):
     """Validate credentials against service/action and request data (dicts).
     Returns a new basic object (auth payload)
     """
@@ -100,7 +100,12 @@ def authorize_credentials(auth_data, service, action, call_data_items):
         if not fixed_user:
             # In case these are proper credentials, update last used time
             User.objects(id=user.id, credentials__key=access_key).update(
-                **{"set__credentials__$__last_used": datetime.utcnow()}
+                **{
+                    "set__credentials__$__last_used": datetime.utcnow(),
+                    "set__credentials__$__last_used_from": call.get_worker(
+                        default=call.real_ip
+                    ),
+                }
             )
 
     with TimingContext("mongo", "company_by_id"):

@@ -113,7 +113,7 @@ class WorkerBLL:
             res = self.redis.delete(
                 company_id, self._get_worker_key(company_id, user_id, worker)
             )
-        if not res:
+        if not res and not config.get("apiserver.workers.auto_unregister", False):
             raise bad_request.WorkerNotRegistered(worker=worker)
 
     def status_report(
@@ -258,7 +258,7 @@ class WorkerBLL:
             tasks_info = {
                 task.id: task
                 for task in Task.objects(id__in=task_ids).only(
-                    "name", "started", "last_iteration"
+                    "name", "started", "last_iteration", "active_duration"
                 )
             }
 
@@ -283,11 +283,7 @@ class WorkerBLL:
             if helper.task_id:
                 task = tasks_info.get(helper.task_id, None)
                 if task:
-                    worker.task.running_time = (
-                        int((datetime.utcnow() - task.started).total_seconds() * 1000)
-                        if task.started
-                        else 0
-                    )
+                    worker.task.running_time = (task.active_duration or 0) * 1000
                     worker.task.last_iteration = task.last_iteration
 
             update_queue_entries(worker.queue)

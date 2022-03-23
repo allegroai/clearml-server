@@ -2,7 +2,7 @@ from enum import auto
 from typing import Sequence, Optional
 
 from jsonmodels import validators
-from jsonmodels.fields import StringField, BoolField
+from jsonmodels.fields import StringField, BoolField, EmbeddedField
 from jsonmodels.models import Base
 from jsonmodels.validators import Length, Min, Max
 
@@ -81,12 +81,32 @@ class LogOrderEnum(StringEnum):
     desc = auto()
 
 
-class LogEventsRequest(Base):
+class TaskEventsRequestBase(Base):
     task: str = StringField(required=True)
     batch_size: int = IntField(default=500)
+
+
+class TaskEventsRequest(TaskEventsRequestBase):
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+    event_type: EventType = ActualEnumField(EventType, default=EventType.all)
+    order: Optional[str] = ActualEnumField(LogOrderEnum, default=LogOrderEnum.asc)
+    scroll_id: str = StringField()
+    count_total: bool = BoolField(default=True)
+
+
+class LogEventsRequest(TaskEventsRequestBase):
+    batch_size: int = IntField(default=5000)
     navigate_earlier: bool = BoolField(default=True)
     from_timestamp: Optional[int] = IntField()
     order: Optional[str] = ActualEnumField(LogOrderEnum)
+
+
+class ScalarMetricsIterRawRequest(TaskEventsRequestBase):
+    batch_size: int = IntField()
+    key: ScalarKeyEnum = ActualEnumField(ScalarKeyEnum, default=ScalarKeyEnum.iter)
+    metric: MetricVariants = EmbeddedField(MetricVariants, required=True)
+    count_total: bool = BoolField(default=False)
+    scroll_id: str = StringField()
 
 
 class IterationEvents(Base):
@@ -115,4 +135,5 @@ class TaskPlotsRequest(Base):
     task: str = StringField(required=True)
     iters: int = IntField(default=1)
     scroll_id: str = StringField()
+    no_scroll: bool = BoolField(default=False)
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
