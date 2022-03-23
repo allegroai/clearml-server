@@ -1,5 +1,8 @@
 # Deploying **trains-server** on AWS
 
+> **NOTE** These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
+> for up-to-date deployment instructions 
+
 To easily deploy **trains-server** on AWS, use one of our pre-built Amazon Machine Images (AMIs).  
 We provide AMIs per region for each released version of **trains-server**, see [Released versions](#released-versions) below. 
 
