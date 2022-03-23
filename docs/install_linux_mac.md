@@ -1,5 +1,14 @@
 # Launching the **trains-server** Docker in Linux or macOS
 
+<br/>
+
+<div style="font-size: larger">
+
+> **NOTE** These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
+> for up-to-date deployment instructions 
+
+<br/>
+
 For Linux or macOS, use our pre-built Docker image for easy deployment. The latest Docker images can be found [here](https://hub.docker.com/r/allegroai/trains).
 
 For Linux users:

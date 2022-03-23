@@ -1,5 +1,14 @@
 # Deploying Trains Server on Google Cloud Platform
 
+<br/>
+
+<div style="font-size: larger">
+
+> **NOTE** These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
+> for up-to-date deployment instructions 
+
+<br/>
+
 To easily deploy Trains Server on GCP, use one of our pre-built GCP Custom Images.  
 We provide Custom Images for each released version of Trains Server, see [Released versions](#released-versions) below. 
 
