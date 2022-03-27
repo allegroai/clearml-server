@@ -2,7 +2,7 @@
 
 <br/>
 
-<div style="font-size: larger">
+<div style="font-size: x-large; color: red">
 
 > **NOTE** These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
 > for up-to-date deployment instructions 
