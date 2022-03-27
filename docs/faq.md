@@ -1,15 +1,7 @@
 # trains-server FAQ
 
-<br/>
+## **NOTE** This page's information is deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) for up-to-date deployment instructions 
 
-<div style="font-size: larger">
-
-> **NOTE** This page's information is deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
-> for up-to-date deployment instructions 
-
-</div>
-
-<br/>
 
 Launching **trains-server**
 

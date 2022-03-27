@@ -1,15 +1,6 @@
 # Launching the **trains-server** Docker in Windows 10
 
-<br/>
-
-<div style="font-size: x-large; color: red">
-
-> **NOTE** These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) 
-> for up-to-date deployment instructions 
-
-</div>
-
-<br/>
+## **NOTE**: These instructions are deprecated. See the [ClearML documentation](https://clear.ml/docs/latest/docs/deploying_clearml/clearml_server) for up-to-date deployment instructions 
 
 For Windows, we recommend launching our pre-built Docker image on a Linux virtual machine. 
 However, you can launch **trains-server** on Windows 10 using Docker Desktop for Windows (see the Docker [System Requirements](https://docs.docker.com/docker-for-windows/install/#system-requirements)).
