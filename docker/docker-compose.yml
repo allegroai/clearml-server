@@ -154,6 +154,8 @@ services:
       - /opt/clearml/agent:/root/.clearml
     depends_on:
       - apiserver
+    entrypoint: >
+      bash -c "curl --retry 10 --retry-delay 10 --retry-connrefused 'http://apiserver:8008/debug.ping' && /usr/agent/entrypoint.sh"
 
 networks:
   backend:
