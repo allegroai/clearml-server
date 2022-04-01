@@ -28,7 +28,7 @@ elif [[ ${SERVER_TYPE} == "apiserver" ]]; then
       # Note: don't be tempted to "fix" $MAX_REQUESTS with "$MAX_REQUESTS" as this produces an empty arg which fucks up gunicorn
       gunicorn \
         -w "${CLEARML_GUNICORN_WORKERS:-8}" \
-        -t "${CLEARML_GUNICORN_TIMEOUT:-600}" --bind="${CLEARML_GUNICORN_BIND:-0.0.0.0:8008}" \
+        -t "${CLEARML_GUNICORN_TIMEOUT:-1200}" --bind="${CLEARML_GUNICORN_BIND:-0.0.0.0:8008}" \
         $MAX_REQUESTS apiserver.server:app
     else
         python3 -m apiserver.server
@@ -57,7 +57,7 @@ EOF
 elif [[ ${SERVER_TYPE} == "fileserver" ]]; then
     cd /opt/clearml/fileserver/
     if [ "$FILESERVER_USE_GUNICORN" = true ] ; then
-      gunicorn -t 600 --bind=0.0.0.0:8081 fileserver:app
+      gunicorn -t "${CLEARML_GUNICORN_TIMEOUT:-1200}" --bind=0.0.0.0:8081 fileserver:app
     else
       python3 fileserver.py
     fi
