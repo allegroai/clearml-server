@@ -98,6 +98,7 @@ from apiserver.bll.task.task_operations import (
 from apiserver.bll.task.utils import update_task, get_task_for_update, deleted_prefix
 from apiserver.bll.util import SetFieldsResolver, run_batch_operation
 from apiserver.database.errors import translate_errors_context
+from apiserver.database.model import EntityVisibility
 from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
     Task,
@@ -213,6 +214,16 @@ def _process_include_subprojects(call_data: dict):
     call_data["project"] = project_ids_with_children(project_ids)
 
 
+def _hidden_query(data: dict) -> Q:
+    """
+    1. Add only non-hidden tasks search condition (unless specifically specified differently)
+    """
+    if data.get("search_hidden") or data.get("id"):
+        return Q()
+
+    return Q(system_tags__ne=EntityVisibility.hidden.value)
+
+
 @endpoint("tasks.get_all_ex", required_fields=[])
 def get_all_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
@@ -225,6 +236,7 @@ def get_all_ex(call: APICall, company_id, _):
         tasks = Task.get_many_with_join(
             company=company_id,
             query_dict=call_data,
+            query=_hidden_query(call_data),
             allow_public=True,
             ret_params=ret_params,
         )
@@ -259,6 +271,7 @@ def get_all(call: APICall, company_id, _):
             company=company_id,
             parameters=call_data,
             query_dict=call_data,
+            query=_hidden_query(call_data),
             allow_public=True,
             ret_params=ret_params,
         )

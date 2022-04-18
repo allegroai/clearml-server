@@ -26,6 +26,7 @@ from apiserver.bll.project.project_cleanup import (
     validate_project_delete,
 )
 from apiserver.database.errors import translate_errors_context
+from apiserver.database.model import EntityVisibility
 from apiserver.database.model.project import Project
 from apiserver.database.utils import (
     parse_from_call,
@@ -73,6 +74,16 @@ def get_by_id(call):
         call.result.data = {"project": project_dict}
 
 
+def _hidden_query(search_hidden: bool, ids: Sequence) -> Q:
+    """
+    1. Add only non-hidden tasks search condition (unless specifically specified differently)
+    """
+    if search_hidden or ids:
+        return Q()
+
+    return Q(system_tags__ne=EntityVisibility.hidden.value)
+
+
 def _adjust_search_parameters(data: dict, shallow_search: bool):
     """
     1. Make sure that there is no external query on path
@@ -91,12 +102,14 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
 
 @endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
-    conform_tag_fields(call, call.data)
-    allow_public = not request.non_public
     data = call.data
+    conform_tag_fields(call, data)
+    allow_public = not request.non_public
     requested_ids = data.get("id")
+    _adjust_search_parameters(
+        data, shallow_search=request.shallow_search,
+    )
     with TimingContext("mongo", "projects_get_all"):
-        data = call.data
         if request.active_users:
             ids = project_bll.get_projects_with_active_user(
                 company=company_id,
@@ -105,16 +118,14 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 allow_public=allow_public,
             )
             if not ids:
-                call.result.data = {"projects": []}
-                return
+                return {"projects": []}
             data["id"] = ids
 
-        _adjust_search_parameters(data, shallow_search=request.shallow_search)
-
         ret_params = {}
-        projects = Project.get_many_with_join(
+        projects: Sequence[dict] = Project.get_many_with_join(
             company=company_id,
             query_dict=data,
+            query=_hidden_query(search_hidden=request.search_hidden, ids=requested_ids),
             allow_public=allow_public,
             ret_params=ret_params,
         )
@@ -143,6 +154,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             project_ids=list(project_ids),
             specific_state=request.stats_for_state,
             include_children=request.stats_with_children,
+            return_hidden_children=request.search_hidden,
             filter_=request.include_stats_filter,
         )
 
@@ -155,20 +167,24 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
 @endpoint("projects.get_all")
 def get_all(call: APICall):
-    conform_tag_fields(call, call.data)
     data = call.data
-    _adjust_search_parameters(data, shallow_search=data.get("shallow_search", False))
-    with translate_errors_context(), TimingContext("mongo", "projects_get_all"):
+    conform_tag_fields(call, data)
+    _adjust_search_parameters(
+        data, shallow_search=data.get("shallow_search", False),
+    )
+    with TimingContext("mongo", "projects_get_all"):
         ret_params = {}
         projects = Project.get_many(
             company=call.identity.company,
             query_dict=data,
+            query=_hidden_query(
+                search_hidden=data.get("search_hidden"), ids=data.get("id")
+            ),
             parameters=data,
             allow_public=True,
             ret_params=ret_params,
         )
         conform_output_tags(call, projects)
-
         call.result.data = {"projects": projects, **ret_params}
 
 
