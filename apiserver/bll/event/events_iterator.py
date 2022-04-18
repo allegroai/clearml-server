@@ -67,6 +67,9 @@ class EventsIterator:
         task_id: str,
         metric_variants: MetricVariants = None,
     ) -> int:
+        if check_empty_data(self.es, company_id, event_type):
+            return 0
+
         query, _ = self._get_initial_query_and_must(task_id, metric_variants)
         es_req = {
             "query": query,
