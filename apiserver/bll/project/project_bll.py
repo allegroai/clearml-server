@@ -511,13 +511,14 @@ class ProjectBLL:
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
         include_children: bool = True,
+        return_hidden_children: bool = False,
         filter_: Mapping[str, Any] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
 
         child_projects = (
-            _get_sub_projects(project_ids, _only=("id", "name"))
+            _get_sub_projects(project_ids, _only=("id", "name", "system_tags"))
             if include_children
             else {}
         )
@@ -626,9 +627,24 @@ class ProjectBLL:
             for project in project_ids
         }
 
+        def filter_child_projects(project: str) -> Sequence[Project]:
+            non_filtered_children = child_projects.get(project, [])
+            if not non_filtered_children or return_hidden_children:
+                return non_filtered_children
+
+            return [
+                c
+                for c in non_filtered_children
+                if not c.system_tags
+                or EntityVisibility.hidden.value not in c.system_tags
+            ]
+
         children = {
             project: sorted(
-                [{"id": c.id, "name": c.name} for c in child_projects.get(project, [])],
+                [
+                    {"id": c.id, "name": c.name}
+                    for c in filter_child_projects(project)
+                ],
                 key=itemgetter("name"),
             )
             for project in project_ids
@@ -740,10 +756,13 @@ class ProjectBLL:
         If projects is None or empty then get parents for all the company tasks
         """
         query = Q(company=company_id)
+
         if projects:
             if include_subprojects:
                 projects = _ids_with_children(projects)
             query &= Q(project__in=projects)
+        else:
+            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
 
         if state == EntityVisibility.archived:
             query &= Q(system_tags__in=[EntityVisibility.archived.value])
@@ -772,7 +791,8 @@ class ProjectBLL:
         if project_ids:
             project_ids = _ids_with_children(project_ids)
             query &= Q(project__in=project_ids)
-
+        else:
+            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
         res = Task.objects(query).distinct(field="type")
         return set(res).intersection(external_task_types)
 

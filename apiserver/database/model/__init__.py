@@ -60,3 +60,4 @@ def validate_id(cls, company, **kwargs):
 class EntityVisibility(Enum):
     active = "active"
     archived = "archived"
+    hidden = "hidden"
