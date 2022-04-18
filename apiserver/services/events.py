@@ -25,6 +25,7 @@ from apiserver.apimodels.events import (
     TaskPlotsRequest,
     TaskEventsRequest,
     ScalarMetricsIterRawRequest,
+    ClearScrollRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants
@@ -936,3 +937,9 @@ def scalar_metrics_iter_raw(
         scroll_id=scroll.get_scroll_id(),
         variants=variants,
     )
+
+
+@endpoint("events.clear_scroll", min_version="2.18")
+def clear_scroll(_, __, request: ClearScrollRequest):
+    if request.scroll_id:
+        event_bll.clear_scroll(request.scroll_id)

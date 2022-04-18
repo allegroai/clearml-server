@@ -8,7 +8,7 @@ from datetime import datetime
 from operator import attrgetter
 from typing import Sequence, Set, Tuple, Optional, List, Mapping, Union
 
-from elasticsearch import helpers
+import elasticsearch
 from elasticsearch.helpers import BulkIndexError
 from mongoengine import Q
 from nested_dict import nested_dict
@@ -46,6 +46,9 @@ EVENT_TYPES: Set[str] = set(map(attrgetter("value"), EventType))
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 MAX_LONG = 2 ** 63 - 1
 MIN_LONG = -(2 ** 63)
+
+
+log = config.logger(__file__)
 
 
 class PlotFields:
@@ -219,7 +222,7 @@ class EventBLL(object):
                 with TimingContext("es", "events_add_batch"):
                     # TODO: replace it with helpers.parallel_bulk in the future once the parallel pool leak is fixed
                     with closing(
-                        helpers.streaming_bulk(
+                        elasticsearch.helpers.streaming_bulk(
                             self.es,
                             actions,
                             chunk_size=chunk_size,
@@ -1005,3 +1008,16 @@ class EventBLL(object):
             )
 
         return es_res.get("deleted", 0)
+
+    def clear_scroll(self, scroll_id: str):
+        if scroll_id == self.empty_scroll:
+            return
+        # noinspection PyBroadException
+        try:
+            self.es.clear_scroll(scroll_id=scroll_id)
+        except elasticsearch.exceptions.NotFoundError:
+            pass
+        except elasticsearch.exceptions.RequestError:
+            pass
+        except Exception as ex:
+            log.exception("Failed clearing scroll %s", scroll_id)
