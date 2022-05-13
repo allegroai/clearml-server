@@ -26,7 +26,7 @@ OVERRIDE_USERNAME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_USERNAME",)
 
 OVERRIDE_PASSWORD_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_PASSWORD",)
 
-OVERRIDE_SCHEME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_SCHEME",)
+OVERRIDE_SCHEMA_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_SCHEMA",)
 
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
@@ -36,9 +36,9 @@ OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
-OVERRIDE_SCHEME = first(filter(None, map(getenv, OVERRIDE_SCHEME_ENV_KEY)))
-if OVERRIDE_SCHEME:
-    log.info(f"Using override elastic scheme {OVERRIDE_SCHEME}")
+OVERRIDE_SCHEMA = first(filter(None, map(getenv, OVERRIDE_SCHEMA_ENV_KEY)))
+if OVERRIDE_SCHEMA:
+    log.info(f"Using override elastic scheme {OVERRIDE_SCHEMA}")
 
 OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))
 if OVERRIDE_USERNAME:
@@ -157,7 +157,7 @@ class ESFactory:
 
     @classmethod
     def get_scheme(cls):
-        return OVERRIDE_SCHEME if OVERRIDE_SCHEME else 'http'
+        return OVERRIDE_SCHEMA if OVERRIDE_SCHEMA else 'http'
 
     @classmethod
     def connect_all(cls):
