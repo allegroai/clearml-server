@@ -85,6 +85,7 @@ def check_elastic_empty() -> bool:
                 es = Elasticsearch(
                     hosts=cluster_conf.get("hosts", None),
                     http_auth=es_factory.get_credentials("events", cluster_conf),
+                    scheme=es_factory.get_scheme(),
                     **cluster_conf.get("args", {})
                 )
                 return not es.indices.get_template(name="events*")
@@ -114,6 +115,7 @@ def init_es_data():
         log.info(f"Applying mappings to ES host: {hosts_config}")
         args = cluster_conf.get("args", {})
         http_auth = es_factory.get_credentials(name)
+        scheme = es_factory.get_scheme()
 
-        res = apply_mappings_to_cluster(hosts_config, name, es_args=args, http_auth=http_auth)
+        res = apply_mappings_to_cluster(hosts_config, name, es_args=args, http_auth=http_auth, scheme=scheme)
         log.info(res)

@@ -26,6 +26,8 @@ OVERRIDE_USERNAME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_USERNAME",)
 
 OVERRIDE_PASSWORD_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_PASSWORD",)
 
+OVERRIDE_SCHEME_ENV_KEY = ("CLEARML_ELASTIC_SERVICE_SCHEME",)
+
 OVERRIDE_HOST = first(filter(None, map(getenv, OVERRIDE_HOST_ENV_KEY)))
 if OVERRIDE_HOST:
     log.info(f"Using override elastic host {OVERRIDE_HOST}")
@@ -33,6 +35,10 @@ if OVERRIDE_HOST:
 OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
     log.info(f"Using override elastic port {OVERRIDE_PORT}")
+
+OVERRIDE_SCHEME = first(filter(None, map(getenv, OVERRIDE_SCHEME_ENV_KEY)))
+if OVERRIDE_SCHEME:
+    log.info(f"Using override elastic scheme {OVERRIDE_SCHEME}")
 
 OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))
 if OVERRIDE_USERNAME:
@@ -82,11 +88,13 @@ class ESFactory:
             if not hosts:
                 raise InvalidClusterConfiguration(cluster_name)
 
+            scheme = cls.get_scheme()
+
             http_auth = cls.get_credentials(cluster_name)
 
             args = cluster_config.get("args", {})
             _instances[cluster_name] = Elasticsearch(
-                hosts=hosts, http_auth=http_auth, **args
+                hosts=hosts, http_auth=http_auth, scheme=scheme, **args
             )
 
         return _instances[cluster_name]
@@ -146,6 +154,10 @@ class ESFactory:
             set_host_prop("port", port)
 
         return cluster_config
+
+    @classmethod
+    def get_scheme(cls):
+        return OVERRIDE_SCHEME if OVERRIDE_SCHEME else 'http'
 
     @classmethod
     def connect_all(cls):

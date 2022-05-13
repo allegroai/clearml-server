@@ -13,7 +13,7 @@ HERE = Path(__file__).resolve().parent
 
 
 def apply_mappings_to_cluster(
-    hosts: Sequence, key: Optional[str] = None, es_args: dict = None, http_auth: Tuple = None
+    hosts: Sequence, key: Optional[str] = None, es_args: dict = None, http_auth: Tuple = None, scheme: str = 'http'
 ):
     """Hosts maybe a sequence of strings or dicts in the form {"host": <host>, "port": <port>}"""
 
@@ -30,7 +30,7 @@ def apply_mappings_to_cluster(
     else:
         files = p.glob("**/*.json")
 
-    es = Elasticsearch(hosts=hosts, http_auth=http_auth, **(es_args or {}))
+    es = Elasticsearch(hosts=hosts, http_auth=http_auth, scheme=scheme, **(es_args or {}))
     return [_send_template(f) for f in files]
 
 
