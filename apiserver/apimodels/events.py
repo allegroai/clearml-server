@@ -141,3 +141,9 @@ class TaskPlotsRequest(Base):
 
 class ClearScrollRequest(Base):
     scroll_id: str = StringField()
+
+
+class ClearTaskLogRequest(Base):
+    task: str = StringField(required=True)
+    threshold_sec = IntField()
+    allow_locked = BoolField(default=False)

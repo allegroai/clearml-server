@@ -965,18 +965,23 @@ class EventBLL(object):
             for tb in es_res["aggregations"]["tasks"]["buckets"]
         }
 
+    @staticmethod
+    def _validate_task_state(company_id: str, task_id: str, allow_locked: bool = False):
+        extra_msg = None
+        query = Q(id=task_id, company=company_id)
+        if not allow_locked:
+            query &= Q(status__nin=LOCKED_TASK_STATUSES)
+            extra_msg = "or task published"
+        res = Task.objects(query).only("id").first()
+        if not res:
+            raise errors.bad_request.InvalidTaskId(
+                extra_msg, company=company_id, id=task_id
+            )
+
     def delete_task_events(self, company_id, task_id, allow_locked=False):
-        with translate_errors_context():
-            extra_msg = None
-            query = Q(id=task_id, company=company_id)
-            if not allow_locked:
-                query &= Q(status__nin=LOCKED_TASK_STATUSES)
-                extra_msg = "or task published"
-            res = Task.objects(query).only("id").first()
-            if not res:
-                raise errors.bad_request.InvalidTaskId(
-                    extra_msg, company=company_id, id=task_id
-                )
+        self._validate_task_state(
+            company_id=company_id, task_id=task_id, allow_locked=allow_locked
+        )
 
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context(), TimingContext("es", "delete_task_events"):
@@ -989,6 +994,52 @@ class EventBLL(object):
             )
 
         return es_res.get("deleted", 0)
+
+    def clear_task_log(
+        self,
+        company_id: str,
+        task_id: str,
+        allow_locked: bool = False,
+        threshold_sec: int = None,
+    ):
+        self._validate_task_state(
+            company_id=company_id, task_id=task_id, allow_locked=allow_locked
+        )
+        if check_empty_data(
+            self.es, company_id=company_id, event_type=EventType.task_log
+        ):
+            return 0
+
+        with translate_errors_context(), TimingContext("es", "clear_task_log"):
+            must = [{"term": {"task": task_id}}]
+            sort = None
+            if threshold_sec:
+                timestamp_ms = int(threshold_sec * 1000)
+                must.append(
+                    {
+                        "range": {
+                            "timestamp": {
+                                "lt": (
+                                    es_factory.get_timestamp_millis() - timestamp_ms
+                                )
+                            }
+                        }
+                    }
+                )
+                sort = {"timestamp": {"order": "desc"}}
+            es_req = {
+                "query": {"bool": {"must": must}},
+                **({"sort": sort} if sort else {}),
+            }
+            es_res = delete_company_events(
+                es=self.es,
+                company_id=company_id,
+                event_type=EventType.task_log,
+                body=es_req,
+                routing=task_id,
+                refresh=True,
+            )
+            return es_res.get("deleted", 0)
 
     def delete_multi_task_events(self, company_id: str, task_ids: Sequence[str]):
         """

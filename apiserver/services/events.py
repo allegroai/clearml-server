@@ -26,6 +26,7 @@ from apiserver.apimodels.events import (
     TaskEventsRequest,
     ScalarMetricsIterRawRequest,
     ClearScrollRequest,
+    ClearTaskLogRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants
@@ -793,6 +794,21 @@ def delete_for_task(call, company_id, req_model):
     call.result.data = dict(
         deleted=event_bll.delete_task_events(
             company_id, task_id, allow_locked=allow_locked
+        )
+    )
+
+
+@endpoint("events.clear_task_log")
+def clear_task_log(call: APICall, company_id: str, request: ClearTaskLogRequest):
+    task_id = request.task
+
+    task_bll.assert_exists(company_id, task_id, return_tasks=False)
+    call.result.data = dict(
+        deleted=event_bll.clear_task_log(
+            company_id=company_id,
+            task_id=task_id,
+            allow_locked=request.allow_locked,
+            threshold_sec=request.threshold_sec,
         )
     )
 
