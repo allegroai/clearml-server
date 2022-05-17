@@ -108,9 +108,23 @@ def enqueue_task(
     queue_id: str,
     status_message: str,
     status_reason: str,
+    queue_name: str = None,
     validate: bool = False,
     force: bool = False,
 ) -> Tuple[int, dict]:
+    if queue_id and queue_name:
+        raise errors.bad_request.ValidationError(
+            "Either queue id or queue name should be provided"
+        )
+
+    if queue_name:
+        queue = queue_bll.get_by_name(
+            company_id=company_id, queue_name=queue_name, only=("id",)
+        )
+        if not queue:
+            queue = queue_bll.create(company_id=company_id, name=queue_name)
+        queue_id = queue.id
+
     if not queue_id:
         # try to get default queue
         queue_id = queue_bll.get_default(company_id).id
