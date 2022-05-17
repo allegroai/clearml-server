@@ -14,6 +14,7 @@ from apiserver.apimodels.auth import (
     RevokeCredentialsRequest,
     EditUserReq,
     CreateCredentialsRequest,
+    EditCredentialsRequest,
 )
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.bll.auth import AuthBLL
@@ -120,6 +121,28 @@ def create_credentials(call: APICall, _, request: CreateCredentialsRequest):
         label=request.label,
     )
     call.result.data_model = CreateCredentialsResponse(credentials=credentials)
+
+
+@endpoint("auth.edit_credentials")
+def edit_credentials(call: APICall, company_id: str, request: EditCredentialsRequest):
+    identity = call.identity
+    access_key = request.access_key
+
+    company_values = [None, company_id]
+    updated = User.objects(
+        id=identity.user,
+        company=company_id,
+        credentials__match={"key": access_key, "company__in": company_values},
+    ).update_one(set__credentials__S__label=request.label)
+    if not updated:
+        raise errors.bad_request.InvalidAccessKey(
+            "invalid user or invalid access key",
+            user=identity.user,
+            access_key=access_key,
+            company=company_id,
+        )
+
+    call.result.data = {"updated": updated}
 
 
 @endpoint(
