@@ -17,6 +17,7 @@ from typing import (
     Any,
 )
 
+from boltons.iterutils import partition
 from mongoengine import Q, Document
 
 from apiserver import database
@@ -511,14 +512,16 @@ class ProjectBLL:
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
         include_children: bool = True,
-        return_hidden_children: bool = False,
+        search_hidden: bool = False,
         filter_: Mapping[str, Any] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
 
         child_projects = (
-            _get_sub_projects(project_ids, _only=("id", "name", "system_tags"))
+            _get_sub_projects(
+                project_ids, _only=("id", "name"), search_hidden=search_hidden
+            )
             if include_children
             else {}
         )
@@ -627,24 +630,9 @@ class ProjectBLL:
             for project in project_ids
         }
 
-        def filter_child_projects(project: str) -> Sequence[Project]:
-            non_filtered_children = child_projects.get(project, [])
-            if not non_filtered_children or return_hidden_children:
-                return non_filtered_children
-
-            return [
-                c
-                for c in non_filtered_children
-                if not c.system_tags
-                or EntityVisibility.hidden.value not in c.system_tags
-            ]
-
         children = {
             project: sorted(
-                [
-                    {"id": c.id, "name": c.name}
-                    for c in filter_child_projects(project)
-                ],
+                [{"id": c.id, "name": c.name} for c in child_projects.get(project, [])],
                 key=itemgetter("name"),
             )
             for project in project_ids
@@ -829,7 +817,11 @@ class ProjectBLL:
                 raise errors.bad_request.ValidationError(
                     f"List of strings expected for the field: {field}"
                 )
-            conditions[field] = {"$in": field_filter}
+            exclude, include = partition(field_filter, lambda x: x.startswith("-"))
+            conditions[field] = {
+                **({"$in": include} if include else {}),
+                **({"$nin": [e[1:] for e in exclude]} if exclude else {}),
+            }
 
         return conditions
 

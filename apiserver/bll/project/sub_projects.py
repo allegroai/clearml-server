@@ -4,6 +4,7 @@ from typing import Tuple, Optional, Sequence, Mapping
 
 from apiserver import database
 from apiserver.apierrors import errors
+from apiserver.database.model import EntityVisibility
 from apiserver.database.model.project import Project
 
 name_separator = "/"
@@ -100,12 +101,17 @@ def _get_writable_project_from_name(
 
 
 def _get_sub_projects(
-    project_ids: Sequence[str], _only: Sequence[str] = ("id", "path")
+    project_ids: Sequence[str],
+    _only: Sequence[str] = ("id", "path"),
+    search_hidden=True,
 ) -> Mapping[str, Sequence[Project]]:
     """
     Return the list of child projects of all the levels for the parent project ids
     """
-    qs = Project.objects(path__in=project_ids)
+    query = dict(path__in=project_ids)
+    if not search_hidden:
+        query["system_tags__nin"] = [EntityVisibility.hidden.value]
+    qs = Project.objects(**query)
     if _only:
         _only = set(_only) | {"path"}
         qs = qs.only(*_only)
