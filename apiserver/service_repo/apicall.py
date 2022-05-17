@@ -313,6 +313,7 @@ class APICall(DataContainer):
     _redacted_headers = {
         HEADER_AUTHORIZATION: " ",
         "Cookie": "=",
+        "X-Jwt-Payload": "",
     }
     """ Headers whose value should be redacted. Maps header name to partition char """
 
@@ -692,6 +693,10 @@ class APICall(DataContainer):
             #  this will allow us to debug authorization errors).
             for header, sep in self._redacted_headers.items():
                 if header in headers:
-                    prefix, _, redact = headers[header].partition(sep)
+                    if sep:
+                        prefix, _, redact = headers[header].partition(sep)
+                    else:
+                        prefix = sep = ""
+                        redact = headers[header]
                     headers[header] = prefix + sep + f"<{len(redact)} bytes redacted>"
         return headers
