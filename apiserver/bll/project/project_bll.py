@@ -809,12 +809,11 @@ class ProjectBLL:
         if not filter_:
             return conditions
 
-        for field in ("tags", "system_tags"):
-            field_filter = filter_.get(field)
-            if not field_filter:
-                continue
-            if not isinstance(field_filter, list) or not all(
-                isinstance(t, str) for t in field_filter
+        for field, field_filter in filter_.items():
+            if not (
+                field_filter
+                and isinstance(field_filter, list)
+                and all(isinstance(t, str) for t in field_filter)
             ):
                 raise errors.bad_request.ValidationError(
                     f"List of strings expected for the field: {field}"
