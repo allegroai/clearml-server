@@ -63,20 +63,24 @@ class ProjectBLL:
                     source=source_id
                 )
             source = Project.get(company, source_id)
-            destination = Project.get(company, destination_id)
-            if source_id in destination.path:
-                raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
-                    source=source_id, destination=destination_id
-                )
+            if destination_id:
+                destination = Project.get(company, destination_id)
+                if source_id in destination.path:
+                    raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
+                        source=source_id, destination=destination_id
+                    )
+            else:
+                destination = None
 
             children = _get_sub_projects(
                 [source.id], _only=("id", "name", "parent", "path")
             )[source.id]
-            cls.validate_projects_depth(
-                projects=children,
-                old_parent_depth=len(source.path) + 1,
-                new_parent_depth=len(destination.path) + 1,
-            )
+            if destination:
+                cls.validate_projects_depth(
+                    projects=children,
+                    old_parent_depth=len(source.path) + 1,
+                    new_parent_depth=len(destination.path) + 1,
+                )
 
             moved_entities = 0
             for entity_type in (Task, Model):
@@ -147,10 +151,8 @@ class ProjectBLL:
                 raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
                     location=new_parent.name if new_parent else ""
                 )
-            if (
-                new_parent
-                and project_id == new_parent.id
-                or project_id in new_parent.path
+            if new_parent and (
+                project_id == new_parent.id or project_id in new_parent.path
             ):
                 raise errors.bad_request.ProjectCannotBeMovedUnderItself(
                     project=project_id, parent=new_parent.id
