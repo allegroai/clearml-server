@@ -41,7 +41,7 @@ class EventSettings:
 
 def get_index_name(company_id: str, event_type: str):
     event_type = event_type.lower().replace(" ", "_")
-    return f"events-{event_type}-{company_id}"
+    return f"events-{event_type}-{company_id.lower()}"
 
 
 def check_empty_data(es: Elasticsearch, company_id: str, event_type: EventType) -> bool:
