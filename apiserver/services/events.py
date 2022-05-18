@@ -770,14 +770,14 @@ def next_debug_image_sample(call, company_id, request: NextDebugImageSampleReque
 
 
 @endpoint("events.get_task_metrics", request_data_model=TaskMetricsRequest)
-def get_tasks_metrics(call: APICall, company_id, request: TaskMetricsRequest):
+def get_task_metrics(call: APICall, company_id, request: TaskMetricsRequest):
     task = task_bll.assert_exists(
         company_id,
         task_ids=request.tasks,
         allow_public=True,
         only=("company", "company_origin"),
     )[0]
-    res = event_bll.metrics.get_tasks_metrics(
+    res = event_bll.metrics.get_task_metrics(
         task.get_index_company(), task_ids=request.tasks, event_type=request.event_type
     )
     call.result.data = {
