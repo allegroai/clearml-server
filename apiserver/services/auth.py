@@ -128,11 +128,10 @@ def edit_credentials(call: APICall, company_id: str, request: EditCredentialsReq
     identity = call.identity
     access_key = request.access_key
 
-    company_values = [None, company_id]
     updated = User.objects(
         id=identity.user,
         company=company_id,
-        credentials__match={"key": access_key, "company__in": company_values},
+        credentials__match={"key": access_key},
     ).update_one(set__credentials__S__label=request.label)
     if not updated:
         raise errors.bad_request.InvalidAccessKey(
