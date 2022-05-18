@@ -13,7 +13,7 @@ from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, ArtifactModes
+from apiserver.database.model.task.task import Task, ArtifactModes, TaskType
 from apiserver.timing_context import TimingContext
 from .sub_projects import _ids_with_children
 
@@ -32,22 +32,28 @@ class DeleteProjectResult:
 
 def validate_project_delete(company: str, project_id: str):
     project = Project.get_for_writing(
-        company=company, id=project_id, _only=("id", "path")
+        company=company, id=project_id, _only=("id", "path", "system_tags")
     )
     if not project:
         raise errors.bad_request.InvalidProjectId(id=project_id)
-
+    is_pipeline = "pipeline" in (project.system_tags or [])
     project_ids = _ids_with_children([project_id])
     ret = {}
     for cls in (Task, Model):
-        ret[f"{cls.__name__.lower()}s"] = cls.objects(
-            project__in=project_ids,
-        ).count()
+        ret[f"{cls.__name__.lower()}s"] = cls.objects(project__in=project_ids).count()
     for cls in (Task, Model):
-        ret[f"non_archived_{cls.__name__.lower()}s"] = cls.objects(
-            project__in=project_ids,
-            system_tags__nin=[EntityVisibility.archived.value],
-        ).count()
+        query = dict(
+            project__in=project_ids, system_tags__nin=[EntityVisibility.archived.value]
+        )
+        name = f"non_archived_{cls.__name__.lower()}s"
+        if not is_pipeline:
+            ret[name] = cls.objects(**query).count()
+        else:
+            ret[name] = (
+                cls.objects(**query, type=TaskType.controller).count()
+                if cls == Task
+                else 0
+            )
 
     return ret
 
@@ -56,23 +62,30 @@ def delete_project(
     company: str, project_id: str, force: bool, delete_contents: bool
 ) -> Tuple[DeleteProjectResult, Set[str]]:
     project = Project.get_for_writing(
-        company=company, id=project_id, _only=("id", "path")
+        company=company, id=project_id, _only=("id", "path", "system_tags")
     )
     if not project:
         raise errors.bad_request.InvalidProjectId(id=project_id)
-
+    is_pipeline = "pipeline" in (project.system_tags or [])
     project_ids = _ids_with_children([project_id])
     if not force:
-        for cls, error in (
-            (Task, errors.bad_request.ProjectHasTasks),
-            (Model, errors.bad_request.ProjectHasModels),
-        ):
-            non_archived = cls.objects(
-                project__in=project_ids,
-                system_tags__nin=[EntityVisibility.archived.value],
-            ).only("id")
+        query = dict(
+            project__in=project_ids, system_tags__nin=[EntityVisibility.archived.value]
+        )
+        if not is_pipeline:
+            for cls, error in (
+                (Task, errors.bad_request.ProjectHasTasks),
+                (Model, errors.bad_request.ProjectHasModels),
+            ):
+                non_archived = cls.objects(**query).only("id")
+                if non_archived:
+                    raise error("use force=true to delete", id=project_id)
+        else:
+            non_archived = Task.objects(**query, type=TaskType.controller).only("id")
             if non_archived:
-                raise error("use force=true to delete", id=project_id)
+                raise errors.bad_request.ProjectHasTasks(
+                    "please archive all the runs inside the project", id=project_id
+                )
 
     if not delete_contents:
         with TimingContext("mongo", "update_children"):
