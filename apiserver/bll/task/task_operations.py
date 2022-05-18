@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Callable, Any, Tuple, Union
+from typing import Callable, Any, Tuple, Union, Sequence
 
 from apiserver.apierrors import errors, APIError
 from apiserver.bll.queue import QueueBLL
@@ -25,6 +25,7 @@ from apiserver.database.model.task.task import (
 )
 from apiserver.utilities.dicts import nested_set
 
+log = config.logger(__file__)
 queue_bll = QueueBLL()
 
 
@@ -83,10 +84,7 @@ def unarchive_task(
 
 
 def dequeue_task(
-    task_id: str,
-    company_id: str,
-    status_message: str,
-    status_reason: str,
+    task_id: str, company_id: str, status_message: str, status_reason: str,
 ) -> Tuple[int, dict]:
     query = dict(id=task_id, company=company_id)
     task = Task.get_for_writing(**query)
@@ -94,10 +92,7 @@ def dequeue_task(
         raise errors.bad_request.InvalidTaskId(**query)
 
     res = TaskBLL.dequeue_and_change_status(
-        task,
-        company_id,
-        status_message=status_message,
-        status_reason=status_reason,
+        task, company_id, status_message=status_message, status_reason=status_reason,
     )
     return 1, res
 
@@ -169,6 +164,30 @@ def enqueue_task(
     return 1, res
 
 
+def move_tasks_to_trash(tasks: Sequence[str]) -> int:
+    try:
+        collection_name = Task._get_collection_name()
+        trash_collection_name = f"{collection_name}__trash"
+        Task.aggregate(
+            [
+                {"$match": {"_id": {"$in": tasks}}},
+                {
+                    "$merge": {
+                        "into": trash_collection_name,
+                        "on": "_id",
+                        "whenMatched": "replace",
+                        "whenNotMatched": "insert",
+                    }
+                },
+            ],
+            allow_disk_use=True,
+        )
+    except Exception as ex:
+        log.error(f"Error copying tasks to trash {str(ex)}")
+
+    return Task.objects(id__in=tasks).delete()
+
+
 def delete_task(
     task_id: str,
     company_id: str,
@@ -214,18 +233,12 @@ def delete_task(
     )
 
     if move_to_trash:
-        collection_name = task._get_collection_name()
-        archived_collection = "{}__trash".format(collection_name)
-        task.switch_collection(archived_collection)
-        try:
-            # A simple save() won't do due to mongoengine caching (nothing will be saved), so we have to force
-            # an insert. However, if for some reason such an ID exists, let's make sure we'll keep going.
-            task.save(force_insert=True)
-        except Exception:
-            pass
-        task.switch_collection(collection_name)
+        # make sure that whatever changes were done to the task are saved
+        # the task itself will be deleted later in the move_tasks_to_trash operation
+        task.save()
+    else:
+        task.delete()
 
-    task.delete()
     update_project_time(task.project)
     return 1, task, cleanup_res
 

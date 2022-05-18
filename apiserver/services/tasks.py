@@ -94,6 +94,7 @@ from apiserver.bll.task.task_operations import (
     delete_task,
     publish_task,
     unarchive_task,
+    move_tasks_to_trash,
 )
 from apiserver.bll.task.utils import update_task, get_task_for_update, deleted_prefix
 from apiserver.bll.util import SetFieldsResolver, run_batch_operation
@@ -1075,6 +1076,8 @@ def delete(call: APICall, company_id, request: DeleteRequest):
         status_reason=request.status_reason,
     )
     if deleted:
+        if request.move_to_trash:
+            move_tasks_to_trash([request.task])
         _reset_cached_tags(company_id, projects=[task.project] if task.project else [])
     call.result.data = dict(deleted=bool(deleted), **attr.asdict(cleanup_res))
 
@@ -1096,6 +1099,10 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
     )
 
     if results:
+        if request.move_to_trash:
+            task_ids = set(task.id for _, (_, task, _) in results)
+            if task_ids:
+                move_tasks_to_trash(list(task_ids))
         projects = set(task.project for _, (_, task, _) in results)
         _reset_cached_tags(company_id, projects=list(projects))
 
