@@ -1036,7 +1036,6 @@ class EventBLL(object):
                 company_id=company_id,
                 event_type=EventType.task_log,
                 body=es_req,
-                routing=task_id,
                 refresh=True,
             )
             return es_res.get("deleted", 0)

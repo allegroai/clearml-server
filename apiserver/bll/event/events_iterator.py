@@ -81,7 +81,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
 
             return es_result["count"]
@@ -122,7 +121,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
             hits = es_result["hits"]["hits"]
             hits_total = es_result["hits"]["total"]["value"]
@@ -146,7 +144,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
             last_second_hits = es_result["hits"]["hits"]
             if not last_second_hits or len(last_second_hits) < 2:
