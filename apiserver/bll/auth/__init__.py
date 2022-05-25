@@ -64,7 +64,7 @@ class AuthBLL:
                 feature_set="basic",
             )
 
-            return GetTokenResponse(token=token.decode("ascii"))
+            return GetTokenResponse(token=token)
 
     @staticmethod
     def create_user(request: CreateUserRequest, call: APICall = None) -> str:

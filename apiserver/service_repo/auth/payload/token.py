@@ -9,22 +9,25 @@ from apiserver.database.model.auth import Role
 from .auth_type import AuthType
 from .payload import Payload
 
-token_secret = config.get('secure.auth.token_secret')
+token_secret = config.get("secure.auth.token_secret")
 
 
 log = config.logger(__file__)
 
 
 class Token(Payload):
-    default_expiration_sec = config.get('apiserver.auth.default_expiration_sec')
+    default_expiration_sec = config.get("apiserver.auth.default_expiration_sec")
 
-    def __init__(self, exp=None, iat=None, nbf=None, env=None, identity=None, entities=None, **_):
+    def __init__(
+        self, exp=None, iat=None, nbf=None, env=None, identity=None, entities=None, **_
+    ):
         super(Token, self).__init__(
-            AuthType.bearer_token, identity=identity, entities=entities)
+            AuthType.bearer_token, identity=identity, entities=entities
+        )
         self.exp = exp
         self.iat = iat
         self.nbf = nbf
-        self._env = env or config.get('env', '<unknown>')
+        self._env = env or config.get("env", "<unknown>")
 
     @property
     def env(self):
@@ -65,7 +68,12 @@ class Token(Payload):
 
     @classmethod
     def decode(cls, encoded_token, verify=True):
-        return jwt.decode(encoded_token, token_secret, verify=verify)
+        options = (
+            {"verify_signature": False, "verify_exp": True} if not verify else None
+        )
+        return jwt.decode(
+            encoded_token, token_secret, algorithms=["HS256"], options=options
+        )
 
     @classmethod
     def from_encoded_token(cls, encoded_token, verify=True):
@@ -74,23 +82,24 @@ class Token(Payload):
             token = Token.from_dict(decoded)
             assert isinstance(token, Token)
             if not token.identity:
-                raise errors.unauthorized.InvalidToken('token missing identity')
+                raise errors.unauthorized.InvalidToken("token missing identity")
             return token
         except Exception as e:
-            raise errors.unauthorized.InvalidToken('failed parsing token, %s' % e.args[0])
+            raise errors.unauthorized.InvalidToken(
+                "failed parsing token, %s" % e.args[0]
+            )
 
     @classmethod
-    def create_encoded_token(cls, identity, expiration_sec=None, entities=None, **extra_payload):
+    def create_encoded_token(
+        cls, identity, expiration_sec=None, entities=None, **extra_payload
+    ):
         if identity.role not in (Role.system,):
             # limit expiration time for all roles but an internal service
             expiration_sec = expiration_sec or cls.default_expiration_sec
 
         now = datetime.utcnow()
 
-        token = cls(
-            identity=identity,
-            entities=entities,
-            iat=now)
+        token = cls(identity=identity, entities=entities, iat=now)
 
         if expiration_sec:
             # add 'expiration' claim

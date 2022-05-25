@@ -188,7 +188,7 @@ class Scroll(jsonmodels.models.Base):
             key=config.get(
                 "services.events.events_retrieval.scroll_id_key", "1234567890"
             ),
-        ).decode()
+        )
 
     @classmethod
     def from_scroll_id(cls, scroll_id: str):
@@ -199,6 +199,7 @@ class Scroll(jsonmodels.models.Base):
                     key=config.get(
                         "services.events.events_retrieval.scroll_id_key", "1234567890"
                     ),
+                    algorithms=["HS256"],
                 )
             )
         except jwt.PyJWTError:
