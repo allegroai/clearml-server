@@ -65,3 +65,4 @@ class ProjectsGetRequest(models.Base):
     active_users = fields.ListField(str)
     check_own_contents = fields.BoolField(default=False)
     shallow_search = fields.BoolField(default=False)
+    search_hidden = fields.BoolField(default=False)

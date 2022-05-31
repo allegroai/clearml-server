@@ -96,6 +96,11 @@ class GetCredentialsResponse(Base):
     credentials = ListField(CredentialsResponse)
 
 
+class EditCredentialsRequest(Base):
+    access_key = StringField(required=True)
+    label = StringField()
+
+
 class RevokeCredentialsRequest(Base):
     access_key = StringField(required=True)
 

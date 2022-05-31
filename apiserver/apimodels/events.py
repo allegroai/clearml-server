@@ -137,3 +137,13 @@ class TaskPlotsRequest(Base):
     scroll_id: str = StringField()
     no_scroll: bool = BoolField(default=False)
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+
+
+class ClearScrollRequest(Base):
+    scroll_id: str = StringField()
+
+
+class ClearTaskLogRequest(Base):
+    task: str = StringField(required=True)
+    threshold_sec = IntField()
+    allow_locked = BoolField(default=False)

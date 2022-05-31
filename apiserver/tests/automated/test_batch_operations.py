@@ -20,7 +20,7 @@ class TestBatchOperations(TestService):
         ids = [*tasks, missing_id]
 
         # enqueue
-        res = self.api.tasks.enqueue_many(ids=ids)
+        res = self.api.tasks.enqueue_many(ids=ids, queue_name="test")
         self._assert_succeeded(res, tasks)
         self._assert_failed(res, [missing_id])
         data = self.api.tasks.get_all_ex(id=ids).tasks

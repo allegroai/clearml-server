@@ -96,6 +96,7 @@ class UpdateRequest(TaskUpdateRequest):
 
 class EnqueueRequest(UpdateRequest):
     queue = StringField()
+    queue_name = StringField()
 
 
 class DeleteRequest(UpdateRequest):
@@ -262,6 +263,7 @@ class StopManyRequest(TaskBatchRequest):
 
 class EnqueueManyRequest(TaskBatchRequest):
     queue = StringField()
+    queue_name = StringField()
     validate_tasks = BoolField(default=False)
 
 

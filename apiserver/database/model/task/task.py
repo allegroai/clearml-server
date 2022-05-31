@@ -175,6 +175,8 @@ class Task(AttributedDocument):
             "active_duration",
             "parent",
             "project",
+            "last_update",
+            "status_changed",
             "models.input.model",
             ("company", "name"),
             ("company", "user"),

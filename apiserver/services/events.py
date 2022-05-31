@@ -25,6 +25,8 @@ from apiserver.apimodels.events import (
     TaskPlotsRequest,
     TaskEventsRequest,
     ScalarMetricsIterRawRequest,
+    ClearScrollRequest,
+    ClearTaskLogRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants
@@ -768,14 +770,14 @@ def next_debug_image_sample(call, company_id, request: NextDebugImageSampleReque
 
 
 @endpoint("events.get_task_metrics", request_data_model=TaskMetricsRequest)
-def get_tasks_metrics(call: APICall, company_id, request: TaskMetricsRequest):
+def get_task_metrics(call: APICall, company_id, request: TaskMetricsRequest):
     task = task_bll.assert_exists(
         company_id,
         task_ids=request.tasks,
         allow_public=True,
         only=("company", "company_origin"),
     )[0]
-    res = event_bll.metrics.get_tasks_metrics(
+    res = event_bll.metrics.get_task_metrics(
         task.get_index_company(), task_ids=request.tasks, event_type=request.event_type
     )
     call.result.data = {
@@ -792,6 +794,21 @@ def delete_for_task(call, company_id, req_model):
     call.result.data = dict(
         deleted=event_bll.delete_task_events(
             company_id, task_id, allow_locked=allow_locked
+        )
+    )
+
+
+@endpoint("events.clear_task_log")
+def clear_task_log(call: APICall, company_id: str, request: ClearTaskLogRequest):
+    task_id = request.task
+
+    task_bll.assert_exists(company_id, task_id, return_tasks=False)
+    call.result.data = dict(
+        deleted=event_bll.clear_task_log(
+            company_id=company_id,
+            task_id=task_id,
+            allow_locked=request.allow_locked,
+            threshold_sec=request.threshold_sec,
         )
     )
 
@@ -936,3 +953,9 @@ def scalar_metrics_iter_raw(
         scroll_id=scroll.get_scroll_id(),
         variants=variants,
     )
+
+
+@endpoint("events.clear_scroll", min_version="2.18")
+def clear_scroll(_, __, request: ClearScrollRequest):
+    if request.scroll_id:
+        event_bll.clear_scroll(request.scroll_id)

@@ -29,7 +29,7 @@ class QueueMetrics:
     @staticmethod
     def _queue_metrics_prefix_for_company(company_id: str) -> str:
         """Returns the es index prefix for the company"""
-        return f"queue_metrics_{company_id}_"
+        return f"queue_metrics_{company_id.lower()}_"
 
     @staticmethod
     def _get_es_index_suffix():

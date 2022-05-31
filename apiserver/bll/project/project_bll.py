@@ -17,6 +17,7 @@ from typing import (
     Any,
 )
 
+from boltons.iterutils import partition
 from mongoengine import Q, Document
 
 from apiserver import database
@@ -62,20 +63,24 @@ class ProjectBLL:
                     source=source_id
                 )
             source = Project.get(company, source_id)
-            destination = Project.get(company, destination_id)
-            if source_id in destination.path:
-                raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
-                    source=source_id, destination=destination_id
-                )
+            if destination_id:
+                destination = Project.get(company, destination_id)
+                if source_id in destination.path:
+                    raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
+                        source=source_id, destination=destination_id
+                    )
+            else:
+                destination = None
 
             children = _get_sub_projects(
                 [source.id], _only=("id", "name", "parent", "path")
             )[source.id]
-            cls.validate_projects_depth(
-                projects=children,
-                old_parent_depth=len(source.path) + 1,
-                new_parent_depth=len(destination.path) + 1,
-            )
+            if destination:
+                cls.validate_projects_depth(
+                    projects=children,
+                    old_parent_depth=len(source.path) + 1,
+                    new_parent_depth=len(destination.path) + 1,
+                )
 
             moved_entities = 0
             for entity_type in (Task, Model):
@@ -146,10 +151,8 @@ class ProjectBLL:
                 raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
                     location=new_parent.name if new_parent else ""
                 )
-            if (
-                new_parent
-                and project_id == new_parent.id
-                or project_id in new_parent.path
+            if new_parent and (
+                project_id == new_parent.id or project_id in new_parent.path
             ):
                 raise errors.bad_request.ProjectCannotBeMovedUnderItself(
                     project=project_id, parent=new_parent.id
@@ -511,13 +514,16 @@ class ProjectBLL:
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
         include_children: bool = True,
+        search_hidden: bool = False,
         filter_: Mapping[str, Any] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
 
         child_projects = (
-            _get_sub_projects(project_ids, _only=("id", "name"))
+            _get_sub_projects(
+                project_ids, _only=("id", "name"), search_hidden=search_hidden
+            )
             if include_children
             else {}
         )
@@ -740,10 +746,13 @@ class ProjectBLL:
         If projects is None or empty then get parents for all the company tasks
         """
         query = Q(company=company_id)
+
         if projects:
             if include_subprojects:
                 projects = _ids_with_children(projects)
             query &= Q(project__in=projects)
+        else:
+            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
 
         if state == EntityVisibility.archived:
             query &= Q(system_tags__in=[EntityVisibility.archived.value])
@@ -772,7 +781,8 @@ class ProjectBLL:
         if project_ids:
             project_ids = _ids_with_children(project_ids)
             query &= Q(project__in=project_ids)
-
+        else:
+            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
         res = Task.objects(query).distinct(field="type")
         return set(res).intersection(external_task_types)
 
@@ -799,17 +809,20 @@ class ProjectBLL:
         if not filter_:
             return conditions
 
-        for field in ("tags", "system_tags"):
-            field_filter = filter_.get(field)
-            if not field_filter:
-                continue
-            if not isinstance(field_filter, list) or not all(
-                isinstance(t, str) for t in field_filter
+        for field, field_filter in filter_.items():
+            if not (
+                field_filter
+                and isinstance(field_filter, list)
+                and all(isinstance(t, str) for t in field_filter)
             ):
                 raise errors.bad_request.ValidationError(
                     f"List of strings expected for the field: {field}"
                 )
-            conditions[field] = {"$in": field_filter}
+            exclude, include = partition(field_filter, lambda x: x.startswith("-"))
+            conditions[field] = {
+                **({"$in": include} if include else {}),
+                **({"$nin": [e[1:] for e in exclude]} if exclude else {}),
+            }
 
         return conditions
 

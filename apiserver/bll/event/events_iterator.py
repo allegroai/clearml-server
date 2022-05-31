@@ -67,6 +67,9 @@ class EventsIterator:
         task_id: str,
         metric_variants: MetricVariants = None,
     ) -> int:
+        if check_empty_data(self.es, company_id, event_type):
+            return 0
+
         query, _ = self._get_initial_query_and_must(task_id, metric_variants)
         es_req = {
             "query": query,
@@ -78,7 +81,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
 
             return es_result["count"]
@@ -119,7 +121,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
             hits = es_result["hits"]["hits"]
             hits_total = es_result["hits"]["total"]["value"]
@@ -143,7 +144,6 @@ class EventsIterator:
                 company_id=company_id,
                 event_type=event_type,
                 body=es_req,
-                routing=task_id,
             )
             last_second_hits = es_result["hits"]["hits"]
             if not last_second_hits or len(last_second_hits) < 2:
@@ -188,7 +188,7 @@ class Scroll(jsonmodels.models.Base):
             key=config.get(
                 "services.events.events_retrieval.scroll_id_key", "1234567890"
             ),
-        ).decode()
+        )
 
     @classmethod
     def from_scroll_id(cls, scroll_id: str):
@@ -199,6 +199,7 @@ class Scroll(jsonmodels.models.Base):
                     key=config.get(
                         "services.events.events_retrieval.scroll_id_key", "1234567890"
                     ),
+                    algorithms=["HS256"],
                 )
             )
         except jwt.PyJWTError:

@@ -50,6 +50,18 @@ class QueueBLL(object):
             queue.save()
             return queue
 
+    def get_by_name(
+        self,
+        company_id: str,
+        queue_name: str,
+        only: Optional[Sequence[str]] = None,
+    ) -> Queue:
+        qs = Queue.objects(name=queue_name, company=company_id)
+        if only:
+            qs = qs.only(*only)
+
+        return qs.first()
+
     def get_by_id(
         self, company_id: str, queue_id: str, only: Optional[Sequence[str]] = None
     ) -> Queue:

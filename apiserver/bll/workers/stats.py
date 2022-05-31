@@ -20,7 +20,7 @@ class WorkerStats:
     @staticmethod
     def worker_stats_prefix_for_company(company_id: str) -> str:
         """Returns the es index prefix for the company"""
-        return f"worker_stats_{company_id}_"
+        return f"worker_stats_{company_id.lower()}_"
 
     def _search_company_stats(self, company_id: str, es_req: dict) -> dict:
         return self.es.search(

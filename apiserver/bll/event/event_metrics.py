@@ -400,7 +400,7 @@ class EventMetrics:
 
         return es_res.get("aggregations")
 
-    def get_tasks_metrics(
+    def get_task_metrics(
         self, company_id, task_ids: Sequence, event_type: EventType
     ) -> Sequence:
         """
