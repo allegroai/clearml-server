@@ -1,5 +1,7 @@
 from jsonmodels import fields, models
 
+from apiserver.apimodels import DictField
+
 
 class Filter(models.Base):
     tags = fields.ListField([str])
@@ -9,3 +11,10 @@ class Filter(models.Base):
 class TagsRequest(models.Base):
     include_system = fields.BoolField(default=False)
     filter = fields.EmbeddedField(Filter)
+
+
+class EntitiesCountRequest(models.Base):
+    projects = DictField()
+    tasks = DictField()
+    models = DictField()
+    pipelines = DictField()
