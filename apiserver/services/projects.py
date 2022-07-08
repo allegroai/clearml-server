@@ -110,8 +110,9 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
         data, shallow_search=request.shallow_search,
     )
     with TimingContext("mongo", "projects_get_all"):
+        user_active_project_ids = None
         if request.active_users:
-            ids = project_bll.get_projects_with_active_user(
+            ids, user_active_project_ids = project_bll.get_projects_with_active_user(
                 company=company_id,
                 users=request.active_users,
                 project_ids=requested_ids,
@@ -139,6 +140,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                     company=company_id,
                     project_ids=list(existing_requested_ids),
                     filter_=request.include_stats_filter,
+                    users=request.active_users,
                 )
                 for project in projects:
                     project.update(**contents.get(project["id"], {}))
@@ -156,6 +158,8 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             include_children=request.stats_with_children,
             search_hidden=request.search_hidden,
             filter_=request.include_stats_filter,
+            users=request.active_users,
+            user_active_project_ids=user_active_project_ids,
         )
 
         for project in projects:

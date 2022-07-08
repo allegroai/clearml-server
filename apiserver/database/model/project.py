@@ -9,7 +9,7 @@ from apiserver.database.model.base import GetMixin
 class Project(AttributedDocument):
 
     get_all_query_options = GetMixin.QueryParameterOptions(
-        pattern_fields=("name", "description"),
+        pattern_fields=("name", "basename", "description"),
         list_fields=("tags", "system_tags", "id", "parent", "path"),
         range_fields=("last_update",),
     )
@@ -21,6 +21,7 @@ class Project(AttributedDocument):
             "parent",
             "path",
             ("company", "name"),
+            ("company", "basename"),
             {
                 "name": "%s.project.main_text_index" % Database.backend,
                 "fields": ["$name", "$id", "$description"],
@@ -37,6 +38,7 @@ class Project(AttributedDocument):
         min_length=3,
         sparse=True,
     )
+    basename = StrippedStringField(required=True)
     description = StringField()
     created = DateTimeField(required=True)
     tags = SafeSortedListField(StringField(required=True))

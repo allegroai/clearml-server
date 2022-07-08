@@ -705,6 +705,45 @@ class GetMixin(PropsMixin):
         )
 
     @classmethod
+    def get_count(
+        cls: Union["GetMixin", Document],
+        company,
+        query_dict: dict = None,
+        query_options: QueryParameterOptions = None,
+        query: Q = None,
+        allow_public=False,
+    ) -> int:
+        _query = cls._get_combined_query(
+            company=company,
+            query_dict=query_dict,
+            query_options=query_options,
+            query=query,
+            allow_public=allow_public,
+        )
+        return cls.objects(_query).count()
+
+    @classmethod
+    def _get_combined_query(
+        cls,
+        company,
+        query_dict: dict = None,
+        query_options: QueryParameterOptions = None,
+        query: Q = None,
+        allow_public=False,
+    ) -> Q:
+        if query_dict is not None:
+            q = cls.prepare_query(
+                parameters=query_dict,
+                company=company,
+                parameters_options=query_options,
+                allow_public=allow_public,
+            )
+        else:
+            q = cls._prepare_perm_query(company, allow_public=allow_public)
+
+        return (q & query) if query else q
+
+    @classmethod
     def get_many(
         cls,
         company,
@@ -749,16 +788,13 @@ class GetMixin(PropsMixin):
                 if override_collation:
                     break
 
-        if query_dict is not None:
-            q = cls.prepare_query(
-                parameters=query_dict,
-                company=company,
-                parameters_options=query_options,
-                allow_public=allow_public,
-            )
-        else:
-            q = cls._prepare_perm_query(company, allow_public=allow_public)
-        _query = (q & query) if query else q
+        _query = cls._get_combined_query(
+            company=company,
+            query_dict=query_dict,
+            query_options=query_options,
+            query=query,
+            allow_public=allow_public,
+        )
 
         if return_dicts:
             data_getter = partial(

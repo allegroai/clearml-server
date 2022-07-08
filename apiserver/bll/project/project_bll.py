@@ -183,6 +183,7 @@ class ProjectBLL:
                 if new_location != old_location:
                     raise errors.bad_request.CannotUpdateProjectLocation(name=new_name)
                 fields["name"] = new_name
+                fields["basename"] = new_name.split("/")[-1]
 
             fields["last_update"] = datetime.utcnow()
             updated = project.update(upsert=False, **fields)
@@ -225,6 +226,7 @@ class ProjectBLL:
             user=user,
             company=company,
             name=name,
+            basename=name.split("/")[-1],
             description=description,
             tags=tags,
             system_tags=system_tags,
@@ -328,6 +330,7 @@ class ProjectBLL:
         project_ids: Sequence[str],
         specific_state: Optional[EntityVisibility] = None,
         filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
     ) -> Tuple[Sequence, Sequence]:
         archived = EntityVisibility.archived.value
 
@@ -352,7 +355,10 @@ class ProjectBLL:
             # count tasks per project per status
             {
                 "$match": cls.get_match_conditions(
-                    company=company_id, project_ids=project_ids, filter_=filter_
+                    company=company_id,
+                    project_ids=project_ids,
+                    filter_=filter_,
+                    users=users,
                 )
             },
             ensure_valid_fields(),
@@ -469,7 +475,10 @@ class ProjectBLL:
             {
                 "$match": {
                     **cls.get_match_conditions(
-                        company=company_id, project_ids=project_ids, filter_=filter_
+                        company=company_id,
+                        project_ids=project_ids,
+                        filter_=filter_,
+                        users=users,
                     ),
                     **get_state_filter(),
                 }
@@ -516,13 +525,18 @@ class ProjectBLL:
         include_children: bool = True,
         search_hidden: bool = False,
         filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
+        user_active_project_ids: Sequence[str] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
 
         child_projects = (
             _get_sub_projects(
-                project_ids, _only=("id", "name"), search_hidden=search_hidden
+                project_ids,
+                _only=("id", "name"),
+                search_hidden=search_hidden,
+                allowed_ids=user_active_project_ids,
             )
             if include_children
             else {}
@@ -535,6 +549,7 @@ class ProjectBLL:
             project_ids=list(project_ids_with_children),
             specific_state=specific_state,
             filter_=filter_,
+            users=users,
         )
 
         default_counts = dict.fromkeys(get_options(TaskStatus), 0)
@@ -701,7 +716,7 @@ class ProjectBLL:
         users: Sequence[str],
         project_ids: Optional[Sequence[str]] = None,
         allow_public: bool = True,
-    ) -> Sequence[str]:
+    ) -> Tuple[Sequence[str], Sequence[str]]:
         """
         Get the projects ids where user created any tasks including all the parents of these projects
         If project ids are specified then filter the results by these project ids
@@ -725,13 +740,16 @@ class ProjectBLL:
 
         res = list(res)
         if not res:
-            return res
+            return res, res
 
-        ids_with_parents = _ids_with_parents(res)
-        if project_ids:
-            return [pid for pid in ids_with_parents if pid in project_ids]
+        user_active_project_ids = _ids_with_parents(res)
+        filtered_ids = (
+            list(set(user_active_project_ids) & set(project_ids))
+            if project_ids
+            else list(user_active_project_ids)
+        )
 
-        return ids_with_parents
+        return filtered_ids, user_active_project_ids
 
     @classmethod
     def get_task_parents(
@@ -800,12 +818,18 @@ class ProjectBLL:
 
     @staticmethod
     def get_match_conditions(
-        company: str, project_ids: Sequence[str], filter_: Mapping[str, Any]
+        company: str,
+        project_ids: Sequence[str],
+        filter_: Mapping[str, Any],
+        users: Sequence[str],
     ):
         conditions = {
             "company": {"$in": [None, "", company]},
             "project": {"$in": project_ids},
         }
+        if users:
+            conditions["user"] = {"$in": users}
+
         if not filter_:
             return conditions
 
@@ -828,7 +852,11 @@ class ProjectBLL:
 
     @classmethod
     def calc_own_contents(
-        cls, company: str, project_ids: Sequence[str], filter_: Mapping[str, Any] = None
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
     ) -> Dict[str, dict]:
         """
         Returns the amount of task/models per requested project
@@ -841,7 +869,10 @@ class ProjectBLL:
         pipeline = [
             {
                 "$match": cls.get_match_conditions(
-                    company=company, project_ids=project_ids, filter_=filter_
+                    company=company,
+                    project_ids=project_ids,
+                    filter_=filter_,
+                    users=users,
                 )
             },
             {"$project": {"project": 1}},

@@ -51,6 +51,7 @@ def _ensure_project(
         created=now,
         last_update=now,
         name=name,
+        basename=name.split("/")[-1],
         **(creation_params or dict(description="")),
     )
     parent = _ensure_project(company, user, location, creation_params=creation_params)
@@ -104,6 +105,7 @@ def _get_sub_projects(
     project_ids: Sequence[str],
     _only: Sequence[str] = ("id", "path"),
     search_hidden=True,
+    allowed_ids: Sequence[str] = None,
 ) -> Mapping[str, Sequence[Project]]:
     """
     Return the list of child projects of all the levels for the parent project ids
@@ -111,6 +113,9 @@ def _get_sub_projects(
     query = dict(path__in=project_ids)
     if not search_hidden:
         query["system_tags__nin"] = [EntityVisibility.hidden.value]
+    if allowed_ids:
+        query["id__in"] = allowed_ids
+
     qs = Project.objects(**query)
     if _only:
         _only = set(_only) | {"path"}
