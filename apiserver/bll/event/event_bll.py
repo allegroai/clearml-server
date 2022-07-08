@@ -13,7 +13,6 @@ from elasticsearch.helpers import BulkIndexError
 from mongoengine import Q
 from nested_dict import nested_dict
 
-from apiserver.bll.event.debug_sample_history import DebugSampleHistory
 from apiserver.bll.event.event_common import (
     EventType,
     get_index_name,
@@ -26,11 +25,14 @@ from apiserver.bll.event.event_common import (
     get_max_metric_and_variant_counts,
 )
 from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
+from apiserver.bll.event.history_debug_image_iterator import HistoryDebugImageIterator
+from apiserver.bll.event.history_plot_iterator import HistoryPlotIterator
+from apiserver.bll.event.metric_debug_images_iterator import MetricDebugImagesIterator
+from apiserver.bll.event.metric_plots_iterator import MetricPlotsIterator
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
-from apiserver.bll.event.debug_images_iterator import DebugImagesIterator
 from apiserver.bll.event.event_metrics import EventMetrics
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
@@ -70,13 +72,17 @@ class EventBLL(object):
 
     def __init__(self, events_es=None, redis=None):
         self.es = events_es or es_factory.connect("events")
+        self.redis = redis or redman.connection("apiserver")
         self._metrics = EventMetrics(self.es)
         self._skip_iteration_for_metric = set(
             config.get("services.events.ignore_iteration.metrics", [])
         )
-        self.redis = redis or redman.connection("apiserver")
-        self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
-        self.debug_sample_history = DebugSampleHistory(es=self.es, redis=self.redis)
+        self.debug_images_iterator = MetricDebugImagesIterator(
+            es=self.es, redis=self.redis
+        )
+        self.debug_image_sample_history = HistoryDebugImageIterator(
+            es=self.es, redis=self.redis
+        )
         self.plots_iterator = MetricPlotsIterator(es=self.es, redis=self.redis)
         self.plot_sample_history = HistoryPlotIterator(es=self.es, redis=self.redis)
         self.events_iterator = EventsIterator(es=self.es)

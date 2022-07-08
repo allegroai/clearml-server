@@ -48,7 +48,7 @@ class TaskMetric(Base):
     variants: Sequence[str] = ListField(items_types=str)
 
 
-class DebugImagesRequest(Base):
+class MetricEventsRequest(Base):
     metrics: Sequence[TaskMetric] = ListField(
         items_types=TaskMetric, validators=[Length(minimum_value=1)]
     )
@@ -64,13 +64,14 @@ class TaskMetricVariant(Base):
     variant: str = StringField(required=True)
 
 
-class GetDebugImageSampleRequest(TaskMetricVariant):
+class GetHistorySampleRequest(TaskMetricVariant):
     iteration: Optional[int] = IntField()
     refresh: bool = BoolField(default=False)
     scroll_id: Optional[str] = StringField()
+    navigate_current_metric: bool = BoolField(default=True)
 
 
-class NextDebugImageSampleRequest(Base):
+class NextHistorySampleRequest(Base):
     task: str = StringField(required=True)
     scroll_id: Optional[str] = StringField()
     navigate_earlier: bool = BoolField(default=True)
@@ -119,17 +120,22 @@ class MetricEvents(Base):
     iterations: Sequence[IterationEvents] = ListField(items_types=IterationEvents)
 
 
-class DebugImageResponse(Base):
+class MetricEventsResponse(Base):
     metrics: Sequence[MetricEvents] = ListField(items_types=MetricEvents)
     scroll_id: str = StringField()
 
 
-class SingleValueMetricsRequest(MultiTasksRequestBase):
-    pass
-class TaskMetricsRequest(Base):
+class MultiTasksRequestBase(Base):
     tasks: Sequence[str] = ListField(
         items_types=str, validators=[Length(minimum_value=1)]
     )
+
+
+class SingleValueMetricsRequest(MultiTasksRequestBase):
+    pass
+
+
+class TaskMetricsRequest(MultiTasksRequestBase):
     event_type: EventType = ActualEnumField(EventType, required=True)
 
 

@@ -12,15 +12,15 @@ from apiserver.apierrors import errors
 from apiserver.apimodels.events import (
     MultiTaskScalarMetricsIterHistogramRequest,
     ScalarMetricsIterHistogramRequest,
-    DebugImagesRequest,
-    DebugImageResponse,
+    MetricEventsRequest,
+    MetricEventsResponse,
     MetricEvents,
     IterationEvents,
     TaskMetricsRequest,
     LogEventsRequest,
     LogOrderEnum,
-    GetDebugImageSampleRequest,
-    NextDebugImageSampleRequest,
+    GetHistorySampleRequest,
+    NextHistorySampleRequest,
     MetricVariants as ApiMetrics,
     TaskPlotsRequest,
     TaskEventsRequest,
@@ -757,10 +757,10 @@ def get_debug_images_v1_8(call, company_id, _):
 @endpoint(
     "events.debug_images",
     min_version="2.7",
-    request_data_model=DebugImagesRequest,
-    response_data_model=DebugImageResponse,
+    request_data_model=MetricEventsRequest,
+    response_data_model=MetricEventsResponse,
 )
-def get_debug_images(call, company_id, request: DebugImagesRequest):
+def get_debug_images(call, company_id, request: MetricEventsRequest):
     task_metrics = defaultdict(dict)
     for tm in request.metrics:
         task_metrics[tm.task][tm.metric] = tm.variants
@@ -790,7 +790,7 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
         state_id=request.scroll_id,
     )
 
-    call.result.data_model = DebugImageResponse(
+    call.result.data_model = MetricEventsResponse(
         scroll_id=result.next_scroll_id,
         metrics=[
             MetricEvents(
@@ -808,13 +808,13 @@ def get_debug_images(call, company_id, request: DebugImagesRequest):
 @endpoint(
     "events.get_debug_image_sample",
     min_version="2.12",
-    request_data_model=GetDebugImageSampleRequest,
+    request_data_model=GetHistorySampleRequest,
 )
-def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest):
+def get_debug_image_sample(call, company_id, request: GetHistorySampleRequest):
     task = task_bll.assert_exists(
         company_id, task_ids=[request.task], allow_public=True, only=("company",)
     )[0]
-    res = event_bll.debug_sample_history.get_debug_image_for_variant(
+    res = event_bll.debug_image_sample_history.get_sample_for_variant(
         company_id=task.company,
         task=request.task,
         metric=request.metric,
@@ -822,6 +822,7 @@ def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest
         iteration=request.iteration,
         refresh=request.refresh,
         state_id=request.scroll_id,
+        navigate_current_metric=request.navigate_current_metric,
     )
     call.result.data = attr.asdict(res, recurse=False)
 
@@ -829,13 +830,13 @@ def get_debug_image_sample(call, company_id, request: GetDebugImageSampleRequest
 @endpoint(
     "events.next_debug_image_sample",
     min_version="2.12",
-    request_data_model=NextDebugImageSampleRequest,
+    request_data_model=NextHistorySampleRequest,
 )
-def next_debug_image_sample(call, company_id, request: NextDebugImageSampleRequest):
+def next_debug_image_sample(call, company_id, request: NextHistorySampleRequest):
     task = task_bll.assert_exists(
         company_id, task_ids=[request.task], allow_public=True, only=("company",)
     )[0]
-    res = event_bll.debug_sample_history.get_next_debug_image(
+    res = event_bll.debug_image_sample_history.get_next_sample(
         company_id=task.company,
         task=request.task,
         state_id=request.scroll_id,
