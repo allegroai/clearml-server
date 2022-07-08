@@ -3,14 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby, chain
 from typing import Sequence, Dict, Callable, Tuple, Any, Type
 
-import dpath.path
-import dpath.options
-
 from apiserver.apierrors import errors
 from apiserver.database.props import PropsMixin
 
 SEP = "."
-dpath.options.ALLOW_EMPTY_STRING_KEYS = True
 
 
 def project_dict(data, projection, separator=SEP):
@@ -277,25 +273,26 @@ class ProjectionHelper(object):
         norm_path = doc_cls.get_dpath_translated_path(path)
         globlist = norm_path.strip(SEP).split(SEP)
 
-        obj_paths = self._cached_results_paths.get(id(obj))
-        if obj_paths is None:
-            obj_paths = self._cached_results_paths[id(obj)] = list(
-                dpath.path.paths(obj, dirs=True, skip=True)
-            )
-
-        paths = [p for p in obj_paths if dpath.path.match(p, globlist)]
-
-        def search_and_replace(p: Sequence[Tuple[str, Type]]) -> Any:
+        def _search_and_replace(target: dict, p: Sequence[str]) -> Sequence[str]:
             parent = None
-            target = obj
-            for part in p:
-                parent = target
-                target = target[part[0]]
-            if parent and factory:
-                parent[p[-1][0]] = factory(target)
-            return target
+            for idx, part in enumerate(p):
+                if isinstance(target, dict) and part in target:
+                    parent = target
+                    target = target[part]
+                elif isinstance(target, list) and part == "*":
+                    return list(
+                        chain.from_iterable(
+                            _search_and_replace(t, p[idx + 1 :]) for t in target
+                        )
+                    )
+                else:
+                    return []
 
-        return [search_and_replace(p) for p in paths]
+            if parent and factory:
+                parent[p[-1]] = factory(target)
+            return [target]
+
+        return _search_and_replace(obj, globlist)
 
     def project(self, results, projection_func):
         """
