@@ -124,6 +124,8 @@ class DebugImageResponse(Base):
     scroll_id: str = StringField()
 
 
+class SingleValueMetricsRequest(MultiTasksRequestBase):
+    pass
 class TaskMetricsRequest(Base):
     tasks: Sequence[str] = ListField(
         items_types=str, validators=[Length(minimum_value=1)]

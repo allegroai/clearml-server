@@ -27,6 +27,7 @@ from apiserver.apimodels.events import (
     ScalarMetricsIterRawRequest,
     ClearScrollRequest,
     ClearTaskLogRequest,
+    SingleValueMetricsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants
@@ -450,6 +451,30 @@ def multi_task_scalar_metrics_iter_histogram(
     )
 
 
+@endpoint("events.get_task_single_value_metrics")
+def get_task_single_value_metrics(
+    call, company_id: str, request: SingleValueMetricsRequest
+):
+    task_ids = call.data["tasks"]
+    tasks = task_bll.assert_exists(
+        company_id=call.identity.company,
+        only=("id", "name", "company", "company_origin"),
+        task_ids=task_ids,
+        allow_public=True,
+    )
+
+    companies = {t.get_index_company() for t in tasks}
+    if len(companies) > 1:
+        raise errors.bad_request.InvalidTaskId(
+            "only tasks from the same company are supported"
+        )
+
+    res = event_bll.metrics.get_task_single_value_metrics(company_id, task_ids)
+    call.result.data = dict(
+        tasks=[{"task": task, "values": values} for task, values in res.items()]
+    )
+
+
 @endpoint("events.get_multi_task_plots", required_fields=["tasks"])
 def get_multi_task_plots_v1_7(call, company_id, _):
     task_ids = call.data["tasks"]
@@ -613,6 +638,56 @@ def get_task_plots(call, company_id, request: TaskPlotsRequest):
     )
 
 
+@endpoint(
+    "events.plots",
+    request_data_model=MetricEventsRequest,
+    response_data_model=MetricEventsResponse,
+)
+def task_plots(call, company_id, request: MetricEventsRequest):
+    task_metrics = defaultdict(dict)
+    for tm in request.metrics:
+        task_metrics[tm.task][tm.metric] = tm.variants
+    for metrics in task_metrics.values():
+        if None in metrics:
+            metrics.clear()
+
+    tasks = task_bll.assert_exists(
+        company_id,
+        task_ids=list(task_metrics),
+        allow_public=True,
+        only=("company", "company_origin"),
+    )
+
+    companies = {t.get_index_company() for t in tasks}
+    if len(companies) > 1:
+        raise errors.bad_request.InvalidTaskId(
+            "only tasks from the same company are supported"
+        )
+
+    result = event_bll.plots_iterator.get_task_events(
+        company_id=next(iter(companies)),
+        task_metrics=task_metrics,
+        iter_count=request.iters,
+        navigate_earlier=request.navigate_earlier,
+        refresh=request.refresh,
+        state_id=request.scroll_id,
+    )
+
+    call.result.data_model = MetricEventsResponse(
+        scroll_id=result.next_scroll_id,
+        metrics=[
+            MetricEvents(
+                task=task,
+                iterations=[
+                    IterationEvents(iter=iteration["iter"], events=iteration["events"])
+                    for iteration in iterations
+                ],
+            )
+            for (task, iterations) in result.metric_events
+        ],
+    )
+
+
 @endpoint("events.debug_images", required_fields=["task"])
 def get_debug_images_v1_7(call, company_id, _):
     task_id = call.data["task"]
@@ -761,6 +836,42 @@ def next_debug_image_sample(call, company_id, request: NextDebugImageSampleReque
         company_id, task_ids=[request.task], allow_public=True, only=("company",)
     )[0]
     res = event_bll.debug_sample_history.get_next_debug_image(
+        company_id=task.company,
+        task=request.task,
+        state_id=request.scroll_id,
+        navigate_earlier=request.navigate_earlier,
+    )
+    call.result.data = attr.asdict(res, recurse=False)
+
+
+@endpoint(
+    "events.get_plot_sample", request_data_model=GetHistorySampleRequest,
+)
+def get_plot_sample(call, company_id, request: GetHistorySampleRequest):
+    task = task_bll.assert_exists(
+        company_id, task_ids=[request.task], allow_public=True, only=("company",)
+    )[0]
+    res = event_bll.plot_sample_history.get_sample_for_variant(
+        company_id=task.company,
+        task=request.task,
+        metric=request.metric,
+        variant=request.variant,
+        iteration=request.iteration,
+        refresh=request.refresh,
+        state_id=request.scroll_id,
+        navigate_current_metric=request.navigate_current_metric,
+    )
+    call.result.data = attr.asdict(res, recurse=False)
+
+
+@endpoint(
+    "events.next_plot_sample", request_data_model=NextHistorySampleRequest,
+)
+def next_plot_sample(call, company_id, request: NextHistorySampleRequest):
+    task = task_bll.assert_exists(
+        company_id, task_ids=[request.task], allow_public=True, only=("company",)
+    )[0]
+    res = event_bll.plot_sample_history.get_next_sample(
         company_id=task.company,
         task=request.task,
         state_id=request.scroll_id,

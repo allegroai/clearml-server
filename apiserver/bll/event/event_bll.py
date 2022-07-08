@@ -16,13 +16,14 @@ from nested_dict import nested_dict
 from apiserver.bll.event.debug_sample_history import DebugSampleHistory
 from apiserver.bll.event.event_common import (
     EventType,
-    EventSettings,
     get_index_name,
     check_empty_data,
     search_company_events,
     delete_company_events,
     MetricVariants,
     get_metric_variants_condition,
+    uncompress_plot,
+    get_max_metric_and_variant_counts,
 )
 from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
 from apiserver.bll.util import parallel_chunked_decorator
@@ -76,6 +77,8 @@ class EventBLL(object):
         self.redis = redis or redman.connection("apiserver")
         self.debug_images_iterator = DebugImagesIterator(es=self.es, redis=self.redis)
         self.debug_sample_history = DebugSampleHistory(es=self.es, redis=self.redis)
+        self.plots_iterator = MetricPlotsIterator(es=self.es, redis=self.redis)
+        self.plot_sample_history = HistoryPlotIterator(es=self.es, redis=self.redis)
         self.events_iterator = EventsIterator(es=self.es)
 
     @property
@@ -307,11 +310,7 @@ class EventBLL(object):
     @parallel_chunked_decorator(chunk_size=10)
     def uncompress_plots(self, plot_events: Sequence[dict]):
         for event in plot_events:
-            plot_data = event.pop(PlotFields.plot_data, None)
-            if plot_data and event.get(PlotFields.plot_str) is None:
-                event[PlotFields.plot_str] = zlib.decompress(
-                    base64.b64decode(plot_data)
-                ).decode()
+            uncompress_plot(event)
 
     @staticmethod
     def _is_valid_json(text: str) -> bool:
@@ -479,6 +478,13 @@ class EventBLL(object):
         if metric_variants:
             must.append(get_metric_variants_condition(metric_variants))
         query = {"bool": {"must": must}}
+        search_args = dict(
+            es=self.es, company_id=company_id, event_type=event_type, routing=task_id,
+        )
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query, **search_args,
+        )
+        max_variants = int(max_variants // num_last_iterations)
 
         es_req: dict = {
             "size": 0,
@@ -486,14 +492,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventSettings.max_metrics_count,
+                        "size": max_metrics,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventSettings.max_variants_count,
+                                "size": max_variants,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -515,9 +521,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "task_last_iter_metric_variant"
         ):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req
-            )
+            es_res = search_company_events(body=es_req, **search_args)
 
         if "aggregations" not in es_res:
             return []
@@ -763,20 +767,26 @@ class EventBLL(object):
             return {}
 
         query = {"bool": {"must": [{"term": {"task": task_id}}]}}
+        search_args = dict(
+            es=self.es, company_id=company_id, event_type=event_type, routing=task_id,
+        )
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query, **search_args,
+        )
         es_req = {
             "size": 0,
             "aggs": {
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventSettings.max_metrics_count,
+                        "size": max_metrics,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventSettings.max_variants_count,
+                                "size": max_variants,
                                 "order": {"_key": "asc"},
                             }
                         }
@@ -789,9 +799,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req
-            )
+            es_res = search_company_events(body=es_req, **search_args)
 
         metrics = {}
         for metric_bucket in es_res["aggregations"]["metrics"].get("buckets"):
@@ -817,6 +825,12 @@ class EventBLL(object):
                 ]
             }
         }
+        search_args = dict(
+            es=self.es, company_id=company_id, event_type=event_type, routing=task_id,
+        )
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query, **search_args,
+        )
         es_req = {
             "size": 0,
             "query": query,
@@ -824,14 +838,14 @@ class EventBLL(object):
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventSettings.max_metrics_count,
+                        "size": max_metrics,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventSettings.max_variants_count,
+                                "size": max_variants,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -862,9 +876,7 @@ class EventBLL(object):
         with translate_errors_context(), TimingContext(
             "es", "events_get_metrics_and_variants"
         ):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req
-            )
+            es_res = search_company_events(body=es_req, **search_args)
 
         metrics = []
         max_timestamp = 0
@@ -1019,9 +1031,7 @@ class EventBLL(object):
                     {
                         "range": {
                             "timestamp": {
-                                "lt": (
-                                    es_factory.get_timestamp_millis() - timestamp_ms
-                                )
+                                "lt": (es_factory.get_timestamp_millis() - timestamp_ms)
                             }
                         }
                     }

@@ -4,8 +4,9 @@ from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
 from operator import itemgetter
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Mapping
 
+from boltons.iterutils import bucketize
 from elasticsearch import Elasticsearch
 from mongoengine import Q
 
@@ -17,6 +18,8 @@ from apiserver.bll.event.event_common import (
     check_empty_data,
     MetricVariants,
     get_metric_variants_condition,
+    get_max_metric_and_variant_counts,
+    SINGLE_SCALAR_ITERATION,
 )
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
@@ -166,6 +169,58 @@ class EventMetrics:
 
         return res
 
+    def get_task_single_value_metrics(
+        self, company_id: str, task_ids: Sequence[str]
+    ) -> Mapping[str, dict]:
+        """
+        For the requested tasks return all the events delivered for the single iteration (-2**31)
+        """
+        if check_empty_data(
+            self.es, company_id=company_id, event_type=EventType.metrics_scalar
+        ):
+            return {}
+
+        with TimingContext("es", "get_task_single_value_metrics"):
+            task_events = self._get_task_single_value_metrics(company_id, task_ids)
+
+        def _get_value(event: dict):
+            return {
+                field: event.get(field)
+                for field in ("metric", "variant", "value", "timestamp")
+            }
+
+        return {
+            task: [_get_value(e) for e in events]
+            for task, events in bucketize(task_events, itemgetter("task")).items()
+        }
+
+    def _get_task_single_value_metrics(
+        self, company_id: str, task_ids: Sequence[str]
+    ) -> Sequence[dict]:
+        es_req = {
+            "size": 10000,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"terms": {"task": task_ids}},
+                        {"term": {"iter": SINGLE_SCALAR_ITERATION}},
+                    ]
+                }
+            },
+        }
+        with translate_errors_context():
+            es_res = search_company_events(
+                body=es_req,
+                es=self.es,
+                company_id=company_id,
+                event_type=EventType.metrics_scalar,
+                routing=",".join(task_ids),
+            )
+            if not es_res["hits"]["total"]["value"]:
+                return []
+
+        return [hit["_source"] for hit in es_res["hits"]["hits"]]
+
     MetricInterval = Tuple[str, str, int, int]
     MetricIntervalGroup = Tuple[int, Sequence[Tuple[str, str]]]
 
@@ -219,11 +274,17 @@ class EventMetrics:
         Return the list og metric variant intervals as the following tuple:
         (metric, variant, interval, samples)
         """
-        must = [{"term": {"task": task_id}}]
+        must = self._task_conditions(task_id)
         if metric_variants:
             must.append(get_metric_variants_condition(metric_variants))
         query = {"bool": {"must": must}}
-
+        search_args = dict(
+            es=self.es, company_id=company_id, event_type=event_type, routing=task_id,
+        )
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query, **search_args,
+        )
+        max_variants = int(max_variants // 2)
         es_req = {
             "size": 0,
             "query": query,
@@ -231,14 +292,14 @@ class EventMetrics:
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventSettings.max_metrics_count,
+                        "size": max_metrics,
                         "order": {"_key": "asc"},
                     },
                     "aggs": {
                         "variants": {
                             "terms": {
                                 "field": "variant",
-                                "size": EventSettings.max_variants_count,
+                                "size": max_variants,
                                 "order": {"_key": "asc"},
                             },
                             "aggs": {
@@ -253,9 +314,7 @@ class EventMetrics:
         }
 
         with translate_errors_context(), TimingContext("es", "task_stats_get_interval"):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req,
-            )
+            es_res = search_company_events(body=es_req, **search_args)
 
         aggs_result = es_res.get("aggregations")
         if not aggs_result:
@@ -307,33 +366,42 @@ class EventMetrics:
         """
         interval, metrics = metrics_interval
         aggregation = self._add_aggregation_average(key.get_aggregation(interval))
-        aggs = {
-            "metrics": {
-                "terms": {
-                    "field": "metric",
-                    "size": EventSettings.max_metrics_count,
-                    "order": {"_key": "asc"},
-                },
-                "aggs": {
-                    "variants": {
-                        "terms": {
-                            "field": "variant",
-                            "size": EventSettings.max_variants_count,
-                            "order": {"_key": "asc"},
-                        },
-                        "aggs": aggregation,
-                    }
-                },
-            }
-        }
-        aggs_result = self._query_aggregation_for_task_metrics(
-            company_id=company_id,
-            event_type=event_type,
-            aggs=aggs,
-            task_id=task_id,
-            metrics=metrics,
+        query = self._get_task_metrics_query(task_id=task_id, metrics=metrics)
+        search_args = dict(
+            es=self.es, company_id=company_id, event_type=event_type, routing=task_id,
         )
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query, **search_args,
+        )
+        max_variants = int(max_variants // 2)
+        es_req = {
+            "size": 0,
+            "query": query,
+            "aggs": {
+                "metrics": {
+                    "terms": {
+                        "field": "metric",
+                        "size": max_metrics,
+                        "order": {"_key": "asc"},
+                    },
+                    "aggs": {
+                        "variants": {
+                            "terms": {
+                                "field": "variant",
+                                "size": max_variants,
+                                "order": {"_key": "asc"},
+                            },
+                            "aggs": aggregation,
+                        }
+                    },
+                }
+            },
+        }
 
+        with translate_errors_context():
+            es_res = search_company_events(body=es_req, **search_args)
+
+        aggs_result = es_res.get("aggregations")
         if not aggs_result:
             return {}
 
@@ -360,19 +428,18 @@ class EventMetrics:
             for key, value in aggregation.items()
         }
 
-    def _query_aggregation_for_task_metrics(
-        self,
-        company_id: str,
-        event_type: EventType,
-        aggs: dict,
-        task_id: str,
-        metrics: Sequence[Tuple[str, str]],
-    ) -> dict:
-        """
-        Return the result of elastic search query for the given aggregation filtered
-        by the given task_ids and metrics
-        """
-        must = [{"term": {"task": task_id}}]
+    @staticmethod
+    def _task_conditions(task_id: str) -> list:
+        return [
+            {"term": {"task": task_id}},
+            {"range": {"iter": {"gt": SINGLE_SCALAR_ITERATION}}},
+        ]
+
+    @classmethod
+    def _get_task_metrics_query(
+        cls, task_id: str, metrics: Sequence[Tuple[str, str]],
+    ):
+        must = cls._task_conditions(task_id)
         if metrics:
             should = [
                 {
@@ -387,18 +454,7 @@ class EventMetrics:
             ]
             must.append({"bool": {"should": should}})
 
-        es_req = {
-            "size": 0,
-            "query": {"bool": {"must": must}},
-            "aggs": aggs,
-        }
-
-        with translate_errors_context(), TimingContext("es", "task_stats_scalar"):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req,
-            )
-
-        return es_res.get("aggregations")
+        return {"bool": {"must": must}}
 
     def get_task_metrics(
         self, company_id, task_ids: Sequence, event_type: EventType
@@ -426,12 +482,12 @@ class EventMetrics:
     ) -> Sequence:
         es_req = {
             "size": 0,
-            "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
+            "query": {"bool": {"must": self._task_conditions(task_id)}},
             "aggs": {
                 "metrics": {
                     "terms": {
                         "field": "metric",
-                        "size": EventSettings.max_metrics_count,
+                        "size": EventSettings.max_es_buckets,
                         "order": {"_key": "asc"},
                     }
                 }
