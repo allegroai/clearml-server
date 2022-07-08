@@ -747,6 +747,15 @@ class PrePopulate:
         return getattr(module, class_name)
 
     @staticmethod
+    def _upgrade_project_data(project_data: dict) -> dict:
+        if not project_data.get("basename"):
+            name: str = project_data["name"]
+            _, _, basename = name.rpartition("/")
+            project_data["basename"] = basename
+
+        return project_data
+
+    @staticmethod
     def _upgrade_model_data(model_data: dict) -> dict:
         metadata_key = "metadata"
         metadata = model_data.get(metadata_key)
@@ -846,6 +855,7 @@ class PrePopulate:
         data_upgrade_funcs: Mapping[Type, Callable] = {
             cls.task_cls: cls._upgrade_task_data,
             cls.model_cls: cls._upgrade_model_data,
+            cls.project_cls: cls._upgrade_project_data,
         }
         for item in cls.json_lines(f):
             upgrade_func = data_upgrade_funcs.get(cls_)
