@@ -127,9 +127,7 @@ def add_task(call: APICall, company_id, req_model: TaskRequest):
 
 @endpoint("queues.get_next_task", request_data_model=GetNextTaskRequest)
 def get_next_task(call: APICall, company_id, req_model: GetNextTaskRequest):
-    entry = queue_bll.get_next_task(
-        company_id=company_id, queue_id=req_model.queue
-    )
+    entry = queue_bll.get_next_task(company_id=company_id, queue_id=req_model.queue)
     if entry:
         data = {"entry": entry.to_proper_dict()}
         if req_model.get_task_info:
@@ -224,14 +222,15 @@ def move_task_to_back(call: APICall, company_id, req_model: TaskRequest):
     response_data_model=GetMetricsResponse,
 )
 def get_queue_metrics(
-    call: APICall, company_id, req_model: GetMetricsRequest
+    call: APICall, company_id, request: GetMetricsRequest
 ) -> GetMetricsResponse:
     ret = queue_bll.metrics.get_queue_metrics(
         company_id=company_id,
-        from_date=req_model.from_date,
-        to_date=req_model.to_date,
-        interval=req_model.interval,
-        queue_ids=req_model.queue_ids,
+        from_date=request.from_date,
+        to_date=request.to_date,
+        interval=request.interval,
+        queue_ids=request.queue_ids,
+        refresh=request.refresh,
     )
 
     queue_dicts = {

@@ -1,8 +1,10 @@
+import json
 from collections import defaultdict
 from datetime import datetime
+from time import sleep
 from typing import Sequence
 
-import elasticsearch.helpers
+from boltons.typeutils import classproperty
 from elasticsearch import Elasticsearch
 
 from apiserver.es_factory import es_factory
@@ -11,18 +13,24 @@ from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.queue import Queue, Entry
+from apiserver.redis_manager import redman
 from apiserver.timing_context import TimingContext
+from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
+_conf = config.get("services.queues")
+_queue_metrics_key_pattern = "queue_metrics_{queue}"
+redis = redman.connection("apiserver")
+
+
+class EsKeys:
+    WAITING_TIME_FIELD = "average_waiting_time"
+    QUEUE_LENGTH_FIELD = "queue_length"
+    TIMESTAMP_FIELD = "timestamp"
+    QUEUE_FIELD = "queue"
 
 
 class QueueMetrics:
-    class EsKeys:
-        WAITING_TIME_FIELD = "average_waiting_time"
-        QUEUE_LENGTH_FIELD = "queue_length"
-        TIMESTAMP_FIELD = "timestamp"
-        QUEUE_FIELD = "queue"
-
     def __init__(self, es: Elasticsearch):
         self.es = es
 
@@ -49,7 +57,7 @@ class QueueMetrics:
         total_waiting_in_secs = sum((now - e.added).total_seconds() for e in entries)
         return total_waiting_in_secs / len(entries)
 
-    def log_queue_metrics_to_es(self, company_id: str, queues: Sequence[Queue]) -> bool:
+    def log_queue_metrics_to_es(self, company_id: str, queues: Sequence[Queue]) -> int:
         """
         Calculate and write queue statistics (avg waiting time and queue length) to Elastic
         :return: True if the write to es was successful, false otherwise
@@ -63,23 +71,22 @@ class QueueMetrics:
 
         def make_doc(queue: Queue) -> dict:
             entries = [e for e in queue.entries if e.added]
-            return dict(
-                _index=es_index,
-                _source={
-                    self.EsKeys.TIMESTAMP_FIELD: timestamp,
-                    self.EsKeys.QUEUE_FIELD: queue.id,
-                    self.EsKeys.WAITING_TIME_FIELD: self._calc_avg_waiting_time(
-                        entries
-                    ),
-                    self.EsKeys.QUEUE_LENGTH_FIELD: len(entries),
-                },
-            )
+            return {
+                EsKeys.TIMESTAMP_FIELD: timestamp,
+                EsKeys.QUEUE_FIELD: queue.id,
+                EsKeys.WAITING_TIME_FIELD: self._calc_avg_waiting_time(entries),
+                EsKeys.QUEUE_LENGTH_FIELD: len(entries),
+            }
 
-        actions = list(map(make_doc, queues))
+        logged = 0
+        for q in queues:
+            queue_doc = make_doc(q)
+            self.es.index(index=es_index, body=queue_doc)
+            redis_key = _queue_metrics_key_pattern.format(queue=q.id)
+            redis.set(redis_key, json.dumps(queue_doc))
+            logged += 1
 
-        es_res = elasticsearch.helpers.bulk(self.es, actions)
-        added, errors = es_res[:2]
-        return (added == len(actions)) and not errors
+        return logged
 
     def _log_current_metrics(self, company_id: str, queue_ids=Sequence[str]):
         query = dict(company=company_id)
@@ -90,8 +97,7 @@ class QueueMetrics:
 
     def _search_company_metrics(self, company_id: str, es_req: dict) -> dict:
         return self.es.search(
-            index=f"{self._queue_metrics_prefix_for_company(company_id)}*",
-            body=es_req,
+            index=f"{self._queue_metrics_prefix_for_company(company_id)}*", body=es_req,
         )
 
     @classmethod
@@ -105,13 +111,13 @@ class QueueMetrics:
         return {
             "dates": {
                 "date_histogram": {
-                    "field": cls.EsKeys.TIMESTAMP_FIELD,
+                    "field": EsKeys.TIMESTAMP_FIELD,
                     "fixed_interval": f"{interval}s",
                     "min_doc_count": 1,
                 },
                 "aggs": {
                     "queues": {
-                        "terms": {"field": cls.EsKeys.QUEUE_FIELD},
+                        "terms": {"field": EsKeys.QUEUE_FIELD},
                         "aggs": cls._get_top_waiting_agg(),
                     }
                 },
@@ -128,13 +134,13 @@ class QueueMetrics:
             "top_avg_waiting": {
                 "top_hits": {
                     "sort": [
-                        {cls.EsKeys.WAITING_TIME_FIELD: {"order": "desc"}},
-                        {cls.EsKeys.QUEUE_LENGTH_FIELD: {"order": "desc"}},
+                        {EsKeys.WAITING_TIME_FIELD: {"order": "desc"}},
+                        {EsKeys.QUEUE_LENGTH_FIELD: {"order": "desc"}},
                     ],
                     "_source": {
                         "includes": [
-                            cls.EsKeys.WAITING_TIME_FIELD,
-                            cls.EsKeys.QUEUE_LENGTH_FIELD,
+                            EsKeys.WAITING_TIME_FIELD,
+                            EsKeys.QUEUE_LENGTH_FIELD,
                         ]
                     },
                     "size": 1,
@@ -149,6 +155,7 @@ class QueueMetrics:
         to_date: float,
         interval: int,
         queue_ids: Sequence[str],
+        refresh: bool = False,
     ) -> dict:
         """
         Get the company queue metrics in the specified time range.
@@ -158,7 +165,8 @@ class QueueMetrics:
         In case no queue ids are specified the avg across all the
         company queues is calculated for each metric
         """
-        # self._log_current_metrics(company, queue_ids=queue_ids)
+        if refresh:
+            self._log_current_metrics(company_id, queue_ids=queue_ids)
 
         if from_date >= to_date:
             raise bad_request.FieldsValueError("from_date must be less than to_date")
@@ -256,7 +264,47 @@ class QueueMetrics:
                 continue
             res = queue_data["top_avg_waiting"]["hits"]["hits"][0]["_source"]
             queue_metrics[queue_data["key"]] = {
-                "queue_length": res[cls.EsKeys.QUEUE_LENGTH_FIELD],
-                "avg_waiting_time": res[cls.EsKeys.WAITING_TIME_FIELD],
+                "queue_length": res[EsKeys.QUEUE_LENGTH_FIELD],
+                "avg_waiting_time": res[EsKeys.WAITING_TIME_FIELD],
             }
         return queue_metrics
+
+
+class MetricsRefresher:
+    threads = ThreadsManager()
+
+    @classproperty
+    def watch_interval_sec(self):
+        return _conf.get("metrics_refresh_interval_sec", 300)
+
+    @classmethod
+    @threads.register("queue_metrics_refresh_watchdog", daemon=True)
+    def start(cls, queue_metrics: QueueMetrics):
+        if not cls.watch_interval_sec:
+            return
+
+        sleep(10)
+        while not ThreadsManager.terminating:
+            try:
+                for queue in Queue.objects():
+                    timestamp = es_factory.get_timestamp_millis()
+                    doc_time = 0
+                    try:
+                        redis_key = _queue_metrics_key_pattern.format(queue=queue.id)
+                        data = redis.get(redis_key)
+                        if data:
+                            queue_doc = json.loads(data)
+                            doc_time = int(queue_doc.get(EsKeys.TIMESTAMP_FIELD))
+                    except Exception as ex:
+                        log.exception(
+                            f"Error reading queue metrics data for queue {queue.id}: {str(ex)}"
+                        )
+
+                    if (
+                        not doc_time
+                        or (timestamp - doc_time) > cls.watch_interval_sec * 1000
+                    ):
+                        queue_metrics.log_queue_metrics_to_es(queue.company, [queue])
+            except Exception as ex:
+                log.exception(f"Failed collecting queue metrics: {str(ex)}")
+            sleep(60)

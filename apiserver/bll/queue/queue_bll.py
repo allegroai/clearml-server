@@ -7,7 +7,7 @@ from elasticsearch import Elasticsearch
 from apiserver import database
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
-from apiserver.bll.queue.queue_metrics import QueueMetrics
+from apiserver.bll.queue.queue_metrics import QueueMetrics, MetricsRefresher
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -51,10 +51,7 @@ class QueueBLL(object):
             return queue
 
     def get_by_name(
-        self,
-        company_id: str,
-        queue_name: str,
-        only: Optional[Sequence[str]] = None,
+        self, company_id: str, queue_name: str, only: Optional[Sequence[str]] = None,
     ) -> Queue:
         qs = Queue.objects(name=queue_name, company=company_id)
         if only:
@@ -139,10 +136,7 @@ class QueueBLL(object):
             queue.delete()
 
     def get_all(
-        self,
-        company_id: str,
-        query_dict: dict,
-        ret_params: dict = None,
+        self, company_id: str, query_dict: dict, ret_params: dict = None,
     ) -> Sequence[dict]:
         """Get all the queues according to the query"""
         with translate_errors_context():
@@ -154,10 +148,7 @@ class QueueBLL(object):
             )
 
     def get_queue_infos(
-        self,
-        company_id: str,
-        query_dict: dict,
-        ret_params: dict = None,
+        self, company_id: str, query_dict: dict, ret_params: dict = None,
     ) -> Sequence[dict]:
         """
         Get infos on all the company queues, including queue tasks and workers
@@ -300,3 +291,6 @@ class QueueBLL(object):
                     )
 
             return new_position
+
+
+MetricsRefresher.start(queue_metrics=QueueBLL().metrics)

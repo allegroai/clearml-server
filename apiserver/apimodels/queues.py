@@ -59,6 +59,7 @@ class GetMetricsRequest(Base):
     from_date = FloatField(required=True, validators=validators.Min(0))
     to_date = FloatField(required=True, validators=validators.Min(0))
     interval = IntField(required=True, validators=validators.Min(1))
+    refresh = BoolField(default=False)
 
 
 class QueueMetrics(Base):
