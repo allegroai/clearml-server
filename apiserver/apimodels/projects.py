@@ -57,6 +57,7 @@ class ProjectModelMetadataValuesRequest(MultiProjectRequest):
 
 
 class ProjectsGetRequest(models.Base):
+    include_dataset_stats = fields.BoolField(default=False)
     include_stats = fields.BoolField(default=False)
     include_stats_filter = DictField()
     stats_with_children = fields.BoolField(default=True)

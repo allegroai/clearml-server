@@ -12,6 +12,19 @@ from apiserver.tests.automated import TestService
 
 
 class TestSubProjects(TestService):
+    def test_dataset_stats(self):
+        project = self._temp_project(name="Dataset test", system_tags=["dataset"])
+        res = self.api.organization.get_entities_count(datasets={"system_tags": ["dataset"]})
+        self.assertEqual(res.datasets, 1)
+
+        task = self._temp_task(project=project)
+        data = self.api.projects.get_all_ex(id=[project], include_dataset_stats=True).projects[0]
+        self.assertIsNone(data.dataset_stats)
+
+        self.api.tasks.edit(task=task, runtime={"ds_file_count": 2, "ds_total_size": 1000})
+        data = self.api.projects.get_all_ex(id=[project], include_dataset_stats=True).projects[0]
+        self.assertEqual(data.dataset_stats, {"file_count": 2, "total_size": 1000})
+
     def test_project_aggregations(self):
         """This test requires user with user_auth_only... credentials in db"""
         user2_client = APIClient(

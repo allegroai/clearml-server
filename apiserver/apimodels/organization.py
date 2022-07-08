@@ -18,3 +18,4 @@ class EntitiesCountRequest(models.Base):
     tasks = DictField()
     models = DictField()
     pipelines = DictField()
+    datasets = DictField()

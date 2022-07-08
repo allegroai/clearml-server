@@ -517,6 +517,50 @@ class ProjectBLL:
         return aggregated
 
     @classmethod
+    def get_dataset_stats(
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        users: Sequence[str] = None,
+    ) -> Dict[str, dict]:
+        if not project_ids:
+            return {}
+
+        task_runtime_pipeline = [
+            {
+                "$match": {
+                    **cls.get_match_conditions(
+                        company=company,
+                        project_ids=project_ids,
+                        users=users,
+                        filter_={"system_tags": [f"-{EntityVisibility.archived.value}"]}
+                    ),
+                    "runtime": {"$exists": True, "$gt": {}},
+                }
+            },
+            {
+                "$project": {"project": 1, "runtime": 1, "last_update": 1}
+            },
+            {
+                "$sort": {"project": 1, "last_update": 1}
+            },
+            {
+                "$group": {
+                    "_id": "$project",
+                    "runtime": {"$last": "$runtime"},
+                }
+            },
+        ]
+
+        return {
+            r["_id"]: {
+                "file_count": r["runtime"].get("ds_file_count", 0),
+                "total_size": r["runtime"].get("ds_total_size", 0),
+            }
+            for r in Task.aggregate(task_runtime_pipeline)
+        }
+
+    @classmethod
     def get_project_stats(
         cls,
         company: str,

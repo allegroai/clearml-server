@@ -56,6 +56,7 @@ def get_entities_count(call: APICall, company, _):
         "tasks": Task,
         "models": Model,
         "pipelines": Project,
+        "datasets": Project,
     }
     ret = {}
     for field, entity_cls in entity_classes.items():

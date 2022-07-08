@@ -146,25 +146,32 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                     project.update(**contents.get(project["id"], {}))
 
         conform_output_tags(call, projects)
-        if not request.include_stats:
-            call.result.data = {"projects": projects, **ret_params}
-            return
+        if request.include_stats:
+            project_ids = {project["id"] for project in projects}
+            stats, children = project_bll.get_project_stats(
+                company=company_id,
+                project_ids=list(project_ids),
+                specific_state=request.stats_for_state,
+                include_children=request.stats_with_children,
+                search_hidden=request.search_hidden,
+                filter_=request.include_stats_filter,
+                users=request.active_users,
+                user_active_project_ids=user_active_project_ids,
+            )
 
-        project_ids = {project["id"] for project in projects}
-        stats, children = project_bll.get_project_stats(
-            company=company_id,
-            project_ids=list(project_ids),
-            specific_state=request.stats_for_state,
-            include_children=request.stats_with_children,
-            search_hidden=request.search_hidden,
-            filter_=request.include_stats_filter,
-            users=request.active_users,
-            user_active_project_ids=user_active_project_ids,
-        )
+            for project in projects:
+                project["stats"] = stats[project["id"]]
+                project["sub_projects"] = children[project["id"]]
 
-        for project in projects:
-            project["stats"] = stats[project["id"]]
-            project["sub_projects"] = children[project["id"]]
+        if request.include_dataset_stats:
+            project_ids = {project["id"] for project in projects}
+            dataset_stats = project_bll.get_dataset_stats(
+                company=company_id,
+                project_ids=list(project_ids),
+                users=request.active_users,
+            )
+            for project in projects:
+                project["dataset_stats"] = dataset_stats.get(project["id"])
 
         call.result.data = {"projects": projects, **ret_params}
 
