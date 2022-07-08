@@ -8,7 +8,6 @@ from boltons.iterutils import partition
 from apiserver.apierrors import errors
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_bll import PlotFields
-from apiserver.bll.event.event_common import EventType
 from apiserver.bll.task.utils import deleted_prefix
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus, ArtifactModes
@@ -80,32 +79,18 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     Return the set of unique image urls
     Uses DebugImagesIterator to make sure that we do not retrieve recycled urls
     """
-    metrics = event_bll.get_metrics_and_variants(
-        company_id=company, task_id=task, event_type=EventType.metrics_image
-    )
-    if not metrics:
-        return set()
-
-    task_metrics = {task: {m: [] for m in metrics}}
-    scroll_id = None
+    after_key = None
     urls = set()
     while True:
-        res = event_bll.debug_images_iterator.get_task_events(
+        res, after_key = event_bll.get_debug_image_urls(
             company_id=company,
-            task_metrics=task_metrics,
-            iter_count=10,
-            state_id=scroll_id,
+            task_id=task,
+            after_key=after_key,
         )
-        if not res.metric_events or not any(
-            iterations for _, iterations in res.metric_events
-        ):
+        urls.update(res)
+        if not after_key:
             break
 
-        scroll_id = res.next_scroll_id
-        for task, iterations in res.metric_events:
-            urls.update(ev.get("url") for it in iterations for ev in it["events"])
-
-    urls.discard({None})
     return urls
 
 
