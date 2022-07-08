@@ -20,11 +20,12 @@ class TestSubProjects(TestService):
             base_url=f"http://localhost:8008/v2.13",
         )
 
-        child = self._temp_project(name="Aggregation/Pr1", client=user2_client)
+        basename = "Pr1"
+        child = self._temp_project(name=f"Aggregation/{basename}", client=user2_client)
         project = self.api.projects.get_all_ex(name="^Aggregation$").projects[0].id
         child_project = self.api.projects.get_all_ex(id=[child]).projects[0]
         self.assertEqual(child_project.parent.id, project)
-
+        self.assertEqual(child_project.basename, basename)
         user = self.api.users.get_current_user().user.id
 
         # test aggregations on project with empty subprojects
@@ -42,12 +43,17 @@ class TestSubProjects(TestService):
         # test aggregations with non-empty subprojects
         task1 = self._temp_task(project=child)
         self._temp_task(project=child, parent=task1)
+        user2_task = self._temp_task(project=child, client=user2_client)
         framework = "Test framework"
         self._temp_model(project=child, framework=framework)
         res = self.api.users.get_all_ex(active_in_projects=[project])
         self._assert_ids(res.users, [user])
-        res = self.api.projects.get_all_ex(id=[project], active_users=[user])
+        res = self.api.projects.get_all_ex(id=[project], include_stats=True)
         self._assert_ids(res.projects, [project])
+        self.assertEqual(res.projects[0].stats.active.total_tasks, 3)
+        res = self.api.projects.get_all_ex(id=[project], active_users=[user], include_stats=True)
+        self._assert_ids(res.projects, [project])
+        self.assertEqual(res.projects[0].stats.active.total_tasks, 2)
         res = self.api.projects.get_task_parents(projects=[project])
         self._assert_ids(res.parents, [task1])
         res = self.api.models.get_frameworks(projects=[project])
@@ -70,8 +76,11 @@ class TestSubProjects(TestService):
         # update
         with self.api.raises(errors.bad_request.CannotUpdateProjectLocation):
             self.api.projects.update(project=project1, name="Root2/Pr2")
-        res = self.api.projects.update(project=project1, name="Root1/Pr2")
+        new_basename = "Pr2"
+        res = self.api.projects.update(project=project1, name=f"Root1/{new_basename}")
         self.assertEqual(res.updated, 1)
+        res = self.api.projects.get_by_id(project=project1)
+        self.assertEqual(res.project.basename, new_basename)
         res = self.api.projects.get_by_id(project=project1_child)
         self.assertEqual(res.project.name, "Root1/Pr2/Pr2")
 
@@ -80,6 +89,7 @@ class TestSubProjects(TestService):
         self.assertEqual(res.moved, 2)
         res = self.api.projects.get_by_id(project=project1_child)
         self.assertEqual(res.project.name, "Root2/Pr2/Pr2")
+        self.assertEqual(res.project.basename, "Pr2")
 
         # merge
         project_with_task, (active, archived) = self._temp_project_with_tasks(
@@ -102,6 +112,7 @@ class TestSubProjects(TestService):
         self.assertEqual(res.moved_projects, 1)
         res = self.api.projects.get_by_id(project=project_with_task)
         self.assertEqual(res.project.name, "Root2/Pr2/Pr4")
+        self.assertEqual(res.project.basename, "Pr4")
         with self.api.raises(errors.bad_request.InvalidProjectId):
             self.api.projects.get_by_id(project=merge_source)
 
@@ -156,6 +167,11 @@ class TestSubProjects(TestService):
         self.assertEqual([p.id for p in res], [project1])
         res = self.api.projects.get_all_ex(name="project1", parent=[project1]).projects
         self.assertEqual([p.id for p in res], [project2])
+        # basename search
+        res = self.api.projects.get_all_ex(
+            basename="project2", shallow_search=True
+        ).projects
+        self.assertEqual(res, [])
 
         # global search finds all or below the specified level
         res = self.api.projects.get_all_ex(name="project1").projects
@@ -163,7 +179,9 @@ class TestSubProjects(TestService):
         project4 = self._temp_project(name="project1/project2/project1")
         res = self.api.projects.get_all_ex(name="project1", parent=[project2]).projects
         self.assertEqual([p.id for p in res], [project4])
-
+        # basename search
+        res = self.api.projects.get_all_ex(basename="project2").projects
+        self.assertEqual([p.id for p in res], [project2])
         self.api.projects.delete(project=project1, force=True)
 
     def test_get_all_with_check_own_contents(self):
@@ -249,13 +267,14 @@ class TestSubProjects(TestService):
             **kwargs,
         )
 
-    def _temp_task(self, **kwargs):
+    def _temp_task(self, client=None, **kwargs):
         return self.create_temp(
             "tasks",
             delete_params=self.delete_params,
             type="testing",
             name=db_id(),
             input=dict(view=dict()),
+            client=client,
             **kwargs,
         )
 

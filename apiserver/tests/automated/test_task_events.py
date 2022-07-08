@@ -67,6 +67,86 @@ class TestTaskEvents(TestService):
                 ),
             )
 
+    def test_task_single_value_metrics(self):
+        metric = "Metric1"
+        variant = "Variant1"
+        iter_count = 10
+        task = self._temp_task()
+        special_iteration = -(2 ** 31)
+        events = [
+            {
+                **self._create_task_event(
+                    "training_stats_scalar", task, iteration or special_iteration
+                ),
+                "metric": metric,
+                "variant": variant,
+                "value": iteration,
+            }
+            for iteration in range(iter_count)
+        ]
+        self.send_batch(events)
+
+        # special iteration is present in the events retrieval
+        metric_param = {"metric": metric, "variants": [variant]}
+        res = self.api.events.scalar_metrics_iter_raw(
+            task=task, batch_size=100, metric=metric_param, count_total=True
+        )
+        self.assertEqual(res.returned, iter_count)
+        self.assertEqual(res.total, iter_count)
+        self.assertEqual(
+            res.variants[variant]["iter"],
+            [x or special_iteration for x in range(iter_count)],
+        )
+        self.assertEqual(
+            res.variants[variant]["y"], list(range(iter_count))
+        )
+
+        # but not in the histogram
+        data = self.api.events.scalar_metrics_iter_histogram(task=task)
+        self.assertEqual(data[metric][variant]["x"], list(range(1, iter_count)))
+
+        # new api
+        res = self.api.events.get_task_single_value_metrics(tasks=[task]).tasks
+        self.assertEqual(len(res), 1)
+        data = res[0]
+        self.assertEqual(data.task, task)
+        self.assertEqual(len(data["values"]), 1)
+        value = data["values"][0]
+        self.assertEqual(value.metric, metric)
+        self.assertEqual(value.variant, variant)
+        self.assertEqual(value.value, 0)
+
+        # update is working
+        task_data = self.api.tasks.get_by_id(task=task).task
+        last_metrics = first(first(task_data.last_metrics.values()).values())
+        self.assertEqual(last_metrics.value, iter_count - 1)
+        new_value = 1000
+        new_event = {
+            **self._create_task_event("training_stats_scalar", task, special_iteration),
+            "metric": metric,
+            "variant": variant,
+            "value": new_value,
+        }
+        self.send(new_event)
+
+        res = self.api.events.scalar_metrics_iter_raw(
+            task=task, batch_size=100, metric=metric_param, count_total=True
+        )
+        self.assertEqual(
+            res.variants[variant]["y"],
+            [y or new_value for y in range(iter_count)],
+        )
+
+        task_data = self.api.tasks.get_by_id(task=task).task
+        last_metrics = first(first(task_data.last_metrics.values()).values())
+        self.assertEqual(last_metrics.value, new_value)
+
+        data = self.api.events.get_task_single_value_metrics(tasks=[task]).tasks[0]
+        self.assertEqual(data.task, task)
+        self.assertEqual(len(data["values"]), 1)
+        value = data["values"][0]
+        self.assertEqual(value.value, new_value)
+
     def test_last_scalar_metrics(self):
         metric = "Metric1"
         variant = "Variant1"

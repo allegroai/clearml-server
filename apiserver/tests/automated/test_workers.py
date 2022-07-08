@@ -12,11 +12,8 @@ log = config.logger(__file__)
 
 
 class TestWorkersService(TestService):
-    def setUp(self, version="2.4"):
-        super().setUp(version=version)
-
-    def _check_exists(self, worker: str, exists: bool = True):
-        workers = self.api.workers.get_all(last_seen=100).workers
+    def _check_exists(self, worker: str, exists: bool = True, tags: list = None):
+        workers = self.api.workers.get_all(last_seen=100, tags=tags).workers
         found = any(w for w in workers if w.id == worker)
         assert exists == found
 
@@ -39,6 +36,14 @@ class TestWorkersService(TestService):
 
         time.sleep(5)
         self._check_exists(test_worker, False)
+
+    def test_filters(self):
+        test_worker = f"test_{uuid4().hex}"
+        self.api.workers.register(worker=test_worker, tags=["application"], timeout=3)
+        self._check_exists(test_worker)
+        self._check_exists(test_worker, tags=["application", "test"])
+        self._check_exists(test_worker, False, tags=["test"])
+        self._check_exists(test_worker, False, tags=["-application"])
 
     def _simulate_workers(self) -> Sequence[str]:
         """
