@@ -463,25 +463,39 @@ class ProjectBLL:
             )
             group_step[f"{state.value}_max_task_started"] = max_started_subquery(cond)
 
-        def get_state_filter() -> dict:
+        def add_state_to_filter(f: Mapping[str, Any]) -> Mapping[str, Any]:
             if not specific_state:
-                return {}
+                return f
+
+            f = f or {}
+            new_f = {k: v for k, v in f.items() if k != "system_tags"}
+            system_tags = [
+                tag
+                for tag in f.get("system_tags", [])
+                if tag
+                not in (
+                    EntityVisibility.archived.value,
+                    f"-{EntityVisibility.archived.value}",
+                )
+            ]
+
             if specific_state == EntityVisibility.archived:
-                return {"system_tags": {"$eq": EntityVisibility.archived.value}}
-            return {"system_tags": {"$ne": EntityVisibility.archived.value}}
+                system_tags.append(EntityVisibility.archived.value)
+            else:
+                system_tags.append(f"-{EntityVisibility.archived.value}")
+            new_f["system_tags"] = system_tags
+
+            return new_f
 
         runtime_pipeline = [
             # only count run time for these types of tasks
             {
-                "$match": {
-                    **cls.get_match_conditions(
-                        company=company_id,
-                        project_ids=project_ids,
-                        filter_=filter_,
-                        users=users,
-                    ),
-                    **get_state_filter(),
-                }
+                "$match": cls.get_match_conditions(
+                    company=company_id,
+                    project_ids=project_ids,
+                    filter_=add_state_to_filter(filter_),
+                    users=users,
+                )
             },
             ensure_valid_fields(),
             {
@@ -518,10 +532,7 @@ class ProjectBLL:
 
     @classmethod
     def get_dataset_stats(
-        cls,
-        company: str,
-        project_ids: Sequence[str],
-        users: Sequence[str] = None,
+        cls, company: str, project_ids: Sequence[str], users: Sequence[str] = None,
     ) -> Dict[str, dict]:
         if not project_ids:
             return {}
@@ -533,23 +544,16 @@ class ProjectBLL:
                         company=company,
                         project_ids=project_ids,
                         users=users,
-                        filter_={"system_tags": [f"-{EntityVisibility.archived.value}"]}
+                        filter_={
+                            "system_tags": [f"-{EntityVisibility.archived.value}"]
+                        },
                     ),
                     "runtime": {"$exists": True, "$gt": {}},
                 }
             },
-            {
-                "$project": {"project": 1, "runtime": 1, "last_update": 1}
-            },
-            {
-                "$sort": {"project": 1, "last_update": 1}
-            },
-            {
-                "$group": {
-                    "_id": "$project",
-                    "runtime": {"$last": "$runtime"},
-                }
-            },
+            {"$project": {"project": 1, "runtime": 1, "last_update": 1}},
+            {"$sort": {"project": 1, "last_update": 1}},
+            {"$group": {"_id": "$project", "runtime": {"$last": "$runtime"}}},
         ]
 
         return {
