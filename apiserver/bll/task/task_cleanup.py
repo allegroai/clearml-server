@@ -181,25 +181,25 @@ def cleanup_task(
         model_urls = {m.uri for m in models.draft.objects().only("uri") if m.uri}
 
     deleted_task_id = f"{deleted_prefix}{task.id}"
+    updated_children = 0
     if update_children:
         with TimingContext("mongo", "update_task_children"):
             updated_children = Task.objects(parent=task.id).update(
                 parent=deleted_task_id
             )
-    else:
-        updated_children = 0
 
-    if models.draft and delete_output_models:
-        with TimingContext("mongo", "delete_models"):
+    deleted_models = 0
+    updated_models = 0
+    if models.draft:
+        if delete_output_models:
             deleted_models = models.draft.objects().delete()
-    else:
-        deleted_models = 0
+        elif update_children:
+            updated_models = models.draft.objects().update(task=deleted_task_id)
+        else:
+            models.draft.objects().update(unset__task=1)
 
     if models.published and update_children:
-        with TimingContext("mongo", "update_task_models"):
-            updated_models = models.published.objects().update(task=deleted_task_id)
-    else:
-        updated_models = 0
+        updated_models += models.published.objects().update(task=deleted_task_id)
 
     event_bll.delete_task_events(task.company, task.id, allow_locked=force)
 
