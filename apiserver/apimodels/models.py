@@ -75,3 +75,7 @@ class DeleteMetadataRequest(DeleteMetadata):
 
 class AddOrUpdateMetadataRequest(AddOrUpdateMetadata):
     model = fields.StringField(required=True)
+
+
+class ModelsGetRequest(models.Base):
+    include_stats = fields.BoolField(default=False)

@@ -20,6 +20,7 @@ from apiserver.apimodels.models import (
     AddOrUpdateMetadataRequest,
     ModelsPublishManyRequest,
     ModelsDeleteManyRequest,
+    ModelsGetRequest,
 )
 from apiserver.bll.model import ModelBLL, Metadata
 from apiserver.bll.organization import OrgBLL, Tags
@@ -117,8 +118,8 @@ def _process_include_subprojects(call_data: dict):
     call_data["project"] = project_ids_with_children(project_ids)
 
 
-@endpoint("models.get_all_ex", required_fields=[])
-def get_all_ex(call: APICall, company_id, _):
+@endpoint("models.get_all_ex", request_data_model=ModelsGetRequest)
+def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
     conform_tag_fields(call, call.data)
     _process_include_subprojects(call.data)
     Metadata.escape_query_parameters(call)
@@ -132,6 +133,20 @@ def get_all_ex(call: APICall, company_id, _):
         )
     conform_output_tags(call, models)
     unescape_metadata(call, models)
+
+    if not request.include_stats:
+        call.result.data = {"models": models, **ret_params}
+        return
+
+    model_ids = {model["id"] for model in models}
+    stats = ModelBLL.get_model_stats(
+        company=company_id,
+        model_ids=list(model_ids),
+    )
+
+    for model in models:
+        model["stats"] = stats.get(model["id"])
+
     call.result.data = {"models": models, **ret_params}
 
 

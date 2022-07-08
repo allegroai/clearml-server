@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Sequence, Dict
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.models import ModelTaskPublishResponse
@@ -128,3 +128,33 @@ class ModelBLL:
         )
 
         return unarchived
+
+    @classmethod
+    def get_model_stats(
+        cls, company: str, model_ids: Sequence[str],
+    ) -> Dict[str, dict]:
+        if not model_ids:
+            return {}
+
+        result = Model.aggregate(
+            [
+                {
+                    "$match": {
+                        "company": {"$in": [None, "", company]},
+                        "_id": {"$in": model_ids},
+                    }
+                },
+                {
+                    "$addFields": {
+                        "labels_count": {"$size": {"$objectToArray": "$labels"}}
+                    }
+                },
+                {
+                    "$project": {"labels_count": 1},
+                },
+            ]
+        )
+        return {
+            r.pop("_id"): r
+            for r in result
+        }
