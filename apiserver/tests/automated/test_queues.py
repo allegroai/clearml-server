@@ -9,9 +9,6 @@ from apiserver.tests.automated import TestService, utc_now_tz_aware
 
 
 class TestQueues(TestService):
-    def setUp(self, version="2.4"):
-        super().setUp(version=version)
-
     def test_default_queue(self):
         res = self.api.queues.get_default()
         self.assertIsNotNone(res.id)
@@ -62,6 +59,34 @@ class TestQueues(TestService):
         res = self.api.queues.get_by_id(queue=queue)
         self.assertQueueTasks(res.queue, [task])
         self.assertTaskTags(task, system_tags=[])
+
+    def test_max_queue_entries(self):
+        queue = self._temp_queue("TestTempQueue")
+        tasks = [
+            self._create_temp_queued_task(t, queue)["id"]
+            for t in ("temp task1", "temp task2", "temp task3")
+        ]
+
+        num = self.api.queues.get_num_entries(queue=queue).num
+        self.assertEqual(num, 3)
+
+        task_id = self.api.queues.peek_task(queue=queue).task
+        self.assertEqual(task_id, tasks[0])
+
+        res = self.api.queues.get_by_id(queue=queue)
+        self.assertQueueTasks(res.queue, tasks)
+
+        res = self.api.queues.get_all(id=[queue]).queues[0]
+        self.assertQueueTasks(res, tasks)
+
+        res = self.api.queues.get_all(id=[queue], max_task_entries=2).queues[0]
+        self.assertQueueTasks(res, tasks[:2])
+
+        res = self.api.queues.get_all_ex(id=[queue]).queues[0]
+        self.assertEqual([e.task.id for e in res.entries], tasks)
+
+        res = self.api.queues.get_all_ex(id=[queue], max_task_entries=2).queues[0]
+        self.assertEqual([e.task.id for e in res.entries], tasks[:2])
 
     def test_move_task(self):
         queue = self._temp_queue("TestTempQueue")

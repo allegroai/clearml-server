@@ -14,6 +14,7 @@ from apiserver.apimodels.queues import (
     AddOrUpdateMetadataRequest,
     DeleteMetadataRequest,
     GetNextTaskRequest,
+    GetByIdRequest,
 )
 from apiserver.bll.model import Metadata
 from apiserver.bll.queue import QueueBLL
@@ -33,9 +34,11 @@ worker_bll = WorkerBLL()
 queue_bll = QueueBLL(worker_bll)
 
 
-@endpoint("queues.get_by_id", min_version="2.4", request_data_model=QueueRequest)
-def get_by_id(call: APICall, company_id, req_model: QueueRequest):
-    queue = queue_bll.get_by_id(company_id, req_model.queue)
+@endpoint("queues.get_by_id", min_version="2.4", request_data_model=GetByIdRequest)
+def get_by_id(call: APICall, company_id, request: GetByIdRequest):
+    queue = queue_bll.get_by_id(
+        company_id, request.queue, max_task_entries=request.max_task_entries
+    )
     queue_dict = queue.to_proper_dict()
     conform_output_tags(call, queue_dict)
     unescape_metadata(call, queue_dict)
@@ -55,7 +58,10 @@ def get_all_ex(call: APICall):
 
     Metadata.escape_query_parameters(call)
     queues = queue_bll.get_queue_infos(
-        company_id=call.identity.company, query_dict=call.data, ret_params=ret_params,
+        company_id=call.identity.company,
+        query_dict=call.data,
+        max_task_entries=call.data.pop("max_task_entries", None),
+        ret_params=ret_params,
     )
     conform_output_tags(call, queues)
     unescape_metadata(call, queues)
@@ -68,7 +74,10 @@ def get_all(call: APICall):
     ret_params = {}
     Metadata.escape_query_parameters(call)
     queues = queue_bll.get_all(
-        company_id=call.identity.company, query_dict=call.data, ret_params=ret_params,
+        company_id=call.identity.company,
+        query_dict=call.data,
+        max_task_entries=call.data.pop("max_task_entries", None),
+        ret_params=ret_params,
     )
     conform_output_tags(call, queues)
     unescape_metadata(call, queues)
@@ -272,3 +281,17 @@ def delete_metadata(call: APICall, company_id: str, request: DeleteMetadataReque
     queue_id = request.queue
     queue = queue_bll.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
     return {"updated": Metadata.delete_metadata(queue, keys=request.keys)}
+
+
+@endpoint("queues.peek_task", min_version="2.15")
+def peek_task(call: APICall, company_id: str, request: QueueRequest):
+    queue_id = request.queue
+    queue = queue_bll.get_by_id(
+        company_id=company_id, queue_id=queue_id, max_task_entries=1
+    )
+    return {"task": queue.entries[0].task if queue.entries else None}
+
+
+@endpoint("queues.get_num_entries", min_version="2.15")
+def get_num_entries(call: APICall, company_id: str, request: QueueRequest):
+    return {"num": queue_bll.count_entries(company=company_id, queue_id=request.queue)}

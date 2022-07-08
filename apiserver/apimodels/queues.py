@@ -26,6 +26,10 @@ class QueueRequest(Base):
     queue = StringField(required=True)
 
 
+class GetByIdRequest(QueueRequest):
+    max_task_entries = IntField()
+
+
 class GetNextTaskRequest(QueueRequest):
     queue = StringField(required=True)
     get_task_info = BoolField(default=False)

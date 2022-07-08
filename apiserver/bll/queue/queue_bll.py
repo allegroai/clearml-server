@@ -59,8 +59,16 @@ class QueueBLL(object):
 
         return qs.first()
 
+    @staticmethod
+    def _get_task_entries_projection(max_task_entries: int) -> dict:
+        return dict(slice__entries=max_task_entries)
+
     def get_by_id(
-        self, company_id: str, queue_id: str, only: Optional[Sequence[str]] = None
+        self,
+        company_id: str,
+        queue_id: str,
+        only: Optional[Sequence[str]] = None,
+        max_task_entries: int = None,
     ) -> Queue:
         """
         Get queue by id
@@ -71,6 +79,8 @@ class QueueBLL(object):
             qs = Queue.objects(**query)
             if only:
                 qs = qs.only(*only)
+            if max_task_entries:
+                qs = qs.fields(**self._get_task_entries_projection(max_task_entries))
             queue = qs.first()
             if not queue:
                 raise errors.bad_request.InvalidQueueId(**query)
@@ -136,7 +146,11 @@ class QueueBLL(object):
             queue.delete()
 
     def get_all(
-        self, company_id: str, query_dict: dict, ret_params: dict = None,
+        self,
+        company_id: str,
+        query_dict: dict,
+        max_task_entries: int = None,
+        ret_params: dict = None,
     ) -> Sequence[dict]:
         """Get all the queues according to the query"""
         with translate_errors_context():
@@ -144,11 +158,18 @@ class QueueBLL(object):
                 company=company_id,
                 parameters=query_dict,
                 query_dict=query_dict,
+                projection_fields=self._get_task_entries_projection(max_task_entries)
+                if max_task_entries
+                else None,
                 ret_params=ret_params,
             )
 
     def get_queue_infos(
-        self, company_id: str, query_dict: dict, ret_params: dict = None,
+        self,
+        company_id: str,
+        query_dict: dict,
+        max_task_entries: int = None,
+        ret_params: dict = None,
     ) -> Sequence[dict]:
         """
         Get infos on all the company queues, including queue tasks and workers
@@ -159,6 +180,9 @@ class QueueBLL(object):
                 company=company_id,
                 query_dict=query_dict,
                 override_projection=projection,
+                projection_fields=self._get_task_entries_projection(max_task_entries)
+                if max_task_entries
+                else None,
                 ret_params=ret_params,
             )
 
@@ -291,6 +315,25 @@ class QueueBLL(object):
                     )
 
             return new_position
+
+    def count_entries(self, company: str, queue_id: str) -> Optional[int]:
+        res = next(
+            Queue.aggregate(
+                [
+                    {
+                        "$match": {
+                            "company": {"$in": [None, "", company]},
+                            "_id": queue_id,
+                        }
+                    },
+                    {"$project": {"count": {"$size": "$entries"}}},
+                ]
+            ),
+            None,
+        )
+        if res is None:
+            raise errors.bad_request.InvalidQueueId(queue_id=queue_id)
+        return int(res.get("count"))
 
 
 MetricsRefresher.start(queue_metrics=QueueBLL().metrics)

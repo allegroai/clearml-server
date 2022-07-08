@@ -648,6 +648,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection=None,
         expand_reference_ids=True,
+        projection_fields: dict = None,
         ret_params: dict = None,
     ):
         """
@@ -684,6 +685,7 @@ class GetMixin(PropsMixin):
             query=query,
             query_options=query_options,
             allow_public=allow_public,
+            projection_fields=projection_fields,
             ret_params=ret_params,
         )
 
@@ -754,6 +756,7 @@ class GetMixin(PropsMixin):
         allow_public=False,
         override_projection: Collection[str] = None,
         return_dicts=True,
+        projection_fields: dict = None,
         ret_params: dict = None,
     ):
         """
@@ -803,6 +806,7 @@ class GetMixin(PropsMixin):
                 parameters=parameters,
                 override_projection=override_projection,
                 override_collation=override_collation,
+                projection_fields=projection_fields,
             )
             return cls.get_data_with_scroll_support(
                 query_dict=query_dict, data_getter=data_getter, ret_params=ret_params,
@@ -813,6 +817,7 @@ class GetMixin(PropsMixin):
             parameters=parameters,
             override_projection=override_projection,
             override_collation=override_collation,
+            projection_fields=projection_fields,
         )
 
     @classmethod
@@ -837,6 +842,7 @@ class GetMixin(PropsMixin):
         parameters=None,
         override_projection=None,
         override_collation=None,
+        projection_fields: dict = None,
     ):
         """
         Fetch all documents matching a provided query.
@@ -879,6 +885,9 @@ class GetMixin(PropsMixin):
         if exclude:
             qs = qs.exclude(*exclude)
 
+        if projection_fields:
+            qs = qs.fields(**projection_fields)
+
         if start is not None and size:
             # add paging
             qs = qs.skip(start).limit(size)
@@ -920,6 +929,7 @@ class GetMixin(PropsMixin):
         parameters: dict = None,
         override_projection: Collection[str] = None,
         override_collation: dict = None,
+        projection_fields: dict = None,
     ) -> Sequence[dict]:
         """
         Fetch all documents matching a provided query. For the first order by field
@@ -976,6 +986,9 @@ class GetMixin(PropsMixin):
 
         if exclude:
             query_sets = [qs.exclude(*exclude) for qs in query_sets]
+
+        if projection_fields:
+            query_sets = [qs.fields(**projection_fields) for qs in query_sets]
 
         if start is None or not size:
             return [obj.to_proper_dict(only=include) for qs in query_sets for obj in qs]
