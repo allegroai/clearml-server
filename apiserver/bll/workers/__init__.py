@@ -365,10 +365,15 @@ class WorkerBLL:
         self, company: str, user: str = "*", worker_id: str = "*"
     ) -> Sequence[WorkerEntry]:
         """Get worker entries matching the company and user, worker patterns"""
+        entries = []
         match = self._get_worker_key(company, user, worker_id)
         with TimingContext("redis", "workers_get_all"):
-            res = self.redis.scan_iter(match)
-        return [WorkerEntry.from_json(self.redis.get(r)) for r in res]
+            for r in self.redis.scan_iter(match):
+                data = self.redis.get(r)
+                if data:
+                    entries.append(WorkerEntry.from_json(data))
+
+        return entries
 
     @staticmethod
     def _get_es_index_suffix():
