@@ -109,6 +109,14 @@ class SetRequirementsRequest(TaskRequest):
     requirements = DictField(required=True)
 
 
+class CompletedRequest(UpdateRequest):
+    publish = BoolField(default=False)
+
+
+class CompletedResponse(UpdateResponse):
+    published = IntField(default=0)
+
+
 class PublishRequest(UpdateRequest):
     publish_model = BoolField(default=True)
 

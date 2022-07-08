@@ -62,6 +62,8 @@ from apiserver.apimodels.tasks import (
     DequeueManyResponse,
     ResetManyResponse,
     ResetBatchItem,
+    CompletedRequest,
+    CompletedResponse,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -119,6 +121,7 @@ from apiserver.services.utils import (
     unescape_dict_field,
 )
 from apiserver.timing_context import TimingContext
+from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.partial_version import PartialVersion
 
 task_fields = set(Task.get_fields())
@@ -1161,11 +1164,11 @@ def publish_many(call: APICall, company_id, request: PublishManyRequest):
 @endpoint(
     "tasks.completed",
     min_version="2.2",
-    request_data_model=UpdateRequest,
-    response_data_model=UpdateResponse,
+    request_data_model=CompletedRequest,
+    response_data_model=CompletedResponse,
 )
-def completed(call: APICall, company_id, request: PublishRequest):
-    call.result.data_model = UpdateResponse(
+def completed(call: APICall, company_id, request: CompletedRequest):
+    res = CompletedResponse(
         **set_task_status_from_call(
             request,
             company_id,
@@ -1173,6 +1176,22 @@ def completed(call: APICall, company_id, request: PublishRequest):
             completed=datetime.utcnow(),
         )
     )
+
+    if res.updated and request.publish:
+        publish_res = publish_task(
+            task_id=request.task,
+            company_id=company_id,
+            force=request.force,
+            publish_model_func=ModelBLL.publish_model,
+            status_reason=request.status_reason,
+            status_message=request.status_message,
+        )
+        res.published = publish_res.get("updated")
+        new_status = nested_get(publish_res, ("fields", "status"))
+        if new_status:
+            res.fields["status"] = new_status
+
+    call.result.data_model = res
 
 
 @endpoint("tasks.ping", request_data_model=PingRequest)
