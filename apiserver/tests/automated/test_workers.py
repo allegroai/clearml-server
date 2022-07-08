@@ -79,7 +79,8 @@ class TestWorkersService(TestService):
                 self.api.workers.status_report(**data)
             time.sleep(1)
 
-        return workers
+        res = self.api.workers.get_all(last_seen=100)
+        return [w.key for w in res.workers]
 
     def _create_running_task(self, task_name):
         task_input = dict(
@@ -109,7 +110,8 @@ class TestWorkersService(TestService):
 
     def test_get_stats(self):
         workers = self._simulate_workers()
-        to_date = utc_now_tz_aware()
+
+        to_date = utc_now_tz_aware() + timedelta(seconds=10)
         from_date = to_date - timedelta(days=1)
 
         # no variants
@@ -195,8 +197,8 @@ class TestWorkersService(TestService):
 
         self._simulate_workers()
 
-        to_date = utc_now_tz_aware()
-        from_date = to_date - timedelta(minutes=10)
+        to_date = utc_now_tz_aware() + timedelta(seconds=10)
+        from_date = to_date - timedelta(minutes=1)
 
         # no variants
         res = self.api.workers.get_activity_report(

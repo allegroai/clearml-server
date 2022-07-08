@@ -143,7 +143,7 @@ class WorkerBLL:
                 self._log_stats_to_es(
                     company_id=company_id,
                     company_name=entry.company.name,
-                    worker=report.worker,
+                    worker=entry.key,
                     timestamp=report.timestamp,
                     task=report.task,
                     machine_stats=report.machine_stats,
