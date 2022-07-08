@@ -243,7 +243,7 @@ class MetricEventsIterator:
         query = {"bool": {"must": must}}
 
         search_args = dict(
-            es=self.es, company_id=company_id, event_type=self.event_type, routing=task,
+            es=self.es, company_id=company_id, event_type=self.event_type
         )
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args
@@ -389,7 +389,6 @@ class MetricEventsIterator:
                 company_id=company_id,
                 event_type=self.event_type,
                 body=es_req,
-                routing=task_state.task,
             )
         if "aggregations" not in es_res:
             return task_state.task, []
