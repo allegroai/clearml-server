@@ -166,7 +166,10 @@ class MongoEngineErrorsHandler(object):
     @classmethod
     @throws_default_error(errors.server_error.InternalError)
     def invalid_query_error(cls, e, message, **_):
-        pass
+        if e.args:
+            inner = e.args[0]
+            if isinstance(inner, LookUpError):
+                cls.lookup_error(inner, message)
 
 
 @contextmanager
