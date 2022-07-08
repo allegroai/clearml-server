@@ -76,7 +76,7 @@ class WorkerBLL:
                 raise bad_request.InvalidUserId(**query)
             company = Company.objects(id=company_id).only("id", "name").first()
             if not company:
-                raise server_error.InternalError("invalid company", company=company_id)
+                raise bad_request.InvalidId("invalid company", company=company_id)
 
             queue_objs = Queue.objects(company=company_id, id__in=queues).only("id")
             if len(queue_objs) < len(queues):
@@ -189,7 +189,10 @@ class WorkerBLL:
             self._save_worker(entry)
 
     def get_all(
-        self, company_id: str, last_seen: Optional[int] = None
+        self,
+        company_id: str,
+        last_seen: Optional[int] = None,
+        tags: Sequence[str] = None,
     ) -> Sequence[WorkerEntry]:
         """
         Get all the company workers that were active during the last_seen period
@@ -210,16 +213,26 @@ class WorkerBLL:
                 if w.last_activity_time.replace(tzinfo=None) >= ref_time
             ]
 
+        if tags:
+            include = {t for t in tags if not t.startswith("-")}
+            exclude = {t[1:] for t in tags if t.startswith("-")}
+            workers = [
+                w
+                for w in workers
+                if (not include or any(t in include for t in w.tags))
+                and (not exclude or all(t not in exclude for t in w.tags))
+            ]
+
         return workers
 
     def get_all_with_projection(
-        self, company_id: str, last_seen: int
+        self, company_id: str, last_seen: int, tags: Sequence[str] = None
     ) -> Sequence[WorkerResponseEntry]:
 
         helpers = list(
             map(
                 WorkerConversionHelper.from_worker_entry,
-                self.get_all(company_id=company_id, last_seen=last_seen),
+                self.get_all(company_id=company_id, last_seen=last_seen, tags=tags),
             )
         )
 

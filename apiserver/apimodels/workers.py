@@ -96,6 +96,7 @@ class WorkerResponseEntry(WorkerEntry):
 
 class GetAllRequest(Base):
     last_seen = IntField(default=3600)
+    tags = ListField(str)
 
 
 class GetAllResponse(Base):

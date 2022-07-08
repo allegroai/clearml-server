@@ -41,7 +41,9 @@ worker_bll = WorkerBLL()
 )
 def get_all(call: APICall, company_id: str, request: GetAllRequest):
     call.result.data_model = GetAllResponse(
-        workers=worker_bll.get_all_with_projection(company_id, request.last_seen)
+        workers=worker_bll.get_all_with_projection(
+            company_id, request.last_seen, tags=request.tags
+        )
     )
 
 
@@ -72,7 +74,9 @@ def unregister(call: APICall, company_id, req_model: WorkerRequest):
     worker_bll.unregister_worker(company_id, call.identity.user, req_model.worker)
 
 
-@endpoint("workers.status_report", min_version="2.4", request_data_model=StatusReportRequest)
+@endpoint(
+    "workers.status_report", min_version="2.4", request_data_model=StatusReportRequest
+)
 def status_report(call: APICall, company_id, request: StatusReportRequest):
     worker_bll.status_report(
         company_id=company_id,
