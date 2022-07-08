@@ -121,18 +121,31 @@ def params_prepare_for_save(fields: dict, previous_task: Task = None):
             nested_set(fields, new_path, new_param)
         nested_delete(fields, old_params_field)
 
-    for param_field in ("hyperparams", "configuration"):
-        params = fields.get(param_field)
-        if params:
-            escaped_params = {
-                ParameterKeyEscaper.escape(key): {
-                    ParameterKeyEscaper.escape(k): v for k, v in value.items()
-                }
-                if isinstance(value, dict)
-                else value
-                for key, value in params.items()
+    def ensure_non_empty(k: str, desc: str) -> str:
+        if not k:
+            raise errors.bad_request.ValidationError(
+                f"Empty {desc} name is not allowed"
+            )
+        return k
+
+    params = fields.get("hyperparams")
+    if params:
+        escaped_params = {
+            ParameterKeyEscaper.escape(ensure_non_empty(key, "section")): {
+                ParameterKeyEscaper.escape(ensure_non_empty(k, "parameter")): v
+                for k, v in value.items()
             }
-            fields[param_field] = escaped_params
+            for key, value in params.items()
+        }
+        fields["hyperparams"] = escaped_params
+
+    params = fields.get("configuration")
+    if params:
+        escaped_params = {
+            ParameterKeyEscaper.escape(ensure_non_empty(key, "configuration")): value
+            for key, value in params.items()
+        }
+        fields["configuration"] = escaped_params
 
 
 def params_unprepare_from_saved(fields, copy_to_legacy=False):
@@ -186,7 +199,7 @@ def escape_paths(paths: Sequence[str]) -> Sequence[str]:
     for old_prefix, new_prefix in (
         ("execution.parameters", f"hyperparams.{hyperparams_default_section}"),
         ("execution.model_desc", "configuration"),
-        ("execution.docker_cmd", "container")
+        ("execution.docker_cmd", "container"),
     ):
         path: str
         paths = [path.replace(old_prefix, new_prefix) for path in paths]
