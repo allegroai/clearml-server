@@ -2,6 +2,8 @@ import jwt
 
 from datetime import datetime, timedelta
 
+from jwt.algorithms import get_default_algorithms
+
 from apiserver.apierrors import errors
 from apiserver.config_repo import config
 from apiserver.database.model.auth import Role
@@ -10,7 +12,6 @@ from .auth_type import AuthType
 from .payload import Payload
 
 token_secret = config.get("secure.auth.token_secret")
-
 
 log = config.logger(__file__)
 
@@ -72,7 +73,10 @@ class Token(Payload):
             {"verify_signature": False, "verify_exp": True} if not verify else None
         )
         return jwt.decode(
-            encoded_token, token_secret, algorithms=["HS256"], options=options
+            encoded_token,
+            token_secret,
+            algorithms=get_default_algorithms(),
+            options=options,
         )
 
     @classmethod

@@ -4,6 +4,7 @@ import attr
 import jsonmodels.models
 import jwt
 from elasticsearch import Elasticsearch
+from jwt.algorithms import get_default_algorithms
 
 from apiserver.bll.event.event_common import (
     check_empty_data,
@@ -77,10 +78,7 @@ class EventsIterator:
 
         with translate_errors_context(), TimingContext("es", "count_task_events"):
             es_result = count_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
 
             return es_result["count"]
@@ -117,10 +115,7 @@ class EventsIterator:
 
         with translate_errors_context(), TimingContext("es", "get_task_events"):
             es_result = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
             hits = es_result["hits"]["hits"]
             hits_total = es_result["hits"]["total"]["value"]
@@ -140,10 +135,7 @@ class EventsIterator:
                 },
             }
             es_result = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
             last_second_hits = es_result["hits"]["hits"]
             if not last_second_hits or len(last_second_hits) < 2:
@@ -199,7 +191,7 @@ class Scroll(jsonmodels.models.Base):
                     key=config.get(
                         "services.events.events_retrieval.scroll_id_key", "1234567890"
                     ),
-                    algorithms=["HS256"],
+                    algorithms=get_default_algorithms(),
                 )
             )
         except jwt.PyJWTError:
