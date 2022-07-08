@@ -4,11 +4,13 @@ from itertools import groupby, chain
 from typing import Sequence, Dict, Callable, Tuple, Any, Type
 
 import dpath.path
+import dpath.options
 
 from apiserver.apierrors import errors
 from apiserver.database.props import PropsMixin
 
 SEP = "."
+dpath.options.ALLOW_EMPTY_STRING_KEYS = True
 
 
 def project_dict(data, projection, separator=SEP):
