@@ -8,6 +8,7 @@ import jsonmodels.models
 
 from apiserver.apierrors import APIError, errors
 from apiserver.config_repo import config
+from apiserver.database.errors import translate_errors_context
 from apiserver.utilities.partial_version import PartialVersion
 from .apicall import APICall
 from .auth import Identity
@@ -283,7 +284,8 @@ class ServiceRepo(object):
             # In case call does not require authorization, parsing the identity.company might raise an exception
             company = cls._get_company(call, endpoint)
 
-            ret = endpoint.func(call, company, call.data_model)
+            with translate_errors_context():
+                ret = endpoint.func(call, company, call.data_model)
 
             # allow endpoints to return dict or model (instead of setting them explicitly on the call)
             if ret is not None:

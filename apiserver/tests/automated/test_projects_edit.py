@@ -1,4 +1,4 @@
-from apiserver.apierrors.errors.bad_request import InvalidProjectId
+from apiserver.apierrors.errors.bad_request import InvalidProjectId, ExpectedUniqueData
 from apiserver.apierrors.errors.forbidden import NoWritePermission
 from apiserver.config_repo import config
 from apiserver.tests.automated import TestService
@@ -32,3 +32,12 @@ class TestProjectsEdit(TestService):
         res = self.api.projects.get_all(id=[p1])
         self.assertEqual([p.id for p in res.projects], [p1])
         self.api.projects.update(project=p1, name="Test public change 2")
+
+    def test_project_name_uniqueness(self):
+        name1 = "Test name1"
+        p1 = self.create_temp("projects", name=name1, description="test")
+        with self.api.raises(ExpectedUniqueData):
+            p2 = self.create_temp("projects", name=name1, description="test")
+        p2 = self.create_temp("projects", name="Test name2", description="test")
+        with self.api.raises(ExpectedUniqueData):
+            self.api.projects.update(project=p2, name=name1)
