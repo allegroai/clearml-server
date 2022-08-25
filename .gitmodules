@@ -1,0 +1,3 @@
+[submodule "clearml-web"]
+	path = webserver
+	url = git@github.com:allegroai/clearml-web.git
