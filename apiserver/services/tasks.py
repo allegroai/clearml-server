@@ -135,8 +135,6 @@ queue_bll = QueueBLL()
 org_bll = OrgBLL()
 project_bll = ProjectBLL()
 
-NonResponsiveTasksWatchdog.start()
-
 
 def set_task_status_from_call(
     request: UpdateRequest, company_id, new_status=None, **set_fields

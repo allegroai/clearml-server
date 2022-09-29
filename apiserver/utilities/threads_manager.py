@@ -9,22 +9,8 @@ class ThreadsManager:
     request_context_creator: ClassVar[Callable] = None
     terminating: ClassVar[bool] = False
 
-    def __init__(self, name=None, **threads):
+    def __init__(self, name=None):
         self.name = name or self.__class__.__name__
-        self.objects = {}
-        self.lock = Lock()
-
-        for thread_name, thread in threads.items():
-            if issubclass(thread, Thread):
-                thread = thread()
-                thread.start()
-            elif isinstance(thread, Thread):
-                if not thread.is_alive():
-                    thread.start()
-            else:
-                raise Exception(f"Expected thread or thread class ({thread_name}): {thread}")
-
-            self.objects[thread_name] = thread
 
     def register(self, thread_name, daemon=True):
         def decorator(f):

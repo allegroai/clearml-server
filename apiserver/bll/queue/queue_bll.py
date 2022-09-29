@@ -7,7 +7,7 @@ from elasticsearch import Elasticsearch
 from apiserver import database
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
-from apiserver.bll.queue.queue_metrics import QueueMetrics, MetricsRefresher
+from apiserver.bll.queue.queue_metrics import QueueMetrics
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
@@ -334,6 +334,3 @@ class QueueBLL(object):
         if res is None:
             raise errors.bad_request.InvalidQueueId(queue_id=queue_id)
         return int(res.get("count"))
-
-
-MetricsRefresher.start(queue_metrics=QueueBLL().metrics)

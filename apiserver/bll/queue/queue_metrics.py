@@ -279,9 +279,13 @@ class MetricsRefresher:
 
     @classmethod
     @threads.register("queue_metrics_refresh_watchdog", daemon=True)
-    def start(cls, queue_metrics: QueueMetrics):
+    def start(cls, queue_metrics: QueueMetrics = None):
         if not cls.watch_interval_sec:
             return
+
+        if not queue_metrics:
+            from .queue_bll import QueueBLL
+            queue_metrics = QueueBLL().metrics
 
         sleep(10)
         while not ThreadsManager.terminating:

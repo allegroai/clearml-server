@@ -23,7 +23,7 @@ from apiserver.tools import safe_get
 from apiserver.utilities.json import dumps
 from apiserver.utilities.threads_manager import ThreadsManager
 from apiserver.version import __version__ as current_version
-from .resource_monitor import ResourceMonitor
+from .resource_monitor import ResourceMonitor, stat_threads
 
 log = config.logger(__file__)
 
@@ -31,17 +31,19 @@ worker_bll = WorkerBLL()
 
 
 class StatisticsReporter:
-    threads = ThreadsManager("Statistics", resource_monitor=ResourceMonitor)
     send_queue = queue.Queue()
     supported = config.get("apiserver.statistics.supported", True)
 
     @classmethod
     def start(cls):
+        if not cls.supported:
+            return
+        ResourceMonitor.start()
         cls.start_sender()
         cls.start_reporter()
 
     @classmethod
-    @threads.register("reporter", daemon=True)
+    @stat_threads.register("reporter", daemon=True)
     def start_reporter(cls):
         """
         Periodically send statistics reports for companies who have opted in.
@@ -68,7 +70,7 @@ class StatisticsReporter:
             sleep(report_interval.total_seconds())
 
     @classmethod
-    @threads.register("sender", daemon=True)
+    @stat_threads.register("sender", daemon=True)
     def start_sender(cls):
         if not cls.supported:
             return
@@ -111,7 +113,7 @@ class StatisticsReporter:
                 "uuid": get_server_uuid(),
                 "queues": {"count": Queue.objects(company=company_id).count()},
                 "users": {"count": User.objects(company=company_id).count()},
-                "resources": cls.threads.resource_monitor.get_stats(),
+                "resources": ResourceMonitor.get_stats(),
                 "experiments": next(
                     iter(cls._get_experiments_stats(company_id).values()), {}
                 ),
