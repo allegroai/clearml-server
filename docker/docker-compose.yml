@@ -28,6 +28,7 @@ services:
       CLEARML__apiserver__pre_populate__enabled: "true"
       CLEARML__apiserver__pre_populate__zip_files: "/opt/clearml/db-pre-populate"
       CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
+      CLEARML__services__async_urls_delete__enabled: "true"
     ports:
     - "8008:8008"
     networks:
@@ -76,6 +77,8 @@ services:
     - fileserver
     container_name: clearml-fileserver
     image: allegroai/clearml:latest
+    environment:
+      CLEARML__fileserver__delete__allow_batch: "true"
     restart: unless-stopped
     volumes:
     - /opt/clearml/logs:/var/log/clearml
@@ -119,6 +122,36 @@ services:
     networks:
       - backend
       - frontend
+
+  async_delete:
+    depends_on:
+      - apiserver
+      - redis
+      - mongo
+      - elasticsearch
+      - fileserver
+    container_name: async_delete
+    image: allegroai/clearml:latest
+    networks:
+      - backend
+    restart: unless-stopped
+    environment:
+      CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
+      CLEARML_ELASTIC_SERVICE_PORT: 9200
+      CLEARML_ELASTIC_SERVICE_PASSWORD: ${ELASTIC_PASSWORD}
+      CLEARML_MONGODB_SERVICE_HOST: mongo
+      CLEARML_MONGODB_SERVICE_PORT: 27017
+      CLEARML_REDIS_SERVICE_HOST: redis
+      CLEARML_REDIS_SERVICE_PORT: 6379
+      PYTHONPATH: /opt/clearml/apiserver
+    entrypoint:
+      - python3
+      - -m
+      - jobs.async_urls_delete
+      - --fileserver-host
+      - http://fileserver:8081
+    volumes:
+      - /opt/clearml/logs:/var/log/clearml
 
   agent-services:
     networks:
