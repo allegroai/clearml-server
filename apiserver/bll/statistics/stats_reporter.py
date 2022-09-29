@@ -21,7 +21,6 @@ from apiserver.database.model.queue import Queue
 from apiserver.database.model.task.task import Task
 from apiserver.tools import safe_get
 from apiserver.utilities.json import dumps
-from apiserver.utilities.threads_manager import ThreadsManager
 from apiserver.version import __version__ as current_version
 from .resource_monitor import ResourceMonitor, stat_threads
 
@@ -56,7 +55,7 @@ class StatisticsReporter:
             hours=config.get("apiserver.statistics.report_interval_hours", 24)
         )
         sleep(report_interval.total_seconds())
-        while not ThreadsManager.terminating:
+        while True:
             try:
                 for company in Company.objects(
                     defaults__stats_option__enabled=True
@@ -87,7 +86,7 @@ class StatisticsReporter:
 
         WarningFilter.attach()
 
-        while not ThreadsManager.terminating:
+        while True:
             try:
                 report = cls.send_queue.get()
 

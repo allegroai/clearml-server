@@ -39,7 +39,7 @@ class NonResponsiveTasksWatchdog:
     @threads.register("non_responsive_tasks_watchdog", daemon=True)
     def start(cls):
         sleep(cls.settings.watch_interval_sec)
-        while not ThreadsManager.terminating:
+        while True:
             watch_interval = cls.settings.watch_interval_sec
             if cls.settings.enabled:
                 try:

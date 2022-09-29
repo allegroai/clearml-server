@@ -12,7 +12,6 @@ from apiserver.config_repo import config
 from apiserver.config.info import get_version
 from apiserver.database.model.settings import Settings
 from apiserver.redis_manager import redman
-from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__name__)
 
@@ -99,7 +98,7 @@ class CheckUpdatesThread(Thread):
         )
 
     def _check_updates(self):
-        while not ThreadsManager.terminating:
+        while True:
             # noinspection PyBroadException
             try:
                 if self._redis.set(

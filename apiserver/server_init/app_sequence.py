@@ -28,7 +28,6 @@ from apiserver.service_repo import ServiceRepo
 from apiserver.sync import distributed_lock
 from apiserver.updates import check_updates_thread
 from apiserver.utilities.env import get_bool
-from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
 
@@ -125,4 +124,4 @@ class AppSequence:
         NonResponsiveTasksWatchdog.start()
 
     def _on_worker_stop(self):
-        ThreadsManager.terminating = True
+        pass

@@ -288,7 +288,7 @@ class MetricsRefresher:
             queue_metrics = QueueBLL().metrics
 
         sleep(10)
-        while not ThreadsManager.terminating:
+        while True:
             try:
                 for queue in Queue.objects():
                     timestamp = es_factory.get_timestamp_millis()

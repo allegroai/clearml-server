@@ -7,7 +7,6 @@ class ThreadsManager:
     objects = {}
     lock = Lock()
     request_context_creator: ClassVar[Callable] = None
-    terminating: ClassVar[bool] = False
 
     def __init__(self, name=None):
         self.name = name or self.__class__.__name__

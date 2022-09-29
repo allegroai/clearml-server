@@ -71,7 +71,7 @@ class ResourceMonitor:
     @classmethod
     @stat_threads.register("resource_monitor", daemon=True)
     def start(cls):
-        while not ThreadsManager.terminating:
+        while True:
             sleep(cls.sample_interval_sec)
             sample = Sample.get_current_sample()
             with cls._lock:
