@@ -54,7 +54,7 @@ class DatabaseFactory:
         override_port = first(map(getenv, OVERRIDE_PORT_ENV_KEY), None)
 
         if override_connection_string:
-            log.info(f"Using override mongodb connection string {override_connection_string}")
+            log.info(f"Using override mongodb connection string template {override_connection_string}")
         else:
             if override_hostname:
                 log.info(f"Using override mongodb host {override_hostname}")
@@ -69,7 +69,9 @@ class DatabaseFactory:
             entry = cls._create_db_entry(alias=alias, settings=db_entries.get(key))
 
             if override_connection_string:
-                entry.host = override_connection_string
+                con_str = f"{override_connection_string.rstrip('/')}/{key}"
+                log.info(f"Using override mongodb connection string for {alias}: {con_str}")
+                entry.host = con_str
             else:
                 if override_hostname:
                     entry.host = furl(entry.host).set(host=override_hostname).url
