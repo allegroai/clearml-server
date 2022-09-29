@@ -130,27 +130,25 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             allow_public=allow_public,
             ret_params=ret_params,
         )
+        if not projects:
+            return {"projects": projects, **ret_params}
 
-        if request.check_own_contents and requested_ids:
-            existing_requested_ids = {
-                project["id"] for project in projects if project["id"] in requested_ids
-            }
-            if existing_requested_ids:
-                contents = project_bll.calc_own_contents(
-                    company=company_id,
-                    project_ids=list(existing_requested_ids),
-                    filter_=request.include_stats_filter,
-                    users=request.active_users,
-                )
-                for project in projects:
-                    project.update(**contents.get(project["id"], {}))
+        project_ids = list({project["id"] for project in projects})
+        if request.check_own_contents:
+            contents = project_bll.calc_own_contents(
+                company=company_id,
+                project_ids=project_ids,
+                filter_=request.include_stats_filter,
+                users=request.active_users,
+            )
+            for project in projects:
+                project.update(**contents.get(project["id"], {}))
 
         conform_output_tags(call, projects)
         if request.include_stats:
-            project_ids = {project["id"] for project in projects}
             stats, children = project_bll.get_project_stats(
                 company=company_id,
-                project_ids=list(project_ids),
+                project_ids=project_ids,
                 specific_state=request.stats_for_state,
                 include_children=request.stats_with_children,
                 search_hidden=request.search_hidden,
@@ -164,10 +162,9 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 project["sub_projects"] = children[project["id"]]
 
         if request.include_dataset_stats:
-            project_ids = {project["id"] for project in projects}
             dataset_stats = project_bll.get_dataset_stats(
                 company=company_id,
-                project_ids=list(project_ids),
+                project_ids=project_ids,
                 users=request.active_users,
             )
             for project in projects:
