@@ -36,6 +36,7 @@ class Model(AttributedDocument):
             ("company", "framework"),
             ("company", "name"),
             ("company", "user"),
+            ("company", "uri"),
             {
                 "name": "%s.model.main_text_index" % Database.backend,
                 "fields": ["$name", "$id", "$comment", "$parent", "$task", "$project"],
