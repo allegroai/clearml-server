@@ -79,3 +79,75 @@ def nested_set(dictionary: dict, path: Union[Sequence[str], str], value: Any):
         node = node.get(key)
 
     node[last_key] = value
+
+
+def exclude_fields_from_dict(data: dict, fields: Sequence[str], separator="."):
+    """
+    Performs in place fields exclusion on the passed dict
+    """
+    assert isinstance(data, dict)
+    if not fields:
+        return
+
+    exclude_paths = [e.split(separator) for e in fields]
+    for path in sorted(exclude_paths):
+        nested_delete(data, path)
+
+
+def project_dict(data: dict, projection: Sequence[str], separator=".") -> dict:
+    """
+    Project partial data from a dictionary into a new dictionary
+    :param data: Input dictionary
+    :param projection: List of dictionary paths (each a string with field names separated using a separator)
+    :param separator: Separator (default is '.')
+    :return: A new dictionary containing only the projected parts from the original dictionary
+    """
+    assert isinstance(data, dict)
+    result = {}
+
+    def copy_path(path_parts, source, destination):
+        src, dst = source, destination
+        try:
+            for depth, path_part in enumerate(path_parts[:-1]):
+                src_part = src[path_part]
+                if isinstance(src_part, dict):
+                    src = src_part
+                    dst = dst.setdefault(path_part, {})
+                elif isinstance(src_part, (list, tuple)):
+                    if path_part not in dst:
+                        dst[path_part] = [{} for _ in range(len(src_part))]
+                    elif not isinstance(dst[path_part], (list, tuple)):
+                        raise TypeError(
+                            "Incompatible destination type %s for %s (list expected)"
+                            % (type(dst), separator.join(path_parts[: depth + 1]))
+                        )
+                    elif not len(dst[path_part]) == len(src_part):
+                        raise ValueError(
+                            "Destination list length differs from source length for %s"
+                            % separator.join(path_parts[: depth + 1])
+                        )
+
+                    dst[path_part] = [
+                        copy_path(path_parts[depth + 1 :], s, d)
+                        for s, d in zip(src_part, dst[path_part])
+                    ]
+
+                    return destination
+                else:
+                    raise TypeError(
+                        "Unsupported projection type %s for %s"
+                        % (type(src), separator.join(path_parts[: depth + 1]))
+                    )
+
+            last_part = path_parts[-1]
+            dst[last_part] = src[last_part]
+        except KeyError:
+            # Projection field not in source, no biggie.
+            pass
+        return destination
+
+    for projection_path in sorted(projection):
+        copy_path(
+            path_parts=projection_path.split(separator), source=data, destination=result
+        )
+    return result

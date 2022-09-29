@@ -26,7 +26,7 @@ from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.config_repo import config
 from apiserver.database import Database
 from apiserver.database.errors import MakeGetAllQueryError
-from apiserver.database.projection import project_dict, ProjectionHelper
+from apiserver.database.projection import ProjectionHelper
 from apiserver.database.props import PropsMixin
 from apiserver.database.query import RegexQ, RegexWrapper, RegexQCombination
 from apiserver.database.utils import (
@@ -36,6 +36,7 @@ from apiserver.database.utils import (
     field_exists,
 )
 from apiserver.redis_manager import redman
+from apiserver.utilities.dicts import project_dict, exclude_fields_from_dict
 
 log = config.logger("dbmodel")
 
@@ -55,17 +56,25 @@ class ProperDictMixin(object):
         strip_private=True,
         only=None,
         extra_dict=None,
+        exclude=None,
     ) -> dict:
         return self.properize_dict(
             self.to_mongo(use_db_field=False).to_dict(),
             strip_private=strip_private,
             only=only,
             extra_dict=extra_dict,
+            exclude=exclude,
         )
 
     @classmethod
     def properize_dict(
-        cls, d, strip_private=True, only=None, extra_dict=None, normalize_id=True
+        cls,
+        d,
+        strip_private=True,
+        only=None,
+        extra_dict=None,
+        exclude=None,
+        normalize_id=True,
     ):
         res = d
         if normalize_id and "_id" in res:
@@ -76,6 +85,9 @@ class ProperDictMixin(object):
             res = project_dict(res, only)
         if extra_dict:
             res.update(extra_dict)
+        if exclude:
+            exclude_fields_from_dict(res, exclude)
+
         return res
 
 
@@ -385,7 +397,11 @@ class GetMixin(PropsMixin):
                                 value = parse_datetime(m.group("value"))
                                 prefix = m.group("prefix")
                                 modifier = ACCESS_MODIFIER.get(prefix)
-                                f = field if not modifier else "__".join((field, modifier))
+                                f = (
+                                    field
+                                    if not modifier
+                                    else "__".join((field, modifier))
+                                )
                                 dict_query[f] = value
                             except (ValueError, OverflowError):
                                 pass
@@ -1000,7 +1016,11 @@ class GetMixin(PropsMixin):
             query_sets = [qs.fields(**projection_fields) for qs in query_sets]
 
         if start is None or not size:
-            return [obj.to_proper_dict(only=include) for qs in query_sets for obj in qs]
+            return [
+                obj.to_proper_dict(only=include, exclude=exclude)
+                for qs in query_sets
+                for obj in qs
+            ]
 
         # add paging
         ret = []
@@ -1008,7 +1028,7 @@ class GetMixin(PropsMixin):
         for i, qs in enumerate(query_sets):
             last_size = len(ret)
             ret.extend(
-                obj.to_proper_dict(only=include)
+                obj.to_proper_dict(only=include, exclude=exclude)
                 for obj in (qs.skip(start) if start else qs).limit(size)
             )
             added = len(ret) - last_size
