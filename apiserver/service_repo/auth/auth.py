@@ -11,7 +11,6 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User, Entities, Credentials
 from apiserver.database.model.company import Company
 from apiserver.database.utils import get_options
-from apiserver.timing_context import TimingContext
 from .fixed_user import FixedUser
 from .identity import Identity
 from .payload import Payload, Token, Basic, AuthType
@@ -88,9 +87,7 @@ def authorize_credentials(auth_data, service, action, call):
 
             query = Q(id=fixed_user.user_id)
 
-    with TimingContext("mongo", "user_by_cred"), translate_errors_context(
-        "authorizing request"
-    ):
+    with translate_errors_context("authorizing request"):
         user = User.objects(query).first()
         if not user:
             raise errors.unauthorized.InvalidCredentials(
@@ -108,8 +105,7 @@ def authorize_credentials(auth_data, service, action, call):
                 }
             )
 
-    with TimingContext("mongo", "company_by_id"):
-        company = Company.objects(id=user.company).only("id", "name").first()
+    company = Company.objects(id=user.company).only("id", "name").first()
 
     if not company:
         raise errors.unauthorized.InvalidCredentials("invalid user company")

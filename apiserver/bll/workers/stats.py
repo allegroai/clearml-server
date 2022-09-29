@@ -8,7 +8,6 @@ from apiserver.apimodels.workers import AggregationType, GetStatsRequest, StatIt
 from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
 
@@ -126,7 +125,7 @@ class WorkerStats:
             query_terms.append(QueryBuilder.terms("worker", request.worker_ids))
         es_req["query"] = {"bool": {"must": query_terms}}
 
-        with translate_errors_context(), TimingContext("es", "get_worker_stats"):
+        with translate_errors_context():
             data = self._search_company_stats(company_id, es_req)
 
         return self._extract_results(data, request.items, request.split_by_variant)
@@ -223,9 +222,7 @@ class WorkerStats:
             "query": {"bool": {"must": must}},
         }
 
-        with translate_errors_context(), TimingContext(
-            "es", "get_worker_activity_report"
-        ):
+        with translate_errors_context():
             data = self._search_company_stats(company_id, es_req)
 
         if "aggregations" not in data:

@@ -35,7 +35,6 @@ from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
 from apiserver.service_repo import APICall
 from apiserver.services.utils import validate_tags, escape_dict_field, escape_dict
-from apiserver.timing_context import TimingContext
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
 from .utils import (
@@ -66,11 +65,10 @@ class TaskBLL:
         """
         with translate_errors_context():
             query = dict(id=task_id, company=company_id)
-            with TimingContext("mongo", "task_with_access"):
-                if requires_write_access:
-                    task = Task.get_for_writing(_only=only, **query)
-                else:
-                    task = Task.get(_only=only, **query, include_public=allow_public)
+            if requires_write_access:
+                task = Task.get_for_writing(_only=only, **query)
+            else:
+                task = Task.get(_only=only, **query, include_public=allow_public)
 
             if not task:
                 raise errors.bad_request.InvalidTaskId(**query)
@@ -88,15 +86,14 @@ class TaskBLL:
                 only_fields = list(only_fields)
             only_fields = only_fields + ["status"]
 
-        with TimingContext("mongo", "task_by_id_all"):
-            tasks = Task.get_many(
-                company=company_id,
-                query=Q(id=task_id),
-                allow_public=allow_public,
-                override_projection=only_fields,
-                return_dicts=False,
-            )
-            task = None if not tasks else tasks[0]
+        tasks = Task.get_many(
+            company=company_id,
+            query=Q(id=task_id),
+            allow_public=allow_public,
+            override_projection=only_fields,
+            return_dicts=False,
+        )
+        task = None if not tasks else tasks[0]
 
         if not task:
             raise errors.bad_request.InvalidTaskId(id=task_id)
@@ -111,7 +108,7 @@ class TaskBLL:
         company_id, task_ids, only=None, allow_public=False, return_tasks=True
     ) -> Optional[Sequence[Task]]:
         task_ids = [task_ids] if isinstance(task_ids, six.string_types) else task_ids
-        with translate_errors_context(), TimingContext("mongo", "task_exists"):
+        with translate_errors_context():
             ids = set(task_ids)
             q = Task.get_many(
                 company=company_id,
@@ -260,58 +257,55 @@ class TaskBLL:
                 not in [TaskSystemTags.development, EntityVisibility.archived.value]
             ]
 
-        with TimingContext("mongo", "clone task"):
-            parent_task = (
-                task.parent
-                if task.parent and not task.parent.startswith(deleted_prefix)
-                else task.id
-            )
-            new_task = Task(
-                id=create_id(),
-                user=user_id,
-                company=company_id,
-                created=now,
-                last_update=now,
-                last_change=now,
-                name=name or task.name,
-                comment=comment or task.comment,
-                parent=parent or parent_task,
-                project=project or task.project,
-                tags=tags or task.tags,
-                system_tags=system_tags or clean_system_tags(task.system_tags),
-                type=task.type,
-                script=task.script,
-                output=Output(destination=task.output.destination)
-                if task.output
-                else None,
-                models=Models(input=input_models or task.models.input),
-                container=escape_dict(container) or task.container,
-                execution=execution_dict,
-                configuration=params_dict.get("configuration") or task.configuration,
-                hyperparams=params_dict.get("hyperparams") or task.hyperparams,
-            )
-            cls.validate(
-                new_task,
-                validate_models=validate_references or input_models,
-                validate_parent=validate_references or parent,
-                validate_project=validate_references or project,
-            )
-            new_task.save()
+        parent_task = (
+            task.parent
+            if task.parent and not task.parent.startswith(deleted_prefix)
+            else task.id
+        )
+        new_task = Task(
+            id=create_id(),
+            user=user_id,
+            company=company_id,
+            created=now,
+            last_update=now,
+            last_change=now,
+            name=name or task.name,
+            comment=comment or task.comment,
+            parent=parent or parent_task,
+            project=project or task.project,
+            tags=tags or task.tags,
+            system_tags=system_tags or clean_system_tags(task.system_tags),
+            type=task.type,
+            script=task.script,
+            output=Output(destination=task.output.destination) if task.output else None,
+            models=Models(input=input_models or task.models.input),
+            container=escape_dict(container) or task.container,
+            execution=execution_dict,
+            configuration=params_dict.get("configuration") or task.configuration,
+            hyperparams=params_dict.get("hyperparams") or task.hyperparams,
+        )
+        cls.validate(
+            new_task,
+            validate_models=validate_references or input_models,
+            validate_parent=validate_references or parent,
+            validate_project=validate_references or project,
+        )
+        new_task.save()
 
-            if task.project == new_task.project:
-                updated_tags = tags
-                updated_system_tags = system_tags
-            else:
-                updated_tags = new_task.tags
-                updated_system_tags = new_task.system_tags
-            org_bll.update_tags(
-                company_id,
-                Tags.Task,
-                project=new_task.project,
-                tags=updated_tags,
-                system_tags=updated_system_tags,
-            )
-            update_project_time(new_task.project)
+        if task.project == new_task.project:
+            updated_tags = tags
+            updated_system_tags = system_tags
+        else:
+            updated_tags = new_task.tags
+            updated_system_tags = new_task.system_tags
+        org_bll.update_tags(
+            company_id,
+            Tags.Task,
+            project=new_task.project,
+            tags=updated_tags,
+            system_tags=updated_system_tags,
+        )
+        update_project_time(new_task.project)
 
         return new_task, new_project_data
 

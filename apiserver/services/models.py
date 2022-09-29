@@ -52,7 +52,6 @@ from apiserver.services.utils import (
     unescape_metadata,
     escape_metadata,
 )
-from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
 org_bll = OrgBLL()
@@ -123,14 +122,13 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
     conform_tag_fields(call, call.data)
     _process_include_subprojects(call.data)
     Metadata.escape_query_parameters(call)
-    with TimingContext("mongo", "models_get_all_ex"):
-        ret_params = {}
-        models = Model.get_many_with_join(
-            company=company_id,
-            query_dict=call.data,
-            allow_public=True,
-            ret_params=ret_params,
-        )
+    ret_params = {}
+    models = Model.get_many_with_join(
+        company=company_id,
+        query_dict=call.data,
+        allow_public=True,
+        ret_params=ret_params,
+    )
     conform_output_tags(call, models)
     unescape_metadata(call, models)
 
@@ -139,10 +137,7 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
         return
 
     model_ids = {model["id"] for model in models}
-    stats = ModelBLL.get_model_stats(
-        company=company_id,
-        model_ids=list(model_ids),
-    )
+    stats = ModelBLL.get_model_stats(company=company_id, model_ids=list(model_ids),)
 
     for model in models:
         model["stats"] = stats.get(model["id"])
@@ -154,10 +149,9 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
 def get_by_id_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     Metadata.escape_query_parameters(call)
-    with TimingContext("mongo", "models_get_by_id_ex"):
-        models = Model.get_many_with_join(
-            company=company_id, query_dict=call.data, allow_public=True
-        )
+    models = Model.get_many_with_join(
+        company=company_id, query_dict=call.data, allow_public=True
+    )
     conform_output_tags(call, models)
     unescape_metadata(call, models)
     call.result.data = {"models": models}
@@ -167,15 +161,14 @@ def get_by_id_ex(call: APICall, company_id, _):
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     Metadata.escape_query_parameters(call)
-    with TimingContext("mongo", "models_get_all"):
-        ret_params = {}
-        models = Model.get_many(
-            company=company_id,
-            parameters=call.data,
-            query_dict=call.data,
-            allow_public=True,
-            ret_params=ret_params,
-        )
+    ret_params = {}
+    models = Model.get_many(
+        company=company_id,
+        parameters=call.data,
+        query_dict=call.data,
+        allow_public=True,
+        ret_params=ret_params,
+    )
     conform_output_tags(call, models)
     unescape_metadata(call, models)
     call.result.data = {"models": models, **ret_params}
@@ -414,9 +407,7 @@ def validate_task(company_id, fields: dict):
 def edit(call: APICall, company_id, _):
     model_id = call.data["model"]
 
-    model = ModelBLL.get_company_model_by_id(
-        company_id=company_id, model_id=model_id
-    )
+    model = ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
 
     fields = parse_model_fields(call, create_fields)
     fields = prepare_update_fields(call, company_id, fields)
@@ -424,11 +415,7 @@ def edit(call: APICall, company_id, _):
     for key in fields:
         field = getattr(model, key, None)
         value = fields[key]
-        if (
-            field
-            and isinstance(value, dict)
-            and isinstance(field, EmbeddedDocument)
-        ):
+        if field and isinstance(value, dict) and isinstance(field, EmbeddedDocument):
             d = field.to_mongo(use_db_field=False).to_dict()
             d.update(value)
             fields[key] = d
@@ -448,13 +435,9 @@ def edit(call: APICall, company_id, _):
         if updated:
             new_project = fields.get("project", model.project)
             if new_project != model.project:
-                _reset_cached_tags(
-                    company_id, projects=[new_project, model.project]
-                )
+                _reset_cached_tags(company_id, projects=[new_project, model.project])
             else:
-                _update_cached_tags(
-                    company_id, project=model.project, fields=fields
-                )
+                _update_cached_tags(company_id, project=model.project, fields=fields)
         conform_output_tags(call, fields)
         unescape_metadata(call, fields)
         call.result.data_model = UpdateResponse(updated=updated, fields=fields)
@@ -465,9 +448,7 @@ def edit(call: APICall, company_id, _):
 def _update_model(call: APICall, company_id, model_id=None):
     model_id = model_id or call.data["model"]
 
-    model = ModelBLL.get_company_model_by_id(
-        company_id=company_id, model_id=model_id
-    )
+    model = ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
 
     data = prepare_update_fields(call, company_id, call.data)
 

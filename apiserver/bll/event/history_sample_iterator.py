@@ -21,7 +21,6 @@ from apiserver.bll.event.event_common import (
 )
 from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.database.errors import translate_errors_context
-from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get
 
 
@@ -174,14 +173,9 @@ class HistorySampleIterator(abc.ABC):
             "query": {"bool": {"must": must_conditions}},
         }
 
-        with translate_errors_context(), TimingContext(
-            "es", "get_next_for_current_iteration"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=self.event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=self.event_type, body=es_req,
             )
 
         hits = nested_get(es_res, ("hits", "hits"))
@@ -235,14 +229,9 @@ class HistorySampleIterator(abc.ABC):
             "sort": [{"iter": order}, {"metric": order}, {"variant": order}],
             "query": {"bool": {"must": must_conditions}},
         }
-        with translate_errors_context(), TimingContext(
-            "es", "get_next_for_another_iteration"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=self.event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=self.event_type, body=es_req,
             )
 
         hits = nested_get(es_res, ("hits", "hits"))
@@ -335,9 +324,7 @@ class HistorySampleIterator(abc.ABC):
                 "query": {"bool": {"must": must_conditions}},
             }
 
-            with translate_errors_context(), TimingContext(
-                "es", "get_history_sample_for_variant"
-            ):
+            with translate_errors_context():
                 es_res = search_company_events(
                     self.es,
                     company_id=company_id,
@@ -421,9 +408,7 @@ class HistorySampleIterator(abc.ABC):
             },
         }
 
-        with translate_errors_context(), TimingContext(
-            "es", "get_history_sample_iterations"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(body=es_req, **search_args,)
 
         def get_variant_data(variant_bucket: dict) -> Tuple[str, int, int]:

@@ -17,7 +17,6 @@ from apiserver.bll.event.event_common import (
 from apiserver.bll.event.scalar_key import ScalarKeyEnum, ScalarKey
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.timing_context import TimingContext
 
 
 @attr.s(auto_attribs=True)
@@ -76,7 +75,7 @@ class EventsIterator:
             "query": query,
         }
 
-        with translate_errors_context(), TimingContext("es", "count_task_events"):
+        with translate_errors_context():
             es_result = count_company_events(
                 self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
@@ -113,7 +112,7 @@ class EventsIterator:
         if from_key_value:
             es_req["search_after"] = [from_key_value]
 
-        with translate_errors_context(), TimingContext("es", "get_task_events"):
+        with translate_errors_context():
             es_result = search_company_events(
                 self.es, company_id=company_id, event_type=event_type, body=es_req,
             )

@@ -8,7 +8,6 @@ from elasticsearch import Elasticsearch
 
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
 
 
@@ -21,7 +20,7 @@ class EventType(Enum):
     all = "*"
 
 
-SINGLE_SCALAR_ITERATION = -2**31
+SINGLE_SCALAR_ITERATION = -(2 ** 31)
 MetricVariants = Mapping[str, Sequence[str]]
 
 
@@ -80,9 +79,7 @@ def delete_company_events(
     es: Elasticsearch, company_id: str, event_type: EventType, body: dict, **kwargs
 ) -> dict:
     es_index = get_index_name(company_id, event_type.value)
-    return es.delete_by_query(
-        index=es_index, body=body, conflicts="proceed", **kwargs
-    )
+    return es.delete_by_query(index=es_index, body=body, conflicts="proceed", **kwargs)
 
 
 def count_company_events(
@@ -116,9 +113,7 @@ def get_max_metric_and_variant_counts(
         "query": query,
         "aggs": {"metrics_count": {"cardinality": {"field": "metric"}}},
     }
-    with translate_errors_context(), TimingContext(
-        "es", "get_max_metric_and_variant_counts"
-    ):
+    with translate_errors_context():
         es_res = search_company_events(
             es, company_id=company_id, event_type=event_type, body=es_req, **kwargs,
         )

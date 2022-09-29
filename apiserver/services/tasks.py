@@ -119,7 +119,6 @@ from apiserver.services.utils import (
     escape_dict_field,
     unescape_dict_field,
 )
-from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.partial_version import PartialVersion
 
@@ -231,16 +230,15 @@ def get_all_ex(call: APICall, company_id, _):
 
     call_data = escape_execution_parameters(call)
 
-    with TimingContext("mongo", "task_get_all_ex"):
-        _process_include_subprojects(call_data)
-        ret_params = {}
-        tasks = Task.get_many_with_join(
-            company=company_id,
-            query_dict=call_data,
-            query=_hidden_query(call_data),
-            allow_public=True,
-            ret_params=ret_params,
-        )
+    _process_include_subprojects(call_data)
+    ret_params = {}
+    tasks = Task.get_many_with_join(
+        company=company_id,
+        query_dict=call_data,
+        query=_hidden_query(call_data),
+        allow_public=True,
+        ret_params=ret_params,
+    )
     unprepare_from_saved(call, tasks)
     call.result.data = {"tasks": tasks, **ret_params}
 
@@ -251,10 +249,9 @@ def get_by_id_ex(call: APICall, company_id, _):
 
     call_data = escape_execution_parameters(call)
 
-    with TimingContext("mongo", "task_get_by_id_ex"):
-        tasks = Task.get_many_with_join(
-            company=company_id, query_dict=call_data, allow_public=True,
-        )
+    tasks = Task.get_many_with_join(
+        company=company_id, query_dict=call_data, allow_public=True,
+    )
 
     unprepare_from_saved(call, tasks)
     call.result.data = {"tasks": tasks}
@@ -266,16 +263,15 @@ def get_all(call: APICall, company_id, _):
 
     call_data = escape_execution_parameters(call)
 
-    with TimingContext("mongo", "task_get_all"):
-        ret_params = {}
-        tasks = Task.get_many(
-            company=company_id,
-            parameters=call_data,
-            query_dict=call_data,
-            query=_hidden_query(call_data),
-            allow_public=True,
-            ret_params=ret_params,
-        )
+    ret_params = {}
+    tasks = Task.get_many(
+        company=company_id,
+        parameters=call_data,
+        query_dict=call_data,
+        query=_hidden_query(call_data),
+        allow_public=True,
+        ret_params=ret_params,
+    )
     unprepare_from_saved(call, tasks)
     call.result.data = {"tasks": tasks, **ret_params}
 
@@ -487,12 +483,11 @@ def prepare_create_fields(
 def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dict]:
     with translate_errors_context(
         field_does_not_exist_cls=errors.bad_request.ValidationError
-    ), TimingContext("code", "parse_call"):
+    ):
         fields = prepare_create_fields(call, **kwargs)
         task = task_bll.create(call, fields)
 
-    with TimingContext("code", "validate"):
-        task_bll.validate(task)
+    task_bll.validate(task)
 
     return task, fields
 
@@ -525,7 +520,7 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
 def create(call: APICall, company_id, req_model: CreateRequest):
     task, fields = _validate_and_get_task_from_call(call)
 
-    with translate_errors_context(), TimingContext("mongo", "save_task"):
+    with translate_errors_context():
         task.save()
         _update_cached_tags(company_id, project=task.project, fields=fields)
         update_project_time(task.project)
@@ -708,7 +703,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
 
         with translate_errors_context(
             field_does_not_exist_cls=errors.bad_request.ValidationError
-        ), TimingContext("code", "parse_and_validate"):
+        ):
             fields = prepare_create_fields(
                 call, valid_fields=edit_fields, output=task.output, previous_task=task
             )

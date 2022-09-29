@@ -19,14 +19,14 @@ from apiserver.bll.event.event_common import (
     check_empty_data,
     search_company_events,
     EventType,
-    get_metric_variants_condition, get_max_metric_and_variant_counts,
+    get_metric_variants_condition,
+    get_max_metric_and_variant_counts,
 )
 from apiserver.bll.redis_cache_manager import RedisCacheManager
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.metrics import MetricEventStats
 from apiserver.database.model.task.task import Task
-from apiserver.timing_context import TimingContext
 
 
 class VariantState(Base):
@@ -226,7 +226,9 @@ class MetricEventsIterator:
         pass
 
     @abc.abstractmethod
-    def _get_variant_state_aggs(self) -> Tuple[dict, Callable[[dict, VariantState], None]]:
+    def _get_variant_state_aggs(
+        self,
+    ) -> Tuple[dict, Callable[[dict, VariantState], None]]:
         pass
 
     def _init_metric_states_for_task(
@@ -268,14 +270,18 @@ class MetricEventsIterator:
                                 "size": max_variants,
                                 "order": {"_key": "asc"},
                             },
-                            **({"aggs": variant_state_aggs} if variant_state_aggs else {}),
+                            **(
+                                {"aggs": variant_state_aggs}
+                                if variant_state_aggs
+                                else {}
+                            ),
                         },
                     },
                 }
             },
         }
 
-        with translate_errors_context(), TimingContext("es", "_init_metric_states"):
+        with translate_errors_context():
             es_res = search_company_events(body=es_req, **search_args)
         if "aggregations" not in es_res:
             return []
@@ -383,12 +389,9 @@ class MetricEventsIterator:
                 }
             },
         }
-        with translate_errors_context(), TimingContext("es", "_get_task_metric_events"):
+        with translate_errors_context():
             es_res = search_company_events(
-                self.es,
-                company_id=company_id,
-                event_type=self.event_type,
-                body=es_req,
+                self.es, company_id=company_id, event_type=self.event_type, body=es_req,
             )
         if "aggregations" not in es_res:
             return task_state.task, []

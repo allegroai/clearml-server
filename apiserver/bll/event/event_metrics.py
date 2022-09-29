@@ -25,7 +25,6 @@ from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task
-from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
 
 log = config.logger(__file__)
@@ -180,8 +179,7 @@ class EventMetrics:
         ):
             return {}
 
-        with TimingContext("es", "get_task_single_value_metrics"):
-            task_events = self._get_task_single_value_metrics(company_id, task_ids)
+        task_events = self._get_task_single_value_metrics(company_id, task_ids)
 
         def _get_value(event: dict):
             return {
@@ -277,9 +275,7 @@ class EventMetrics:
         if metric_variants:
             must.append(get_metric_variants_condition(metric_variants))
         query = {"bool": {"must": must}}
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -312,8 +308,7 @@ class EventMetrics:
             },
         }
 
-        with translate_errors_context(), TimingContext("es", "task_stats_get_interval"):
-            es_res = search_company_events(body=es_req, **search_args)
+        es_res = search_company_events(body=es_req, **search_args)
 
         aggs_result = es_res.get("aggregations")
         if not aggs_result:
@@ -366,9 +361,7 @@ class EventMetrics:
         interval, metrics = metrics_interval
         aggregation = self._add_aggregation_average(key.get_aggregation(interval))
         query = self._get_task_metrics_query(task_id=task_id, metrics=metrics)
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -493,10 +486,9 @@ class EventMetrics:
             },
         }
 
-        with translate_errors_context(), TimingContext("es", "_get_task_metrics"):
-            es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req
-            )
+        es_res = search_company_events(
+            self.es, company_id=company_id, event_type=event_type, body=es_req
+        )
 
         return [
             metric["key"]

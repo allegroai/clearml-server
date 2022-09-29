@@ -9,7 +9,6 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, TaskSystemTags
 from apiserver.database.utils import get_options
-from apiserver.timing_context import TimingContext
 from apiserver.utilities.attrs import typed_attrs
 
 valid_statuses = get_options(TaskStatus)
@@ -55,7 +54,7 @@ class ChangeStatusRequest(object):
 
         fields.update({safe_mongoengine_key(k): v for k, v in kwargs.items()})
 
-        with translate_errors_context(), TimingContext("mongo", "task_status"):
+        with translate_errors_context():
             # atomic change of task status by querying the task with the EXPECTED status before modifying it
             params = fields.copy()
             params.update(control)

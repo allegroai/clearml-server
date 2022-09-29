@@ -11,7 +11,6 @@ from apiserver.utilities.parameter_key_escaper import (
     mongoengine_safe,
 )
 from apiserver.config_repo import config
-from apiserver.timing_context import TimingContext
 
 log = config.logger(__file__)
 
@@ -42,27 +41,25 @@ class Metadata:
         replace_metadata: bool,
         **more_updates,
     ) -> int:
-        with TimingContext("mongo", "edit_metadata"):
-            update_cmds = dict()
-            metadata = cls.metadata_from_api(items)
-            if replace_metadata:
-                update_cmds["set__metadata"] = metadata
-            else:
-                for key, value in metadata.items():
-                    update_cmds[f"set__metadata__{mongoengine_safe(key)}"] = value
+        update_cmds = dict()
+        metadata = cls.metadata_from_api(items)
+        if replace_metadata:
+            update_cmds["set__metadata"] = metadata
+        else:
+            for key, value in metadata.items():
+                update_cmds[f"set__metadata__{mongoengine_safe(key)}"] = value
 
-            return obj.update(**update_cmds, **more_updates)
+        return obj.update(**update_cmds, **more_updates)
 
     @classmethod
     def delete_metadata(cls, obj: Document, keys: Sequence[str], **more_updates) -> int:
-        with TimingContext("mongo", "delete_metadata"):
-            return obj.update(
-                **{
-                    f"unset__metadata__{ParameterKeyEscaper.escape(key)}": 1
-                    for key in set(keys)
-                },
-                **more_updates,
-            )
+        return obj.update(
+            **{
+                f"unset__metadata__{ParameterKeyEscaper.escape(key)}": 1
+                for key in set(keys)
+            },
+            **more_updates,
+        )
 
     @staticmethod
     def _process_path(path: str):

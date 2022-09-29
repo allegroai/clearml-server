@@ -14,7 +14,6 @@ from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, ArtifactModes, TaskType
-from apiserver.timing_context import TimingContext
 from .sub_projects import _ids_with_children
 
 log = config.logger(__file__)
@@ -88,11 +87,8 @@ def delete_project(
                 )
 
     if not delete_contents:
-        with TimingContext("mongo", "update_children"):
-            for cls in (Model, Task):
-                updated_count = cls.objects(project__in=project_ids).update(
-                    project=None
-                )
+        for cls in (Model, Task):
+            updated_count = cls.objects(project__in=project_ids).update(project=None)
         res = DeleteProjectResult(disassociated_tasks=updated_count)
     else:
         deleted_models, model_urls = _delete_models(projects=project_ids)
@@ -127,9 +123,8 @@ def _delete_tasks(company: str, projects: Sequence[str]) -> Tuple[int, Set, Set]
         return 0, set(), set()
 
     task_ids = {t.id for t in tasks}
-    with TimingContext("mongo", "delete_tasks_update_children"):
-        Task.objects(parent__in=task_ids, project__nin=projects).update(parent=None)
-        Model.objects(task__in=task_ids, project__nin=projects).update(task=None)
+    Task.objects(parent__in=task_ids, project__nin=projects).update(parent=None)
+    Model.objects(task__in=task_ids, project__nin=projects).update(task=None)
 
     event_urls, artifact_urls = set(), set()
     for task in tasks:
@@ -154,36 +149,35 @@ def _delete_models(projects: Sequence[str]) -> Tuple[int, Set[str]]:
     Delete project models and update the tasks from other projects
     that reference them to reference None.
     """
-    with TimingContext("mongo", "delete_models"):
-        models = Model.objects(project__in=projects).only("task", "id", "uri")
-        if not models:
-            return 0, set()
+    models = Model.objects(project__in=projects).only("task", "id", "uri")
+    if not models:
+        return 0, set()
 
-        model_ids = list({m.id for m in models})
+    model_ids = list({m.id for m in models})
 
+    Task._get_collection().update_many(
+        filter={
+            "project": {"$nin": projects},
+            "models.input.model": {"$in": model_ids},
+        },
+        update={"$set": {"models.input.$[elem].model": None}},
+        array_filters=[{"elem.model": {"$in": model_ids}}],
+        upsert=False,
+    )
+
+    model_tasks = list({m.task for m in models if m.task})
+    if model_tasks:
         Task._get_collection().update_many(
             filter={
+                "_id": {"$in": model_tasks},
                 "project": {"$nin": projects},
-                "models.input.model": {"$in": model_ids},
+                "models.output.model": {"$in": model_ids},
             },
-            update={"$set": {"models.input.$[elem].model": None}},
+            update={"$set": {"models.output.$[elem].model": None}},
             array_filters=[{"elem.model": {"$in": model_ids}}],
             upsert=False,
         )
 
-        model_tasks = list({m.task for m in models if m.task})
-        if model_tasks:
-            Task._get_collection().update_many(
-                filter={
-                    "_id": {"$in": model_tasks},
-                    "project": {"$nin": projects},
-                    "models.output.model": {"$in": model_ids},
-                },
-                update={"$set": {"models.output.$[elem].model": None}},
-                array_filters=[{"elem.model": {"$in": model_ids}}],
-                upsert=False,
-            )
-
-        urls = {m.uri for m in models if m.uri}
-        deleted = models.delete()
-        return deleted, urls
+    urls = {m.uri for m in models if m.uri}
+    deleted = models.delete()
+    return deleted, urls

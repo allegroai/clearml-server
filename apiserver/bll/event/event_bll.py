@@ -39,7 +39,6 @@ from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.redis_manager import redman
-from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import loads
@@ -97,7 +96,7 @@ class EventBLL(object):
         if not task_ids:
             return set()
 
-        with translate_errors_context(), TimingContext("mongo", "task_by_ids"):
+        with translate_errors_context():
             query = Q(id__in=task_ids, company=company_id)
             if not allow_locked_tasks:
                 query &= Q(status__nin=LOCKED_TASK_STATUSES)
@@ -228,45 +227,44 @@ class EventBLL(object):
         with translate_errors_context():
             if actions:
                 chunk_size = 500
-                with TimingContext("es", "events_add_batch"):
-                    # TODO: replace it with helpers.parallel_bulk in the future once the parallel pool leak is fixed
-                    with closing(
-                        elasticsearch.helpers.streaming_bulk(
-                            self.es,
-                            actions,
-                            chunk_size=chunk_size,
-                            # thread_count=8,
-                            refresh=True,
-                        )
-                    ) as it:
-                        for success, info in it:
-                            if success:
-                                added += 1
-                            else:
-                                errors_per_type["Error when indexing events batch"] += 1
+                # TODO: replace it with helpers.parallel_bulk in the future once the parallel pool leak is fixed
+                with closing(
+                    elasticsearch.helpers.streaming_bulk(
+                        self.es,
+                        actions,
+                        chunk_size=chunk_size,
+                        # thread_count=8,
+                        refresh=True,
+                    )
+                ) as it:
+                    for success, info in it:
+                        if success:
+                            added += 1
+                        else:
+                            errors_per_type["Error when indexing events batch"] += 1
 
-                    remaining_tasks = set()
-                    now = datetime.utcnow()
-                    for task_id in task_ids:
-                        # Update related tasks. For reasons of performance, we prefer to update
-                        # all of them and not only those who's events were successful
-                        updated = self._update_task(
-                            company_id=company_id,
-                            task_id=task_id,
-                            now=now,
-                            iter_max=task_iteration.get(task_id),
-                            last_scalar_events=task_last_scalar_events.get(task_id),
-                            last_events=task_last_events.get(task_id),
-                        )
+                remaining_tasks = set()
+                now = datetime.utcnow()
+                for task_id in task_ids:
+                    # Update related tasks. For reasons of performance, we prefer to update
+                    # all of them and not only those who's events were successful
+                    updated = self._update_task(
+                        company_id=company_id,
+                        task_id=task_id,
+                        now=now,
+                        iter_max=task_iteration.get(task_id),
+                        last_scalar_events=task_last_scalar_events.get(task_id),
+                        last_events=task_last_events.get(task_id),
+                    )
 
-                        if not updated:
-                            remaining_tasks.add(task_id)
-                            continue
+                    if not updated:
+                        remaining_tasks.add(task_id)
+                        continue
 
-                    if remaining_tasks:
-                        TaskBLL.set_last_update(
-                            remaining_tasks, company_id, last_update=now
-                        )
+                if remaining_tasks:
+                    TaskBLL.set_last_update(
+                        remaining_tasks, company_id, last_update=now
+                    )
 
             # this is for backwards compatibility with streaming bulk throwing exception on those
             invalid_iterations_count = errors_per_type.get(invalid_iteration_error)
@@ -425,7 +423,7 @@ class EventBLL(object):
             return [], scroll_id, 0
 
         if scroll_id:
-            with translate_errors_context(), TimingContext("es", "task_log_events"):
+            with translate_errors_context():
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             size = min(batch_size, 10000)
@@ -438,7 +436,7 @@ class EventBLL(object):
                 "query": {"bool": {"must": [{"term": {"task": task_id}}]}},
             }
 
-            with translate_errors_context(), TimingContext("es", "scroll_task_events"):
+            with translate_errors_context():
                 es_res = search_company_events(
                     self.es,
                     company_id=company_id,
@@ -468,9 +466,7 @@ class EventBLL(object):
         if metric_variants:
             must.append(get_metric_variants_condition(metric_variants))
         query = {"bool": {"must": must}}
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -508,9 +504,7 @@ class EventBLL(object):
             "query": query,
         }
 
-        with translate_errors_context(), TimingContext(
-            "es", "task_last_iter_metric_variant"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(body=es_req, **search_args)
 
         if "aggregations" not in es_res:
@@ -538,7 +532,7 @@ class EventBLL(object):
             return TaskEventsResult()
 
         if scroll_id:
-            with translate_errors_context(), TimingContext("es", "get_task_events"):
+            with translate_errors_context():
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             event_type = EventType.metrics_plot
@@ -602,7 +596,7 @@ class EventBLL(object):
                 "query": {"bool": {"must": must}},
             }
 
-            with translate_errors_context(), TimingContext("es", "get_task_plots"):
+            with translate_errors_context():
                 es_res = search_company_events(
                     self.es,
                     company_id=company_id,
@@ -720,7 +714,7 @@ class EventBLL(object):
             return TaskEventsResult()
 
         if scroll_id:
-            with translate_errors_context(), TimingContext("es", "get_task_events"):
+            with translate_errors_context():
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
             if check_empty_data(self.es, company_id=company_id, event_type=event_type):
@@ -768,7 +762,7 @@ class EventBLL(object):
                 "query": {"bool": {"must": must}},
             }
 
-            with translate_errors_context(), TimingContext("es", "get_task_events"):
+            with translate_errors_context():
                 es_res = search_company_events(
                     self.es,
                     company_id=company_id,
@@ -793,9 +787,7 @@ class EventBLL(object):
             return {}
 
         query = {"bool": {"must": [{"term": {"task": task_id}}]}}
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -822,9 +814,7 @@ class EventBLL(object):
             "query": query,
         }
 
-        with translate_errors_context(), TimingContext(
-            "es", "events_get_metrics_and_variants"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(body=es_req, **search_args)
 
         metrics = {}
@@ -851,9 +841,7 @@ class EventBLL(object):
                 ]
             }
         }
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -899,9 +887,7 @@ class EventBLL(object):
             },
             "_source": {"excludes": []},
         }
-        with translate_errors_context(), TimingContext(
-            "es", "events_get_metrics_and_variants"
-        ):
+        with translate_errors_context():
             es_res = search_company_events(body=es_req, **search_args)
 
         metrics = []
@@ -947,7 +933,7 @@ class EventBLL(object):
             "_source": ["iter", "value"],
             "sort": ["iter"],
         }
-        with translate_errors_context(), TimingContext("es", "task_stats_vector"):
+        with translate_errors_context():
             es_res = search_company_events(
                 self.es, company_id=company_id, event_type=event_type, body=es_req
             )
@@ -990,7 +976,7 @@ class EventBLL(object):
             "query": {"bool": {"must": [{"terms": {"task": task_ids}}]}},
         }
 
-        with translate_errors_context(), TimingContext("es", "task_last_iter"):
+        with translate_errors_context():
             es_res = search_company_events(
                 self.es, company_id=company_id, event_type=event_type, body=es_req,
             )
@@ -1022,7 +1008,7 @@ class EventBLL(object):
         )
 
         es_req = {"query": {"term": {"task": task_id}}}
-        with translate_errors_context(), TimingContext("es", "delete_task_events"):
+        with translate_errors_context():
             es_res = delete_company_events(
                 es=self.es,
                 company_id=company_id,
@@ -1048,7 +1034,7 @@ class EventBLL(object):
         ):
             return 0
 
-        with translate_errors_context(), TimingContext("es", "clear_task_log"):
+        with translate_errors_context():
             must = [{"term": {"task": task_id}}]
             sort = None
             if threshold_sec:
@@ -1082,9 +1068,7 @@ class EventBLL(object):
         so it should be checked by the calling code
         """
         es_req = {"query": {"terms": {"task": task_ids}}}
-        with translate_errors_context(), TimingContext(
-            "es", "delete_multi_tasks_events"
-        ):
+        with translate_errors_context():
             es_res = delete_company_events(
                 es=self.es,
                 company_id=company_id,

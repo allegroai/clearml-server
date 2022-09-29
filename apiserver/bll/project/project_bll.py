@@ -29,7 +29,6 @@ from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, external_task_types
 from apiserver.database.utils import get_options, get_company_or_none_constraint
-from apiserver.timing_context import TimingContext
 from apiserver.utilities.dicts import nested_get
 from .sub_projects import (
     _reposition_project_with_children,
@@ -57,54 +56,53 @@ class ProjectBLL:
         Remove the source project
         Return the amounts of moved entities and subprojects + set of all the affected project ids
         """
-        with TimingContext("mongo", "move_project"):
-            if source_id == destination_id:
-                raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
-                    source=source_id
+        if source_id == destination_id:
+            raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
+                source=source_id
+            )
+        source = Project.get(company, source_id)
+        if destination_id:
+            destination = Project.get(company, destination_id)
+            if source_id in destination.path:
+                raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
+                    source=source_id, destination=destination_id
                 )
-            source = Project.get(company, source_id)
-            if destination_id:
-                destination = Project.get(company, destination_id)
-                if source_id in destination.path:
-                    raise errors.bad_request.ProjectCannotBeMergedIntoItsChild(
-                        source=source_id, destination=destination_id
-                    )
-            else:
-                destination = None
+        else:
+            destination = None
 
-            children = _get_sub_projects(
-                [source.id], _only=("id", "name", "parent", "path")
-            )[source.id]
-            if destination:
-                cls.validate_projects_depth(
-                    projects=children,
-                    old_parent_depth=len(source.path) + 1,
-                    new_parent_depth=len(destination.path) + 1,
-                )
+        children = _get_sub_projects(
+            [source.id], _only=("id", "name", "parent", "path")
+        )[source.id]
+        if destination:
+            cls.validate_projects_depth(
+                projects=children,
+                old_parent_depth=len(source.path) + 1,
+                new_parent_depth=len(destination.path) + 1,
+            )
 
-            moved_entities = 0
-            for entity_type in (Task, Model):
-                moved_entities += entity_type.objects(
-                    company=company,
-                    project=source_id,
-                    system_tags__nin=[EntityVisibility.archived.value],
-                ).update(upsert=False, project=destination_id)
+        moved_entities = 0
+        for entity_type in (Task, Model):
+            moved_entities += entity_type.objects(
+                company=company,
+                project=source_id,
+                system_tags__nin=[EntityVisibility.archived.value],
+            ).update(upsert=False, project=destination_id)
 
-            moved_sub_projects = 0
-            for child in Project.objects(company=company, parent=source_id):
-                _reposition_project_with_children(
-                    project=child,
-                    children=[c for c in children if c.parent == child.id],
-                    parent=destination,
-                )
-                moved_sub_projects += 1
+        moved_sub_projects = 0
+        for child in Project.objects(company=company, parent=source_id):
+            _reposition_project_with_children(
+                project=child,
+                children=[c for c in children if c.parent == child.id],
+                parent=destination,
+            )
+            moved_sub_projects += 1
 
-            affected = {source.id, *(source.path or [])}
-            source.delete()
+        affected = {source.id, *(source.path or [])}
+        source.delete()
 
-            if destination:
-                destination.update(last_update=datetime.utcnow())
-                affected.update({destination.id, *(destination.path or [])})
+        if destination:
+            destination.update(last_update=datetime.utcnow())
+            affected.update({destination.id, *(destination.path or [])})
 
         return moved_entities, moved_sub_projects, affected
 
@@ -127,78 +125,76 @@ class ProjectBLL:
         it should be writable. The source location should be writable too.
         Return the number of moved projects + set of all the affected project ids
         """
-        with TimingContext("mongo", "move_project"):
-            project = Project.get(company, project_id)
-            old_parent_id = project.parent
-            old_parent = (
-                Project.get_for_writing(company=project.company, id=old_parent_id)
-                if old_parent_id
-                else None
+        project = Project.get(company, project_id)
+        old_parent_id = project.parent
+        old_parent = (
+            Project.get_for_writing(company=project.company, id=old_parent_id)
+            if old_parent_id
+            else None
+        )
+
+        children = _get_sub_projects([project.id], _only=("id", "name", "path"))[
+            project.id
+        ]
+        cls.validate_projects_depth(
+            projects=[project, *children],
+            old_parent_depth=len(project.path),
+            new_parent_depth=_get_project_depth(new_location),
+        )
+
+        new_parent = _ensure_project(company=company, user=user, name=new_location)
+        new_parent_id = new_parent.id if new_parent else None
+        if old_parent_id == new_parent_id:
+            raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
+                location=new_parent.name if new_parent else ""
             )
-
-            children = _get_sub_projects([project.id], _only=("id", "name", "path"))[
-                project.id
-            ]
-            cls.validate_projects_depth(
-                projects=[project, *children],
-                old_parent_depth=len(project.path),
-                new_parent_depth=_get_project_depth(new_location),
+        if new_parent and (
+            project_id == new_parent.id or project_id in new_parent.path
+        ):
+            raise errors.bad_request.ProjectCannotBeMovedUnderItself(
+                project=project_id, parent=new_parent.id
             )
+        moved = _reposition_project_with_children(
+            project, children=children, parent=new_parent
+        )
 
-            new_parent = _ensure_project(company=company, user=user, name=new_location)
-            new_parent_id = new_parent.id if new_parent else None
-            if old_parent_id == new_parent_id:
-                raise errors.bad_request.ProjectSourceAndDestinationAreTheSame(
-                    location=new_parent.name if new_parent else ""
-                )
-            if new_parent and (
-                project_id == new_parent.id or project_id in new_parent.path
-            ):
-                raise errors.bad_request.ProjectCannotBeMovedUnderItself(
-                    project=project_id, parent=new_parent.id
-                )
-            moved = _reposition_project_with_children(
-                project, children=children, parent=new_parent
-            )
+        now = datetime.utcnow()
+        affected = set()
+        for p in filter(None, (old_parent, new_parent)):
+            p.update(last_update=now)
+            affected.update({p.id, *(p.path or [])})
 
-            now = datetime.utcnow()
-            affected = set()
-            for p in filter(None, (old_parent, new_parent)):
-                p.update(last_update=now)
-                affected.update({p.id, *(p.path or [])})
-
-            return moved, affected
+        return moved, affected
 
     @classmethod
     def update(cls, company: str, project_id: str, **fields):
-        with TimingContext("mongo", "projects_update"):
-            project = Project.get_for_writing(company=company, id=project_id)
-            if not project:
-                raise errors.bad_request.InvalidProjectId(id=project_id)
+        project = Project.get_for_writing(company=company, id=project_id)
+        if not project:
+            raise errors.bad_request.InvalidProjectId(id=project_id)
 
-            new_name = fields.pop("name", None)
-            if new_name:
-                new_name, new_location = _validate_project_name(new_name)
-                old_name, old_location = _validate_project_name(project.name)
-                if new_location != old_location:
-                    raise errors.bad_request.CannotUpdateProjectLocation(name=new_name)
-                fields["name"] = new_name
-                fields["basename"] = new_name.split("/")[-1]
+        new_name = fields.pop("name", None)
+        if new_name:
+            new_name, new_location = _validate_project_name(new_name)
+            old_name, old_location = _validate_project_name(project.name)
+            if new_location != old_location:
+                raise errors.bad_request.CannotUpdateProjectLocation(name=new_name)
+            fields["name"] = new_name
+            fields["basename"] = new_name.split("/")[-1]
 
-            fields["last_update"] = datetime.utcnow()
-            updated = project.update(upsert=False, **fields)
+        fields["last_update"] = datetime.utcnow()
+        updated = project.update(upsert=False, **fields)
 
-            if new_name:
-                old_name = project.name
-                project.name = new_name
-                children = _get_sub_projects(
-                    [project.id], _only=("id", "name", "path")
-                )[project.id]
-                _update_subproject_names(
-                    project=project, children=children, old_name=old_name
-                )
+        if new_name:
+            old_name = project.name
+            project.name = new_name
+            children = _get_sub_projects([project.id], _only=("id", "name", "path"))[
+                project.id
+            ]
+            _update_subproject_names(
+                project=project, children=children, old_name=old_name
+            )
 
-            return updated
+        return updated
 
     @classmethod
     def create(
@@ -301,24 +297,23 @@ class ProjectBLL:
         """
         Move a batch of entities to `project` or a project named `project_name` (create if does not exist)
         """
-        with TimingContext("mongo", "move_under_project"):
-            project = cls.find_or_create(
-                user=user,
-                company=company,
-                project_id=project,
-                project_name=project_name,
-                description="",
-            )
-            extra = (
-                {"set__last_change": datetime.utcnow()}
-                if hasattr(entity_cls, "last_change")
-                else {}
-            )
-            entity_cls.objects(company=company, id__in=ids).update(
-                set__project=project, **extra
-            )
+        project = cls.find_or_create(
+            user=user,
+            company=company,
+            project_id=project,
+            project_name=project_name,
+            description="",
+        )
+        extra = (
+            {"set__last_change": datetime.utcnow()}
+            if hasattr(entity_cls, "last_change")
+            else {}
+        )
+        entity_cls.objects(company=company, id__in=ids).update(
+            set__project=project, **extra
+        )
 
-            return project
+        return project
 
     archived_tasks_cond = {"$in": [EntityVisibility.archived.value, "$system_tags"]}
     visibility_states = [EntityVisibility.archived, EntityVisibility.active]
@@ -716,22 +711,21 @@ class ProjectBLL:
         If project_ids is empty then all projects are examined
         If user_ids are passed then only subset of these users is returned
         """
-        with TimingContext("mongo", "active_users_in_projects"):
-            query = Q(company=company)
-            if user_ids:
-                query &= Q(user__in=user_ids)
+        query = Q(company=company)
+        if user_ids:
+            query &= Q(user__in=user_ids)
 
-            projects_query = query
-            if project_ids:
-                project_ids = _ids_with_children(project_ids)
-                query &= Q(project__in=project_ids)
-                projects_query &= Q(id__in=project_ids)
+        projects_query = query
+        if project_ids:
+            project_ids = _ids_with_children(project_ids)
+            query &= Q(project__in=project_ids)
+            projects_query &= Q(id__in=project_ids)
 
-            res = set(Project.objects(projects_query).distinct(field="user"))
-            for cls_ in (Task, Model):
-                res |= set(cls_.objects(query).distinct(field="user"))
+        res = set(Project.objects(projects_query).distinct(field="user"))
+        for cls_ in (Task, Model):
+            res |= set(cls_.objects(query).distinct(field="user"))
 
-            return res
+        return res
 
     @classmethod
     def get_project_tags(
@@ -741,21 +735,20 @@ class ProjectBLL:
         projects: Sequence[str] = None,
         filter_: Dict[str, Sequence[str]] = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
-        with TimingContext("mongo", "get_tags_from_db"):
-            query = Q(company=company_id)
-            if filter_:
-                for name, vals in filter_.items():
-                    if vals:
-                        query &= GetMixin.get_list_field_query(name, vals)
+        query = Q(company=company_id)
+        if filter_:
+            for name, vals in filter_.items():
+                if vals:
+                    query &= GetMixin.get_list_field_query(name, vals)
 
-            if projects:
-                query &= Q(id__in=_ids_with_children(projects))
+        if projects:
+            query &= Q(id__in=_ids_with_children(projects))
 
-            tags = Project.objects(query).distinct("tags")
-            system_tags = (
-                Project.objects(query).distinct("system_tags") if include_system else []
-            )
-            return tags, system_tags
+        tags = Project.objects(query).distinct("tags")
+        system_tags = (
+            Project.objects(query).distinct("system_tags") if include_system else []
+        )
+        return tags, system_tags
 
     @classmethod
     def get_projects_with_active_user(
@@ -930,10 +923,9 @@ class ProjectBLL:
         def get_agrregate_res(cls_: Type[AttributedDocument]) -> dict:
             return {data["_id"]: data["count"] for data in cls_.aggregate(pipeline)}
 
-        with TimingContext("mongo", "get_security_groups"):
-            tasks = get_agrregate_res(Task)
-            models = get_agrregate_res(Model)
-            return {
-                pid: {"own_tasks": tasks.get(pid, 0), "own_models": models.get(pid, 0)}
-                for pid in project_ids
-            }
+        tasks = get_agrregate_res(Task)
+        models = get_agrregate_res(Model)
+        return {
+            pid: {"own_tasks": tasks.get(pid, 0), "own_models": models.get(pid, 0)}
+            for pid in project_ids
+        }

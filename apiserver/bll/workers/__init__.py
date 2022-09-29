@@ -25,7 +25,6 @@ from apiserver.database.model.project import Project
 from apiserver.database.model.queue import Queue
 from apiserver.database.model.task.task import Task
 from apiserver.redis_manager import redman
-from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
 from .stats import WorkerStats
 
@@ -109,15 +108,19 @@ class WorkerBLL:
         :param worker: worker ID
         :raise bad_request.WorkerNotRegistered: the worker was not previously registered
         """
-        with TimingContext("redis", "workers_unregister"):
-            res = self.redis.delete(
-                company_id, self._get_worker_key(company_id, user_id, worker)
-            )
+        res = self.redis.delete(
+            company_id, self._get_worker_key(company_id, user_id, worker)
+        )
         if not res and not config.get("apiserver.workers.auto_unregister", False):
             raise bad_request.WorkerNotRegistered(worker=worker)
 
     def status_report(
-        self, company_id: str, user_id: str, ip: str, report: StatusReportRequest, tags: Sequence[str] = None,
+        self,
+        company_id: str,
+        user_id: str,
+        ip: str,
+        report: StatusReportRequest,
+        tags: Sequence[str] = None,
     ) -> None:
         """
         Write worker status report
@@ -176,7 +179,9 @@ class WorkerBLL:
                     if task.project:
                         project = Project.objects(id=task.project).only("name").first()
                         if project:
-                            entry.project = IdNameEntry(id=project.id, name=project.name)
+                            entry.project = IdNameEntry(
+                                id=project.id, name=project.name
+                            )
 
             entry.last_report_time = now
         except APIError:
@@ -323,8 +328,7 @@ class WorkerBLL:
         """
         key = self._get_worker_key(company_id, user_id, worker)
 
-        with TimingContext("redis", "get_worker"):
-            data = self.redis.get(key)
+        data = self.redis.get(key)
 
         if data:
             try:
@@ -367,11 +371,10 @@ class WorkerBLL:
         """Get worker entries matching the company and user, worker patterns"""
         entries = []
         match = self._get_worker_key(company, user, worker_id)
-        with TimingContext("redis", "workers_get_all"):
-            for r in self.redis.scan_iter(match):
-                data = self.redis.get(r)
-                if data:
-                    entries.append(WorkerEntry.from_json(data))
+        for r in self.redis.scan_iter(match):
+            data = self.redis.get(r)
+            if data:
+                entries.append(WorkerEntry.from_json(data))
 
         return entries
 

@@ -15,8 +15,12 @@ from apiserver.bll.task.utils import deleted_prefix
 from apiserver.config_repo import config
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus, ArtifactModes
-from apiserver.database.model.url_to_delete import StorageType, UrlToDelete, FileType, DeletionStatus
-from apiserver.timing_context import TimingContext
+from apiserver.database.model.url_to_delete import (
+    StorageType,
+    UrlToDelete,
+    FileType,
+    DeletionStatus,
+)
 from apiserver.database.utils import id as db_id
 
 event_bll = EventBLL()
@@ -65,17 +69,16 @@ class CleanupResult:
 def collect_plot_image_urls(company: str, task: str) -> Set[str]:
     urls = set()
     next_scroll_id = None
-    with TimingContext("es", "collect_plot_image_urls"):
-        while True:
-            events, next_scroll_id = event_bll.get_plot_image_urls(
-                company_id=company, task_id=task, scroll_id=next_scroll_id
-            )
-            if not events:
-                break
-            for event in events:
-                event_urls = event.get(PlotFields.source_urls)
-                if event_urls:
-                    urls.update(set(event_urls))
+    while True:
+        events, next_scroll_id = event_bll.get_plot_image_urls(
+            company_id=company, task_id=task, scroll_id=next_scroll_id
+        )
+        if not events:
+            break
+        for event in events:
+            event_urls = event.get(PlotFields.source_urls)
+            if event_urls:
+                urls.update(set(event_urls))
 
     return urls
 
@@ -89,9 +92,7 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     urls = set()
     while True:
         res, after_key = event_bll.get_debug_image_urls(
-            company_id=company,
-            task_id=task,
-            after_key=after_key,
+            company_id=company, task_id=task, after_key=after_key,
         )
         urls.update(res)
         if not after_key:
@@ -198,10 +199,7 @@ def cleanup_task(
     deleted_task_id = f"{deleted_prefix}{task.id}"
     updated_children = 0
     if update_children:
-        with TimingContext("mongo", "update_task_children"):
-            updated_children = Task.objects(parent=task.id).update(
-                parent=deleted_task_id
-            )
+        updated_children = Task.objects(parent=task.id).update(parent=deleted_task_id)
 
     deleted_models = 0
     updated_models = 0
@@ -256,16 +254,15 @@ def verify_task_children_and_ouptuts(
     task, force: bool
 ) -> Tuple[Sequence[Model], Sequence[Model], Set[str]]:
     if not force:
-        with TimingContext("mongo", "count_published_children"):
-            published_children_count = Task.objects(
-                parent=task.id, status=TaskStatus.published
-            ).count()
-            if published_children_count:
-                raise errors.bad_request.TaskCannotBeDeleted(
-                    "has children, use force=True",
-                    task=task.id,
-                    children=published_children_count,
-                )
+        published_children_count = Task.objects(
+            parent=task.id, status=TaskStatus.published
+        ).count()
+        if published_children_count:
+            raise errors.bad_request.TaskCannotBeDeleted(
+                "has children, use force=True",
+                task=task.id,
+                children=published_children_count,
+            )
 
     model_fields = ["id", "ready", "uri"]
     published_models, draft_models = partition(

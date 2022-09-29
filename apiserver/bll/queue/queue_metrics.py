@@ -14,7 +14,6 @@ from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.queue import Queue, Entry
 from apiserver.redis_manager import redman
-from apiserver.timing_context import TimingContext
 from apiserver.utilities.threads_manager import ThreadsManager
 
 log = config.logger(__file__)
@@ -182,7 +181,7 @@ class QueueMetrics:
             "aggs": self._get_dates_agg(interval),
         }
 
-        with translate_errors_context(), TimingContext("es", "get_queue_metrics"):
+        with translate_errors_context():
             res = self._search_company_metrics(company_id, es_req)
 
         if "aggregations" not in res:
@@ -285,6 +284,7 @@ class MetricsRefresher:
 
         if not queue_metrics:
             from .queue_bll import QueueBLL
+
             queue_metrics = QueueBLL().metrics
 
         sleep(10)

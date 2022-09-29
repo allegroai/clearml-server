@@ -39,7 +39,6 @@ from apiserver.services.utils import (
     get_tags_filter_dictionary,
     sort_tags_response,
 )
-from apiserver.timing_context import TimingContext
 
 org_bll = OrgBLL()
 project_bll = ProjectBLL()
@@ -60,11 +59,8 @@ def get_by_id(call):
     project_id = call.data["project"]
 
     with translate_errors_context():
-        with TimingContext("mongo", "projects_by_id"):
-            query = Q(id=project_id) & get_company_or_none_constraint(
-                call.identity.company
-            )
-            project = Project.objects(query).first()
+        query = Q(id=project_id) & get_company_or_none_constraint(call.identity.company)
+        project = Project.objects(query).first()
         if not project:
             raise errors.bad_request.InvalidProjectId(id=project_id)
 
@@ -109,68 +105,65 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     _adjust_search_parameters(
         data, shallow_search=request.shallow_search,
     )
-    with TimingContext("mongo", "projects_get_all"):
-        user_active_project_ids = None
-        if request.active_users:
-            ids, user_active_project_ids = project_bll.get_projects_with_active_user(
-                company=company_id,
-                users=request.active_users,
-                project_ids=requested_ids,
-                allow_public=allow_public,
-            )
-            if not ids:
-                return {"projects": []}
-            data["id"] = ids
-
-        ret_params = {}
-        projects: Sequence[dict] = Project.get_many_with_join(
+    user_active_project_ids = None
+    if request.active_users:
+        ids, user_active_project_ids = project_bll.get_projects_with_active_user(
             company=company_id,
-            query_dict=data,
-            query=_hidden_query(search_hidden=request.search_hidden, ids=requested_ids),
+            users=request.active_users,
+            project_ids=requested_ids,
             allow_public=allow_public,
-            ret_params=ret_params,
         )
-        if not projects:
-            return {"projects": projects, **ret_params}
+        if not ids:
+            return {"projects": []}
+        data["id"] = ids
 
-        project_ids = list({project["id"] for project in projects})
-        if request.check_own_contents:
-            contents = project_bll.calc_own_contents(
-                company=company_id,
-                project_ids=project_ids,
-                filter_=request.include_stats_filter,
-                users=request.active_users,
-            )
-            for project in projects:
-                project.update(**contents.get(project["id"], {}))
+    ret_params = {}
+    projects: Sequence[dict] = Project.get_many_with_join(
+        company=company_id,
+        query_dict=data,
+        query=_hidden_query(search_hidden=request.search_hidden, ids=requested_ids),
+        allow_public=allow_public,
+        ret_params=ret_params,
+    )
+    if not projects:
+        return {"projects": projects, **ret_params}
 
-        conform_output_tags(call, projects)
-        if request.include_stats:
-            stats, children = project_bll.get_project_stats(
-                company=company_id,
-                project_ids=project_ids,
-                specific_state=request.stats_for_state,
-                include_children=request.stats_with_children,
-                search_hidden=request.search_hidden,
-                filter_=request.include_stats_filter,
-                users=request.active_users,
-                user_active_project_ids=user_active_project_ids,
-            )
+    project_ids = list({project["id"] for project in projects})
+    if request.check_own_contents:
+        contents = project_bll.calc_own_contents(
+            company=company_id,
+            project_ids=project_ids,
+            filter_=request.include_stats_filter,
+            users=request.active_users,
+        )
+        for project in projects:
+            project.update(**contents.get(project["id"], {}))
 
-            for project in projects:
-                project["stats"] = stats[project["id"]]
-                project["sub_projects"] = children[project["id"]]
+    conform_output_tags(call, projects)
+    if request.include_stats:
+        stats, children = project_bll.get_project_stats(
+            company=company_id,
+            project_ids=project_ids,
+            specific_state=request.stats_for_state,
+            include_children=request.stats_with_children,
+            search_hidden=request.search_hidden,
+            filter_=request.include_stats_filter,
+            users=request.active_users,
+            user_active_project_ids=user_active_project_ids,
+        )
 
-        if request.include_dataset_stats:
-            dataset_stats = project_bll.get_dataset_stats(
-                company=company_id,
-                project_ids=project_ids,
-                users=request.active_users,
-            )
-            for project in projects:
-                project["dataset_stats"] = dataset_stats.get(project["id"])
+        for project in projects:
+            project["stats"] = stats[project["id"]]
+            project["sub_projects"] = children[project["id"]]
 
-        call.result.data = {"projects": projects, **ret_params}
+    if request.include_dataset_stats:
+        dataset_stats = project_bll.get_dataset_stats(
+            company=company_id, project_ids=project_ids, users=request.active_users,
+        )
+        for project in projects:
+            project["dataset_stats"] = dataset_stats.get(project["id"])
+
+    call.result.data = {"projects": projects, **ret_params}
 
 
 @endpoint("projects.get_all")
@@ -180,20 +173,19 @@ def get_all(call: APICall):
     _adjust_search_parameters(
         data, shallow_search=data.get("shallow_search", False),
     )
-    with TimingContext("mongo", "projects_get_all"):
-        ret_params = {}
-        projects = Project.get_many(
-            company=call.identity.company,
-            query_dict=data,
-            query=_hidden_query(
-                search_hidden=data.get("search_hidden"), ids=data.get("id")
-            ),
-            parameters=data,
-            allow_public=True,
-            ret_params=ret_params,
-        )
-        conform_output_tags(call, projects)
-        call.result.data = {"projects": projects, **ret_params}
+    ret_params = {}
+    projects = Project.get_many(
+        company=call.identity.company,
+        query_dict=data,
+        query=_hidden_query(
+            search_hidden=data.get("search_hidden"), ids=data.get("id")
+        ),
+        parameters=data,
+        allow_public=True,
+        ret_params=ret_params,
+    )
+    conform_output_tags(call, projects)
+    call.result.data = {"projects": projects, **ret_params}
 
 
 @endpoint(
