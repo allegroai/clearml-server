@@ -6,6 +6,7 @@ from elasticsearch import Elasticsearch
 from mongoengine import Q
 
 from apiserver import database
+from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.queue.queue_metrics import QueueMetrics
@@ -140,10 +141,34 @@ class QueueBLL(object):
         """
         with translate_errors_context():
             queue = self.get_by_id(company_id=company_id, queue_id=queue_id)
-            if queue.entries and not force:
-                raise errors.bad_request.QueueNotEmpty(
-                    "use force=true to delete", id=queue_id
-                )
+            if queue.entries:
+                if not force:
+                    raise errors.bad_request.QueueNotEmpty(
+                        "use force=true to delete", id=queue_id
+                    )
+                from apiserver.bll.task import ChangeStatusRequest
+
+                for item in queue.entries:
+                    try:
+                        task = Task.get_for_writing(
+                            company=company_id,
+                            id=item.task,
+                            _only=["id", "status", "enqueue_status", "project"],
+                        )
+                        if not task:
+                            continue
+
+                        ChangeStatusRequest(
+                            task=task,
+                            new_status=task.enqueue_status or TaskStatus.created,
+                            status_reason="Queue was deleted",
+                            status_message="",
+                        ).execute(enqueue_status=None)
+                    except Exception as ex:
+                        log.exception(
+                            f"Failed dequeuing task {item.task} from queue: {queue_id}"
+                        )
+
             queue.delete()
 
     def get_all(
