@@ -1,7 +1,7 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby, chain
-from typing import Sequence, Dict, Callable, Tuple, Any, Type
+from typing import Sequence, Dict, Callable
 
 from apiserver.apierrors import errors
 from apiserver.database.props import PropsMixin
@@ -48,9 +48,6 @@ class ProjectionHelper(object):
         self._doc_projection = None
         self._ref_projection = None
         self._proxy_manager = _ProxyManager()
-
-        # Cached dpath paths for each of the result documents
-        self._cached_results_paths: Dict[int, Sequence[Tuple[Any, Type]]] = {}
 
         self._parse_projection(projection)
 

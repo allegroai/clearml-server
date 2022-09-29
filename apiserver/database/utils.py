@@ -1,6 +1,6 @@
 import hashlib
 from inspect import ismethod, getmembers
-from typing import Sequence, Tuple, Set, Optional, Callable, Any
+from typing import Sequence, Tuple, Set, Optional, Callable, Any, Mapping
 from uuid import uuid4
 
 from mongoengine import EmbeddedDocumentField, ListField, Document, Q
@@ -203,18 +203,22 @@ def _names_set(*names: str) -> Set[str]:
     return set(names) | set(f"-{name}" for name in names)
 
 
-system_tag_names = {
+_system_tag_names = {
     "model": _names_set("active", "archived"),
     "project": _names_set("archived", "public", "default"),
     "task": _names_set("active", "archived", "development"),
     "queue": _names_set("default"),
 }
 
-system_tag_prefixes = {"task": _names_set("annotat")}
+_system_tag_prefixes = {"task": _names_set("annotat")}
 
 
 def partition_tags(
-    entity: str, tags: Sequence[str], system_tags: Optional[Sequence[str]] = ()
+    entity: str,
+    tags: Sequence[str],
+    system_tags: Optional[Sequence[str]] = (),
+    system_tag_names: Mapping = _system_tag_names,
+    system_tag_prefixes: Mapping = _system_tag_prefixes,
 ) -> Tuple[Sequence[str], Sequence[str]]:
     """
     Partition the given tags sequence into system and user-defined tags
