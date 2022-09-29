@@ -260,16 +260,22 @@ class QueueBLL(object):
 
             return res
 
-    def get_next_task(self, company_id: str, queue_id: str) -> Optional[Entry]:
+    def get_next_task(
+        self, company_id: str, queue_id: str, task_id: str = None
+    ) -> Optional[Entry]:
         """
         Atomically pop and return the first task from the queue (or None)
         :raise errors.bad_request.InvalidQueueId: if the queue does not exist
         """
         with translate_errors_context():
             query = dict(id=queue_id, company=company_id)
-            queue = Queue.objects(**query).modify(pop__entries=-1, upsert=False)
+            queue = Queue.objects(
+                **query, **({"entries__0__task": task_id} if task_id else {})
+            ).modify(pop__entries=-1, upsert=False)
             if not queue:
-                raise errors.bad_request.InvalidQueueId(**query)
+                if not task_id or not Queue.objects(**query).first():
+                    raise errors.bad_request.InvalidQueueId(**query)
+                return
 
             self.metrics.log_queue_metrics_to_es(company_id, queues=[queue])
 
