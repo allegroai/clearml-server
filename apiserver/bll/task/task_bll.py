@@ -264,7 +264,7 @@ class TaskBLL:
             parent_task = (
                 task.parent
                 if task.parent and not task.parent.startswith(deleted_prefix)
-                else None
+                else task.id
             )
             new_task = Task(
                 id=create_id(),
