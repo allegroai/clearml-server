@@ -1,4 +1,5 @@
 from functools import partial
+from os import getenv
 
 from flask import request, Response, redirect
 from werkzeug.datastructures import ImmutableMultiDict
@@ -13,7 +14,17 @@ from apiserver.service_repo.errors import PathParsingError
 from apiserver.utilities import json
 from apiserver.utilities.dicts import nested_set
 
+
 log = config.logger(__file__)
+
+log_request_paths = None
+# noinspection PyBroadException
+try:
+    debug_request = getenv("CLEARML_SERVER_DEBUG_REQUESTS", "")
+    if debug_request:
+        log_request_paths = [path.split("") for path in debug_request.split(",")]
+except Exception:
+    log.exception("Failed parsing CLEARML_SERVER_DEBUG_REQUESTS")
 
 
 class RequestHandlers:
@@ -33,6 +44,16 @@ class RequestHandlers:
             return f"Content encoding is not supported ({request.content_encoding})", 415
 
         try:
+            if log_request_paths:
+                try:
+                    msg = "\n".join(
+                        nested_dict(request)
+                    )
+                    for path in  log_request_paths:
+                        log.info()
+                except (KeyError, ValueError, TypeError, AttributeError) as ex:
+                    log.error("Failed logging request paths: {}".format(ex))
+
             call = self._create_api_call(request)
             load_data_callback = partial(self._load_call_data, req=request)
             content, content_type, company = ServiceRepo.handle_call(
@@ -202,3 +223,7 @@ class RequestHandlers:
             )
         except Exception as ex:
             call.set_error_result(msg=ex.args[0] if ex.args else type(ex).__name__)
+
+
+if __name__ == '__main__':
+    pass
