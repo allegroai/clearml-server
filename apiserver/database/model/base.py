@@ -368,18 +368,27 @@ class GetMixin(PropsMixin):
                 if data is not None:
                     if not isinstance(data, list):
                         data = [data]
-                    for d in data:  # type: str
-                        m = ACCESS_REGEX.match(d)
-                        if not m:
-                            continue
-                        try:
-                            value = parse_datetime(m.group("value"))
-                            prefix = m.group("prefix")
-                            modifier = ACCESS_MODIFIER.get(prefix)
-                            f = field if not modifier else "__".join((field, modifier))
-                            dict_query[f] = value
-                        except (ValueError, OverflowError):
-                            pass
+                    # date time fields also support simplified range queries. Check if this is the case
+                    if len(data) == 2 and not any(
+                        d.startswith(mod)
+                        for d in data
+                        if d is not None
+                        for mod in ACCESS_MODIFIER
+                    ):
+                        query &= cls.get_range_field_query(field, data)
+                    else:
+                        for d in data:  # type: str
+                            m = ACCESS_REGEX.match(d)
+                            if not m:
+                                continue
+                            try:
+                                value = parse_datetime(m.group("value"))
+                                prefix = m.group("prefix")
+                                modifier = ACCESS_MODIFIER.get(prefix)
+                                f = field if not modifier else "__".join((field, modifier))
+                                dict_query[f] = value
+                            except (ValueError, OverflowError):
+                                pass
 
             for field, value in parameters.items():
                 for keys, func in cls._multi_field_param_prefix.items():
