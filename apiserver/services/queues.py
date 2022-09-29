@@ -1,3 +1,5 @@
+from mongoengine import Q
+
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.apimodels.queues import (
     GetDefaultResp,
@@ -15,10 +17,12 @@ from apiserver.apimodels.queues import (
     DeleteMetadataRequest,
     GetNextTaskRequest,
     GetByIdRequest,
+    GetAllRequest,
 )
 from apiserver.bll.model import Metadata
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.workers import WorkerBLL
+from apiserver.config_repo import config
 from apiserver.database.model.task.task import Task
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
@@ -51,16 +55,33 @@ def get_by_id(call: APICall):
     call.result.data_model = GetDefaultResp(id=queue.id, name=queue.name)
 
 
+def _hidden_query(data: dict) -> Q:
+    """
+    1. Add only non-hidden queues search condition (unless specifically specified differently)
+    """
+    hidden_tags = config.get("services.queues.hidden_tags", [])
+    if (
+        not hidden_tags
+        or data.get("search_hidden")
+        or data.get("id")
+        or data.get("name")
+    ):
+        return Q()
+
+    return Q(system_tags__nin=hidden_tags)
+
+
 @endpoint("queues.get_all_ex", min_version="2.4")
-def get_all_ex(call: APICall):
+def get_all_ex(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
 
     Metadata.escape_query_parameters(call)
     queues = queue_bll.get_queue_infos(
-        company_id=call.identity.company,
+        company_id=company,
         query_dict=call.data,
-        max_task_entries=call.data.pop("max_task_entries", None),
+        query=_hidden_query(call.data),
+        max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )
     conform_output_tags(call, queues)
@@ -69,14 +90,15 @@ def get_all_ex(call: APICall):
 
 
 @endpoint("queues.get_all", min_version="2.4")
-def get_all(call: APICall):
+def get_all(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
     Metadata.escape_query_parameters(call)
     queues = queue_bll.get_all(
-        company_id=call.identity.company,
+        company_id=company,
         query_dict=call.data,
-        max_task_entries=call.data.pop("max_task_entries", None),
+        query=_hidden_query(call.data),
+        max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )
     conform_output_tags(call, queues)

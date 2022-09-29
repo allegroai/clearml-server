@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Callable, Sequence, Optional, Tuple
 
 from elasticsearch import Elasticsearch
+from mongoengine import Q
 
 from apiserver import database
 from apiserver.es_factory import es_factory
@@ -149,6 +150,7 @@ class QueueBLL(object):
         self,
         company_id: str,
         query_dict: dict,
+        query: Q = None,
         max_task_entries: int = None,
         ret_params: dict = None,
     ) -> Sequence[dict]:
@@ -158,6 +160,7 @@ class QueueBLL(object):
                 company=company_id,
                 parameters=query_dict,
                 query_dict=query_dict,
+                query=query,
                 projection_fields=self._get_task_entries_projection(max_task_entries)
                 if max_task_entries
                 else None,
@@ -168,6 +171,7 @@ class QueueBLL(object):
         self,
         company_id: str,
         query_dict: dict,
+        query: Q = None,
         max_task_entries: int = None,
         ret_params: dict = None,
     ) -> Sequence[dict]:
@@ -179,6 +183,7 @@ class QueueBLL(object):
             res = Queue.get_many_with_join(
                 company=company_id,
                 query_dict=query_dict,
+                query=query,
                 override_projection=projection,
                 projection_fields=self._get_task_entries_projection(max_task_entries)
                 if max_task_entries

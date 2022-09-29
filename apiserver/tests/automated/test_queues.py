@@ -21,7 +21,7 @@ class TestQueues(TestService):
 
     def test_queue_metrics(self):
         queue_id = self._temp_queue("TestTempQueue")
-        task1 = self._create_temp_queued_task("temp task 1", queue_id)
+        self._create_temp_queued_task("temp task 1", queue_id)
         time.sleep(1)
         task2 = self._create_temp_queued_task("temp task 2", queue_id)
         self.api.queues.get_next_task(queue=queue_id)
@@ -35,6 +35,27 @@ class TestQueues(TestService):
             interval=5,
         )
         self.assertMetricQueues(res["queues"], queue_id)
+
+    def test_hidden_queues(self):
+        hidden_name = "TestHiddenQueue"
+        hidden_queue = self._temp_queue(hidden_name, system_tags=["k8s-glue"])
+        non_hidden_queue = self._temp_queue("TestNonHiddenQueue")
+
+        queues = self.api.queues.get_all_ex().queues
+        ids = {q.id for q in queues}
+        self.assertFalse(hidden_queue in ids)
+        self.assertTrue(non_hidden_queue in ids)
+
+        queues = self.api.queues.get_all_ex(search_hidden=True).queues
+        ids = {q.id for q in queues}
+        self.assertTrue(hidden_queue in ids)
+        self.assertTrue(non_hidden_queue in ids)
+
+        queues = self.api.queues.get_all_ex(name=f"^{hidden_name}$").queues
+        self.assertEqual(hidden_queue, queues[0].id)
+
+        queues = self.api.queues.get_all_ex(id=[hidden_queue]).queues
+        self.assertEqual(hidden_queue, queues[0].id)
 
     def test_reset_task(self):
         queue = self._temp_queue("TestTempQueue")
@@ -207,8 +228,8 @@ class TestQueues(TestService):
             sorted(queue.workers, key=sort_key), sorted(workers, key=sort_key)
         )
 
-    def _temp_queue(self, queue_name, tags=None):
-        return self.create_temp("queues", name=queue_name, tags=tags)
+    def _temp_queue(self, queue_name, **kwargs):
+        return self.create_temp("queues", name=queue_name, **kwargs)
 
     def _temp_task(self, task_name, is_testing=False, is_development=False):
         task_input = dict(
