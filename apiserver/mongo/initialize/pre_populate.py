@@ -24,7 +24,7 @@ from typing import (
     Callable,
 )
 from urllib.parse import unquote, urlparse
-from uuid import uuid4
+from uuid import uuid4, UUID, uuid5
 from zipfile import ZipFile, ZIP_BZIP2
 
 import mongoengine
@@ -72,6 +72,8 @@ class PrePopulate:
         r"['\"]source['\"]:\s?['\"](https?://(?:localhost:8081|files.*?)/.*?)['\"]",
         flags=re.IGNORECASE,
     )
+    _name_guid_ns = UUID("bda3acc1-e612-506c-bade-80071b6cf039")
+    _example_id_prefix = "e-"
     task_cls: Type[Task]
     project_cls: Type[Project]
     model_cls: Type[Model]
@@ -691,17 +693,56 @@ class PrePopulate:
                 continue
             yield clean
 
+    @staticmethod
+    def _new_id(_):
+        return str(uuid4()).replace("-", "")
+
+    @classmethod
+    def _hash_id(cls, name: str):
+        return str(uuid5(cls._name_guid_ns, name)).replace("-", "")
+
+    @classmethod
+    def _example_id(cls, orig_id: str):
+        if not orig_id or orig_id.startswith(cls._example_id_prefix):
+            return orig_id
+
+        return cls._example_id_prefix + orig_id
+
+    @classmethod
+    def _private_id(cls, orig_id: str):
+        if not orig_id or not orig_id.startswith(cls._example_id_prefix):
+            return orig_id
+
+        return orig_id[len(cls._example_id_prefix) :]
+
     @classmethod
     def _generate_new_ids(
-        cls, reader: ZipFile, entity_files: Sequence
+        cls, reader: ZipFile, entity_files: Sequence, metadata: Mapping[str, Any],
     ) -> Mapping[str, str]:
+        if not metadata or not any(
+            metadata.get(key) for key in ("new_ids", "example_ids", "private_ids")
+        ):
+            return {}
+
         ids = {}
         for entity_file in entity_files:
             with reader.open(entity_file) as f:
+                is_project = splitext(entity_file.orig_filename)[0].endswith(".Project")
+                if metadata.get("new_ids"):
+                    id_func = cls._new_id
+                elif metadata.get("example_ids"):
+                    id_func = cls._example_id if not is_project else cls._hash_id
+                elif metadata.get("private_ids"):
+                    id_func = cls._private_id if not is_project else cls._new_id
                 for item in cls.json_lines(f):
-                    orig_id = json.loads(item).get("_id")
+                    doc = json.loads(item)
+                    orig_id = doc.get("_id")
                     if orig_id:
-                        ids[orig_id] = str(uuid4()).replace("-", "")
+                        ids[orig_id] = (
+                            id_func(orig_id)
+                            if id_func != cls._hash_id
+                            else id_func(doc.get("name"))
+                        )
         return ids
 
     @classmethod
@@ -725,11 +766,7 @@ class PrePopulate:
             and fi.orig_filename != cls.metadata_filename
         ]
         metadata = metadata or {}
-        old_to_new_ids = (
-            cls._generate_new_ids(reader, entity_files)
-            if metadata.get("new_ids")
-            else {}
-        )
+        old_to_new_ids = cls._generate_new_ids(reader, entity_files, metadata)
         tasks = []
         for entity_file in entity_files:
             with reader.open(entity_file) as f:
@@ -923,9 +960,7 @@ class PrePopulate:
             return tasks
 
     @classmethod
-    def _import_events(
-        cls, f: IO[bytes], company_id: str, _, task_id: str
-    ):
+    def _import_events(cls, f: IO[bytes], company_id: str, _, task_id: str):
         print(f"Writing events for task {task_id} into database")
         for events_chunk in chunked_iter(cls.json_lines(f), 1000):
             events = [json.loads(item) for item in events_chunk]
