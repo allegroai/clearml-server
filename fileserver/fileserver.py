@@ -13,6 +13,7 @@ from flask_compress import Compress
 from flask_cors import CORS
 from werkzeug.exceptions import NotFound
 from werkzeug.security import safe_join
+from werkzeug.urls import url_unquote_plus
 
 from config import config
 from utils import get_env_bool
@@ -127,17 +128,18 @@ def batch_delete():
     errors = defaultdict(list)
     log_errors = defaultdict(list)
 
-    def record_error(msg: str, file_: str, path_: Path):
-        errors[msg].append(file_)
+    def record_error(msg: str, file_, path_):
+        errors[msg].append(str(file_))
         log_errors[msg].append(str(path_))
 
     for file in files:
-        if not file or not file.strip("/"):
+        path = url_unquote_plus(file)
+        if not path or not path.strip("/"):
             # empty path may result in deleting all company data. Too dangerous
-            record_error("Empty path not allowed", file, file)
+            record_error("Empty path not allowed", file, path)
             continue
 
-        path = _get_full_path(file)
+        path = _get_full_path(path)
 
         if not path.exists():
             record_error("Not found", file, path)
