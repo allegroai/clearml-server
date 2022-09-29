@@ -259,6 +259,7 @@ class Task(AttributedDocument):
     last_change = DateTimeField()
     last_iteration = IntField(default=DEFAULT_LAST_ITERATION)
     last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
+    unique_metrics = ListField(StringField(required=True), exclude_by_default=True)
     metric_stats = SafeMapField(field=EmbeddedDocumentField(MetricEventStats))
     company_origin = StringField(exclude_by_default=True)
     duration = IntField()  # task duration in seconds

@@ -278,6 +278,7 @@ def reset_task(
     updates.update(
         set__last_iteration=DEFAULT_LAST_ITERATION,
         set__last_metrics={},
+        set__unique_metrics=[],
         set__metric_stats={},
         set__models__output=[],
         set__runtime={},

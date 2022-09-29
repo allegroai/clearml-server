@@ -42,6 +42,32 @@ class TestTasksFiltering(TestService):
         self.assertEqual(res.total, 0)
         self.assertEqual(res["values"], [])
 
+    def test_datetime_queries(self):
+        tasks = [self.temp_task() for _ in range(5)]
+        now = datetime.utcnow()
+        for task in tasks:
+            self.api.tasks.ping(task=task)
+
+        # date time syntax
+        res = self.api.tasks.get_all_ex(last_update=f">={now.isoformat()}").tasks
+        self.assertTrue(set(tasks).issubset({t.id for t in res}))
+        res = self.api.tasks.get_all_ex(
+            last_update=[
+                f">={(now - timedelta(seconds=60)).isoformat()}",
+                f"<={now.isoformat()}",
+            ]
+        ).tasks
+        self.assertFalse(set(tasks).issubset({t.id for t in res}))
+
+        # simplified range syntax
+        res = self.api.tasks.get_all_ex(last_update=[now.isoformat(), None]).tasks
+        self.assertTrue(set(tasks).issubset({t.id for t in res}))
+
+        res = self.api.tasks.get_all_ex(
+            last_update=[(now - timedelta(seconds=60)).isoformat(), now.isoformat()]
+        ).tasks
+        self.assertFalse(set(tasks).issubset({t.id for t in res}))
+
     def test_range_queries(self):
         tasks = [self.temp_task() for _ in range(5)]
         now = datetime.utcnow()
