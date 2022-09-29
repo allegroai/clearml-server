@@ -81,7 +81,6 @@ from apiserver.bll.task.artifacts import (
     Artifacts,
 )
 from apiserver.bll.task.hyperparams import HyperParams
-from apiserver.bll.task.non_responsive_tasks_watchdog import NonResponsiveTasksWatchdog
 from apiserver.bll.task.param_utils import (
     params_prepare_for_save,
     params_unprepare_from_saved,
@@ -942,10 +941,12 @@ def reset(call: APICall, company_id, request: ResetRequest):
     dequeued, cleanup_res, updates = reset_task(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         force=request.force,
         return_file_urls=request.return_file_urls,
         delete_output_models=request.delete_output_models,
         clear_all=request.clear_all,
+        delete_external_artifacts=request.delete_external_artifacts,
     )
 
     res = ResetResponse(**updates, dequeued=dequeued)
@@ -968,10 +969,12 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
         func=partial(
             reset_task,
             company_id=company_id,
+            user_id=call.identity.user,
             force=request.force,
             return_file_urls=request.return_file_urls,
             delete_output_models=request.delete_output_models,
             clear_all=request.clear_all,
+            delete_external_artifacts=request.delete_external_artifacts,
         ),
         ids=request.ids,
     )
@@ -1069,12 +1072,14 @@ def delete(call: APICall, company_id, request: DeleteRequest):
     deleted, task, cleanup_res = delete_task(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         move_to_trash=request.move_to_trash,
         force=request.force,
         return_file_urls=request.return_file_urls,
         delete_output_models=request.delete_output_models,
         status_message=request.status_message,
         status_reason=request.status_reason,
+        delete_external_artifacts=request.delete_external_artifacts,
     )
     if deleted:
         if request.move_to_trash:
@@ -1089,12 +1094,14 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
         func=partial(
             delete_task,
             company_id=company_id,
+            user_id=call.identity.user,
             move_to_trash=request.move_to_trash,
             force=request.force,
             return_file_urls=request.return_file_urls,
             delete_output_models=request.delete_output_models,
             status_message=request.status_message,
             status_reason=request.status_reason,
+            delete_external_artifacts=request.delete_external_artifacts,
         ),
         ids=request.ids,
     )

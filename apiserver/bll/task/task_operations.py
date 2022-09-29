@@ -191,12 +191,14 @@ def move_tasks_to_trash(tasks: Sequence[str]) -> int:
 def delete_task(
     task_id: str,
     company_id: str,
+    user_id: str,
     move_to_trash: bool,
     force: bool,
     return_file_urls: bool,
     delete_output_models: bool,
     status_message: str,
     status_reason: str,
+    delete_external_artifacts: bool,
 ) -> Tuple[int, Task, CleanupResult]:
     task = TaskBLL.get_task_with_access(
         task_id, company_id=company_id, requires_write_access=True
@@ -226,10 +228,13 @@ def delete_task(
         pass
 
     cleanup_res = cleanup_task(
-        task,
+        company=company_id,
+        user=user_id,
+        task=task,
         force=force,
         return_file_urls=return_file_urls,
         delete_output_models=delete_output_models,
+        delete_external_artifacts=delete_external_artifacts,
     )
 
     if move_to_trash:
@@ -246,10 +251,12 @@ def delete_task(
 def reset_task(
     task_id: str,
     company_id: str,
+    user_id: str,
     force: bool,
     return_file_urls: bool,
     delete_output_models: bool,
     clear_all: bool,
+    delete_external_artifacts: bool,
 ) -> Tuple[dict, CleanupResult, dict]:
     task = TaskBLL.get_task_with_access(
         task_id, company_id=company_id, requires_write_access=True
@@ -268,11 +275,14 @@ def reset_task(
         pass
 
     cleaned_up = cleanup_task(
-        task,
+        company=company_id,
+        user=user_id,
+        task=task,
         force=force,
         update_children=False,
         return_file_urls=return_file_urls,
         delete_output_models=delete_output_models,
+        delete_external_artifacts=delete_external_artifacts,
     )
 
     updates.update(

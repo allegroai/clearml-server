@@ -2,7 +2,9 @@
 import json
 import mimetypes
 import os
+import shutil
 from argparse import ArgumentParser
+from collections import defaultdict
 from pathlib import Path
 
 from boltons.iterutils import first
@@ -15,6 +17,7 @@ from werkzeug.security import safe_join
 from config import config
 from utils import get_env_bool
 
+log = config.logger(__file__)
 DEFAULT_UPLOAD_FOLDER = "/mnt/fileserver"
 
 app = Flask(__name__)
@@ -30,6 +33,11 @@ app.config["UPLOAD_FOLDER"] = first(
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
     "fileserver.download.cache_timeout_sec", 5 * 60
 )
+
+
+@app.route("/", methods=["GET"])
+def ping():
+    return "OK", 200
 
 
 @app.before_request
@@ -60,6 +68,8 @@ def upload():
         target.parent.mkdir(parents=True, exist_ok=True)
         file.save(str(target))
         results.append(file_path)
+
+    log.info(f"Uploaded {len(results)} files")
     return json.dumps(results), 200
 
 
@@ -83,17 +93,82 @@ def download(path):
         headers["Cache-control"] = "no-cache"
         headers["Pragma"] = "no-cache"
         headers["Expires"] = "0"
+
+    log.info(f"Downloaded file {str(path)}")
     return response
+
+
+def _get_full_path(path: str) -> Path:
+    return Path(safe_join(os.fspath(app.config["UPLOAD_FOLDER"]), os.fspath(path)))
 
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    real_path = Path(safe_join(os.fspath(app.config["UPLOAD_FOLDER"]), os.fspath(path)))
+    real_path = _get_full_path(path)
     if not real_path.exists() or not real_path.is_file():
-        abort(Response(f"File {str(path)} not found", 404))
+        log.error(f"Error deleting file {str(real_path)}. Not found or not a file")
+        abort(Response(f"File {str(real_path)} not found", 404))
 
     real_path.unlink()
+
+    log.info(f"Deleted file {str(real_path)}")
     return json.dumps(str(path)), 200
+
+
+def batch_delete():
+    body = request.get_json(force=True, silent=False)
+    if not body:
+        abort(Response("Json payload is missing", 400))
+    files = body.get("files")
+    if not files:
+        abort(Response("files are missing", 400))
+
+    deleted = {}
+    errors = defaultdict(list)
+    log_errors = defaultdict(list)
+
+    def record_error(msg: str, file_: str, path_: Path):
+        errors[msg].append(file_)
+        log_errors[msg].append(str(path_))
+
+    for file in files:
+        if not file or not file.strip("/"):
+            # empty path may result in deleting all company data. Too dangerous
+            record_error("Empty path not allowed", file, file)
+            continue
+
+        path = _get_full_path(file)
+
+        if not path.exists():
+            record_error("Not found", file, path)
+            continue
+
+        try:
+            if path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+            else:
+                record_error("Not a file or folder", file, path)
+                continue
+        except OSError as ex:
+            record_error(ex.strerror, file, path)
+            continue
+        except Exception as ex:
+            record_error(str(ex).replace(str(path), ""), file, path)
+            continue
+
+        deleted[file] = str(path)
+
+    for error, paths in log_errors.items():
+        log.error(f"{len(paths)} files/folders cannot be deleted due to the {error}")
+
+    log.info(f"Deleted {len(deleted)} files/folders")
+    return json.dumps({"deleted": deleted, "errors": errors}), 200
+
+
+if config.get("fileserver.delete.allow_batch"):
+    app.route("/delete_many", methods=["POST"])(batch_delete)
 
 
 def main():

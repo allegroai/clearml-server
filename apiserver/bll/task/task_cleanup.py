@@ -1,17 +1,23 @@
+from datetime import datetime
 from itertools import chain
 from operator import attrgetter
 from typing import Sequence, Set, Tuple
 
 import attr
-from boltons.iterutils import partition
+from boltons.iterutils import partition, bucketize, first
+from mongoengine import NotUniqueError
+from pymongo.errors import DuplicateKeyError
 
 from apiserver.apierrors import errors
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_bll import PlotFields
 from apiserver.bll.task.utils import deleted_prefix
+from apiserver.config_repo import config
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus, ArtifactModes
+from apiserver.database.model.url_to_delete import StorageType, UrlToDelete, FileType, DeletionStatus
 from apiserver.timing_context import TimingContext
+from apiserver.database.utils import id as db_id
 
 event_bll = EventBLL()
 
@@ -94,12 +100,76 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     return urls
 
 
+supported_storage_types = {
+    "https://files": StorageType.fileserver,
+}
+
+
+def _schedule_for_delete(
+    company: str, user: str, task_id: str, urls: Set[str], can_delete_folders: bool,
+) -> Set[str]:
+    urls_per_storage = bucketize(
+        urls,
+        key=lambda u: first(
+            type_
+            for prefix, type_ in supported_storage_types.items()
+            if u.startswith(prefix)
+        ),
+    )
+    urls_per_storage.pop(None, None)
+
+    processed_urls = set()
+    for storage_type, storage_urls in urls_per_storage.items():
+        delete_folders = (storage_type == StorageType.fileserver) and can_delete_folders
+        scheduled_to_delete = set()
+        for url in storage_urls:
+            folder = None
+            if delete_folders:
+                folder, _, _ = url.rpartition("/")
+
+            to_delete = folder or url
+            if to_delete in scheduled_to_delete:
+                processed_urls.add(url)
+                continue
+
+            try:
+                UrlToDelete(
+                    id=db_id(),
+                    company=company,
+                    user=user,
+                    url=to_delete,
+                    task=task_id,
+                    created=datetime.utcnow(),
+                    storage_type=storage_type,
+                    type=FileType.folder if folder else FileType.file,
+                ).save()
+            except (DuplicateKeyError, NotUniqueError):
+                existing = UrlToDelete.objects(company=company, url=to_delete).first()
+                if existing:
+                    existing.update(
+                        user=user,
+                        task=task_id,
+                        created=datetime.utcnow(),
+                        retry_count=0,
+                        unset__last_failure_time=1,
+                        unset__last_failure_reason=1,
+                        status=DeletionStatus.created,
+                    )
+            processed_urls.add(url)
+            scheduled_to_delete.add(to_delete)
+
+    return processed_urls
+
+
 def cleanup_task(
+    company: str,
+    user: str,
     task: Task,
     force: bool = False,
     update_children=True,
     return_file_urls=False,
     delete_output_models=True,
+    delete_external_artifacts=True,
 ) -> CleanupResult:
     """
     Validate task deletion and delete/modify all its output.
@@ -154,6 +224,19 @@ def cleanup_task(
             Model.objects(id__in=[m.id for m in models]).update(unset__task=1)
 
     event_bll.delete_task_events(task.company, task.id, allow_locked=force)
+
+    if delete_external_artifacts and config.get(
+        "services.async_urls_delete.enabled", False
+    ):
+        scheduled = _schedule_for_delete(
+            task_id=task.id,
+            company=company,
+            user=user,
+            urls=event_urls | model_urls | artifact_urls,
+            can_delete_folders=not in_use_model_ids and not published_models,
+        )
+        for urls in (event_urls, model_urls, artifact_urls):
+            urls.difference_update(scheduled)
 
     return CleanupResult(
         deleted_models=deleted_models,

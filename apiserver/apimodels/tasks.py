@@ -103,6 +103,7 @@ class DeleteRequest(UpdateRequest):
     move_to_trash = BoolField(default=True)
     return_file_urls = BoolField(default=False)
     delete_output_models = BoolField(default=True)
+    delete_external_artifacts = BoolField(default=True)
 
 
 class SetRequirementsRequest(TaskRequest):
@@ -180,6 +181,7 @@ class ResetRequest(UpdateRequest):
     clear_all = BoolField(default=False)
     return_file_urls = BoolField(default=False)
     delete_output_models = BoolField(default=True)
+    delete_external_artifacts = BoolField(default=True)
 
 
 class MultiTaskRequest(models.Base):
@@ -280,6 +282,7 @@ class DeleteManyRequest(TaskBatchRequest):
     return_file_urls = BoolField(default=False)
     delete_output_models = BoolField(default=True)
     force = BoolField(default=False)
+    delete_external_artifacts = BoolField(default=True)
 
 
 class ResetManyRequest(TaskBatchRequest):
@@ -287,6 +290,7 @@ class ResetManyRequest(TaskBatchRequest):
     return_file_urls = BoolField(default=False)
     delete_output_models = BoolField(default=True)
     force = BoolField(default=False)
+    delete_external_artifacts = BoolField(default=True)
 
 
 class PublishManyRequest(TaskBatchRequest):
