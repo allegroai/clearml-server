@@ -38,6 +38,7 @@ class GetAllRequest(Base):
 class GetNextTaskRequest(QueueRequest):
     queue = StringField(required=True)
     get_task_info = BoolField(default=False)
+    task = StringField()
 
 
 class DeleteRequest(QueueRequest):

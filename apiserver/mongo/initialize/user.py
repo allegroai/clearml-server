@@ -53,6 +53,7 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
         name=user_name,
         given_name=given_name,
         family_name=family_name,
+        created=datetime.utcnow(),
     ).save()
 
     return user_id

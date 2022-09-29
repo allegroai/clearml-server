@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, DynamicField
+from mongoengine import Document, StringField, DynamicField, DateTimeField
 
 from apiserver.database import Database, strict
 from apiserver.database.model import DbModelMixin
@@ -20,3 +20,4 @@ class User(DbModelMixin, Document):
     given_name = StringField(user_set_allowed=True)
     avatar = StringField()
     preferences = DynamicField(default="", exclude_by_default=True)
+    created = DateTimeField()

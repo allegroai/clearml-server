@@ -12,7 +12,7 @@ from apiserver.bll.project import ProjectBLL
 from apiserver.bll.user import UserBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model.auth import Role, User as AuthUser
+from apiserver.database.model.auth import Role
 from apiserver.database.model.company import Company
 from apiserver.database.model.user import User
 from apiserver.database.utils import parse_from_call
@@ -113,12 +113,6 @@ def get_current_user(call: APICall, company_id, _):
 
     user = res[0]
     user["role"] = call.identity.role
-
-    auth_user: AuthUser = AuthUser.objects(id=user_id, company=company_id).first()
-    if not auth_user:
-        raise errors.bad_request.InvalidUser("failed loading user")
-
-    user["created"] = auth_user.created
 
     resp = {
         "user": user,

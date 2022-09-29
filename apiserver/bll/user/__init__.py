@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from apiserver.apierrors import errors
 from apiserver.apimodels.users import CreateRequest
 from apiserver.database.errors import translate_errors_context
@@ -12,7 +14,7 @@ class UserBLL:
             if user_id and User.objects(id=user_id).only("id"):
                 raise errors.bad_request.UserIdExists(id=user_id)
 
-            user = User(**request.to_struct())
+            user = User(**request.to_struct(), created=datetime.utcnow())
             user.save(force_insert=True)
 
     @staticmethod

@@ -91,7 +91,6 @@ class TestQueues(TestService):
         self.assertEqual(res.task.status, "queued")
 
         self.api.queues.delete(queue=queue, force=True)
-        self.api.tasks.dequeue(task=task)
         res = self.api.tasks.get_by_id(task=task)
         self.assertEqual(res.task.status, "created")
 

@@ -1,8 +1,10 @@
 import importlib.util
 from datetime import datetime
+from inspect import signature
 from logging import Logger
 from pathlib import Path
 
+import pymongo.database
 from mongoengine.connection import get_db
 from packaging.version import Version, parse
 
@@ -80,8 +82,15 @@ def _apply_migrations(log: Logger):
                 if not func:
                     continue
                 try:
+                    sig = signature(func)
+                    kwargs = {}
+                    if len(sig.parameters) == 2:
+                        name, param = list(sig.parameters.items())[-1]
+                        key = name.replace("_", "-")
+                        if issubclass(param.annotation, pymongo.database.Database) and key in dbs:
+                            kwargs[name] = get_db(key)
                     log.info(f"Applying {script.stem}/{func_name}()")
-                    func(get_db(alias))
+                    func(get_db(alias), **kwargs)
                 except Exception:
                     log.exception(f"Failed applying {script}:{func_name}()")
                     raise ValueError(

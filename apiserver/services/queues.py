@@ -157,11 +157,13 @@ def add_task(call: APICall, company_id, req_model: TaskRequest):
 
 
 @endpoint("queues.get_next_task", request_data_model=GetNextTaskRequest)
-def get_next_task(call: APICall, company_id, req_model: GetNextTaskRequest):
-    entry = queue_bll.get_next_task(company_id=company_id, queue_id=req_model.queue)
+def get_next_task(call: APICall, company_id, request: GetNextTaskRequest):
+    entry = queue_bll.get_next_task(
+        company_id=company_id, queue_id=request.queue, task_id=request.task
+    )
     if entry:
         data = {"entry": entry.to_proper_dict()}
-        if req_model.get_task_info:
+        if request.get_task_info:
             task = Task.objects(id=entry.task).first()
             if task:
                 data["task_info"] = {"company": task.company, "user": task.user}
