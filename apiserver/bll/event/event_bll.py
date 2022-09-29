@@ -41,7 +41,7 @@ from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.redis_manager import redman
 from apiserver.timing_context import TimingContext
 from apiserver.tools import safe_get
-from apiserver.utilities.dicts import flatten_nested_items, nested_get
+from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import loads
 
 # noinspection PyTypeChecker
@@ -396,33 +396,17 @@ class EventBLL(object):
         as the latest metric/variant scalar values reported (according to the report timestamp) and the task's last
         update time.
         """
-        fields = {}
-
-        if iter_max is not None:
-            fields["last_iteration_max"] = iter_max
-
-        if last_scalar_events:
-            fields["last_scalar_values"] = list(
-                flatten_nested_items(
-                    last_scalar_events,
-                    nesting=2,
-                    include_leaves=[
-                        "value",
-                        "min_value",
-                        "max_value",
-                        "metric",
-                        "variant",
-                    ],
-                )
-            )
-
-        if last_events:
-            fields["last_events"] = last_events
-
-        if not fields:
+        if iter_max is None and not last_events and not last_scalar_events:
             return False
 
-        return TaskBLL.update_statistics(task_id, company_id, last_update=now, **fields)
+        return TaskBLL.update_statistics(
+            task_id,
+            company_id,
+            last_update=now,
+            last_iteration_max=iter_max,
+            last_scalar_events=last_scalar_events,
+            last_events=last_events,
+        )
 
     def _get_event_id(self, event):
         id_values = (str(event[field]) for field in self.id_fields if field in event)
