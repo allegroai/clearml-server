@@ -29,7 +29,9 @@ OVERRIDE_PORT_ENV_KEY = (
 )
 
 OVERRIDE_CONNECTION_STRING_ENV_KEY = "CLEARML_MONGODB_SERVICE_CONNECTION_STRING"
-
+OVERRIDE_MONGO_USERNAME_ENV_KEY = "CLEARML_MONGODB_SERVICE_USERNAME"
+OVERRIDE_MONGO_PASSWORD_ENV_KEY = "CLEARML_MONGODB_SERVICE_PASSWORD"
+OVERRIDE_MONGO_QUERY_ENV_KEY = "CLEARML_MONGODB_SERVICE_QUERY"
 
 class DatabaseEntry(models.Base):
     host = StringField(required=True)
@@ -52,6 +54,10 @@ class DatabaseFactory:
         override_connection_string = getenv(OVERRIDE_CONNECTION_STRING_ENV_KEY)
         override_hostname = first(map(getenv, OVERRIDE_HOST_ENV_KEY), None)
         override_port = first(map(getenv, OVERRIDE_PORT_ENV_KEY), None)
+        override_username = getenv(OVERRIDE_MONGO_USERNAME_ENV_KEY)
+        override_password = getenv(OVERRIDE_MONGO_PASSWORD_ENV_KEY)
+        override_query = getenv(OVERRIDE_MONGO_QUERY_ENV_KEY)
+
 
         if override_connection_string:
             log.info(f"Using override mongodb connection string template {override_connection_string}")
@@ -60,6 +66,12 @@ class DatabaseFactory:
                 log.info(f"Using override mongodb host {override_hostname}")
             if override_port:
                 log.info(f"Using override mongodb port {override_port}")
+            if override_username:
+                log.info(f"Using override mongodb username {override_username}")
+            if override_password:
+                log.info(f"Using override mongodb password xxxxxx")
+            if override_query:
+                log.info(f"Using override mongodb query {override_query}")
 
         for key, alias in get_items(Database).items():
             if key not in db_entries:
@@ -77,6 +89,12 @@ class DatabaseFactory:
                     entry.host = furl(entry.host).set(host=override_hostname).url
                 if override_port:
                     entry.host = furl(entry.host).set(port=override_port).url
+                if override_username:
+                    entry.host = furl(entry.host).set(username=override_username).url
+                if override_password:
+                    entry.host = furl(entry.host).set(password=override_password).url
+                if override_query:
+                    entry.host = furl(entry.host).set(query=override_query).url
 
             try:
                 entry.validate()
