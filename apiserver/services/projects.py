@@ -102,6 +102,8 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_tag_fields(call, data)
     allow_public = not request.non_public
     requested_ids = data.get("id")
+    if isinstance(requested_ids, str):
+        requested_ids = [requested_ids]
     _adjust_search_parameters(
         data, shallow_search=request.shallow_search,
     )
