@@ -1084,7 +1084,9 @@ class EventBLL(object):
                 extra_msg, company=company_id, id=task_id
             )
 
-    def delete_task_events(self, company_id, task_id, allow_locked=False, model=False):
+    def delete_task_events(
+        self, company_id, task_id, allow_locked=False, model=False, async_delete=False,
+    ):
         if model:
             self._validate_model_state(
                 company_id=company_id, model_id=task_id, allow_locked=allow_locked,
@@ -1101,10 +1103,15 @@ class EventBLL(object):
                 company_id=company_id,
                 event_type=EventType.all,
                 body=es_req,
-                refresh=True,
+                **(
+                    {"wait_for_completion": False}
+                    if async_delete
+                    else {"refresh": True}
+                ),
             )
 
-        return es_res.get("deleted", 0)
+        if not async_delete:
+            return es_res.get("deleted", 0)
 
     def clear_task_log(
         self,
@@ -1149,7 +1156,9 @@ class EventBLL(object):
             )
             return es_res.get("deleted", 0)
 
-    def delete_multi_task_events(self, company_id: str, task_ids: Sequence[str]):
+    def delete_multi_task_events(
+        self, company_id: str, task_ids: Sequence[str], async_delete=False
+    ):
         """
         Delete mutliple task events. No check is done for tasks write access
         so it should be checked by the calling code
@@ -1161,10 +1170,15 @@ class EventBLL(object):
                 company_id=company_id,
                 event_type=EventType.all,
                 body=es_req,
-                refresh=True,
+                **(
+                    {"wait_for_completion": False}
+                    if async_delete
+                    else {"refresh": True}
+                ),
             )
 
-        return es_res.get("deleted", 0)
+        if not async_delete:
+            return es_res.get("deleted", 0)
 
     def clear_scroll(self, scroll_id: str):
         if scroll_id == self.empty_scroll:

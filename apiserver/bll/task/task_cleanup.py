@@ -25,6 +25,7 @@ from apiserver.database.utils import id as db_id
 
 log = config.logger(__file__)
 event_bll = EventBLL()
+async_events_delete = config.get("services.tasks.async_events_delete", False)
 
 
 @attr.s(auto_attribs=True)
@@ -218,12 +219,14 @@ def cleanup_task(
                     event_urls.update(collect_plot_image_urls(task.company, m_id))
                 try:
                     event_bll.delete_task_events(
-                        task.company, m_id, allow_locked=True, model=True
+                        task.company,
+                        m_id,
+                        allow_locked=True,
+                        model=True,
+                        async_delete=async_events_delete,
                     )
                 except errors.bad_request.InvalidModelId as ex:
-                    log.info(
-                        f"Error deleting events for the model {m_id}: {str(ex)}"
-                    )
+                    log.info(f"Error deleting events for the model {m_id}: {str(ex)}")
 
             deleted_models += Model.objects(id__in=list(model_ids)).delete()
             if in_use_model_ids:
@@ -237,7 +240,9 @@ def cleanup_task(
         else:
             Model.objects(id__in=[m.id for m in models]).update(unset__task=1)
 
-    event_bll.delete_task_events(task.company, task.id, allow_locked=force)
+    event_bll.delete_task_events(
+        task.company, task.id, allow_locked=force, async_delete=async_events_delete
+    )
 
     if delete_external_artifacts:
         scheduled = _schedule_for_delete(
