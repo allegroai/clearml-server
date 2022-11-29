@@ -6,6 +6,7 @@ from mongoengine import Q
 
 from apiserver.apimodels.organization import TagsRequest, EntitiesCountRequest
 from apiserver.bll.organization import OrgBLL, Tags
+from apiserver.bll.project import ProjectBLL
 from apiserver.database.model import User, AttributedDocument, EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
@@ -14,6 +15,7 @@ from apiserver.service_repo import endpoint, APICall
 from apiserver.services.utils import get_tags_filter_dictionary, sort_tags_response
 
 org_bll = OrgBLL()
+project_bll = ProjectBLL()
 
 
 @endpoint("organization.get_tags", request_data_model=TagsRequest)
@@ -49,8 +51,8 @@ def get_user_companies(call: APICall, company_id: str, _):
     }
 
 
-@endpoint("organization.get_entities_count", request_data_model=EntitiesCountRequest)
-def get_entities_count(call: APICall, company, _):
+@endpoint("organization.get_entities_count")
+def get_entities_count(call: APICall, company, request: EntitiesCountRequest):
     entity_classes: Mapping[str, Type[AttributedDocument]] = {
         "projects": Project,
         "tasks": Task,
@@ -64,8 +66,26 @@ def get_entities_count(call: APICall, company, _):
         if data is None:
             continue
 
+        if request.active_users:
+            if entity_cls is Project:
+                requested_ids = data.get("id")
+                if isinstance(requested_ids, str):
+                    requested_ids = [requested_ids]
+                ids, _ = project_bll.get_projects_with_active_user(
+                    company=company,
+                    users=request.active_users,
+                    project_ids=requested_ids,
+                    allow_public=True,
+                )
+                if not ids:
+                    ret[field] = 0
+                    continue
+                data["id"] = ids
+            elif not data.get("user"):
+                data["user"] = request.active_users
+
         query = Q()
-        if entity_cls in (Project, Task) and not data.get("search_hidden"):
+        if entity_cls in (Project, Task) and not request.search_hidden:
             query &= Q(system_tags__ne=EntityVisibility.hidden.value)
 
         ret[field] = entity_cls.get_count(

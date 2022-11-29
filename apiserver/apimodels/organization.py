@@ -19,3 +19,5 @@ class EntitiesCountRequest(models.Base):
     models = DictField()
     pipelines = DictField()
     datasets = DictField()
+    active_users = fields.ListField(str)
+    search_hidden = fields.BoolField(default=False)
