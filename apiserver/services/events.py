@@ -860,6 +860,7 @@ def next_debug_image_sample(call, company_id, request: NextHistorySampleRequest)
         task=request.task,
         state_id=request.scroll_id,
         navigate_earlier=request.navigate_earlier,
+        next_iteration=request.next_iteration,
     )
     call.result.data = attr.asdict(res, recurse=False)
 
@@ -896,6 +897,7 @@ def next_plot_sample(call, company_id, request: NextHistorySampleRequest):
         task=request.task,
         state_id=request.scroll_id,
         navigate_earlier=request.navigate_earlier,
+        next_iteration=request.next_iteration,
     )
     call.result.data = attr.asdict(res, recurse=False)
 

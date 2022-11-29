@@ -192,6 +192,13 @@ class QueueBLL(object):
                 ret_params=ret_params,
             )
 
+    def check_for_workers(self, company_id: str, queue_id: str) -> bool:
+        for worker in self.worker_bll.get_all(company_id):
+            if queue_id in worker.queues:
+                return True
+
+        return False
+
     def get_queue_infos(
         self,
         company_id: str,

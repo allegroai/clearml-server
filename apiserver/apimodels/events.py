@@ -79,6 +79,7 @@ class NextHistorySampleRequest(Base):
     task: str = StringField(required=True)
     scroll_id: Optional[str] = StringField()
     navigate_earlier: bool = BoolField(default=True)
+    next_iteration: bool = BoolField(default=False)
     model_events: bool = BoolField(default=False)
 
 

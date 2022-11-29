@@ -137,6 +137,21 @@ class TestTaskPlots(TestService):
         )
         self._assertEqualEvent(res.event, events[-3])
 
+        # next_iteration
+        res = self.api.events.next_plot_sample(
+            task=task, scroll_id=res.scroll_id, next_iteration=True
+        )
+        self._assertEqualEvent(res.event, None)
+        res = self.api.events.next_plot_sample(
+            task=task, scroll_id=res.scroll_id, next_iteration=True, navigate_earlier=False
+        )
+        self._assertEqualEvent(res.event, events[-2])
+        self.assertEqual(res.event.iter, 1)
+        res = self.api.events.next_plot_sample(
+            task=task, scroll_id=res.scroll_id, next_iteration=True, navigate_earlier=False
+        )
+        self._assertEqualEvent(res.event, None)
+
     def _assertEqualEvent(self, ev1: dict, ev2: Optional[dict]):
         if ev2 is None:
             self.assertIsNone(ev1)

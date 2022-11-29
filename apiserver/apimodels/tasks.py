@@ -42,6 +42,7 @@ class StartedResponse(UpdateResponse):
 
 class EnqueueResponse(UpdateResponse):
     queued = IntField()
+    queue_watched = BoolField()
 
 
 class EnqueueBatchItem(UpdateBatchItem):
@@ -50,6 +51,7 @@ class EnqueueBatchItem(UpdateBatchItem):
 
 class EnqueueManyResponse(BatchResponse):
     succeeded: Sequence[EnqueueBatchItem] = ListField(EnqueueBatchItem)
+    queue_watched = BoolField()
 
 
 class DequeueResponse(UpdateResponse):
@@ -97,6 +99,7 @@ class UpdateRequest(TaskUpdateRequest):
 class EnqueueRequest(UpdateRequest):
     queue = StringField()
     queue_name = StringField()
+    verify_watched_queue = BoolField(default=False)
 
 
 class DeleteRequest(UpdateRequest):
@@ -275,6 +278,7 @@ class EnqueueManyRequest(TaskBatchRequest):
     queue = StringField()
     queue_name = StringField()
     validate_tasks = BoolField(default=False)
+    verify_watched_queue = BoolField(default=False)
 
 
 class DeleteManyRequest(TaskBatchRequest):

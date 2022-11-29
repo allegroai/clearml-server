@@ -63,7 +63,12 @@ class HistorySampleIterator(abc.ABC):
         )
 
     def get_next_sample(
-        self, company_id: str, task: str, state_id: str, navigate_earlier: bool
+        self,
+        company_id: str,
+        task: str,
+        state_id: str,
+        navigate_earlier: bool,
+        next_iteration: bool,
     ) -> HistorySampleResult:
         """
         Get the sample for next/prev variant on the current iteration
@@ -77,11 +82,19 @@ class HistorySampleIterator(abc.ABC):
         if check_empty_data(self.es, company_id=company_id, event_type=self.event_type):
             return res
 
-        event = self._get_next_for_current_iteration(
-            company_id=company_id, navigate_earlier=navigate_earlier, state=state
-        ) or self._get_next_for_another_iteration(
-            company_id=company_id, navigate_earlier=navigate_earlier, state=state
-        )
+        if next_iteration:
+            event = self._get_next_for_another_iteration(
+                company_id=company_id, navigate_earlier=navigate_earlier, state=state
+            )
+        else:
+            # noinspection PyArgumentList
+            event = first(
+                f(company_id=company_id, navigate_earlier=navigate_earlier, state=state)
+                for f in (
+                    self._get_next_for_current_iteration,
+                    self._get_next_for_another_iteration,
+                )
+            )
         if not event:
             return res
 
