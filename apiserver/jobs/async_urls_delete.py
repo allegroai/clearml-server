@@ -5,7 +5,7 @@ from functools import partial
 from itertools import chain
 from pathlib import Path
 from time import sleep
-from typing import Sequence
+from typing import Sequence, Tuple
 
 import requests
 from furl import furl
@@ -13,13 +13,18 @@ from mongoengine import Q
 
 from apiserver.config_repo import config
 from apiserver.database import db
-from apiserver.database.model.url_to_delete import UrlToDelete, DeletionStatus, StorageType
+from apiserver.database.model.url_to_delete import (
+    UrlToDelete,
+    DeletionStatus,
+    StorageType,
+)
 
 log = config.logger(f"JOB-{Path(__file__).name}")
 conf = config.get("services.async_urls_delete")
 max_retries = conf.get("max_retries", 3)
 retry_timeout = timedelta(seconds=conf.get("retry_timeout_sec", 60))
-token_expiration_sec = 600
+fileserver_timeout = conf.get("fileserver.timeout_sec", 300)
+UrlPrefix = Tuple[str, str]
 
 
 def validate_fileserver_access(fileserver_host: str) -> str:
@@ -28,9 +33,7 @@ def validate_fileserver_access(fileserver_host: str) -> str:
         log.error(f"Fileserver host not configured")
         exit(1)
 
-    res = requests.get(
-        url=fileserver_host
-    )
+    res = requests.get(url=fileserver_host)
     res.raise_for_status()
 
     return fileserver_host
@@ -55,16 +58,32 @@ def mark_failed(query: Q, reason: str):
     )
 
 
-def delete_fileserver_urls(urls_query: Q, fileserver_host: str):
+def delete_fileserver_urls(
+    urls_query: Q, fileserver_host: str, url_prefixes: Sequence[UrlPrefix]
+):
     to_delete = list(UrlToDelete.objects(urls_query).limit(10000))
     if not to_delete:
         return
+
+    def resolve_path(url_: UrlToDelete) -> str:
+        parsed = furl(url_.url)
+        url_host = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme else None
+        url_path = str(parsed.path)
+
+        for host, path_prefix in url_prefixes:
+            if host and url_host != host:
+                continue
+            if path_prefix and not url_path.startswith(path_prefix + "/"):
+                continue
+            return url_path[len(path_prefix or ""):]
+
+        raise ValueError("could not map path")
 
     paths = set()
     path_to_id_mapping = defaultdict(list)
     for url in to_delete:
         try:
-            path = str(furl(url.url).path)
+            path = resolve_path(url)
             path = path.strip("/")
             if not path:
                 raise ValueError("Empty path")
@@ -85,6 +104,7 @@ def delete_fileserver_urls(urls_query: Q, fileserver_host: str):
         res = requests.post(
             url=furl(fileserver_host).add(path="delete_many").url,
             json={"files": list(paths)},
+            timeout=fileserver_timeout,
         )
         res.raise_for_status()
     except Exception as ex:
@@ -120,11 +140,29 @@ def delete_fileserver_urls(urls_query: Q, fileserver_host: str):
         mark_retry_failed(list(missing_ids), "Not succeeded")
 
 
+def _get_fileserver_url_prefixes(fileserver_host: str) -> Sequence[UrlPrefix]:
+    def _parse_url_prefix(prefix) -> UrlPrefix:
+        url = furl(prefix)
+        host = f"{url.scheme}://{url.netloc}" if url.scheme else None
+        return host, str(url.path).rstrip("/")
+
+    url_prefixes = [
+        _parse_url_prefix(p) for p in conf.get("fileserver.url_prefixes", [])
+    ]
+    if not any(fileserver_host == host for host, _ in url_prefixes):
+        url_prefixes.append((fileserver_host, ""))
+
+    return url_prefixes
+
+
 def run_delete_loop(fileserver_host: str):
     fileserver_host = validate_fileserver_access(fileserver_host)
+
     storage_delete_funcs = {
         StorageType.fileserver: partial(
-            delete_fileserver_urls, fileserver_host=fileserver_host
+            delete_fileserver_urls,
+            fileserver_host=fileserver_host,
+            url_prefixes=_get_fileserver_url_prefixes(fileserver_host),
         ),
     }
     while True:
@@ -154,9 +192,7 @@ def run_delete_loop(fileserver_host: str):
         company_storage_urls_query = urls_query & Q(
             company=company, storage_type=storage_type,
         )
-        storage_delete_funcs[storage_type](
-            urls_query=company_storage_urls_query
-        )
+        storage_delete_funcs[storage_type](urls_query=company_storage_urls_query)
 
 
 def main():

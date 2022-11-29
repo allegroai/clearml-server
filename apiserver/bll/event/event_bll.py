@@ -1084,6 +1084,18 @@ class EventBLL(object):
                 extra_msg, company=company_id, id=task_id
             )
 
+    @staticmethod
+    def _get_events_deletion_params(async_delete: bool) -> dict:
+        if async_delete:
+            return {
+                "wait_for_completion": False,
+                "requests_per_second": config.get(
+                    "services.events.max_async_deleted_events_per_sec", 1000
+                ),
+            }
+
+        return {"refresh": True}
+
     def delete_task_events(
         self, company_id, task_id, allow_locked=False, model=False, async_delete=False,
     ):
@@ -1103,11 +1115,7 @@ class EventBLL(object):
                 company_id=company_id,
                 event_type=EventType.all,
                 body=es_req,
-                **(
-                    {"wait_for_completion": False}
-                    if async_delete
-                    else {"refresh": True}
-                ),
+                **self._get_events_deletion_params(async_delete),
             )
 
         if not async_delete:
@@ -1170,11 +1178,7 @@ class EventBLL(object):
                 company_id=company_id,
                 event_type=EventType.all,
                 body=es_req,
-                **(
-                    {"wait_for_completion": False}
-                    if async_delete
-                    else {"refresh": True}
-                ),
+                **self._get_events_deletion_params(async_delete),
             )
 
         if not async_delete:
