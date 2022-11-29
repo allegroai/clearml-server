@@ -35,6 +35,12 @@
       },
       "value": {
         "type": "float"
+      },
+      "company_id": {
+        "type": "keyword"
+      },
+      "model_event": {
+        "type": "boolean"
       }
     }
   }

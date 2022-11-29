@@ -31,6 +31,7 @@ from apiserver.bll.event.metric_debug_images_iterator import MetricDebugImagesIt
 from apiserver.bll.event.metric_plots_iterator import MetricPlotsIterator
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
+from apiserver.database.model.model import Model
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import errors
 from apiserver.bll.event.event_metrics import EventMetrics
@@ -68,6 +69,15 @@ class EventBLL(object):
         r"['\"]source['\"]:\s?['\"]([a-z][a-z0-9+\-.]*://.*?)['\"]",
         flags=re.IGNORECASE,
     )
+    _task_event_query = {
+        "bool": {
+            "should": [
+                {"term": {"model_event": False}},
+                {"bool": {"must_not": [{"exists": {"field": "model_event"}}]}},
+            ]
+        }
+    }
+    _model_event_query = {"term": {"model_event": True}}
 
     def __init__(self, events_es=None, redis=None):
         self.es = events_es or es_factory.connect("events")
@@ -103,11 +113,35 @@ class EventBLL(object):
             res = Task.objects(query).only("id")
             return {r.id for r in res}
 
+    @staticmethod
+    def _get_valid_models(company_id, model_ids: Set, allow_locked_models=False) -> Set:
+        """Verify that task exists and can be updated"""
+        if not model_ids:
+            return set()
+
+        with translate_errors_context():
+            query = Q(id__in=model_ids, company=company_id)
+            if not allow_locked_models:
+                query &= Q(ready__ne=True)
+            res = Model.objects(query).only("id")
+            return {r.id for r in res}
+
     def add_events(
-        self, company_id, events, worker, allow_locked_tasks=False
+        self, company_id, events, worker, allow_locked=False
     ) -> Tuple[int, int, dict]:
+        model_events = events[0].get("model_event", False)
+        for event in events:
+            if event.get("model_event", model_events) != model_events:
+                raise errors.bad_request.ValidationError(
+                    "Inconsistent model_event setting in the passed events"
+                )
+            if event.pop("allow_locked", allow_locked) != allow_locked:
+                raise errors.bad_request.ValidationError(
+                    "Inconsistent allow_locked setting in the passed events"
+                )
+
         actions: List[dict] = []
-        task_ids = set()
+        task_or_model_ids = set()
         task_iteration = defaultdict(lambda: 0)
         task_last_scalar_events = nested_dict(
             3, dict
@@ -117,13 +151,28 @@ class EventBLL(object):
         )  # task_id -> metric_hash -> event_type -> MetricEvent
         errors_per_type = defaultdict(int)
         invalid_iteration_error = f"Iteration number should not exceed {MAX_LONG}"
-        valid_tasks = self._get_valid_tasks(
-            company_id,
-            task_ids={
-                event["task"] for event in events if event.get("task") is not None
-            },
-            allow_locked_tasks=allow_locked_tasks,
-        )
+        if model_events:
+            for event in events:
+                model = event.pop("model", None)
+                if model is not None:
+                    event["task"] = model
+            valid_entities = self._get_valid_models(
+                company_id,
+                model_ids={
+                    event["task"] for event in events if event.get("task") is not None
+                },
+                allow_locked_models=allow_locked,
+            )
+            entity_name = "model"
+        else:
+            valid_entities = self._get_valid_tasks(
+                company_id,
+                task_ids={
+                    event["task"] for event in events if event.get("task") is not None
+                },
+                allow_locked_tasks=allow_locked,
+            )
+            entity_name = "task"
 
         for event in events:
             # remove spaces from event type
@@ -137,13 +186,17 @@ class EventBLL(object):
                 errors_per_type[f"Invalid event type {event_type}"] += 1
                 continue
 
-            task_id = event.get("task")
-            if task_id is None:
+            if model_events and event_type == EventType.task_log.value:
+                errors_per_type[f"Task log events are not supported for models"] += 1
+                continue
+
+            task_or_model_id = event.get("task")
+            if task_or_model_id is None:
                 errors_per_type["Event must have a 'task' field"] += 1
                 continue
 
-            if task_id not in valid_tasks:
-                errors_per_type["Invalid task id"] += 1
+            if task_or_model_id not in valid_entities:
+                errors_per_type[f"Invalid {entity_name} id {task_or_model_id}"] += 1
                 continue
 
             event["type"] = event_type
@@ -165,10 +218,13 @@ class EventBLL(object):
             # force iter to be a long int
             iter = event.get("iter")
             if iter is not None:
-                iter = int(iter)
-                if iter > MAX_LONG or iter < MIN_LONG:
-                    errors_per_type[invalid_iteration_error] += 1
-                    continue
+                if model_events:
+                    iter = 0
+                else:
+                    iter = int(iter)
+                    if iter > MAX_LONG or iter < MIN_LONG:
+                        errors_per_type[invalid_iteration_error] += 1
+                        continue
                 event["iter"] = iter
 
             # used to have "values" to indicate array. no need anymore
@@ -178,6 +234,7 @@ class EventBLL(object):
 
             event["metric"] = event.get("metric") or ""
             event["variant"] = event.get("variant") or ""
+            event["model_event"] = model_events
 
             index_name = get_index_name(company_id, event_type)
             es_action = {
@@ -192,20 +249,25 @@ class EventBLL(object):
             else:
                 es_action["_id"] = dbutils.id()
 
-            task_ids.add(task_id)
+            task_or_model_ids.add(task_or_model_id)
             if (
                 iter is not None
+                and not model_events
                 and event.get("metric") not in self._skip_iteration_for_metric
             ):
-                task_iteration[task_id] = max(iter, task_iteration[task_id])
-
-            self._update_last_metric_events_for_task(
-                last_events=task_last_events[task_id], event=event,
-            )
-            if event_type == EventType.metrics_scalar.value:
-                self._update_last_scalar_events_for_task(
-                    last_events=task_last_scalar_events[task_id], event=event
+                task_iteration[task_or_model_id] = max(
+                    iter, task_iteration[task_or_model_id]
                 )
+
+            if not model_events:
+                self._update_last_metric_events_for_task(
+                    last_events=task_last_events[task_or_model_id], event=event,
+                )
+                if event_type == EventType.metrics_scalar.value:
+                    self._update_last_scalar_events_for_task(
+                        last_events=task_last_scalar_events[task_or_model_id],
+                        event=event,
+                    )
 
             actions.append(es_action)
 
@@ -243,28 +305,31 @@ class EventBLL(object):
                         else:
                             errors_per_type["Error when indexing events batch"] += 1
 
-                remaining_tasks = set()
-                now = datetime.utcnow()
-                for task_id in task_ids:
-                    # Update related tasks. For reasons of performance, we prefer to update
-                    # all of them and not only those who's events were successful
-                    updated = self._update_task(
-                        company_id=company_id,
-                        task_id=task_id,
-                        now=now,
-                        iter_max=task_iteration.get(task_id),
-                        last_scalar_events=task_last_scalar_events.get(task_id),
-                        last_events=task_last_events.get(task_id),
-                    )
+                if not model_events:
+                    remaining_tasks = set()
+                    now = datetime.utcnow()
+                    for task_or_model_id in task_or_model_ids:
+                        # Update related tasks. For reasons of performance, we prefer to update
+                        # all of them and not only those who's events were successful
+                        updated = self._update_task(
+                            company_id=company_id,
+                            task_id=task_or_model_id,
+                            now=now,
+                            iter_max=task_iteration.get(task_or_model_id),
+                            last_scalar_events=task_last_scalar_events.get(
+                                task_or_model_id
+                            ),
+                            last_events=task_last_events.get(task_or_model_id),
+                        )
 
-                    if not updated:
-                        remaining_tasks.add(task_id)
-                        continue
+                        if not updated:
+                            remaining_tasks.add(task_or_model_id)
+                            continue
 
-                if remaining_tasks:
-                    TaskBLL.set_last_update(
-                        remaining_tasks, company_id, last_update=now
-                    )
+                    if remaining_tasks:
+                        TaskBLL.set_last_update(
+                            remaining_tasks, company_id, last_update=now
+                        )
 
             # this is for backwards compatibility with streaming bulk throwing exception on those
             invalid_iterations_count = errors_per_type.get(invalid_iteration_error)
@@ -527,6 +592,7 @@ class EventBLL(object):
         scroll_id: str = None,
         no_scroll: bool = False,
         metric_variants: MetricVariants = None,
+        model_events: bool = False,
     ):
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -553,7 +619,7 @@ class EventBLL(object):
             }
             must = [plot_valid_condition]
 
-            if last_iterations_per_plot is None:
+            if last_iterations_per_plot is None or model_events:
                 must.append({"terms": {"task": tasks}})
                 if metric_variants:
                     must.append(get_metric_variants_condition(metric_variants))
@@ -709,6 +775,7 @@ class EventBLL(object):
         size=500,
         scroll_id=None,
         no_scroll=False,
+        model_events=False,
     ) -> TaskEventsResult:
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -728,7 +795,7 @@ class EventBLL(object):
             if variant:
                 must.append({"term": {"variant": variant}})
 
-            if last_iter_count is None:
+            if last_iter_count is None or model_events:
                 must.append({"terms": {"task": task_ids}})
             else:
                 tasks_iters = self.get_last_iters(
@@ -990,6 +1057,21 @@ class EventBLL(object):
         }
 
     @staticmethod
+    def _validate_model_state(
+        company_id: str, model_id: str, allow_locked: bool = False
+    ):
+        extra_msg = None
+        query = Q(id=model_id, company=company_id)
+        if not allow_locked:
+            query &= Q(ready__ne=True)
+            extra_msg = "or model published"
+        res = Model.objects(query).only("id").first()
+        if not res:
+            raise errors.bad_request.InvalidModelId(
+                extra_msg, company=company_id, id=model_id
+            )
+
+    @staticmethod
     def _validate_task_state(company_id: str, task_id: str, allow_locked: bool = False):
         extra_msg = None
         query = Q(id=task_id, company=company_id)
@@ -1002,10 +1084,15 @@ class EventBLL(object):
                 extra_msg, company=company_id, id=task_id
             )
 
-    def delete_task_events(self, company_id, task_id, allow_locked=False):
-        self._validate_task_state(
-            company_id=company_id, task_id=task_id, allow_locked=allow_locked
-        )
+    def delete_task_events(self, company_id, task_id, allow_locked=False, model=False):
+        if model:
+            self._validate_model_state(
+                company_id=company_id, model_id=task_id, allow_locked=allow_locked,
+            )
+        else:
+            self._validate_task_state(
+                company_id=company_id, task_id=task_id, allow_locked=allow_locked
+            )
 
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context():

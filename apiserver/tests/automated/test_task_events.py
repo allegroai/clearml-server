@@ -6,17 +6,24 @@ from typing import Sequence, Optional, Tuple
 
 from boltons.iterutils import first
 
+from apiserver.apierrors import errors
 from apiserver.es_factory import es_factory
 from apiserver.apierrors.errors.bad_request import EventsNotAdded
 from apiserver.tests.automated import TestService
 
 
 class TestTaskEvents(TestService):
+    delete_params = dict(can_fail=True, force=True)
+
     def _temp_task(self, name="test task events"):
         task_input = dict(
             name=name, type="training", input=dict(mapping={}, view=dict(entries=[])),
         )
-        return self.create_temp("tasks", **task_input)
+        return self.create_temp("tasks", delete_paramse=self.delete_params, **task_input)
+
+    def _temp_model(self, name="test model events", **kwargs):
+        self.update_missing(kwargs, name=name, uri="file:///a/b", labels={})
+        return self.create_temp("models", delete_params=self.delete_params, **kwargs)
 
     @staticmethod
     def _create_task_event(type_, task, iteration, **kwargs):
@@ -171,6 +178,42 @@ class TestTaskEvents(TestService):
         self.assertEqual(iter_count - 1, metric_data.value)
         self.assertEqual(iter_count - 1, metric_data.max_value)
         self.assertEqual(0, metric_data.min_value)
+
+    def test_model_events(self):
+        model = self._temp_model(ready=False)
+
+        # task log events are not allowed
+        log_event = self._create_task_event(
+            "log",
+            task=model,
+            iteration=0,
+            msg=f"This is a log message",
+            model_event=True,
+        )
+        with self.api.raises(errors.bad_request.EventsNotAdded):
+            self.send(log_event)
+
+        # send metric events and check that model data always have iteration 0 and only last data is saved
+        events = [
+            {
+                **self._create_task_event("training_stats_scalar", model, iteration),
+                "metric": f"Metric{metric_idx}",
+                "variant": f"Variant{variant_idx}",
+                "value": iteration,
+                "model_event": True,
+            }
+            for iteration in range(2)
+            for metric_idx in range(5)
+            for variant_idx in range(5)
+        ]
+        self.send_batch(events)
+        data = self.api.events.scalar_metrics_iter_histogram(task=model, model_events=True)
+        self.assertEqual(list(data), [f"Metric{idx}" for idx in range(5)])
+        metric_data = data.Metric0
+        self.assertEqual(list(metric_data), [f"Variant{idx}" for idx in range(5)])
+        variant_data = metric_data.Variant0
+        self.assertEqual(variant_data.x, [0])
+        self.assertEqual(variant_data.y, [1.0])
 
     def test_error_events(self):
         task = self._temp_task()
@@ -555,7 +598,8 @@ class TestTaskEvents(TestService):
         return data
 
     def send(self, event):
-        self.api.send("events.add", event)
+        _, data = self.api.send("events.add", event)
+        return data
 
 
 if __name__ == "__main__":

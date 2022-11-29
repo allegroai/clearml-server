@@ -92,3 +92,6 @@ class Model(AttributedDocument):
     metadata = SafeMapField(
         field=EmbeddedDocumentField(MetadataItem), user_set_allowed=True
     )
+
+    def get_index_company(self) -> str:
+        return self.company or self.company_origin or ""

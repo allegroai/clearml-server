@@ -50,10 +50,12 @@ class TestTasksResetDelete(TestService):
         self.assertEqual(res.urls.artifact_urls, [])
 
         task = self.new_task()
+        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task)
         published_model_urls, draft_model_urls = self.create_task_models(task)
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
+        event_urls.update(self.send_model_events(model))
         res = self.assert_delete_task(task, force=True, return_file_urls=True)
         self.assertEqual(set(res.urls.model_urls), draft_model_urls)
         self.assertEqual(set(res.urls.event_urls), event_urls)
@@ -120,10 +122,12 @@ class TestTasksResetDelete(TestService):
         self, **kwargs
     ) -> Tuple[str, Tuple[Set[str], Set[str]], Set[str], Set[str]]:
         task = self.new_task(**kwargs)
+        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task, **kwargs)
         published_model_urls, draft_model_urls = self.create_task_models(task, **kwargs)
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
+        event_urls.update(self.send_model_events(model))
         return task, (published_model_urls, draft_model_urls), artifact_urls, event_urls
 
     def assert_delete_task(self, task_id, force=False, return_file_urls=False):
@@ -137,15 +141,17 @@ class TestTasksResetDelete(TestService):
         self.assertEqual(tasks, [])
         return res
 
-    def create_task_models(self, task, **kwargs) -> Tuple[Set[str], Set[str]]:
+    def create_task_models(self, task, **kwargs) -> Tuple:
         """
         Update models from task and return only non public models
         """
-        model_ready = self.new_model(uri="ready", **kwargs)
-        model_not_ready = self.new_model(uri="not_ready", ready=False, **kwargs)
+        ready_uri = "ready"
+        not_ready_uri = "not_ready"
+        model_ready = self.new_model(uri=ready_uri, **kwargs)
+        model_not_ready = self.new_model(uri=not_ready_uri, ready=False, **kwargs)
         self.api.models.edit(model=model_not_ready, task=task)
         self.api.models.edit(model=model_ready, task=task)
-        return {"ready"}, {"not_ready"}
+        return (model_ready, {ready_uri}), (model_not_ready, {not_ready_uri})
 
     def send_artifacts(self, task) -> Set[str]:
         """
@@ -158,6 +164,20 @@ class TestTasksResetDelete(TestService):
         # test create/get and get_all
         self.api.tasks.add_or_update_artifacts(task=task, artifacts=artifacts)
         return {"test2"}
+
+    def send_model_events(self, model) -> Set[str]:
+        url1 = "http://link1"
+        url2 = "http://link2"
+        events = [
+            self.create_event(
+                model, "training_debug_image", 0, url=url1, model_event=True
+            ),
+            self.create_event(
+                model, "plot", 0, plot_str=f'{{"source": "{url2}"}}', model_event=True
+            )
+        ]
+        self.send_batch(events)
+        return {url1, url2}
 
     def send_debug_image_events(self, task) -> Set[str]:
         events = [

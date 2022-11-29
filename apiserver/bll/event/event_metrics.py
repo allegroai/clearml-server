@@ -8,9 +8,7 @@ from typing import Sequence, Tuple, Mapping
 
 from boltons.iterutils import bucketize
 from elasticsearch import Elasticsearch
-from mongoengine import Q
 
-from apiserver.apierrors import errors
 from apiserver.bll.event.event_common import (
     EventType,
     EventSettings,
@@ -111,40 +109,19 @@ class EventMetrics:
     def compare_scalar_metrics_average_per_iter(
         self,
         company_id,
-        task_ids: Sequence[str],
+        tasks: Sequence[Task],
         samples,
         key: ScalarKeyEnum,
-        allow_public=True,
     ):
         """
         Compare scalar metrics for different tasks per metric and variant
         The amount of points in each histogram should not exceed the requested samples
         """
-        task_name_by_id = {}
-        with translate_errors_context():
-            task_objs = Task.get_many(
-                company=company_id,
-                query=Q(id__in=task_ids),
-                allow_public=allow_public,
-                override_projection=("id", "name", "company", "company_origin"),
-                return_dicts=False,
-            )
-            if len(task_objs) < len(task_ids):
-                invalid = tuple(set(task_ids) - set(r.id for r in task_objs))
-                raise errors.bad_request.InvalidTaskId(company=company_id, ids=invalid)
-            task_name_by_id = {t.id: t.name for t in task_objs}
-
-        companies = {t.get_index_company() for t in task_objs}
-        if len(companies) > 1:
-            raise errors.bad_request.InvalidTaskId(
-                "only tasks from the same company are supported"
-            )
-
         event_type = EventType.metrics_scalar
-        company_id = next(iter(companies))
         if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
+        task_name_by_id = {t.id: t.name for t in tasks}
         get_scalar_average_per_iter = partial(
             self._get_scalar_average_per_iter_core,
             company_id=company_id,
@@ -153,6 +130,7 @@ class EventMetrics:
             key=ScalarKey.resolve(key),
             run_parallel=False,
         )
+        task_ids = [t.id for t in tasks]
         with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
             task_metrics = zip(
                 task_ids, pool.map(get_scalar_average_per_iter, task_ids)
@@ -169,7 +147,7 @@ class EventMetrics:
         return res
 
     def get_task_single_value_metrics(
-        self, company_id: str, task_ids: Sequence[str]
+        self, company_id: str, tasks: Sequence[Task]
     ) -> Mapping[str, dict]:
         """
         For the requested tasks return all the events delivered for the single iteration (-2**31)
@@ -179,6 +157,7 @@ class EventMetrics:
         ):
             return {}
 
+        task_ids = [t.id for t in tasks]
         task_events = self._get_task_single_value_metrics(company_id, task_ids)
 
         def _get_value(event: dict):

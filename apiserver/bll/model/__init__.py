@@ -1,5 +1,7 @@
 from datetime import datetime
-from typing import Callable, Tuple, Sequence, Dict
+from typing import Callable, Tuple, Sequence, Dict, Optional
+
+from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.models import ModelTaskPublishResponse
@@ -23,6 +25,33 @@ class ModelBLL:
         if not model:
             raise errors.bad_request.InvalidModelId(**query)
         return model
+
+    @staticmethod
+    def assert_exists(
+        company_id,
+        model_ids,
+        only=None,
+        allow_public=False,
+        return_models=True,
+    ) -> Optional[Sequence[Model]]:
+        model_ids = [model_ids] if isinstance(model_ids, str) else model_ids
+        ids = set(model_ids)
+        query = Q(id__in=ids)
+
+        q = Model.get_many(
+            company=company_id,
+            query=query,
+            allow_public=allow_public,
+            return_dicts=False,
+        )
+        if only:
+            q = q.only(*only)
+
+        if q.count() != len(ids):
+            raise errors.bad_request.InvalidModelId(ids=model_ids)
+
+        if return_models:
+            return list(q)
 
     @classmethod
     def publish_model(
