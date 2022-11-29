@@ -102,7 +102,8 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
 
 
 supported_storage_types = {
-    "https://files": StorageType.fileserver,
+    "https://": StorageType.fileserver,
+    "http://": StorageType.fileserver,
 }
 
 
@@ -181,9 +182,11 @@ def cleanup_task(
     published_models, draft_models, in_use_model_ids = verify_task_children_and_ouptuts(
         task, force
     )
-
+    delete_external_artifacts = delete_external_artifacts and config.get(
+        "services.async_urls_delete.enabled", False
+    )
     event_urls, artifact_urls, model_urls = set(), set(), set()
-    if return_file_urls:
+    if return_file_urls or delete_external_artifacts:
         event_urls = collect_debug_image_urls(task.company, task.id)
         event_urls.update(collect_plot_image_urls(task.company, task.id))
         if task.execution and task.execution.artifacts:
@@ -223,9 +226,7 @@ def cleanup_task(
 
     event_bll.delete_task_events(task.company, task.id, allow_locked=force)
 
-    if delete_external_artifacts and config.get(
-        "services.async_urls_delete.enabled", False
-    ):
+    if delete_external_artifacts:
         scheduled = _schedule_for_delete(
             task_id=task.id,
             company=company,
