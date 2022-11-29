@@ -68,7 +68,7 @@ from apiserver.apimodels.tasks import (
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL, project_ids_with_children
+from apiserver.bll.project import ProjectBLL
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.task import (
     TaskBLL,
@@ -118,6 +118,7 @@ from apiserver.services.utils import (
     DockerCmdBackwardsCompatibility,
     escape_dict_field,
     unescape_dict_field,
+    process_include_subprojects,
 )
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.partial_version import PartialVersion
@@ -203,17 +204,6 @@ def escape_execution_parameters(call: APICall) -> dict:
     return call_data
 
 
-def _process_include_subprojects(call_data: dict):
-    include_subprojects = call_data.pop("include_subprojects", False)
-    project_ids = call_data.get("project")
-    if not project_ids or not include_subprojects:
-        return
-
-    if not isinstance(project_ids, list):
-        project_ids = [project_ids]
-    call_data["project"] = project_ids_with_children(project_ids)
-
-
 def _hidden_query(data: dict) -> Q:
     """
     1. Add only non-hidden tasks search condition (unless specifically specified differently)
@@ -230,7 +220,7 @@ def get_all_ex(call: APICall, company_id, _):
 
     call_data = escape_execution_parameters(call)
 
-    _process_include_subprojects(call_data)
+    process_include_subprojects(call_data)
     ret_params = {}
     tasks = Task.get_many_with_join(
         company=company_id,

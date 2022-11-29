@@ -3,6 +3,7 @@ from typing import Union, Sequence, Tuple
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.organization import Filter
+from apiserver.bll.project import project_ids_with_children
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.task.task import TaskModelTypes, TaskModelNames
 from apiserver.database.utils import partition_tags
@@ -10,6 +11,17 @@ from apiserver.service_repo import APICall
 from apiserver.utilities.dicts import nested_set, nested_get, nested_delete
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 from apiserver.utilities.partial_version import PartialVersion
+
+
+def process_include_subprojects(call_data: dict):
+    include_subprojects = call_data.pop("include_subprojects", False)
+    project_ids = call_data.get("project")
+    if not project_ids or not include_subprojects:
+        return
+
+    if not isinstance(project_ids, list):
+        project_ids = [project_ids]
+    call_data["project"] = project_ids_with_children(project_ids)
 
 
 def get_tags_filter_dictionary(input_: Filter) -> dict:

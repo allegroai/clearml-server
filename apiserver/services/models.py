@@ -24,7 +24,7 @@ from apiserver.apimodels.models import (
 )
 from apiserver.bll.model import ModelBLL, Metadata
 from apiserver.bll.organization import OrgBLL, Tags
-from apiserver.bll.project import ProjectBLL, project_ids_with_children
+from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.task_operations import publish_task
 from apiserver.bll.util import run_batch_operation
@@ -51,6 +51,7 @@ from apiserver.services.utils import (
     ModelsBackwardsCompatibility,
     unescape_metadata,
     escape_metadata,
+    process_include_subprojects,
 )
 
 log = config.logger(__file__)
@@ -106,21 +107,10 @@ def get_by_task_id(call: APICall, company_id, _):
     call.result.data = {"model": model_dict}
 
 
-def _process_include_subprojects(call_data: dict):
-    include_subprojects = call_data.pop("include_subprojects", False)
-    project_ids = call_data.get("project")
-    if not project_ids or not include_subprojects:
-        return
-
-    if not isinstance(project_ids, list):
-        project_ids = [project_ids]
-    call_data["project"] = project_ids_with_children(project_ids)
-
-
 @endpoint("models.get_all_ex", request_data_model=ModelsGetRequest)
 def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
     conform_tag_fields(call, call.data)
-    _process_include_subprojects(call.data)
+    process_include_subprojects(call.data)
     Metadata.escape_query_parameters(call)
     ret_params = {}
     models = Model.get_many_with_join(
