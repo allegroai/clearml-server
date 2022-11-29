@@ -850,6 +850,11 @@ def enqueue(call: APICall, company_id, request: EnqueueRequest):
         queue_name=request.queue_name,
         force=request.force,
     )
+    if request.verify_watched_queue:
+        res_queue = nested_get(res, ("fields", "execution.queue"))
+        if res_queue:
+            res["queue_watched"] = queue_bll.check_for_workers(company_id, res_queue)
+
     call.result.data_model = EnqueueResponse(queued=queued, **res)
 
 
@@ -871,12 +876,20 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
         ),
         ids=request.ids,
     )
+    extra = {}
+    if request.verify_watched_queue and results:
+        _id, (queued, res) = results[0]
+        res_queue = nested_get(res, ("fields", "execution.queue"))
+        if res_queue:
+            extra["queue_watched"] = queue_bll.check_for_workers(company_id, res_queue)
+
     call.result.data_model = EnqueueManyResponse(
         succeeded=[
             EnqueueBatchItem(id=_id, queued=bool(queued), **res)
             for _id, (queued, res) in results
         ],
         failed=failures,
+        **extra,
     )
 
 

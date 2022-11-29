@@ -7,9 +7,6 @@ class TestBatchOperations(TestService):
     comment = "this is a comment"
     delete_params = dict(can_fail=True, force=True)
 
-    def setUp(self, version="2.13"):
-        super().setUp(version=version)
-
     def test_tasks(self):
         tasks = [self._temp_task() for _ in range(2)]
         models = [
