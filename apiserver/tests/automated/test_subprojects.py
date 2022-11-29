@@ -14,15 +14,23 @@ from apiserver.tests.automated import TestService
 class TestSubProjects(TestService):
     def test_dataset_stats(self):
         project = self._temp_project(name="Dataset test", system_tags=["dataset"])
-        res = self.api.organization.get_entities_count(datasets={"system_tags": ["dataset"]})
+        res = self.api.organization.get_entities_count(
+            datasets={"system_tags": ["dataset"]}
+        )
         self.assertEqual(res.datasets, 1)
 
         task = self._temp_task(project=project)
-        data = self.api.projects.get_all_ex(id=[project], include_dataset_stats=True).projects[0]
+        data = self.api.projects.get_all_ex(
+            id=[project], include_dataset_stats=True
+        ).projects[0]
         self.assertIsNone(data.dataset_stats)
 
-        self.api.tasks.edit(task=task, runtime={"ds_file_count": 2, "ds_total_size": 1000})
-        data = self.api.projects.get_all_ex(id=[project], include_dataset_stats=True).projects[0]
+        self.api.tasks.edit(
+            task=task, runtime={"ds_file_count": 2, "ds_total_size": 1000}
+        )
+        data = self.api.projects.get_all_ex(
+            id=[project], include_dataset_stats=True
+        ).projects[0]
         self.assertEqual(data.dataset_stats, {"file_count": 2, "total_size": 1000})
 
     def test_project_aggregations(self):
@@ -52,6 +60,10 @@ class TestSubProjects(TestService):
         self.assertEqual(res.types, [])
         res = self.api.projects.get_task_parents(projects=[project])
         self.assertEqual(res.parents, [])
+        res = self.api.organization.get_entities_count(
+            projects={"id": [project]}, active_users=[user]
+        )
+        self.assertEqual(res.projects, 0)
 
         # test aggregations with non-empty subprojects
         task1 = self._temp_task(project=child)
@@ -64,7 +76,9 @@ class TestSubProjects(TestService):
         res = self.api.projects.get_all_ex(id=[project], include_stats=True)
         self._assert_ids(res.projects, [project])
         self.assertEqual(res.projects[0].stats.active.total_tasks, 3)
-        res = self.api.projects.get_all_ex(id=[project], active_users=[user], include_stats=True)
+        res = self.api.projects.get_all_ex(
+            id=[project], active_users=[user], include_stats=True
+        )
         self._assert_ids(res.projects, [project])
         self.assertEqual(res.projects[0].stats.active.total_tasks, 2)
         res = self.api.projects.get_task_parents(projects=[project])
@@ -73,6 +87,10 @@ class TestSubProjects(TestService):
         self.assertEqual(res.frameworks, [framework])
         res = self.api.tasks.get_types(projects=[project])
         self.assertEqual(res.types, ["testing"])
+        res = self.api.organization.get_entities_count(
+            projects={"id": [project]}, active_users=[user]
+        )
+        self.assertEqual(res.projects, 1)
 
     def _assert_ids(self, actual: Sequence[dict], expected: Sequence[str]):
         self.assertEqual([a["id"] for a in actual], expected)
