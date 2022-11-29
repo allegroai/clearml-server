@@ -522,6 +522,8 @@ class GetMixin(PropsMixin):
     def validate_order_by(cls, parameters, search_text) -> Sequence:
         """
         Validate and extract order_by params as a list
+        If ordering is specified then make sure that id field is part of it
+        This guarantees the unique order when paging
         """
         order_by = parameters.get(cls._ordering_key)
         if not order_by:
@@ -533,6 +535,9 @@ class GetMixin(PropsMixin):
             raise errors.bad_request.FieldsValueError(
                 "text score cannot be used in order_by when search text is not used"
             )
+
+        if not any(id_field in order_by for id_field in ("id", "-id")):
+            order_by.append("id")
 
         return order_by
 
