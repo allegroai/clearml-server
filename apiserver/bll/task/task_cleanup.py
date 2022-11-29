@@ -23,6 +23,7 @@ from apiserver.database.model.url_to_delete import (
 )
 from apiserver.database.utils import id as db_id
 
+log = config.logger(__file__)
 event_bll = EventBLL()
 
 
@@ -66,12 +67,12 @@ class CleanupResult:
         )
 
 
-def collect_plot_image_urls(company: str, task: str) -> Set[str]:
+def collect_plot_image_urls(company: str, task_or_model: str) -> Set[str]:
     urls = set()
     next_scroll_id = None
     while True:
         events, next_scroll_id = event_bll.get_plot_image_urls(
-            company_id=company, task_id=task, scroll_id=next_scroll_id
+            company_id=company, task_id=task_or_model, scroll_id=next_scroll_id
         )
         if not events:
             break
@@ -83,7 +84,7 @@ def collect_plot_image_urls(company: str, task: str) -> Set[str]:
     return urls
 
 
-def collect_debug_image_urls(company: str, task: str) -> Set[str]:
+def collect_debug_image_urls(company: str, task_or_model: str) -> Set[str]:
     """
     Return the set of unique image urls
     Uses DebugImagesIterator to make sure that we do not retrieve recycled urls
@@ -92,7 +93,7 @@ def collect_debug_image_urls(company: str, task: str) -> Set[str]:
     urls = set()
     while True:
         res, after_key = event_bll.get_debug_image_urls(
-            company_id=company, task_id=task, after_key=after_key,
+            company_id=company, task_id=task_or_model, after_key=after_key,
         )
         urls.update(res)
         if not after_key:
@@ -210,9 +211,21 @@ def cleanup_task(
         if not models:
             continue
         if delete_output_models and allow_delete:
-            deleted_models += Model.objects(
-                id__in=[m.id for m in models if m.id not in in_use_model_ids]
-            ).delete()
+            model_ids = set(m.id for m in models if m.id not in in_use_model_ids)
+            for m_id in model_ids:
+                if return_file_urls or delete_external_artifacts:
+                    event_urls.update(collect_debug_image_urls(task.company, m_id))
+                    event_urls.update(collect_plot_image_urls(task.company, m_id))
+                try:
+                    event_bll.delete_task_events(
+                        task.company, m_id, allow_locked=True, model=True
+                    )
+                except errors.bad_request.InvalidModelId as ex:
+                    log.info(
+                        f"Error deleting events for the model {m_id}: {str(ex)}"
+                    )
+
+            deleted_models += Model.objects(id__in=list(model_ids)).delete()
             if in_use_model_ids:
                 Model.objects(id__in=list(in_use_model_ids)).update(unset__task=1)
             continue

@@ -51,7 +51,6 @@ class TestTasksResetDelete(TestService):
 
         task = self.new_task()
         (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task)
-        published_model_urls, draft_model_urls = self.create_task_models(task)
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
@@ -123,7 +122,6 @@ class TestTasksResetDelete(TestService):
     ) -> Tuple[str, Tuple[Set[str], Set[str]], Set[str], Set[str]]:
         task = self.new_task(**kwargs)
         (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task, **kwargs)
-        published_model_urls, draft_model_urls = self.create_task_models(task, **kwargs)
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))

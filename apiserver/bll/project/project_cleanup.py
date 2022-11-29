@@ -101,10 +101,13 @@ def delete_project(
             updated_count = cls.objects(project__in=project_ids).update(project=None)
         res = DeleteProjectResult(disassociated_tasks=updated_count)
     else:
-        deleted_models, model_urls = _delete_models(projects=project_ids)
-        deleted_tasks, event_urls, artifact_urls = _delete_tasks(
+        deleted_models, model_event_urls, model_urls = _delete_models(
             company=company, projects=project_ids
         )
+        deleted_tasks, task_event_urls, artifact_urls = _delete_tasks(
+            company=company, projects=project_ids
+        )
+        event_urls = task_event_urls | model_event_urls
         if delete_external_artifacts:
             scheduled = _schedule_for_delete(
                 task_id=project_id,
@@ -164,14 +167,16 @@ def _delete_tasks(company: str, projects: Sequence[str]) -> Tuple[int, Set, Set]
     return deleted, event_urls, artifact_urls
 
 
-def _delete_models(projects: Sequence[str]) -> Tuple[int, Set[str]]:
+def _delete_models(
+    company: str, projects: Sequence[str]
+) -> Tuple[int, Set[str], Set[str]]:
     """
     Delete project models and update the tasks from other projects
     that reference them to reference None.
     """
     models = Model.objects(project__in=projects).only("task", "id", "uri")
     if not models:
-        return 0, set()
+        return 0, set(), set()
 
     model_ids = list({m.id for m in models})
 
@@ -198,6 +203,13 @@ def _delete_models(projects: Sequence[str]) -> Tuple[int, Set[str]]:
             upsert=False,
         )
 
-    urls = {m.uri for m in models if m.uri}
+    event_urls, model_urls = set(), set()
+    for m in models:
+        event_urls.update(collect_debug_image_urls(company, m.id))
+        event_urls.update(collect_plot_image_urls(company, m.id))
+        if m.uri:
+            model_urls.add(m.uri)
+
+    event_bll.delete_multi_task_events(company, model_ids)
     deleted = models.delete()
-    return deleted, urls
+    return deleted, event_urls, model_urls
