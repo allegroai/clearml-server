@@ -687,7 +687,7 @@ class EventBLL(object):
         events = [doc["_source"] for doc in safe_get(es_res, "hits/hits", default=[])]
         next_scroll_id = es_res.get("_scroll_id")
         if next_scroll_id and not events:
-            self.es.clear_scroll(scroll_id=next_scroll_id)
+            self.clear_scroll(next_scroll_id)
             next_scroll_id = self.empty_scroll
 
         return events, total_events, next_scroll_id
