@@ -19,7 +19,6 @@ from apiserver.apimodels.events import (
     TaskMetricsRequest,
     LogEventsRequest,
     LogOrderEnum,
-    GetHistorySampleRequest,
     NextHistorySampleRequest,
     MetricVariants as ApiMetrics,
     TaskPlotsRequest,
@@ -28,6 +27,7 @@ from apiserver.apimodels.events import (
     ClearScrollRequest,
     ClearTaskLogRequest,
     SingleValueMetricsRequest,
+    GetVariantSampleRequest, GetMetricSamplesRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants
@@ -827,9 +827,9 @@ def get_debug_images(call, company_id, request: MetricEventsRequest):
 @endpoint(
     "events.get_debug_image_sample",
     min_version="2.12",
-    request_data_model=GetHistorySampleRequest,
+    request_data_model=GetVariantSampleRequest,
 )
-def get_debug_image_sample(call, company_id, request: GetHistorySampleRequest):
+def get_debug_image_sample(call, company_id, request: GetVariantSampleRequest):
     task_or_model = _assert_task_or_model_exists(
         company_id, request.task, model_events=request.model_events,
     )[0]
@@ -866,17 +866,16 @@ def next_debug_image_sample(call, company_id, request: NextHistorySampleRequest)
 
 
 @endpoint(
-    "events.get_plot_sample", request_data_model=GetHistorySampleRequest,
+    "events.get_plot_sample", request_data_model=GetMetricSamplesRequest,
 )
-def get_plot_sample(call, company_id, request: GetHistorySampleRequest):
+def get_plot_sample(call, company_id, request: GetMetricSamplesRequest):
     task_or_model = _assert_task_or_model_exists(
         company_id, request.task, model_events=request.model_events,
     )[0]
-    res = event_bll.plot_sample_history.get_sample_for_variant(
+    res = event_bll.plot_sample_history.get_samples_for_metric(
         company_id=task_or_model.get_index_company(),
         task=request.task,
         metric=request.metric,
-        variant=request.variant,
         iteration=request.iteration,
         refresh=request.refresh,
         state_id=request.scroll_id,

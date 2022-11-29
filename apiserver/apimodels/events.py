@@ -61,13 +61,20 @@ class MetricEventsRequest(Base):
     model_events: bool = BoolField()
 
 
-class TaskMetricVariant(Base):
+class GetVariantSampleRequest(Base):
     task: str = StringField(required=True)
     metric: str = StringField(required=True)
     variant: str = StringField(required=True)
+    iteration: Optional[int] = IntField()
+    refresh: bool = BoolField(default=False)
+    scroll_id: Optional[str] = StringField()
+    navigate_current_metric: bool = BoolField(default=True)
+    model_events: bool = BoolField(default=False)
 
 
-class GetHistorySampleRequest(TaskMetricVariant):
+class GetMetricSamplesRequest(Base):
+    task: str = StringField(required=True)
+    metric: str = StringField(required=True)
     iteration: Optional[int] = IntField()
     refresh: bool = BoolField(default=False)
     scroll_id: Optional[str] = StringField()

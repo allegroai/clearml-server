@@ -26,7 +26,7 @@ from apiserver.bll.event.event_common import (
 )
 from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
 from apiserver.bll.event.history_debug_image_iterator import HistoryDebugImageIterator
-from apiserver.bll.event.history_plot_iterator import HistoryPlotIterator
+from apiserver.bll.event.history_plots_iterator import HistoryPlotsIterator
 from apiserver.bll.event.metric_debug_images_iterator import MetricDebugImagesIterator
 from apiserver.bll.event.metric_plots_iterator import MetricPlotsIterator
 from apiserver.bll.util import parallel_chunked_decorator
@@ -93,7 +93,7 @@ class EventBLL(object):
             es=self.es, redis=self.redis
         )
         self.plots_iterator = MetricPlotsIterator(es=self.es, redis=self.redis)
-        self.plot_sample_history = HistoryPlotIterator(es=self.es, redis=self.redis)
+        self.plot_sample_history = HistoryPlotsIterator(es=self.es, redis=self.redis)
         self.events_iterator = EventsIterator(es=self.es)
 
     @property

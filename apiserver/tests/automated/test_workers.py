@@ -40,14 +40,20 @@ class TestWorkersService(TestService):
     def test_system_tags(self):
         test_worker = f"test_{uuid4().hex}"
         tag = uuid4().hex
+        system_tag = uuid4().hex
+        self.api.workers.register(
+            worker=test_worker, tags=[tag], system_tags=[system_tag], timeout=5
+        )
 
         # system_tags support
-        worker = self.api.workers.get_all(tags=[tag], system_tags=["Application"]).workers[0]
+        worker = self.api.workers.get_all(tags=[tag], system_tags=[system_tag]).workers[
+            0
+        ]
         self.assertEqual(worker.id, test_worker)
         self.assertEqual(worker.tags, [tag])
-        self.assertEqual(worker.system_tags, ["Application"])
+        self.assertEqual(worker.system_tags, [system_tag])
 
-        workers = self.api.workers.get_all(tags=[tag], system_tags=["-Application"]).workers
+        workers = self.api.workers.get_all(tags=[tag], system_tags=[f"-{system_tag}"]).workers
         self.assertFalse(workers)
 
     def test_filters(self):
