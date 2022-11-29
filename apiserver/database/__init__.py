@@ -29,9 +29,10 @@ OVERRIDE_PORT_ENV_KEY = (
 )
 
 OVERRIDE_CONNECTION_STRING_ENV_KEY = "CLEARML_MONGODB_SERVICE_CONNECTION_STRING"
-OVERRIDE_MONGO_USERNAME_ENV_KEY = "CLEARML_MONGODB_SERVICE_USERNAME"
-OVERRIDE_MONGO_PASSWORD_ENV_KEY = "CLEARML_MONGODB_SERVICE_PASSWORD"
-OVERRIDE_MONGO_QUERY_ENV_KEY = "CLEARML_MONGODB_SERVICE_QUERY"
+OVERRIDE_USERNAME_ENV_KEY = "CLEARML_MONGODB_SERVICE_USERNAME"
+OVERRIDE_PASSWORD_ENV_KEY = "CLEARML_MONGODB_SERVICE_PASSWORD"
+OVERRIDE_QUERY_ENV_KEY = "CLEARML_MONGODB_SERVICE_QUERY"
+
 
 class DatabaseEntry(models.Base):
     host = StringField(required=True)
@@ -54,10 +55,9 @@ class DatabaseFactory:
         override_connection_string = getenv(OVERRIDE_CONNECTION_STRING_ENV_KEY)
         override_hostname = first(map(getenv, OVERRIDE_HOST_ENV_KEY), None)
         override_port = first(map(getenv, OVERRIDE_PORT_ENV_KEY), None)
-        override_username = getenv(OVERRIDE_MONGO_USERNAME_ENV_KEY)
-        override_password = getenv(OVERRIDE_MONGO_PASSWORD_ENV_KEY)
-        override_query = getenv(OVERRIDE_MONGO_QUERY_ENV_KEY)
-
+        override_username = getenv(OVERRIDE_USERNAME_ENV_KEY)
+        override_password = getenv(OVERRIDE_PASSWORD_ENV_KEY)
+        override_query = getenv(OVERRIDE_QUERY_ENV_KEY)
 
         if override_connection_string:
             log.info(f"Using override mongodb connection string template {override_connection_string}")
@@ -69,7 +69,7 @@ class DatabaseFactory:
             if override_username:
                 log.info(f"Using override mongodb username {override_username}")
             if override_password:
-                log.info(f"Using override mongodb password xxxxxx")
+                log.info(f"Using override mongodb password ******")
             if override_query:
                 log.info(f"Using override mongodb query {override_query}")
 
