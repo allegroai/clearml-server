@@ -42,7 +42,10 @@ worker_bll = WorkerBLL()
 def get_all(call: APICall, company_id: str, request: GetAllRequest):
     call.result.data_model = GetAllResponse(
         workers=worker_bll.get_all_with_projection(
-            company_id, request.last_seen, tags=request.tags
+            company_id,
+            request.last_seen,
+            tags=request.tags,
+            system_tags=request.system_tags,
         )
     )
 
@@ -66,6 +69,7 @@ def register(call: APICall, company_id, request: RegisterRequest):
         queues=queues,
         timeout=timeout,
         tags=request.tags,
+        system_tags=request.system_tags,
     )
 
 
@@ -84,6 +88,7 @@ def status_report(call: APICall, company_id, request: StatusReportRequest):
         ip=call.real_ip,
         report=request,
         tags=request.tags,
+        system_tags=request.system_tags,
     )
 
 

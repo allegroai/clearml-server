@@ -37,6 +37,19 @@ class TestWorkersService(TestService):
         time.sleep(5)
         self._check_exists(test_worker, False)
 
+    def test_system_tags(self):
+        test_worker = f"test_{uuid4().hex}"
+        tag = uuid4().hex
+
+        # system_tags support
+        worker = self.api.workers.get_all(tags=[tag], system_tags=["Application"]).workers[0]
+        self.assertEqual(worker.id, test_worker)
+        self.assertEqual(worker.tags, [tag])
+        self.assertEqual(worker.system_tags, ["Application"])
+
+        workers = self.api.workers.get_all(tags=[tag], system_tags=["-Application"]).workers
+        self.assertFalse(workers)
+
     def test_filters(self):
         test_worker = f"test_{uuid4().hex}"
         self.api.workers.register(worker=test_worker, tags=["application"], timeout=3)
