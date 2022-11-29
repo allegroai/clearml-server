@@ -61,12 +61,6 @@ class ListField(fields.ListField):
             item.validate()
 
 
-# since there is no distinction between None and empty DictField
-# this value can be used as sentinel in order to distinguish
-# between not set and empty DictField
-DictFieldNotSet = {}
-
-
 class DictField(fields.BaseField):
     types = (dict,)
 

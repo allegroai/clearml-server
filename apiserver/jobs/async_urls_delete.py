@@ -90,13 +90,14 @@ def delete_fileserver_urls(urls_query: Q, fileserver_host: str):
     except Exception as ex:
         err = str(ex)
         log.warn(f"Error deleting {len(paths)} files from fileserver: {err}")
-        mark_failed(Q(id__in=list(ids_to_delete)), err)
+        mark_retry_failed(list(ids_to_delete), err)
         return
 
     res_data = res.json()
     deleted_ids = set(
         chain.from_iterable(
-            path_to_id_mapping.get(path, []) for path in list(res_data.get("deleted", {}))
+            path_to_id_mapping.get(path, [])
+            for path in list(res_data.get("deleted", {}))
         )
     )
     if deleted_ids:

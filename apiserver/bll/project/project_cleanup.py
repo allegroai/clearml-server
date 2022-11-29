@@ -8,6 +8,7 @@ from apiserver.bll.task.task_cleanup import (
     collect_debug_image_urls,
     collect_plot_image_urls,
     TaskUrls,
+    _schedule_for_delete,
 )
 from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
@@ -58,13 +59,22 @@ def validate_project_delete(company: str, project_id: str):
 
 
 def delete_project(
-    company: str, project_id: str, force: bool, delete_contents: bool
+    company: str,
+    user: str,
+    project_id: str,
+    force: bool,
+    delete_contents: bool,
+    delete_external_artifacts=True,
 ) -> Tuple[DeleteProjectResult, Set[str]]:
     project = Project.get_for_writing(
         company=company, id=project_id, _only=("id", "path", "system_tags")
     )
     if not project:
         raise errors.bad_request.InvalidProjectId(id=project_id)
+
+    delete_external_artifacts = delete_external_artifacts and config.get(
+        "services.async_urls_delete.enabled", False
+    )
     is_pipeline = "pipeline" in (project.system_tags or [])
     project_ids = _ids_with_children([project_id])
     if not force:
@@ -95,6 +105,16 @@ def delete_project(
         deleted_tasks, event_urls, artifact_urls = _delete_tasks(
             company=company, projects=project_ids
         )
+        if delete_external_artifacts:
+            scheduled = _schedule_for_delete(
+                task_id=project_id,
+                company=company,
+                user=user,
+                urls=event_urls | model_urls | artifact_urls,
+                can_delete_folders=True,
+            )
+            for urls in (event_urls, model_urls, artifact_urls):
+                urls.difference_update(scheduled)
         res = DeleteProjectResult(
             deleted_tasks=deleted_tasks,
             deleted_models=deleted_models,
