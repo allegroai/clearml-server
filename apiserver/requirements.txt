@@ -16,7 +16,7 @@ jinja2==2.11.3
 jsonmodels>=2.3
 jsonschema>=2.6.0
 luqum>=0.10.0
-mongoengine==0.23.1
+mongoengine==0.24.2
 nested_dict>=1.61
 packaging==20.3
 psutil>=5.6.5
