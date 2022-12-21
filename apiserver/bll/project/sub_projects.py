@@ -156,11 +156,15 @@ def _update_subproject_names(
     Optionally update the paths
     """
     updated = 0
+    now = datetime.utcnow()
     for child in children:
         child_suffix = name_separator.join(
             child.name.split(name_separator)[len(old_name.split(name_separator)) :]
         )
-        updates = {"name": name_separator.join((project.name, child_suffix))}
+        updates = {
+            "name": name_separator.join((project.name, child_suffix)),
+            "last_update": now,
+        }
         if update_path:
             updates["path"] = project.path + child.path[len(old_path) :]
         updated += child.update(upsert=False, **updates)
@@ -177,6 +181,7 @@ def _reposition_project_with_children(
     project.name = name_separator.join(
         filter(None, (new_location, project.name.split(name_separator)[-1]))
     )
+    project.last_update = datetime.utcnow()
     _save_under_parent(project, parent=parent)
 
     moved = 1 + _update_subproject_names(
