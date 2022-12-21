@@ -18,11 +18,11 @@ from apiserver.bll.event.event_common import (
     get_metric_variants_condition,
     get_max_metric_and_variant_counts,
     SINGLE_SCALAR_ITERATION,
+    TaskCompanies,
 )
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model.task.task import Task
 from apiserver.tools import safe_get
 
 log = config.logger(__file__)
@@ -108,8 +108,7 @@ class EventMetrics:
 
     def compare_scalar_metrics_average_per_iter(
         self,
-        company_id,
-        tasks: Sequence[Task],
+        companies: TaskCompanies,
         samples,
         key: ScalarKeyEnum,
         metric_variants: MetricVariants = None,
@@ -119,28 +118,41 @@ class EventMetrics:
         The amount of points in each histogram should not exceed the requested samples
         """
         event_type = EventType.metrics_scalar
-        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
+        companies = {
+            company_id: tasks
+            for company_id, tasks in companies.items()
+            if not check_empty_data(
+                self.es, company_id=company_id, event_type=event_type
+            )
+        }
+        if not companies:
             return {}
 
-        task_name_by_id = {t.id: t.name for t in tasks}
         get_scalar_average_per_iter = partial(
             self._get_scalar_average_per_iter_core,
-            company_id=company_id,
             event_type=event_type,
             samples=samples,
             key=ScalarKey.resolve(key),
             metric_variants=metric_variants,
             run_parallel=False,
         )
-        task_ids = [t.id for t in tasks]
+        task_ids, company_ids = zip(
+            *(
+                (t.id, t.company)
+                for t in itertools.chain.from_iterable(companies.values())
+            )
+        )
         with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
             task_metrics = zip(
-                task_ids, pool.map(get_scalar_average_per_iter, task_ids)
+                task_ids, pool.map(get_scalar_average_per_iter, task_ids, company_ids)
             )
 
+        task_names = {
+            t.id: t.name for t in itertools.chain.from_iterable(companies.values())
+        }
         res = defaultdict(lambda: defaultdict(dict))
         for task_id, task_data in task_metrics:
-            task_name = task_name_by_id[task_id]
+            task_name = task_names[task_id]
             for metric_key, metric_data in task_data.items():
                 for variant_key, variant_data in metric_data.items():
                     variant_data["name"] = task_name
@@ -149,18 +161,27 @@ class EventMetrics:
         return res
 
     def get_task_single_value_metrics(
-        self, company_id: str, tasks: Sequence[Task]
+        self, companies: TaskCompanies
     ) -> Mapping[str, dict]:
         """
         For the requested tasks return all the events delivered for the single iteration (-2**31)
         """
-        if check_empty_data(
-            self.es, company_id=company_id, event_type=EventType.metrics_scalar
-        ):
+        companies = {
+            company_id: [t.id for t in tasks]
+            for company_id, tasks in companies.items()
+            if not check_empty_data(
+                self.es, company_id=company_id, event_type=EventType.metrics_scalar
+            )
+        }
+        if not companies:
             return {}
 
-        task_ids = [t.id for t in tasks]
-        task_events = self._get_task_single_value_metrics(company_id, task_ids)
+        with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
+            task_events = list(
+                itertools.chain.from_iterable(
+                    pool.map(self._get_task_single_value_metrics, companies.items())
+                ),
+            )
 
         def _get_value(event: dict):
             return {
@@ -174,8 +195,9 @@ class EventMetrics:
         }
 
     def _get_task_single_value_metrics(
-        self, company_id: str, task_ids: Sequence[str]
+        self, tasks: Tuple[str, Sequence[str]]
     ) -> Sequence[dict]:
+        company_id, task_ids = tasks
         es_req = {
             "size": 10000,
             "query": {

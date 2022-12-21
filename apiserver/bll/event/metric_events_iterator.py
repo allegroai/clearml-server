@@ -75,18 +75,25 @@ class MetricEventsIterator:
 
     def get_task_events(
         self,
-        company_id: str,
+        companies: Mapping[str, str],
         task_metrics: Mapping[str, dict],
         iter_count: int,
         navigate_earlier: bool = True,
         refresh: bool = False,
         state_id: str = None,
     ) -> MetricEventsResult:
-        if check_empty_data(self.es, company_id, self.event_type):
+        companies = {
+            task_id: company_id
+            for task_id, company_id in companies.items()
+            if not check_empty_data(
+                self.es, company_id=company_id, event_type=EventType.metrics_scalar
+            )
+        }
+        if not companies:
             return MetricEventsResult()
 
         def init_state(state_: MetricEventsScrollState):
-            state_.tasks = self._init_task_states(company_id, task_metrics)
+            state_.tasks = self._init_task_states(companies, task_metrics)
 
         def validate_state(state_: MetricEventsScrollState):
             """
@@ -95,7 +102,7 @@ class MetricEventsIterator:
             Refresh the state if requested
             """
             if refresh:
-                self._reinit_outdated_task_states(company_id, state_, task_metrics)
+                self._reinit_outdated_task_states(companies, state_, task_metrics)
 
         with self.cache_manager.get_or_create_state(
             state_id=state_id, init_state=init_state, validate_state=validate_state
@@ -112,7 +119,7 @@ class MetricEventsIterator:
                     pool.map(
                         partial(
                             self._get_task_metric_events,
-                            company_id=company_id,
+                            companies=companies,
                             iter_count=iter_count,
                             navigate_earlier=navigate_earlier,
                             specific_variants_requested=specific_variants_requested,
@@ -125,7 +132,7 @@ class MetricEventsIterator:
 
     def _reinit_outdated_task_states(
         self,
-        company_id,
+        companies: Mapping[str, str],
         state: MetricEventsScrollState,
         task_metrics: Mapping[str, dict],
     ):
@@ -133,9 +140,7 @@ class MetricEventsIterator:
         Determine the metrics for which new event_type events were added
         since their states were initialized and re-init these states
         """
-        tasks = Task.objects(id__in=list(task_metrics), company=company_id).only(
-            "id", "metric_stats"
-        )
+        tasks = Task.objects(id__in=list(task_metrics)).only("id", "metric_stats")
 
         def get_last_update_times_for_task_metrics(
             task: Task,
@@ -175,7 +180,7 @@ class MetricEventsIterator:
             if metrics_to_recalc:
                 task_metrics_to_recalc[task] = metrics_to_recalc
 
-        updated_task_states = self._init_task_states(company_id, task_metrics_to_recalc)
+        updated_task_states = self._init_task_states(companies, task_metrics_to_recalc)
 
         def merge_with_updated_task_states(
             old_state: TaskScrollState, updates: Sequence[TaskScrollState]
@@ -205,14 +210,14 @@ class MetricEventsIterator:
         ]
 
     def _init_task_states(
-        self, company_id: str, task_metrics: Mapping[str, dict]
+        self, companies: Mapping[str, str], task_metrics: Mapping[str, dict]
     ) -> Sequence[TaskScrollState]:
         """
         Returned initialized metric scroll stated for the requested task metrics
         """
         with ThreadPoolExecutor(EventSettings.max_workers) as pool:
             task_metric_states = pool.map(
-                partial(self._init_metric_states_for_task, company_id=company_id),
+                partial(self._init_metric_states_for_task, companies=companies),
                 task_metrics.items(),
             )
 
@@ -232,13 +237,14 @@ class MetricEventsIterator:
         pass
 
     def _init_metric_states_for_task(
-        self, task_metrics: Tuple[str, dict], company_id: str
+        self, task_metrics: Tuple[str, dict], companies: Mapping[str, str]
     ) -> Sequence[MetricState]:
         """
         Return metric scroll states for the task filled with the variant states
         for the variants that reported any event_type events
         """
         task, metrics = task_metrics
+        company_id = companies[task]
         must = [{"term": {"task": task}}, *self._get_extra_conditions()]
         if metrics:
             must.append(get_metric_variants_condition(metrics))
@@ -319,7 +325,7 @@ class MetricEventsIterator:
     def _get_task_metric_events(
         self,
         task_state: TaskScrollState,
-        company_id: str,
+        companies: Mapping[str, str],
         iter_count: int,
         navigate_earlier: bool,
         specific_variants_requested: bool,
@@ -391,7 +397,10 @@ class MetricEventsIterator:
         }
         with translate_errors_context():
             es_res = search_company_events(
-                self.es, company_id=company_id, event_type=self.event_type, body=es_req,
+                self.es,
+                company_id=companies[task_state.task],
+                event_type=self.event_type,
+                body=es_req,
             )
         if "aggregations" not in es_res:
             return task_state.task, []

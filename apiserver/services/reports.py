@@ -1,5 +1,6 @@
 import textwrap
 from datetime import datetime
+from itertools import chain
 from typing import Sequence
 
 from apiserver.apimodels.reports import (
@@ -24,7 +25,7 @@ from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskType, TaskStatus
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.events import (
-    _get_task_or_model_index_company,
+    _get_task_or_model_index_companies,
     event_bll,
     _get_metrics_response,
     _get_metric_variants_from_request,
@@ -214,10 +215,12 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
         return res
 
     task_ids = [task["id"] for task in tasks]
-    company, tasks_or_models = _get_task_or_model_index_company(company_id, task_ids)
+    companies = _get_task_or_model_index_companies(company_id, task_ids=task_ids)
     if request.debug_images:
         result = event_bll.debug_images_iterator.get_task_events(
-            company_id=company,
+            companies={
+                t.id: t.company for t in chain.from_iterable(companies.values())
+            },
             task_metrics=_get_task_metrics_from_request(task_ids, request.debug_images),
             iter_count=request.debug_images.iters,
         )
@@ -227,8 +230,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
 
     if request.plots:
         res["plots"] = _get_multitask_plots(
-            company=company,
-            tasks_or_models=tasks_or_models,
+            companies=companies,
             last_iters=request.plots.iters,
             metrics=_get_metric_variants_from_request(request.plots.metrics),
         )[0]
@@ -237,8 +239,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
         res[
             "scalar_metrics_iter_histogram"
         ] = event_bll.metrics.compare_scalar_metrics_average_per_iter(
-            company_id=company_id,
-            tasks=tasks_or_models,
+            companies=companies,
             samples=request.scalar_metrics_iter_histogram.samples,
             key=request.scalar_metrics_iter_histogram.key,
             metric_variants=_get_metric_variants_from_request(

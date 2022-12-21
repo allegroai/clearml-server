@@ -780,7 +780,7 @@ class EventBLL(object):
 
     def get_task_events(
         self,
-        company_id: str,
+        company_id: Union[str, Sequence[str]],
         task_id: Union[str, Sequence[str]],
         event_type: EventType,
         metrics: MetricVariants = None,
@@ -798,10 +798,21 @@ class EventBLL(object):
             with translate_errors_context():
                 es_res = self.es.scroll(scroll_id=scroll_id, scroll="1h")
         else:
-            if check_empty_data(self.es, company_id=company_id, event_type=event_type):
+            company_ids = [company_id] if isinstance(company_id, str) else company_id
+            company_ids = [
+                c_id
+                for c_id in set(company_ids)
+                if not check_empty_data(self.es, c_id, event_type)
+            ]
+            if not company_ids:
                 return TaskEventsResult()
 
-            task_ids = [task_id] if isinstance(task_id, str) else task_id
+            task_ids = (
+                [task_id]
+                if isinstance(task_id, str)
+                else task_id
+            )
+
 
             must = []
             if metrics:
@@ -811,7 +822,7 @@ class EventBLL(object):
                 must.append({"terms": {"task": task_ids}})
             else:
                 tasks_iters = self.get_last_iters(
-                    company_id=company_id,
+                    company_id=company_ids,
                     event_type=event_type,
                     task_id=task_ids,
                     iters=last_iter_count,
@@ -845,7 +856,7 @@ class EventBLL(object):
             with translate_errors_context():
                 es_res = search_company_events(
                     self.es,
-                    company_id=company_id,
+                    company_id=company_ids,
                     event_type=event_type,
                     body=es_req,
                     ignore=404,
@@ -1028,13 +1039,19 @@ class EventBLL(object):
 
     def get_last_iters(
         self,
-        company_id: str,
+        company_id: Union[str, Sequence[str]],
         event_type: EventType,
         task_id: Union[str, Sequence[str]],
         iters: int,
         metrics: MetricVariants = None
     ) -> Mapping[str, Sequence]:
-        if check_empty_data(self.es, company_id=company_id, event_type=event_type):
+        company_ids = [company_id] if isinstance(company_id, str) else company_id
+        company_ids = [
+            c_id
+            for c_id in set(company_ids)
+            if not check_empty_data(self.es, c_id, event_type)
+        ]
+        if not company_ids:
             return {}
 
         task_ids = [task_id] if isinstance(task_id, str) else task_id
@@ -1063,7 +1080,7 @@ class EventBLL(object):
 
         with translate_errors_context():
             es_res = search_company_events(
-                self.es, company_id=company_id, event_type=event_type, body=es_req,
+                self.es, company_id=company_ids, event_type=event_type, body=es_req,
             )
 
         if "aggregations" not in es_res:

@@ -8,6 +8,7 @@ from elasticsearch import Elasticsearch
 
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.task.task import Task
 from apiserver.tools import safe_get
 
 
@@ -22,6 +23,7 @@ class EventType(Enum):
 
 SINGLE_SCALAR_ITERATION = -(2 ** 31)
 MetricVariants = Mapping[str, Sequence[str]]
+TaskCompanies = Mapping[str, Sequence[Task]]
 
 
 class EventSettings:
@@ -52,9 +54,12 @@ class EventSettings:
         return int(self._max_es_allowed_aggregation_buckets * percentage)
 
 
-def get_index_name(company_id: str, event_type: str):
+def get_index_name(company_id: Union[str, Sequence[str]], event_type: str):
     event_type = event_type.lower().replace(" ", "_")
-    return f"events-{event_type}-{company_id.lower()}"
+    if isinstance(company_id, str):
+        company_id = [company_id]
+
+    return ",".join(f"events-{event_type}-{(c_id or '').lower()}" for c_id in company_id)
 
 
 def check_empty_data(es: Elasticsearch, company_id: str, event_type: EventType) -> bool:
