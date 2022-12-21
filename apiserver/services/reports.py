@@ -14,7 +14,7 @@ from apiserver.apimodels.reports import (
     GetAllRequest,
 )
 from apiserver.apierrors import errors
-from apiserver.apimodels.base import IdResponse, UpdateResponse
+from apiserver.apimodels.base import UpdateResponse
 from apiserver.services.utils import process_include_subprojects, sort_tags_response
 from apiserver.bll.organization import OrgBLL
 from apiserver.bll.project import ProjectBLL
@@ -119,7 +119,7 @@ def _ensure_reports_project(company: str, user: str, name: str):
     )
 
 
-@endpoint("reports.create", response_data_model=IdResponse)
+@endpoint("reports.create")
 def create_report(call: APICall, company_id: str, request: CreateReportRequest):
     user_id = call.identity.user
     project_id = request.project
@@ -147,7 +147,8 @@ def create_report(call: APICall, company_id: str, request: CreateReportRequest):
         ),
     )
     task.save()
-    return IdResponse(id=task.id)
+
+    call.result.data = {"id": task.id, "project_id": project_id}
 
 
 def _delete_reports_project_if_empty(project_id):
