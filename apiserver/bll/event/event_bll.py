@@ -424,8 +424,22 @@ class EventBLL(object):
                 for k in ("value", "metric", "variant", "iter", "timestamp")
                 if k in event
             }
-            event_data["min_value"] = min(value, last_event.get("min_value", value))
-            event_data["max_value"] = max(value, last_event.get("max_value", value))
+            last_event_min_value = last_event.get("min_value", value)
+            last_event_min_value_iter = last_event.get("min_value_iter", event_iter)
+            if value < last_event_min_value:
+                event_data["min_value"] = value
+                event_data["min_value_iter"] = event_iter
+            else:
+                event_data["min_value"] = last_event_min_value
+                event_data["min_value_iter"] = last_event_min_value_iter
+            last_event_max_value = last_event.get("max_value", value)
+            last_event_max_value_iter = last_event.get("max_value_iter", event_iter)
+            if value > last_event_max_value:
+                event_data["max_value"] = value
+                event_data["max_value_iter"] = event_iter
+            else:
+                event_data["max_value"] = last_event_max_value
+                event_data["max_value_iter"] = last_event_max_value_iter
             last_events[metric_hash][variant_hash] = event_data
 
     def _update_last_metric_events_for_task(self, last_events, event):
@@ -800,6 +814,7 @@ class EventBLL(object):
                     event_type=event_type,
                     task_id=task_ids,
                     iters=last_iter_count,
+                    metrics=metrics,
                 )
                 should = [
                     {
@@ -1016,11 +1031,16 @@ class EventBLL(object):
         event_type: EventType,
         task_id: Union[str, Sequence[str]],
         iters: int,
+        metrics: MetricVariants = None
     ) -> Mapping[str, Sequence]:
         if check_empty_data(self.es, company_id=company_id, event_type=event_type):
             return {}
 
         task_ids = [task_id] if isinstance(task_id, str) else task_id
+        must = [{"terms": {"task": task_ids}}]
+        if metrics:
+            must.append(get_metric_variants_condition(metrics))
+
         es_req: dict = {
             "size": 0,
             "aggs": {
@@ -1037,7 +1057,7 @@ class EventBLL(object):
                     },
                 }
             },
-            "query": {"bool": {"must": [{"terms": {"task": task_ids}}]}},
+            "query": {"bool": {"must": must}},
         }
 
         with translate_errors_context():

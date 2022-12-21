@@ -400,6 +400,7 @@ class TaskBLL:
         elif last_iteration_max is not None:
             extra_updates.update(max__last_iteration=last_iteration_max)
 
+        raw_updates = {}
         if last_scalar_events is not None:
             max_values = config.get("services.tasks.max_last_metrics", 2000)
             total_metrics = set()
@@ -413,6 +414,42 @@ class TaskBLL:
                     total_metrics = set(task.unique_metrics)
 
             new_metrics = []
+
+            def add_last_metric_conditional_update(
+                metric_path: str, metric_value, iter_value: int, is_min: bool
+            ):
+                """
+                Build an aggregation for an atomic update of the min or max value and the corresponding iteration
+                """
+                if is_min:
+                    field_prefix = "min"
+                    op = "$gt"
+                else:
+                    field_prefix = "max"
+                    op = "$lt"
+
+                value_field = f"{metric_path}__{field_prefix}_value".replace("__", ".")
+                condition = {
+                    "$or": [
+                        {"$lte": [f"${value_field}", None]},
+                        {op: [f"${value_field}", metric_value]},
+                    ]
+                }
+                raw_updates[value_field] = {
+                    "$cond": [condition, metric_value, f"${value_field}"]
+                }
+
+                value_iteration_field = f"{metric_path}__{field_prefix}_value_iteration".replace(
+                    "__", "."
+                )
+                raw_updates[value_iteration_field] = {
+                    "$cond": [
+                        condition,
+                        iter_value,
+                        f"${value_iteration_field}",
+                    ]
+                }
+
             for metric_key, metric_data in last_scalar_events.items():
                 for variant_key, variant_data in metric_data.items():
                     metric = (
@@ -429,10 +466,13 @@ class TaskBLL:
                     new_metrics.append(metric)
                     path = f"last_metrics__{metric_key}__{variant_key}"
                     for key, value in variant_data.items():
-                        if key == "min_value":
-                            extra_updates[f"min__{path}__min_value"] = value
-                        elif key == "max_value":
-                            extra_updates[f"max__{path}__max_value"] = value
+                        if key in ("min_value", "max_value"):
+                            add_last_metric_conditional_update(
+                                metric_path=path,
+                                metric_value=value,
+                                iter_value=variant_data.get(f"{key}_iter", 0),
+                                is_min=(key == "min_value"),
+                            )
                         elif key in ("metric", "variant", "value"):
                             extra_updates[f"set__{path}__{key}"] = value
             if new_metrics:
@@ -440,10 +480,10 @@ class TaskBLL:
 
         if last_events is not None:
 
-            def events_per_type(metric_data: Dict[str, dict]) -> Dict[str, EventStats]:
+            def events_per_type(metric_data_: Dict[str, dict]) -> Dict[str, EventStats]:
                 return {
                     event_type: EventStats(last_update=event["timestamp"])
-                    for event_type, event in metric_data.items()
+                    for event_type, event in metric_data_.items()
                 }
 
             metric_stats = {
@@ -454,12 +494,16 @@ class TaskBLL:
             }
             extra_updates["metric_stats"] = metric_stats
 
-        return TaskBLL.set_last_update(
+        ret = TaskBLL.set_last_update(
             task_ids=[task_id],
             company_id=company_id,
             last_update=last_update,
             **extra_updates,
         )
+        if ret and raw_updates:
+            Task.objects(id=task_id).update_one(__raw__=[{"$set": raw_updates}])
+
+        return ret
 
     @classmethod
     def dequeue_and_change_status(

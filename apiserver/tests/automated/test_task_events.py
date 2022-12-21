@@ -177,7 +177,12 @@ class TestTaskEvents(TestService):
         metric_data = first(first(task_data.last_metrics.values()).values())
         self.assertEqual(iter_count - 1, metric_data.value)
         self.assertEqual(iter_count - 1, metric_data.max_value)
+        self.assertEqual(iter_count - 1, metric_data.max_value_iteration)
         self.assertEqual(0, metric_data.min_value)
+        self.assertEqual(0, metric_data.min_value_iteration)
+
+        res = self.api.events.get_task_latest_scalar_values(task=task)
+        self.assertEqual(iter_count - 1, res.last_iter)
 
     def test_model_events(self):
         model = self._temp_model(ready=False)
