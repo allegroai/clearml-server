@@ -8,6 +8,9 @@ from apiserver.database.model import AttributedDocument
 
 class StorageType(str, Enum):
     fileserver = "fileserver"
+    s3 = "s3"
+    azure = "azure"
+    gs = "gs"
     unknown = "unknown"
 
 
@@ -32,10 +35,8 @@ class UrlToDelete(AttributedDocument):
         "strict": strict,
         "indexes": [
             ("company", "user", "task"),
-            "storage_type",
-            "created",
-            "retry_count",
-            "type",
+            ("company", "storage_type", "url"),
+            ("status", "retry_count", "storage_type"),
         ],
     }
 

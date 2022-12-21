@@ -178,9 +178,10 @@ class TestTasksResetDelete(TestService):
         return {url1, url2}
 
     def send_debug_image_events(self, task) -> Set[str]:
+        url_pattern = "url_{num}.txt"
         events = [
             self.create_event(
-                task, "training_debug_image", iteration, url=f"url_{iteration}"
+                task, "training_debug_image", iteration, url=url_pattern.format(num=iteration)
             )
             for iteration in range(5)
         ]

@@ -9,6 +9,7 @@ from operator import attrgetter
 from typing import Sequence, Set, Tuple, Optional, List, Mapping, Union
 
 import elasticsearch
+from boltons.iterutils import chunked_iter
 from elasticsearch.helpers import BulkIndexError
 from mongoengine import Q
 from nested_dict import nested_dict
@@ -1188,15 +1189,19 @@ class EventBLL(object):
         Delete mutliple task events. No check is done for tasks write access
         so it should be checked by the calling code
         """
-        es_req = {"query": {"terms": {"task": task_ids}}}
+        deleted = 0
         with translate_errors_context():
-            es_res = delete_company_events(
-                es=self.es,
-                company_id=company_id,
-                event_type=EventType.all,
-                body=es_req,
-                **self._get_events_deletion_params(async_delete),
-            )
+            for tasks in chunked_iter(task_ids, 100):
+                es_req = {"query": {"terms": {"task": tasks}}}
+                es_res = delete_company_events(
+                    es=self.es,
+                    company_id=company_id,
+                    event_type=EventType.all,
+                    body=es_req,
+                    **self._get_events_deletion_params(async_delete),
+                )
+                if not async_delete:
+                    deleted += es_res.get("deleted", 0)
 
         if not async_delete:
             return es_res.get("deleted", 0)

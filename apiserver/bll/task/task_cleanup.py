@@ -5,6 +5,7 @@ from typing import Sequence, Set, Tuple
 
 import attr
 from boltons.iterutils import partition, bucketize, first
+from furl import furl
 from mongoengine import NotUniqueError
 from pymongo.errors import DuplicateKeyError
 
@@ -106,6 +107,9 @@ def collect_debug_image_urls(company: str, task_or_model: str) -> Set[str]:
 supported_storage_types = {
     "https://": StorageType.fileserver,
     "http://": StorageType.fileserver,
+    "s3://": StorageType.s3,
+    "azure://": StorageType.azure,
+    "gs://": StorageType.gs,
 }
 
 
@@ -129,7 +133,14 @@ def _schedule_for_delete(
         for url in storage_urls:
             folder = None
             if delete_folders:
-                folder, _, _ = url.rpartition("/")
+                try:
+                    parsed = furl(url)
+                    if parsed.path and len(parsed.path.segments) > 1:
+                        folder = parsed.remove(
+                            args=True, fragment=True, path=parsed.path.segments[-1]
+                        ).url.rstrip("/")
+                except Exception as ex:
+                    pass
 
             to_delete = folder or url
             if to_delete in scheduled_to_delete:
