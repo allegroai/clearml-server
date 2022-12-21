@@ -36,7 +36,7 @@ class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
             Length(
                 minimum_value=1,
                 maximum_value=config.get(
-                    "services.tasks.multi_task_histogram_limit", 10
+                    "services.tasks.multi_task_histogram_limit", 100
                 ),
             )
         ],
