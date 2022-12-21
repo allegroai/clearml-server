@@ -661,20 +661,15 @@ def _get_metric_variants_from_request(
 def get_task_plots(call, company_id, request: TaskPlotsRequest):
     task_id = request.task
     iters = request.iters
-    scroll_id = request.scroll_id
 
     task_or_model = _assert_task_or_model_exists(
         company_id, task_id, model_events=request.model_events
     )[0]
     result = event_bll.get_task_plots(
         task_or_model.get_index_company(),
-        tasks=[task_id],
-        sort=[{"iter": {"order": "desc"}}],
+        task_id=task_id,
         last_iterations_per_plot=iters,
-        scroll_id=scroll_id,
-        no_scroll=request.no_scroll,
         metric_variants=_get_metric_variants_from_request(request.metrics),
-        model_events=request.model_events,
     )
 
     return_events = result.events
