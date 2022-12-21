@@ -149,6 +149,7 @@ class TaskType(object):
     application = "application"
     monitor = "monitor"
     controller = "controller"
+    report = "report"
     optimizer = "optimizer"
     service = "service"
     qc = "qc"

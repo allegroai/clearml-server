@@ -475,7 +475,9 @@ def _validate_and_get_task_from_call(call: APICall, **kwargs) -> Tuple[Task, dic
         field_does_not_exist_cls=errors.bad_request.ValidationError
     ):
         fields = prepare_create_fields(call, **kwargs)
-        task = task_bll.create(call, fields)
+        task = task_bll.create(
+            company=call.identity.company, user=call.identity.user, fields=fields
+        )
 
     task_bll.validate(task)
 
@@ -710,7 +712,11 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
                 d.update(value)
                 fields[key] = d
 
-        task_bll.validate(task_bll.create(call, fields))
+        task_bll.validate(
+            task_bll.create(
+                company=call.identity.company, user=call.identity.user, fields=fields
+            )
+        )
 
         # make sure field names do not end in mongoengine comparison operators
         fixed_fields = {

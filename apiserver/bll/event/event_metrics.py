@@ -112,6 +112,7 @@ class EventMetrics:
         tasks: Sequence[Task],
         samples,
         key: ScalarKeyEnum,
+        metric_variants: MetricVariants = None,
     ):
         """
         Compare scalar metrics for different tasks per metric and variant
@@ -128,6 +129,7 @@ class EventMetrics:
             event_type=event_type,
             samples=samples,
             key=ScalarKey.resolve(key),
+            metric_variants=metric_variants,
             run_parallel=False,
         )
         task_ids = [t.id for t in tasks]

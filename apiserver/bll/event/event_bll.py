@@ -766,10 +766,9 @@ class EventBLL(object):
     def get_task_events(
         self,
         company_id: str,
-        task_id: str,
+        task_id: Union[str, Sequence[str]],
         event_type: EventType,
-        metric=None,
-        variant=None,
+        metrics: MetricVariants = None,
         last_iter_count=None,
         sort=None,
         size=500,
@@ -790,10 +789,8 @@ class EventBLL(object):
             task_ids = [task_id] if isinstance(task_id, str) else task_id
 
             must = []
-            if metric:
-                must.append({"term": {"metric": metric}})
-            if variant:
-                must.append({"term": {"variant": variant}})
+            if metrics:
+                must.append(get_metric_variants_condition(metrics))
 
             if last_iter_count is None or model_events:
                 must.append({"terms": {"task": task_ids}})

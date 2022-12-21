@@ -60,12 +60,12 @@ class TestService(TestCase, TestServiceInterface):
     def update_missing(target: dict, **update):
         target.update({k: v for k, v in update.items() if k not in target})
 
-    def create_temp(self, service, *, client=None, delete_params=None, **kwargs) -> str:
+    def create_temp(self, service, *, client=None, delete_params=None, object_name="", **kwargs) -> str:
         return self._create_temp_helper(
             service=service,
             create_endpoint="create",
             delete_endpoint="delete",
-            object_name=service.rstrip("s"),
+            object_name=object_name or service.rstrip("s"),
             create_params=kwargs,
             client=client,
             delete_params=delete_params,

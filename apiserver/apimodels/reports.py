@@ -1,0 +1,70 @@
+from typing import Sequence
+
+from jsonmodels import validators
+from jsonmodels.fields import StringField, ListField, BoolField, EmbeddedField, IntField
+from jsonmodels.models import Base
+from jsonmodels.validators import Length
+
+from apiserver.apimodels.events import MetricVariants, HistogramRequestBase
+
+
+class UpdateReportRequest(Base):
+    task = StringField(required=True)
+    name = StringField(nullable=True, validators=Length(minimum_value=3))
+    tags = ListField(items_types=[str])
+    comment = StringField()
+    report = StringField()
+
+
+class CreateReportRequest(Base):
+    name = StringField(required=True, validators=Length(minimum_value=3))
+    tags = ListField(items_types=[str])
+    comment = StringField()
+    report = StringField()
+    project = StringField()
+
+
+class PublishReportRequest(Base):
+    task = StringField(required=True)
+    message = StringField(default="")
+
+
+class ArchiveReportRequest(Base):
+    task = StringField(required=True)
+    message = StringField(default="")
+
+
+class ShareReportRequest(Base):
+    task = StringField(required=True)
+    share = BoolField(default=True)
+
+
+class DeleteReportRequest(Base):
+    task = StringField(required=True)
+    force = BoolField(default=False)
+
+
+class MoveReportRequest(Base):
+    task = StringField(required=True)
+    project = StringField()
+    project_name = StringField()
+
+
+class EventsRequest(Base):
+    iters = IntField(default=1, validators=validators.Min(1))
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+
+
+class ScalarMetricsIterHistogram(HistogramRequestBase):
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+
+
+class GetTasksDataRequest(Base):
+    debug_images: EventsRequest = EmbeddedField(EventsRequest)
+    plots: EventsRequest = EmbeddedField(EventsRequest)
+    scalar_metrics_iter_histogram: ScalarMetricsIterHistogram = EmbeddedField(ScalarMetricsIterHistogram)
+    allow_public = BoolField(default=True)
+
+
+class GetAllRequest(Base):
+    allow_public = BoolField(default=True)

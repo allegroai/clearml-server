@@ -128,13 +128,12 @@ class TaskBLL:
                 return list(q)
 
     @staticmethod
-    def create(call: APICall, fields: dict):
-        identity = call.identity
+    def create(company: str, user: str, fields: dict):
         now = datetime.utcnow()
         return Task(
             id=create_id(),
-            user=identity.user,
-            company=identity.company,
+            user=user,
+            company=company,
             created=now,
             last_update=now,
             last_change=now,
