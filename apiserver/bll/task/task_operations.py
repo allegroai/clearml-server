@@ -30,7 +30,11 @@ queue_bll = QueueBLL()
 
 
 def archive_task(
-    task: Union[str, Task], company_id: str, status_message: str, status_reason: str,
+    task: Union[str, Task],
+    company_id: str,
+    user_id: str,
+    status_message: str,
+    status_reason: str,
 ) -> int:
     """
     Deque and archive task
@@ -52,7 +56,11 @@ def archive_task(
         )
     try:
         TaskBLL.dequeue_and_change_status(
-            task, company_id, status_message, status_reason,
+            task,
+            company_id=company_id,
+            user_id=user_id,
+            status_message=status_message,
+            status_reason=status_reason,
         )
     except APIError:
         # dequeue may fail if the task was not enqueued
@@ -63,11 +71,12 @@ def archive_task(
         status_reason=status_reason,
         add_to_set__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
+        last_changed_by=user_id,
     )
 
 
 def unarchive_task(
-    task: str, company_id: str, status_message: str, status_reason: str,
+    task: str, company_id: str, user_id: str, status_message: str, status_reason: str,
 ) -> int:
     """
     Unarchive task. Return 1 if successful
@@ -80,11 +89,16 @@ def unarchive_task(
         status_reason=status_reason,
         pull__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
+        last_changed_by=user_id,
     )
 
 
 def dequeue_task(
-    task_id: str, company_id: str, status_message: str, status_reason: str,
+    task_id: str,
+    company_id: str,
+    user_id: str,
+    status_message: str,
+    status_reason: str,
 ) -> Tuple[int, dict]:
     query = dict(id=task_id, company=company_id)
     task = Task.get_for_writing(**query)
@@ -92,7 +106,11 @@ def dequeue_task(
         raise errors.bad_request.InvalidTaskId(**query)
 
     res = TaskBLL.dequeue_and_change_status(
-        task, company_id, status_message=status_message, status_reason=status_reason,
+        task,
+        company_id=company_id,
+        user_id=user_id,
+        status_message=status_message,
+        status_reason=status_reason,
     )
     return 1, res
 
@@ -100,6 +118,7 @@ def dequeue_task(
 def enqueue_task(
     task_id: str,
     company_id: str,
+    user_id: str,
     queue_id: str,
     status_message: str,
     status_reason: str,
@@ -139,6 +158,7 @@ def enqueue_task(
         status_message=status_message,
         allow_same_state_transition=False,
         force=force,
+        user_id=user_id,
     ).execute(enqueue_status=task.status)
 
     try:
@@ -151,6 +171,7 @@ def enqueue_task(
             new_status=task.status,
             force=True,
             status_reason="failed enqueueing",
+            user_id=user_id,
         ).execute(enqueue_status=None)
         raise
 
@@ -220,6 +241,7 @@ def delete_task(
         TaskBLL.dequeue_and_change_status(
             task,
             company_id=company_id,
+            user_id=user_id,
             status_message=status_message,
             status_reason=status_reason,
         )
@@ -319,6 +341,7 @@ def reset_task(
         force=force,
         status_reason="reset",
         status_message="reset",
+        user_id=user_id,
     ).execute(
         started=None,
         completed=None,
@@ -334,8 +357,9 @@ def reset_task(
 def publish_task(
     task_id: str,
     company_id: str,
+    user_id: str,
     force: bool,
-    publish_model_func: Callable[[str, str], Any] = None,
+    publish_model_func: Callable[[str, str, str], Any] = None,
     status_message: str = "",
     status_reason: str = "",
 ) -> dict:
@@ -363,7 +387,7 @@ def publish_task(
                 .first()
             )
             if model and not model.ready:
-                publish_model_func(model.id, company_id)
+                publish_model_func(model.id, company_id, user_id)
 
         # set task status to published, and update (or set) it's new output (view and models)
         return ChangeStatusRequest(
@@ -372,6 +396,7 @@ def publish_task(
             force=force,
             status_reason=status_reason,
             status_message=status_message,
+            user_id=user_id,
         ).execute(published=datetime.utcnow(), output=output)
 
     except Exception as ex:
@@ -384,7 +409,12 @@ def publish_task(
 
 
 def stop_task(
-    task_id: str, company_id: str, user_name: str, status_reason: str, force: bool,
+    task_id: str,
+    company_id: str,
+    user_id: str,
+    user_name: str,
+    status_reason: str,
+    force: bool,
 ) -> dict:
     """
     Stop a running task. Requires task status 'in_progress' and
@@ -446,4 +476,5 @@ def stop_task(
         status_reason=status_reason,
         status_message=status_message,
         force=force,
+        user_id=user_id,
     ).execute()

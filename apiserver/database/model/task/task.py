@@ -196,6 +196,7 @@ class Task(AttributedDocument):
                     "$name",
                     "$id",
                     "$comment",
+                    "$report",
                     "$models.input.model",
                     "$models.output.model",
                     "$script.repository",
@@ -206,6 +207,7 @@ class Task(AttributedDocument):
                     "name": 10,
                     "id": 10,
                     "comment": 10,
+                    "report": 10,
                     "models.output.model": 2,
                     "models.input.model": 2,
                     "script.repository": 1,
@@ -228,7 +230,7 @@ class Task(AttributedDocument):
         ),
         range_fields=("started", "active_duration", "last_metrics.*", "last_iteration"),
         datetime_fields=("status_changed", "last_update"),
-        pattern_fields=("name", "comment"),
+        pattern_fields=("name", "comment", "report"),
     )
 
     id = StringField(primary_key=True)
@@ -242,6 +244,7 @@ class Task(AttributedDocument):
     status_message = StringField(user_set_allowed=True)
     status_changed = DateTimeField()
     comment = StringField(user_set_allowed=True)
+    report = StringField()
     created = DateTimeField(required=True, user_set_allowed=True)
     started = DateTimeField()
     completed = DateTimeField()
@@ -272,6 +275,7 @@ class Task(AttributedDocument):
     enqueue_status = StringField(
         choices=get_options(TaskStatus), exclude_by_default=True
     )
+    last_changed_by = StringField()
 
     def get_index_company(self) -> str:
         """

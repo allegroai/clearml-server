@@ -79,3 +79,4 @@ class AddOrUpdateMetadataRequest(AddOrUpdateMetadata):
 
 class ModelsGetRequest(models.Base):
     include_stats = fields.BoolField(default=False)
+    allow_public = fields.BoolField(default=True)

@@ -318,3 +318,8 @@ class DeleteModelsRequest(TaskRequest):
     models: Sequence[ModelItemKey] = ListField(
         [ModelItemKey], validators=Length(minimum_value=1)
     )
+
+
+class GetAllReq(models.Base):
+    allow_public = BoolField(default=True)
+    search_hidden = BoolField(default=False)

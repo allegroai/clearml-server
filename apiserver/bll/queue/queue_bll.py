@@ -133,7 +133,7 @@ class QueueBLL(object):
             self.get_by_id(company_id=company_id, queue_id=queue_id, only=("id",))
             return Queue.safe_update(company_id, queue_id, update_fields)
 
-    def delete(self, company_id: str, queue_id: str, force: bool) -> None:
+    def delete(self, company_id: str, user_id: str, queue_id: str, force: bool) -> None:
         """
         Delete the queue
         :raise errors.bad_request.InvalidQueueId: if the queue is not found
@@ -163,6 +163,7 @@ class QueueBLL(object):
                             new_status=task.enqueue_status or TaskStatus.created,
                             status_reason="Queue was deleted",
                             status_message="",
+                            user_id=user_id,
                         ).execute(enqueue_status=None)
                     except Exception as ex:
                         log.exception(

@@ -63,6 +63,7 @@ class HyperParams:
     def delete_params(
         cls,
         company_id: str,
+        user_id: str,
         task_id: str,
         hyperparams: Sequence[HyperParamKey],
         force: bool,
@@ -94,13 +95,17 @@ class HyperParams:
             delete_cmds[f"unset__hyperparams__{section}__{name}"] = 1
 
         return update_task(
-            task, update_cmds=delete_cmds, set_last_update=not properties_only
+            task,
+            user_id=user_id,
+            update_cmds=delete_cmds,
+            set_last_update=not properties_only,
         )
 
     @classmethod
     def edit_params(
         cls,
         company_id: str,
+        user_id: str,
         task_id: str,
         hyperparams: Sequence[HyperParamItem],
         replace_hyperparams: str,
@@ -129,7 +134,10 @@ class HyperParams:
                     ] = value
 
         return update_task(
-            task, update_cmds=update_cmds, set_last_update=not properties_only
+            task,
+            user_id=user_id,
+            update_cmds=update_cmds,
+            set_last_update=not properties_only,
         )
 
     @classmethod
@@ -201,6 +209,7 @@ class HyperParams:
     def edit_configuration(
         cls,
         company_id: str,
+        user_id: str,
         task_id: str,
         configuration: Sequence[Configuration],
         replace_configuration: bool,
@@ -219,11 +228,16 @@ class HyperParams:
             for name, value in configuration.items():
                 update_cmds[f"set__configuration__{mongoengine_safe(name)}"] = value
 
-        return update_task(task, update_cmds=update_cmds)
+        return update_task(task, user_id=user_id, update_cmds=update_cmds)
 
     @classmethod
     def delete_configuration(
-        cls, company_id: str, task_id: str, configuration: Sequence[str], force: bool
+        cls,
+        company_id: str,
+        user_id: str,
+        task_id: str,
+        configuration: Sequence[str],
+        force: bool,
     ) -> int:
         task = get_task_for_update(company_id=company_id, task_id=task_id, force=force)
 
@@ -232,4 +246,4 @@ class HyperParams:
             for name in set(configuration)
         }
 
-        return update_task(task, update_cmds=delete_cmds)
+        return update_task(task, user_id=user_id, update_cmds=delete_cmds)

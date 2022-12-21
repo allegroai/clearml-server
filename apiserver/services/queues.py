@@ -142,7 +142,10 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
 @endpoint("queues.delete", min_version="2.4", request_data_model=DeleteRequest)
 def delete(call: APICall, company_id, req_model: DeleteRequest):
     queue_bll.delete(
-        company_id=company_id, queue_id=req_model.queue, force=req_model.force
+        company_id=company_id,
+        user_id=call.identity.user,
+        queue_id=req_model.queue,
+        force=req_model.force,
     )
     call.result.data = {"deleted": 1}
 

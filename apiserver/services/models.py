@@ -116,7 +116,7 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
     models = Model.get_many_with_join(
         company=company_id,
         query_dict=call.data,
-        allow_public=True,
+        allow_public=request.allow_public,
         ret_params=ret_params,
     )
     conform_output_tags(call, models)
@@ -482,6 +482,7 @@ def set_ready(call: APICall, company_id: str, request: PublishModelRequest):
     updated, published_task = ModelBLL.publish_model(
         model_id=request.model,
         company_id=company_id,
+        user_id=call.identity.user,
         force_publish_task=request.force_publish_task,
         publish_task_func=publish_task if request.publish_task else None,
     )
@@ -500,6 +501,7 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
         func=partial(
             ModelBLL.publish_model,
             company_id=company_id,
+            user_id=call.identity.user,
             force_publish_task=request.force_publish_task,
             publish_task_func=publish_task if request.publish_task else None,
         ),

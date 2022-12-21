@@ -48,6 +48,7 @@ class Artifacts:
     def add_or_update_artifacts(
         cls,
         company_id: str,
+        user_id: str,
         task_id: str,
         artifacts: Sequence[ApiArtifact],
         force: bool,
@@ -63,12 +64,13 @@ class Artifacts:
             f"set__execution__artifacts__{mongoengine_safe(name)}": value
             for name, value in artifacts.items()
         }
-        return update_task(task, update_cmds=update_cmds)
+        return update_task(task, user_id=user_id, update_cmds=update_cmds)
 
     @classmethod
     def delete_artifacts(
         cls,
         company_id: str,
+        user_id: str,
         task_id: str,
         artifact_ids: Sequence[ArtifactId],
         force: bool,
@@ -83,4 +85,4 @@ class Artifacts:
             f"unset__execution__artifacts__{id_}": 1 for id_ in set(artifact_ids)
         }
 
-        return update_task(task, update_cmds=delete_cmds)
+        return update_task(task, user_id=user_id, update_cmds=delete_cmds)

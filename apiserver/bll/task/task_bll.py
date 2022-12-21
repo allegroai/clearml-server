@@ -33,7 +33,6 @@ from apiserver.database.model import EntityVisibility
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
 from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
-from apiserver.service_repo import APICall
 from apiserver.services.utils import validate_tags, escape_dict_field, escape_dict
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
@@ -137,6 +136,7 @@ class TaskBLL:
             created=now,
             last_update=now,
             last_change=now,
+            last_changed_by=user,
             **fields,
         )
 
@@ -268,6 +268,7 @@ class TaskBLL:
             created=now,
             last_update=now,
             last_change=now,
+            last_changed_by=user_id,
             name=name or task.name,
             comment=comment or task.comment,
             parent=parent or parent_task,
@@ -462,7 +463,12 @@ class TaskBLL:
 
     @classmethod
     def dequeue_and_change_status(
-        cls, task: Task, company_id: str, status_message: str, status_reason: str,
+        cls,
+        task: Task,
+        company_id: str,
+        user_id: str,
+        status_message: str,
+        status_reason: str,
     ):
         try:
             cls.dequeue(task, company_id)
@@ -475,6 +481,7 @@ class TaskBLL:
             new_status=task.enqueue_status or TaskStatus.created,
             status_reason=status_reason,
             status_message=status_message,
+            user_id=user_id,
         ).execute(enqueue_status=None)
 
     @classmethod

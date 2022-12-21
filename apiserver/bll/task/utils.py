@@ -26,6 +26,7 @@ class ChangeStatusRequest(object):
     force = attr.ib(type=bool, default=False)
     allow_same_state_transition = attr.ib(type=bool, default=True)
     current_status_override = attr.ib(default=None)
+    user_id = attr.ib(type=str, default=None)
 
     def execute(self, **kwargs):
         current_status = self.current_status_override or self.task.status
@@ -44,6 +45,7 @@ class ChangeStatusRequest(object):
             status_changed=now,
             last_update=now,
             last_change=now,
+            last_changed_by=self.user_id,
         )
 
         if self.new_status == TaskStatus.queued:
@@ -165,7 +167,7 @@ def update_project_time(project_ids: Union[str, Sequence[str]]):
 
 
 def get_task_for_update(
-    company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
+        company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
 ) -> Task:
     """
     Loads only task id and return the task only if it is updatable (status == 'created')
@@ -187,9 +189,9 @@ def get_task_for_update(
     return task
 
 
-def update_task(task: Task, update_cmds: dict, set_last_update: bool = True):
+def update_task(task: Task, user_id: str, update_cmds: dict, set_last_update: bool = True):
     now = datetime.utcnow()
-    last_updates = dict(last_change=now)
+    last_updates = dict(last_change=now, last_changed_by=user_id)
     if set_last_update:
         last_updates.update(last_update=now)
     return task.update(**update_cmds, **last_updates)

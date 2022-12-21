@@ -64,6 +64,7 @@ from apiserver.apimodels.tasks import (
     ResetBatchItem,
     CompletedRequest,
     CompletedResponse,
+    GetAllReq,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -136,7 +137,7 @@ project_bll = ProjectBLL()
 
 
 def set_task_status_from_call(
-    request: UpdateRequest, company_id, new_status=None, **set_fields
+    request: UpdateRequest, company_id: str, user_id: str, new_status=None, **set_fields
 ) -> dict:
     fields_resolver = SetFieldsResolver(set_fields)
     task = TaskBLL.get_task_with_access(
@@ -171,6 +172,7 @@ def set_task_status_from_call(
         status_reason=status_reason,
         status_message=status_message,
         force=force,
+        user_id=user_id,
     ).execute(**fields_resolver.get_fields(task))
 
 
@@ -214,8 +216,8 @@ def _hidden_query(data: dict) -> Q:
     return Q(system_tags__ne=EntityVisibility.hidden.value)
 
 
-@endpoint("tasks.get_all_ex", required_fields=[])
-def get_all_ex(call: APICall, company_id, _):
+@endpoint("tasks.get_all_ex")
+def get_all_ex(call: APICall, company_id, request: GetAllReq):
     conform_tag_fields(call, call.data)
 
     call_data = escape_execution_parameters(call)
@@ -226,7 +228,7 @@ def get_all_ex(call: APICall, company_id, _):
         company=company_id,
         query_dict=call_data,
         query=_hidden_query(call_data),
-        allow_public=True,
+        allow_public=request.allow_public,
         ret_params=ret_params,
     )
     unprepare_from_saved(call, tasks)
@@ -291,6 +293,7 @@ def stop(call: APICall, company_id, req_model: UpdateRequest):
         **stop_task(
             task_id=req_model.task,
             company_id=company_id,
+            user_id=call.identity.user,
             user_name=call.identity.user_name,
             status_reason=req_model.status_reason,
             force=req_model.force,
@@ -308,6 +311,7 @@ def stop_many(call: APICall, company_id, request: StopManyRequest):
         func=partial(
             stop_task,
             company_id=company_id,
+            user_id=call.identity.user,
             user_name=call.identity.user_name,
             status_reason=request.status_reason,
             force=request.force,
@@ -329,7 +333,8 @@ def stopped(call: APICall, company_id, req_model: UpdateRequest):
     call.result.data_model = UpdateResponse(
         **set_task_status_from_call(
             req_model,
-            company_id,
+            company_id=company_id,
+            user_id=call.identity.user,
             new_status=TaskStatus.stopped,
             completed=datetime.utcnow(),
         )
@@ -345,7 +350,8 @@ def started(call: APICall, company_id, req_model: UpdateRequest):
     res = StartedResponse(
         **set_task_status_from_call(
             req_model,
-            company_id,
+            company_id=company_id,
+            user_id=call.identity.user,
             new_status=TaskStatus.in_progress,
             min__started=datetime.utcnow(),  # don't override a previous, smaller "started" field value
         )
@@ -359,7 +365,12 @@ def started(call: APICall, company_id, req_model: UpdateRequest):
 )
 def failed(call: APICall, company_id, req_model: UpdateRequest):
     call.result.data_model = UpdateResponse(
-        **set_task_status_from_call(req_model, company_id, new_status=TaskStatus.failed)
+        **set_task_status_from_call(
+            req_model,
+            company_id=company_id,
+            user_id=call.identity.user,
+            new_status=TaskStatus.failed,
+        )
     )
 
 
@@ -368,7 +379,11 @@ def failed(call: APICall, company_id, req_model: UpdateRequest):
 )
 def close(call: APICall, company_id, req_model: UpdateRequest):
     call.result.data_model = UpdateResponse(
-        **set_task_status_from_call(req_model, company_id, new_status=TaskStatus.closed)
+        **set_task_status_from_call(
+            req_model,
+            company_id=company_id,
+            user_id=call.identity.user,
+            new_status=TaskStatus.closed)
     )
 
 
@@ -580,7 +595,9 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
             company_id=company_id,
             id=task_id,
             partial_update_dict=partial_update_dict,
-            injected_update=dict(last_change=datetime.utcnow()),
+            injected_update=dict(
+                last_change=datetime.utcnow(), last_changed_by=call.identity.user,
+            ),
         )
         if updated_count:
             new_project = updated_fields.get("project", task.project)
@@ -613,7 +630,11 @@ def set_requirements(call: APICall, company_id, req_model: SetRequirementsReques
             raise errors.bad_request.MissingTaskFields(
                 "Task has no script field", task=task.id
             )
-        res = update_task(task, update_cmds=dict(script__requirements=requirements))
+        res = update_task(
+            task,
+            user_id=call.identity.user,
+            update_cmds=dict(script__requirements=requirements),
+        )
         call.result.data_model = UpdateResponse(updated=res)
         if res:
             call.result.data_model.fields = {"script.requirements": requirements}
@@ -648,7 +669,9 @@ def update_batch(call: APICall, company_id, _):
             partial_update_dict = Task.get_safe_update_dict(fields)
             if not partial_update_dict:
                 continue
-            partial_update_dict.update(last_change=now)
+            partial_update_dict.update(
+                last_change=now, last_changed_by=call.identity.user,
+            )
             update_op = UpdateOne(
                 {"_id": id, "company": company_id}, {"$set": partial_update_dict}
             )
@@ -725,7 +748,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
         }
         if fixed_fields:
             now = datetime.utcnow()
-            last_change = dict(last_change=now)
+            last_change = dict(last_change=now, last_changed_by=call.identity.user)
             if not set(fields).issubset(Task.user_set_allowed()):
                 last_change.update(last_update=now)
             fields.update(**last_change)
@@ -762,6 +785,7 @@ def edit_hyper_params(call: APICall, company_id, request: EditHyperParamsRequest
     call.result.data = {
         "updated": HyperParams.edit_params(
             company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             hyperparams=request.hyperparams,
             replace_hyperparams=request.replace_hyperparams,
@@ -775,6 +799,7 @@ def delete_hyper_params(call: APICall, company_id, request: DeleteHyperParamsReq
     call.result.data = {
         "deleted": HyperParams.delete_params(
             company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             hyperparams=request.hyperparams,
             force=request.force,
@@ -819,6 +844,7 @@ def edit_configuration(call: APICall, company_id, request: EditConfigurationRequ
     call.result.data = {
         "updated": HyperParams.edit_configuration(
             company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             configuration=request.configuration,
             replace_configuration=request.replace_configuration,
@@ -834,6 +860,7 @@ def delete_configuration(
     call.result.data = {
         "deleted": HyperParams.delete_configuration(
             company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             configuration=request.configuration,
             force=request.force,
@@ -850,6 +877,7 @@ def enqueue(call: APICall, company_id, request: EnqueueRequest):
     queued, res = enqueue_task(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         queue_id=request.queue,
         status_message=request.status_message,
         status_reason=request.status_reason,
@@ -874,6 +902,7 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
         func=partial(
             enqueue_task,
             company_id=company_id,
+            user_id=call.identity.user,
             queue_id=request.queue,
             status_message=request.status_message,
             status_reason=request.status_reason,
@@ -908,6 +937,7 @@ def dequeue(call: APICall, company_id, request: UpdateRequest):
     dequeued, res = dequeue_task(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         status_message=request.status_message,
         status_reason=request.status_reason,
     )
@@ -924,6 +954,7 @@ def dequeue_many(call: APICall, company_id, request: TaskBatchRequest):
         func=partial(
             dequeue_task,
             company_id=company_id,
+            user_id=call.identity.user,
             status_message=request.status_message,
             status_reason=request.status_reason,
         ),
@@ -1019,6 +1050,7 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     for task in tasks:
         archived += archive_task(
             company_id=company_id,
+            user_id=call.identity.user,
             task=task,
             status_message=request.status_message,
             status_reason=request.status_reason,
@@ -1037,6 +1069,7 @@ def archive_many(call: APICall, company_id, request: TaskBatchRequest):
         func=partial(
             archive_task,
             company_id=company_id,
+            user_id=call.identity.user,
             status_message=request.status_message,
             status_reason=request.status_reason,
         ),
@@ -1058,6 +1091,7 @@ def unarchive_many(call: APICall, company_id, request: TaskBatchRequest):
         func=partial(
             unarchive_task,
             company_id=company_id,
+            user_id=call.identity.user,
             status_message=request.status_message,
             status_reason=request.status_reason,
         ),
@@ -1136,6 +1170,7 @@ def publish(call: APICall, company_id, request: PublishRequest):
     updates = publish_task(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         force=request.force,
         publish_model_func=ModelBLL.publish_model if request.publish_model else None,
         status_reason=request.status_reason,
@@ -1154,6 +1189,7 @@ def publish_many(call: APICall, company_id, request: PublishManyRequest):
         func=partial(
             publish_task,
             company_id=company_id,
+            user_id=call.identity.user,
             force=request.force,
             publish_model_func=ModelBLL.publish_model
             if request.publish_model
@@ -1180,7 +1216,8 @@ def completed(call: APICall, company_id, request: CompletedRequest):
     res = CompletedResponse(
         **set_task_status_from_call(
             request,
-            company_id,
+            company_id=company_id,
+            user_id=call.identity.user,
             new_status=TaskStatus.completed,
             completed=datetime.utcnow(),
         )
@@ -1190,6 +1227,7 @@ def completed(call: APICall, company_id, request: CompletedRequest):
         publish_res = publish_task(
             task_id=request.task,
             company_id=company_id,
+            user_id=call.identity.user,
             force=request.force,
             publish_model_func=ModelBLL.publish_model,
             status_reason=request.status_reason,
@@ -1221,6 +1259,7 @@ def add_or_update_artifacts(
     call.result.data = {
         "updated": Artifacts.add_or_update_artifacts(
             company_id=company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             artifacts=request.artifacts,
             force=True,
@@ -1237,6 +1276,7 @@ def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest)
     call.result.data = {
         "deleted": Artifacts.delete_artifacts(
             company_id=company_id,
+            user_id=call.identity.user,
             task_id=request.task,
             artifact_ids=request.artifacts,
             force=True,
@@ -1304,7 +1344,7 @@ def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequ
 
 
 @endpoint("tasks.delete_models", min_version="2.13")
-def delete_models(_: APICall, company_id: str, request: DeleteModelsRequest):
+def delete_models(call: APICall, company_id: str, request: DeleteModelsRequest):
     task = get_task_for_update(company_id=company_id, task_id=request.task, force=True)
 
     delete_names = {
@@ -1317,5 +1357,5 @@ def delete_models(_: APICall, company_id: str, request: DeleteModelsRequest):
         if names
     }
 
-    updated = task.update(last_change=datetime.utcnow(), **commands,)
+    updated = task.update(last_change=datetime.utcnow(), last_changed_by=call.identity.user, **commands,)
     return {"updated": updated}

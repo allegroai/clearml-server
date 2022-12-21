@@ -51,9 +51,7 @@ update_fields = {
 }
 
 
-def _assert_report(
-    company_id, task_id, only_fields=None, requires_write_access=True
-):
+def _assert_report(company_id, task_id, only_fields=None, requires_write_access=True):
     if only_fields and "type" not in only_fields:
         only_fields += ("type",)
 
@@ -72,9 +70,7 @@ def _assert_report(
 @endpoint("reports.update", response_data_model=UpdateResponse)
 def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     task = _assert_report(
-        task_id=request.task,
-        company_id=company_id,
-        only_fields=("status",),
+        task_id=request.task, company_id=company_id, only_fields=("status",),
     )
     if task.status != TaskStatus.created:
         raise errors.bad_request.InvalidTaskStatus(
@@ -196,7 +192,7 @@ def _get_task_metrics_from_request(
     return task_metrics
 
 
-@endpoint("reports.get_task_data", required_fields=[])
+@endpoint("reports.get_task_data")
 def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
     call_data = escape_execution_parameters(call)
     process_include_subprojects(call_data)
@@ -212,16 +208,12 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
     unprepare_from_saved(call, tasks)
     res = {"tasks": tasks, **ret_params}
     if not (
-        request.debug_images
-        or request.plots
-        or request.scalar_metrics_iter_histogram
+        request.debug_images or request.plots or request.scalar_metrics_iter_histogram
     ):
         return res
 
     task_ids = [task["id"] for task in tasks]
-    company, tasks_or_models = _get_task_or_model_index_company(
-        company_id, task_ids
-    )
+    company, tasks_or_models = _get_task_or_model_index_company(company_id, task_ids)
     if request.debug_images:
         result = event_bll.debug_images_iterator.get_task_events(
             company_id=company,
@@ -264,9 +256,7 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
         )
 
     task = _assert_report(
-        company_id=company_id,
-        task_id=request.task,
-        only_fields=("project",),
+        company_id=company_id, task_id=request.task, only_fields=("project",),
     )
     user_id = call.identity.user
     project_name = request.project_name
@@ -297,12 +287,9 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
     "reports.publish", response_data_model=UpdateResponse,
 )
 def publish(call: APICall, company_id, request: PublishReportRequest):
-    task = _assert_report(
-        company_id=company_id, task_id=request.task
-    )
+    task = _assert_report(company_id=company_id, task_id=request.task)
     updates = ChangeStatusRequest(
         task=task,
-        company=company_id,
         new_status=TaskStatus.published,
         force=True,
         status_reason="",
@@ -315,9 +302,7 @@ def publish(call: APICall, company_id, request: PublishReportRequest):
 
 @endpoint("reports.archive")
 def archive(call: APICall, company_id, request: ArchiveReportRequest):
-    task = _assert_report(
-        company_id=company_id, task_id=request.task
-    )
+    task = _assert_report(company_id=company_id, task_id=request.task)
     archived = task.update(
         status_message=request.message,
         status_reason="",
@@ -331,9 +316,7 @@ def archive(call: APICall, company_id, request: ArchiveReportRequest):
 
 @endpoint("reports.unarchive")
 def unarchive(call: APICall, company_id, request: ArchiveReportRequest):
-    task = _assert_report(
-        company_id=company_id, task_id=request.task
-    )
+    task = _assert_report(company_id=company_id, task_id=request.task)
     unarchived = task.update(
         status_message=request.message,
         status_reason="",
@@ -359,9 +342,7 @@ def unarchive(call: APICall, company_id, request: ArchiveReportRequest):
 @endpoint("reports.delete")
 def delete(call: APICall, company_id, request: DeleteReportRequest):
     task = _assert_report(
-        company_id=company_id,
-        task_id=request.task,
-        only_fields=("project",),
+        company_id=company_id, task_id=request.task, only_fields=("project",),
     )
     if (
         task.status != TaskStatus.created

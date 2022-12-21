@@ -62,8 +62,9 @@ class ProjectsGetRequest(models.Base):
     include_stats_filter = DictField()
     stats_with_children = fields.BoolField(default=True)
     stats_for_state = ActualEnumField(EntityVisibility, default=EntityVisibility.active)
-    non_public = fields.BoolField(default=False)
+    non_public = fields.BoolField(default=False)  # legacy, use allow_public instead
     active_users = fields.ListField(str)
     check_own_contents = fields.BoolField(default=False)
     shallow_search = fields.BoolField(default=False)
     search_hidden = fields.BoolField(default=False)
+    allow_public = fields.BoolField(default=True)
