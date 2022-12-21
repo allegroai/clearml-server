@@ -76,6 +76,11 @@ class TestReports(TestService):
         ).tasks
         self.assertTrue({task_id, task2_id}.issubset({t.id for t in tasks}))
 
+        project_id = self.api.reports.move(task=task2_id, project=None).project_id
+        project = self.api.projects.get_all_ex(id=[project_id]).projects[0]
+        self.assertEqual(project.get("parent"), None)
+        self.assertEqual(project.name, ".reports")
+
     def test_reports_search(self):
         report_task = self._temp_report(name="Rep1")
         non_report_task = self._temp_task(name="hello")

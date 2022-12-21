@@ -297,13 +297,15 @@ class ProjectBLL:
         """
         Move a batch of entities to `project` or a project named `project_name` (create if does not exist)
         """
-        project = cls.find_or_create(
-            user=user,
-            company=company,
-            project_id=project,
-            project_name=project_name,
-            description="",
-        )
+        if project_name or project:
+            project = cls.find_or_create(
+                user=user,
+                company=company,
+                project_id=project,
+                project_name=project_name,
+                description="",
+            )
+
         extra = (
             {"set__last_change": datetime.utcnow()}
             if hasattr(entity_cls, "last_change")

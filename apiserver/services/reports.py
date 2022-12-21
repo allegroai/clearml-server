@@ -252,7 +252,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
 
 @endpoint("reports.move")
 def move(call: APICall, company_id: str, request: MoveReportRequest):
-    if not (request.project or request.project_name):
+    if not ("project" in call.data or request.project_name):
         raise errors.bad_request.MissingRequiredFields(
             "project or project_name is required"
         )
@@ -263,10 +263,13 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
     user_id = call.identity.user
     project_name = request.project_name
     if not project_name:
-        project = Project.get_for_writing(
-            company=company_id, id=request.project, _only=("name",)
-        )
-        project_name = project.name
+        if request.project:
+            project = Project.get_for_writing(
+                company=company_id, id=request.project, _only=("name",)
+            )
+            project_name = project.name
+        else:
+            project_name = ""
 
     project_id = _ensure_reports_project(
         company=company_id, user=user_id, name=project_name

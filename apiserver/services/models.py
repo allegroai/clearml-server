@@ -608,7 +608,7 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
 
 @endpoint("models.move", request_data_model=MoveRequest)
 def move(call: APICall, company_id: str, request: MoveRequest):
-    if not (request.project or request.project_name):
+    if not ("project" in call.data or request.project_name):
         raise errors.bad_request.MissingRequiredFields(
             "project or project_name is required"
         )

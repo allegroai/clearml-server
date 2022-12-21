@@ -30,6 +30,11 @@ class TestMoveUnderProject(TestService):
         self.assertEqual(p2_name, projects[0].name)
         self.api.projects.delete(project=project2, force=True)
 
+        # move to the root project
+        self.assertEqual(None, self.api.tasks.move(ids=[task], project=None).project_id)
+        tasks = self.api.tasks.get_all_ex(id=[task]).tasks
+        self.assertEqual(None, tasks[0].get("project"))
+
         # model move into existing project referenced by name
         model = self._temp_model()
         self.api.models.move(ids=[model], project_name=self.entity_name)
