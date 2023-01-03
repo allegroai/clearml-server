@@ -60,6 +60,7 @@ def start_pipeline(call: APICall, company_id: str, request: StartPipelineRequest
     queued, res = enqueue_task(
         task_id=task.id,
         company_id=company_id,
+        user_id=call.identity.user,
         queue_id=request.queue,
         status_message="Starting pipeline",
         status_reason="",
