@@ -80,18 +80,16 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     if not partial_update_dict:
         return UpdateResponse(updated=0)
 
-    tags_only = list(partial_update_dict.keys()) == ["tags"]
-    if task.status != TaskStatus.created and not tags_only:
+    allowed_for_published = set(partial_update_dict.keys()).issubset({"tags", "name"})
+    if task.status != TaskStatus.created and not allowed_for_published:
         raise errors.bad_request.InvalidTaskStatus(
             expected=TaskStatus.created, status=task.status
         )
 
-    more_updates = {}
-    if not tags_only:
-        now = datetime.utcnow()
-        more_updates.update(
-            last_change=now, last_update=now, last_changed_by=call.identity.user
-        )
+    now = datetime.utcnow()
+    more_updates = {"last_change": now, "last_changed_by": call.identity.user}
+    if not allowed_for_published:
+        more_updates["last_update"] = now
 
     updated = task.update(upsert=False, **partial_update_dict, **more_updates)
     if not updated:
