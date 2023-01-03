@@ -73,10 +73,6 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     task = _assert_report(
         task_id=request.task, company_id=company_id, only_fields=("status",),
     )
-    if task.status != TaskStatus.created:
-        raise errors.bad_request.InvalidTaskStatus(
-            expected=TaskStatus.created, status=task.status
-        )
 
     partial_update_dict = {
         field: value for field, value in call.data.items() if field in update_fields
@@ -84,14 +80,20 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     if not partial_update_dict:
         return UpdateResponse(updated=0)
 
-    now = datetime.utcnow()
-    updated = task.update(
-        upsert=False,
-        **partial_update_dict,
-        last_change=now,
-        last_update=now,
-        last_changed_by=call.identity.user,
-    )
+    tags_only = list(partial_update_dict.keys()) == ["tags"]
+    if task.status != TaskStatus.created and not tags_only:
+        raise errors.bad_request.InvalidTaskStatus(
+            expected=TaskStatus.created, status=task.status
+        )
+
+    more_updates = {}
+    if not tags_only:
+        now = datetime.utcnow()
+        more_updates.update(
+            last_change=now, last_update=now, last_changed_by=call.identity.user
+        )
+
+    updated = task.update(upsert=False, **partial_update_dict, **more_updates)
     if not updated:
         return UpdateResponse(updated=0)
 
