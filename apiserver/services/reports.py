@@ -80,7 +80,7 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     if not partial_update_dict:
         return UpdateResponse(updated=0)
 
-    allowed_for_published = set(partial_update_dict.keys()).issubset({"tags", "name"})
+    allowed_for_published = set(partial_update_dict.keys()).issubset({"tags", "name", "comment"})
     if task.status != TaskStatus.created and not allowed_for_published:
         raise errors.bad_request.InvalidTaskStatus(
             expected=TaskStatus.created, status=task.status

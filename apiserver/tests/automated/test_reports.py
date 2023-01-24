@@ -56,13 +56,16 @@ class TestReports(TestService):
         self.assertEqual(ret.tags, [])
         self.api.reports.publish(task=task_id)
         with self.api.raises(errors.bad_request.InvalidTaskStatus):
-            self.api.reports.update(task=task_id, comment=comment)
+            self.api.reports.update(task=task_id, report="New report text")
 
         # update on tags or rename can be done for published report too
-        self.api.reports.update(task=task_id, name="new name", tags=["test"])
+        self.api.reports.update(
+            task=task_id, name="new name", tags=["test"], comment="Yet another comment"
+        )
         task = self.api.tasks.get_all_ex(id=[task_id]).tasks[0]
         self.assertEqual(task.tags, ["test"])
         self.assertEqual(task.name, "new name")
+        self.assertEqual(task.comment, "Yet another comment")
 
         # move under another project autodeletes the empty project
         new_project_name = "Reports Test"
