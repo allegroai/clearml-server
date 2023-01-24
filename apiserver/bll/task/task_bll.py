@@ -256,6 +256,16 @@ class TaskBLL:
                 not in [TaskSystemTags.development, EntityVisibility.archived.value]
             ]
 
+        def ensure_int_labels(execution: dict) -> dict:
+            if not execution:
+                return execution
+
+            model_labels = execution.get("model_labels")
+            if model_labels:
+                execution["model_labels"] = {k: int(v) for k, v in model_labels.items()}
+
+            return execution
+
         parent_task = (
             task.parent
             if task.parent and not task.parent.startswith(deleted_prefix)
@@ -280,7 +290,7 @@ class TaskBLL:
             output=Output(destination=task.output.destination) if task.output else None,
             models=Models(input=input_models or task.models.input),
             container=escape_dict(container) or task.container,
-            execution=execution_dict,
+            execution=ensure_int_labels(execution_dict),
             configuration=params_dict.get("configuration") or task.configuration,
             hyperparams=params_dict.get("hyperparams") or task.hyperparams,
         )

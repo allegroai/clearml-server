@@ -103,7 +103,7 @@ class TestTasksEdit(TestService):
 
         new_name = "new test"
         new_tags = ["by"]
-        execution_overrides = dict(framework="Caffe")
+        execution_overrides = dict(framework="Caffe", model_labels={"test": 1.0})
         new_task_id = self._clone_task(
             task=task,
             new_task_name=new_name,
@@ -120,6 +120,7 @@ class TestTasksEdit(TestService):
         self.assertEqual(new_task.parent, task)
         # self.assertEqual(new_task.execution.parameters, execution["parameters"])
         self.assertEqual(new_task.execution.framework, execution_overrides["framework"])
+        self.assertEqual(new_task.execution.model_labels, {"test": 1})
         self.assertEqual(new_task.system_tags, ["test"])
 
     def test_model_check_in_clone(self):
