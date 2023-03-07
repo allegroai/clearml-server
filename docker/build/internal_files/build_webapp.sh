@@ -3,7 +3,8 @@ set -x
 set -e
 
 cd /opt/open-webapp/
-npm ci --unsafe-perm node-sass
+npm ci --legacy-peer-deps
 
 cd /opt/open-webapp/
 npm run build
+npm run build-widgets
