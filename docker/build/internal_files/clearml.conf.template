@@ -37,7 +37,7 @@ http {
 
     server {
         listen       80 default_server;
-        listen       [::]:80 default_server;
+        ${COMMENT_IPV6_LISTEN}listen       [::]:80 default_server;
         server_name  _;
         root         /usr/share/nginx/html;
         proxy_http_version 1.1;
