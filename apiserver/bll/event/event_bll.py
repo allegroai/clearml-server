@@ -64,7 +64,7 @@ class PlotFields:
 
 
 class EventBLL(object):
-    id_fields = ("task", "iter", "metric", "variant", "key")
+    event_id_fields = ("task", "iter", "metric", "variant", "key")
     empty_scroll = "FFFF"
     img_source_regex = re.compile(
         r"['\"]source['\"]:\s?['\"]([a-z][a-z0-9+\-.]*://.*?)['\"]",
@@ -219,13 +219,10 @@ class EventBLL(object):
             # force iter to be a long int
             iter = event.get("iter")
             if iter is not None:
-                if model_events:
-                    iter = 0
-                else:
-                    iter = int(iter)
-                    if iter > MAX_LONG or iter < MIN_LONG:
-                        errors_per_type[invalid_iteration_error] += 1
-                        continue
+                iter = int(iter)
+                if iter > MAX_LONG or iter < MIN_LONG:
+                    errors_per_type[invalid_iteration_error] += 1
+                    continue
                 event["iter"] = iter
 
             # used to have "values" to indicate array. no need anymore
@@ -487,7 +484,7 @@ class EventBLL(object):
         )
 
     def _get_event_id(self, event):
-        id_values = (str(event[field]) for field in self.id_fields if field in event)
+        id_values = (str(event[field]) for field in self.event_id_fields if field in event)
         return hashlib.md5("-".join(id_values).encode()).hexdigest()
 
     def scroll_task_events(
