@@ -67,7 +67,7 @@ class MissingPasswordForElasticUser(Exception):
 
 class ESFactory:
     @classmethod
-    def connect(cls, cluster_name):
+    def connect(cls, cluster_name) -> Elasticsearch:
         """
         Returns the es client for the cluster.
         Connects to the cluster if did not connect previously
