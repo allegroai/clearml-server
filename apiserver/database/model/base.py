@@ -934,7 +934,7 @@ class GetMixin(PropsMixin):
             qs = qs.search_text(search_text)
         if order_by:
             # add ordering
-            qs = qs.order_by(*order_by)
+            qs = cls._get_qs_with_ordering(qs, order_by)
 
         if include:
             # add projection
@@ -1026,7 +1026,7 @@ class GetMixin(PropsMixin):
             res = cls._get_queries_for_order_field(query, order_field)
             if res:
                 query_sets = [cls.objects(q) for q in res]
-            query_sets = [qs.order_by(*order_by) for qs in query_sets]
+            query_sets = [cls._get_qs_with_ordering(qs, order_by) for qs in query_sets]
             if order_field and not override_collation:
                 override_collation = cls._get_collation_override(order_field)
 
