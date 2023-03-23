@@ -14,6 +14,7 @@ class UpdateReportRequest(Base):
     tags = ListField(items_types=[str])
     comment = StringField()
     report = StringField()
+    report_assets = ListField(items_types=[str])
 
 
 class CreateReportRequest(Base):
@@ -22,6 +23,7 @@ class CreateReportRequest(Base):
     comment = StringField()
     report = StringField()
     project = StringField()
+    report_assets = ListField(items_types=[str])
 
 
 class PublishReportRequest(Base):

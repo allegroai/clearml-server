@@ -46,7 +46,12 @@ class TestReports(TestService):
 
         # update is working on draft reports
         new_comment = "My new comment"
-        res = self.api.reports.update(task=task_id, comment=new_comment, tags=[])
+        res = self.api.reports.update(
+            task=task_id,
+            comment=new_comment,
+            tags=[],
+            report_assets=["file://test.jpg"],
+        )
         self.assertEqual(res.updated, 1)
         task = self.api.tasks.get_all_ex(id=[task_id]).tasks[0]
         self.assertEqual(task.name, task_name)
@@ -54,6 +59,7 @@ class TestReports(TestService):
         self.assertEqual(task.tags, [])
         ret = self.api.reports.get_tags()
         self.assertEqual(ret.tags, [])
+        self.assertEqual(task.report_assets, ["file://test.jpg"])
         self.api.reports.publish(task=task_id)
         with self.api.raises(errors.bad_request.InvalidTaskStatus):
             self.api.reports.update(task=task_id, report="New report text")
@@ -135,8 +141,7 @@ class TestReports(TestService):
         self.send_batch([*debug_image_events, *plot_events])
 
         res = self.api.reports.get_task_data(
-            id=[non_report_task],
-            only_fields=["name"],
+            id=[non_report_task], only_fields=["name"],
         )
         self.assertEqual(len(res.tasks), 1)
         self.assertEqual(res.tasks[0].id, non_report_task)

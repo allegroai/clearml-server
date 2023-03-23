@@ -48,6 +48,7 @@ update_fields = {
     "tags",
     "comment",
     "report",
+    "report_assets",
 }
 
 

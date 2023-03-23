@@ -249,6 +249,7 @@ class Task(AttributedDocument):
     status_changed = DateTimeField()
     comment = StringField(user_set_allowed=True)
     report = StringField()
+    report_assets = ListField(StringField())
     created = DateTimeField(required=True, user_set_allowed=True)
     started = DateTimeField()
     completed = DateTimeField()
