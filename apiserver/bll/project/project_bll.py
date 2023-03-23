@@ -405,6 +405,18 @@ class ProjectBLL:
                                 "$completed",
                                 {"$gt": ["$completed", time_thresh]},
                                 additional_cond,
+                                {
+                                    "$not": {
+                                        "$in": [
+                                            "$status",
+                                            [
+                                                TaskStatus.queued,
+                                                TaskStatus.in_progress,
+                                                TaskStatus.failed,
+                                            ],
+                                        ]
+                                    }
+                                },
                             ]
                         },
                         "then": 1,
