@@ -24,9 +24,7 @@ class WorkerRequest(Base):
 
 
 class RegisterRequest(WorkerRequest):
-    timeout = make_default(
-        IntField, DEFAULT_TIMEOUT
-    )()  # registration timeout in seconds (default is 10min)
+    timeout = IntField(default=0)  # registration timeout in seconds (if not specified, default is 10min)
     queues = ListField(six.string_types)  # list of queues this worker listens to
 
 
