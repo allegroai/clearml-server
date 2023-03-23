@@ -92,7 +92,7 @@ def get_entities_count(call: APICall, company, request: EntitiesCountRequest):
         query = Q()
         if (
             entity_cls in (Project, Task)
-            and field != "reports"
+            and field not in ("reports", "pipelines", "datasets")
             and not request.search_hidden
         ):
             query &= Q(system_tags__ne=EntityVisibility.hidden.value)
