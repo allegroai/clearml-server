@@ -22,6 +22,7 @@ from mongoengine import Q, Document
 
 from apiserver import database
 from apiserver.apierrors import errors
+from apiserver.apimodels.projects import ProjectChildrenType
 from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility, AttributedDocument
 from apiserver.database.model.base import GetMixin
@@ -44,9 +45,15 @@ from .sub_projects import (
 
 log = config.logger(__file__)
 max_depth = config.get("services.projects.sub_projects.max_depth", 10)
+reports_project_name = ".reports"
+reports_tag = "reports"
+dataset_tag = "dataset"
+pipeline_tag = "pipeline"
 
 
 class ProjectBLL:
+    child_classes = (Task, Model)
+
     @classmethod
     def merge_project(
         cls, company, source_id: str, destination_id: str
@@ -81,7 +88,7 @@ class ProjectBLL:
             )
 
         moved_entities = 0
-        for entity_type in (Task, Model):
+        for entity_type in cls.child_classes:
             moved_entities += entity_type.objects(
                 company=company,
                 project=source_id,
@@ -724,7 +731,7 @@ class ProjectBLL:
             projects_query &= Q(id__in=project_ids)
 
         res = set(Project.objects(projects_query).distinct(field="user"))
-        for cls_ in (Task, Model):
+        for cls_ in cls.child_classes:
             res |= set(cls_.objects(query).distinct(field="user"))
 
         return res
@@ -759,46 +766,49 @@ class ProjectBLL:
         users: Sequence[str] = None,
         project_ids: Optional[Sequence[str]] = None,
         allow_public: bool = True,
-        children_condition: Mapping[str, Any] = None,
+        children_type: ProjectChildrenType = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
         """
-        Get the projects ids matching children_condition (if passed) or where the passed user created any tasks
+        Get the projects ids with children matching children_type (if passed) or created by the passed user
         including all the parents of these projects
         If project ids are specified then filter the results by these project ids
         """
-        if not (users or children_condition):
+        if not (users or children_type):
             raise errors.bad_request.ValidationError(
-                "Either active users or children_condition should be specified"
+                "Either active users or children_type should be specified"
             )
 
-        projects_query = Project.prepare_query(
-            company, parameters=children_condition, allow_public=allow_public
+        query = (
+            get_company_or_none_constraint(company)
+            if allow_public
+            else Q(company=company)
         )
-        if children_condition:
-            contained_entities_query = None
-        else:
-            contained_entities_query = (
-                get_company_or_none_constraint(company)
-                if allow_public
-                else Q(company=company)
-            )
-
         if users:
-            user_query = Q(user__in=users)
-            projects_query &= user_query
-            if contained_entities_query:
-                contained_entities_query &= user_query
+            query &= Q(user__in=users)
+
+        if children_type == ProjectChildrenType.dataset:
+            project_query = query & Q(system_tags__in=[dataset_tag])
+            entity_queries = {}
+        elif children_type == ProjectChildrenType.pipeline:
+            project_query = query & Q(system_tags__in=[pipeline_tag])
+            entity_queries = {}
+        elif children_type == ProjectChildrenType.report:
+            project_query = None
+            entity_queries = {Task: query & Q(system_tags__in=[reports_tag])}
+        else:
+            project_query = query
+            entity_queries = {entity_cls: query for entity_cls in cls.child_classes}
 
         if project_ids:
             ids_with_children = _ids_with_children(project_ids)
-            projects_query &= Q(id__in=ids_with_children)
-            if contained_entities_query:
-                contained_entities_query &= Q(project__in=ids_with_children)
+            if project_query:
+                project_query &= Q(id__in=ids_with_children)
+            for entity_cls in entity_queries:
+                entity_queries[entity_cls] &= Q(project__in=ids_with_children)
 
-        res = {p.id for p in Project.objects(projects_query).only("id")}
-        if contained_entities_query:
-            for cls_ in (Task, Model):
-                res |= set(cls_.objects(contained_entities_query).distinct(field="project"))
+        res = {p.id for p in Project.objects(project_query).only("id")} if project_query else set()
+        for cls_, query_ in entity_queries.items():
+            res |= set(cls_.objects(query_).distinct(field="project"))
 
         res = list(res)
         if not res:

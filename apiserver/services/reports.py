@@ -16,6 +16,7 @@ from apiserver.apimodels.reports import (
 )
 from apiserver.apierrors import errors
 from apiserver.apimodels.base import UpdateResponse
+from apiserver.bll.project.project_bll import reports_project_name, reports_tag
 from apiserver.services.utils import process_include_subprojects, sort_tags_response
 from apiserver.bll.organization import OrgBLL
 from apiserver.bll.project import ProjectBLL
@@ -42,8 +43,6 @@ project_bll = ProjectBLL()
 task_bll = TaskBLL()
 
 
-reports_project_name = ".reports"
-reports_tag = "reports"
 update_fields = {
     "name",
     "tags",
@@ -80,7 +79,9 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     if not partial_update_dict:
         return UpdateResponse(updated=0)
 
-    allowed_for_published = set(partial_update_dict.keys()).issubset({"tags", "name", "comment"})
+    allowed_for_published = set(partial_update_dict.keys()).issubset(
+        {"tags", "name", "comment"}
+    )
     if task.status != TaskStatus.created and not allowed_for_published:
         raise errors.bad_request.InvalidTaskStatus(
             expected=TaskStatus.created, status=task.status

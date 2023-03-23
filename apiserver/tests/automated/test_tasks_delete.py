@@ -50,7 +50,9 @@ class TestTasksResetDelete(TestService):
         self.assertEqual(res.urls.artifact_urls, [])
 
         task = self.new_task()
-        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task)
+        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(
+            task
+        )
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
@@ -74,7 +76,12 @@ class TestTasksResetDelete(TestService):
         self.api.tasks.reset(task=task, force=True)
 
         # test urls
-        task, (published_model_urls, draft_model_urls), artifact_urls, event_urls = self.create_task_with_data()
+        (
+            task,
+            (published_model_urls, draft_model_urls),
+            artifact_urls,
+            event_urls,
+        ) = self.create_task_with_data()
         res = self.api.tasks.reset(task=task, force=True, return_file_urls=True)
         self.assertEqual(set(res.urls.model_urls), draft_model_urls)
         self.assertEqual(set(res.urls.event_urls), event_urls)
@@ -101,13 +108,18 @@ class TestTasksResetDelete(TestService):
 
         # with delete_contents flag
         project = self.new_project()
-        task, (published_model_urls, draft_model_urls), artifact_urls, event_urls = self.create_task_with_data(
-            project=project
-        )
+        (
+            task,
+            (published_model_urls, draft_model_urls),
+            artifact_urls,
+            event_urls,
+        ) = self.create_task_with_data(project=project)
         res = self.api.projects.delete(
             project=project, force=True, delete_contents=True
         )
-        self.assertEqual(set(res.urls.model_urls), published_model_urls | draft_model_urls)
+        self.assertEqual(
+            set(res.urls.model_urls), published_model_urls | draft_model_urls
+        )
         self.assertEqual(res.deleted, 1)
         self.assertEqual(res.disassociated_tasks, 0)
         self.assertEqual(res.deleted_tasks, 1)
@@ -121,7 +133,9 @@ class TestTasksResetDelete(TestService):
         self, **kwargs
     ) -> Tuple[str, Tuple[Set[str], Set[str]], Set[str], Set[str]]:
         task = self.new_task(**kwargs)
-        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(task, **kwargs)
+        (_, published_model_urls), (model, draft_model_urls) = self.create_task_models(
+            task, **kwargs
+        )
         artifact_urls = self.send_artifacts(task)
         event_urls = self.send_debug_image_events(task)
         event_urls.update(self.send_plot_events(task))
@@ -172,7 +186,7 @@ class TestTasksResetDelete(TestService):
             ),
             self.create_event(
                 model, "plot", 0, plot_str=f'{{"source": "{url2}"}}', model_event=True
-            )
+            ),
         ]
         self.send_batch(events)
         return {url1, url2}
@@ -181,7 +195,10 @@ class TestTasksResetDelete(TestService):
         url_pattern = "url_{num}.txt"
         events = [
             self.create_event(
-                task, "training_debug_image", iteration, url=url_pattern.format(num=iteration)
+                task,
+                "training_debug_image",
+                iteration,
+                url=url_pattern.format(num=iteration),
             )
             for iteration in range(5)
         ]

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Tuple, Set, Sequence
 
 import attr
@@ -15,6 +16,7 @@ from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, ArtifactModes, TaskType
+from .project_bll import ProjectBLL
 from .sub_projects import _ids_with_children
 
 log = config.logger(__file__)
@@ -40,9 +42,9 @@ def validate_project_delete(company: str, project_id: str):
     is_pipeline = "pipeline" in (project.system_tags or [])
     project_ids = _ids_with_children([project_id])
     ret = {}
-    for cls in (Task, Model):
+    for cls in ProjectBLL.child_classes:
         ret[f"{cls.__name__.lower()}s"] = cls.objects(project__in=project_ids).count()
-    for cls in (Task, Model):
+    for cls in ProjectBLL.child_classes:
         query = dict(
             project__in=project_ids, system_tags__nin=[EntityVisibility.archived.value]
         )
@@ -98,9 +100,10 @@ def delete_project(
                 )
 
     if not delete_contents:
-        for cls in (Model, Task):
-            updated_count = cls.objects(project__in=project_ids).update(project=None)
-        res = DeleteProjectResult(disassociated_tasks=updated_count)
+        disassociated = defaultdict(int)
+        for cls in ProjectBLL.child_classes:
+            disassociated[cls] = cls.objects(project__in=project_ids).update(project=None)
+        res = DeleteProjectResult(disassociated_tasks=disassociated[Task])
     else:
         deleted_models, model_event_urls, model_urls = _delete_models(
             company=company, projects=project_ids

@@ -36,27 +36,56 @@ class TestSubProjects(TestService):
     def test_query_children(self):
         test_root_name = "TestQueryChildren"
         test_root = self._temp_project(name=test_root_name)
-        child_with_tag = self._temp_project(
-            name=f"{test_root_name}/Project1/WithTag", system_tags=["test"]
+        dataset_project = self._temp_project(
+            name=f"{test_root_name}/Project1/Dataset", system_tags=["dataset"]
         )
-        child_without_tag = self._temp_project(name=f"{test_root_name}/Project2/WithoutTag")
-
-        projects = self.api.projects.get_all_ex(parent=[test_root], shallow_search=True).projects
-        self.assertEqual({p.basename for p in projects}, {"Project1", "Project2"})
+        self._temp_task(
+            name="dataset task",
+            type="data_processing",
+            system_tags=["dataset"],
+            project=dataset_project,
+        )
+        self._temp_task(name="regular task", project=dataset_project)
+        pipeline_project = self._temp_project(
+            name=f"{test_root_name}/Project2/Pipeline", system_tags=["pipeline"]
+        )
+        self._temp_task(
+            name="pipeline task",
+            type="controller",
+            system_tags=["pipeline"],
+            project=pipeline_project,
+        )
+        self._temp_task(name="regular task", project=pipeline_project)
+        report_project = self._temp_project(name=f"{test_root_name}/Project3")
+        self._temp_report(name="test report", project=report_project)
+        self._temp_task(name="regular task", project=report_project)
 
         projects = self.api.projects.get_all_ex(
-            parent=[test_root], children_condition={"system_tags": ["test"]}, shallow_search=True
+            parent=[test_root], shallow_search=True, include_stats=True
         ).projects
-        self.assertEqual({p.basename for p in projects}, {"Project1"})
-        projects = self.api.projects.get_all_ex(
-            parent=[projects[0].id], children_condition={"system_tags": ["test"]}, shallow_search=True
-        ).projects
-        self.assertEqual(projects[0].id, child_with_tag)
+        self.assertEqual(
+            {p.basename for p in projects}, {f"Project{idx+1}" for idx in range(3)}
+        )
+        for p in projects:
+            self.assertEqual(
+                p.stats.active.total_tasks,
+                2
+                if p.basename in ("Project1", "Project2")
+                else 1
+            )
 
-        projects = self.api.projects.get_all_ex(
-            parent=[test_root], children_condition={"system_tags": ["not existent"]}, shallow_search=True
-        ).projects
-        self.assertEqual(len(projects), 0)
+        for i, type_ in enumerate(("dataset", "pipeline", "report")):
+            projects = self.api.projects.get_all_ex(
+                parent=[test_root],
+                children_type=type_,
+                shallow_search=True,
+                include_stats=True,
+            ).projects
+            self.assertEqual({p.basename for p in projects}, {f"Project{i+1}"})
+            p = projects[0]
+            self.assertEqual(
+                p.stats.active.total_tasks, 1
+            )
 
     def test_project_aggregations(self):
         """This test requires user with user_auth_only... credentials in db"""
@@ -323,12 +352,21 @@ class TestSubProjects(TestService):
             **kwargs,
         )
 
-    def _temp_task(self, client=None, **kwargs):
+    def _temp_report(self, name, **kwargs):
+        return self.create_temp(
+            "reports",
+            name=name,
+            object_name="task",
+            delete_params=self.delete_params,
+            **kwargs,
+        )
+
+    def _temp_task(self, client=None, name=None, type=None, **kwargs):
         return self.create_temp(
             "tasks",
             delete_params=self.delete_params,
-            type="testing",
-            name=db_id(),
+            type=type or "testing",
+            name=name or db_id(),
             input=dict(view=dict()),
             client=client,
             **kwargs,

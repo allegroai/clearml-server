@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
 import attr
 from mongoengine import Q
@@ -18,9 +18,11 @@ from apiserver.apimodels.projects import (
     ProjectOrNoneRequest,
     ProjectRequest,
     ProjectModelMetadataValuesRequest,
+    ProjectChildrenType,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, ProjectQueries
+from apiserver.bll.project.project_bll import dataset_tag, pipeline_tag, reports_tag
 from apiserver.bll.project.project_cleanup import (
     delete_project,
     validate_project_delete,
@@ -28,6 +30,7 @@ from apiserver.bll.project.project_cleanup import (
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.project import Project
+from apiserver.database.model.task.task import TaskType
 from apiserver.database.utils import (
     parse_from_call,
     get_company_or_none_constraint,
@@ -96,6 +99,17 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
         data["parent"] = [None]
 
 
+def _get_filter_from_children_type(type_: ProjectChildrenType) -> Optional[dict]:
+    if type_ == ProjectChildrenType.dataset:
+        return {"system_tags": [dataset_tag], "type": [TaskType.data_processing]}
+    if type_ == ProjectChildrenType.pipeline:
+        return {"system_tags": [pipeline_tag], "type": [TaskType.controller]}
+    if type_ == ProjectChildrenType.report:
+        return {"system_tags": [reports_tag], "type": [TaskType.report]}
+
+    return None
+
+
 @endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     data = call.data
@@ -115,15 +129,13 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
         data, shallow_search=request.shallow_search,
     )
     selected_project_ids = None
-    if request.active_users or request.children_condition:
+    if request.active_users or request.children_type:
         ids, selected_project_ids = project_bll.get_projects_with_selected_children(
             company=company_id,
             users=request.active_users,
             project_ids=requested_ids,
             allow_public=allow_public,
-            children_condition=request.children_condition.to_struct()
-            if request.children_condition
-            else None,
+            children_type=request.children_type,
         )
         if not ids:
             return {"projects": []}
@@ -140,33 +152,42 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     if not projects:
         return {"projects": projects, **ret_params}
 
-    project_ids = list({project["id"] for project in projects})
-    if request.check_own_contents:
-        contents = project_bll.calc_own_contents(
-            company=company_id,
-            project_ids=project_ids,
-            filter_=request.include_stats_filter,
-            users=request.active_users,
-        )
-        for project in projects:
-            project.update(**contents.get(project["id"], {}))
-
     conform_output_tags(call, projects)
-    if request.include_stats:
-        stats, children = project_bll.get_project_stats(
-            company=company_id,
-            project_ids=project_ids,
-            specific_state=request.stats_for_state,
-            include_children=request.stats_with_children,
-            search_hidden=request.search_hidden,
-            filter_=request.include_stats_filter,
-            users=request.active_users,
-            selected_project_ids=selected_project_ids,
-        )
+    project_ids = list({project["id"] for project in projects})
 
-        for project in projects:
-            project["stats"] = stats[project["id"]]
-            project["sub_projects"] = children[project["id"]]
+    if request.check_own_contents or request.include_stats:
+        if request.children_type and not request.include_stats_filter:
+            filter_ = _get_filter_from_children_type(request.children_type)
+            search_hidden = True if filter_ else request.search_hidden
+        else:
+            filter_ = request.include_stats_filter
+            search_hidden = request.search_hidden
+
+        if request.check_own_contents:
+            contents = project_bll.calc_own_contents(
+                company=company_id,
+                project_ids=project_ids,
+                filter_=filter_,
+                users=request.active_users,
+            )
+            for project in projects:
+                project.update(**contents.get(project["id"], {}))
+
+        if request.include_stats:
+            stats, children = project_bll.get_project_stats(
+                company=company_id,
+                project_ids=project_ids,
+                specific_state=request.stats_for_state,
+                include_children=request.stats_with_children,
+                search_hidden=search_hidden,
+                filter_=filter_,
+                users=request.active_users,
+                selected_project_ids=selected_project_ids,
+            )
+
+            for project in projects:
+                project["stats"] = stats[project["id"]]
+                project["sub_projects"] = children[project["id"]]
 
     if request.include_dataset_stats:
         dataset_stats = project_bll.get_dataset_stats(
