@@ -58,10 +58,6 @@ class ProjectModelMetadataValuesRequest(MultiProjectRequest):
     allow_public = fields.BoolField(default=True)
 
 
-class ChildrenCondition(models.Base):
-    system_tags = fields.ListField([str])
-
-
 class ProjectChildrenType(Enum):
     pipeline = "pipeline"
     report = "report"

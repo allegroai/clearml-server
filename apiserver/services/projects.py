@@ -1,4 +1,4 @@
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Tuple
 
 import attr
 from mongoengine import Q
@@ -22,7 +22,7 @@ from apiserver.apimodels.projects import (
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, ProjectQueries
-from apiserver.bll.project.project_bll import dataset_tag, pipeline_tag, reports_tag
+from apiserver.bll.project.project_bll import pipeline_tag, reports_tag
 from apiserver.bll.project.project_cleanup import (
     delete_project,
     validate_project_delete,
@@ -99,15 +99,16 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
         data["parent"] = [None]
 
 
-def _get_filter_from_children_type(type_: ProjectChildrenType) -> Optional[dict]:
-    if type_ == ProjectChildrenType.dataset:
-        return {"system_tags": [dataset_tag], "type": [TaskType.data_processing]}
-    if type_ == ProjectChildrenType.pipeline:
-        return {"system_tags": [pipeline_tag], "type": [TaskType.controller]}
-    if type_ == ProjectChildrenType.report:
-        return {"system_tags": [reports_tag], "type": [TaskType.report]}
+def _get_project_stats_filter(request: ProjectsGetRequest) -> Tuple[Optional[dict], bool]:
+    if request.include_stats_filter or not request.children_type:
+        return request.include_stats_filter, request.search_hidden
 
-    return None
+    if request.children_type == ProjectChildrenType.pipeline:
+        return {"system_tags": [pipeline_tag], "type": [TaskType.controller]}, True
+    if request.children_type == ProjectChildrenType.report:
+        return {"system_tags": [reports_tag], "type": [TaskType.report]}, True
+
+    return request.include_stats_filter, request.search_hidden
 
 
 @endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
@@ -142,6 +143,14 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
         data["id"] = ids
 
     ret_params = {}
+
+    remove_system_tags = False
+    if request.search_hidden:
+        only_fields = data.get("only_fields")
+        if isinstance(only_fields, list) and "system_tags" not in only_fields:
+            only_fields.append("system_tags")
+            remove_system_tags = True
+
     projects: Sequence[dict] = Project.get_many_with_join(
         company=company_id,
         query_dict=data,
@@ -152,28 +161,50 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     if not projects:
         return {"projects": projects, **ret_params}
 
+    if request.search_hidden:
+        for p in projects:
+            system_tags = (
+                p.pop("system_tags", [])
+                if remove_system_tags
+                else p.get("system_tags", [])
+            )
+            if EntityVisibility.hidden.value in system_tags:
+                p["hidden"] = True
+
     conform_output_tags(call, projects)
     project_ids = list({project["id"] for project in projects})
 
-    if request.check_own_contents or request.include_stats:
-        if request.children_type and not request.include_stats_filter:
-            filter_ = _get_filter_from_children_type(request.children_type)
-            search_hidden = True if filter_ else request.search_hidden
+    if request.check_own_contents:
+        if request.children_type == ProjectChildrenType.dataset:
+            contents = project_bll.calc_own_datasets(
+                company=company_id,
+                project_ids=project_ids,
+                filter_=request.include_stats_filter,
+                users=request.active_users,
+            )
         else:
-            filter_ = request.include_stats_filter
-            search_hidden = request.search_hidden
-
-        if request.check_own_contents:
             contents = project_bll.calc_own_contents(
                 company=company_id,
                 project_ids=project_ids,
-                filter_=filter_,
+                filter_=_get_project_stats_filter(request)[0],
                 users=request.active_users,
             )
-            for project in projects:
-                project.update(**contents.get(project["id"], {}))
 
-        if request.include_stats:
+        for project in projects:
+            project.update(**contents.get(project["id"], {}))
+
+    if request.include_stats:
+        if request.children_type == ProjectChildrenType.dataset:
+            stats, children = project_bll.get_project_dataset_stats(
+                company=company_id,
+                project_ids=project_ids,
+                include_children=request.stats_with_children,
+                filter_=request.include_stats_filter,
+                users=request.active_users,
+                selected_project_ids=selected_project_ids,
+            )
+        else:
+            filter_, search_hidden = _get_project_stats_filter(request)
             stats, children = project_bll.get_project_stats(
                 company=company_id,
                 project_ids=project_ids,
@@ -185,9 +216,9 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 selected_project_ids=selected_project_ids,
             )
 
-            for project in projects:
-                project["stats"] = stats[project["id"]]
-                project["sub_projects"] = children[project["id"]]
+        for project in projects:
+            project["stats"] = stats[project["id"]]
+            project["sub_projects"] = children[project["id"]]
 
     if request.include_dataset_stats:
         dataset_stats = project_bll.get_dataset_stats(

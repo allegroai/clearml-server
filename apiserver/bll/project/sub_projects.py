@@ -14,14 +14,16 @@ def _get_project_depth(project_name: str) -> int:
     return len(list(filter(None, project_name.split(name_separator))))
 
 
-def _validate_project_name(project_name: str) -> Tuple[str, str]:
+def _validate_project_name(project_name: str, raise_if_empty=True) -> Tuple[str, str]:
     """
     Remove redundant '/' characters. Ensure that the project name is not empty
     Return the cleaned up project name and location
     """
-    name_parts = list(filter(None, project_name.split(name_separator)))
+    name_parts = [p.strip() for p in project_name.split(name_separator) if p]
     if not name_parts:
-        raise errors.bad_request.InvalidProjectName(name=project_name)
+        if raise_if_empty:
+            raise errors.bad_request.InvalidProjectName(name=project_name)
+        return "", ""
 
     return name_separator.join(name_parts), name_separator.join(name_parts[:-1])
 
@@ -34,7 +36,7 @@ def _ensure_project(
     If needed auto-create the project and all the missing projects in the path to it
     Return the project
     """
-    name = name.strip(name_separator)
+    name, location = _validate_project_name(name, raise_if_empty=False)
     if not name:
         return None
 
@@ -43,7 +45,6 @@ def _ensure_project(
         return project
 
     now = datetime.utcnow()
-    name, location = _validate_project_name(name)
     project = Project(
         id=database.utils.id(),
         user=user,
@@ -101,12 +102,15 @@ def _get_writable_project_from_name(
     return qs.first()
 
 
+ProjectsChildren = Mapping[str, Sequence[Project]]
+
+
 def _get_sub_projects(
     project_ids: Sequence[str],
     _only: Sequence[str] = ("id", "path"),
     search_hidden=True,
     allowed_ids: Sequence[str] = None,
-) -> Mapping[str, Sequence[Project]]:
+) -> ProjectsChildren:
     """
     Return the list of child projects of all the levels for the parent project ids
     """
@@ -159,14 +163,14 @@ def _update_subproject_names(
     now = datetime.utcnow()
     for child in children:
         child_suffix = name_separator.join(
-            child.name.split(name_separator)[len(old_name.split(name_separator)) :]
+            child.name.split(name_separator)[len(old_name.split(name_separator)):]
         )
         updates = {
             "name": name_separator.join((project.name, child_suffix)),
             "last_update": now,
         }
         if update_path:
-            updates["path"] = project.path + child.path[len(old_path) :]
+            updates["path"] = project.path + child.path[len(old_path):]
         updated += child.update(upsert=False, **updates)
 
     return updated

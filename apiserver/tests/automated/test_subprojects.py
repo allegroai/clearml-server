@@ -36,8 +36,11 @@ class TestSubProjects(TestService):
     def test_query_children(self):
         test_root_name = "TestQueryChildren"
         test_root = self._temp_project(name=test_root_name)
+        dataset_tags = ["hello", "world"]
         dataset_project = self._temp_project(
-            name=f"{test_root_name}/Project1/Dataset", system_tags=["dataset"]
+            name=f"{test_root_name}/Project1/Dataset",
+            system_tags=["dataset"],
+            tags=dataset_tags,
         )
         self._temp_task(
             name="dataset task",
@@ -80,12 +83,21 @@ class TestSubProjects(TestService):
                 children_type=type_,
                 shallow_search=True,
                 include_stats=True,
+                check_own_contents=True,
             ).projects
             self.assertEqual({p.basename for p in projects}, {f"Project{i+1}"})
             p = projects[0]
-            self.assertEqual(
-                p.stats.active.total_tasks, 1
-            )
+            if type_ in ("dataset",):
+                self.assertEqual(p.own_datasets, 1)
+                self.assertIsNone(p.get("own_tasks"))
+                self.assertEqual(p.stats.datasets.count, 1)
+                self.assertEqual(p.stats.datasets.tags, dataset_tags)
+            else:
+                self.assertEqual(p.own_tasks, 0)
+                self.assertIsNone(p.get("own_datasets"))
+                self.assertEqual(
+                    p.stats.active.total_tasks, 1 if p.basename != "Project4" else 0
+                )
 
     def test_project_aggregations(self):
         """This test requires user with user_auth_only... credentials in db"""

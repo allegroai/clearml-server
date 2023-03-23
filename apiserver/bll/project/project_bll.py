@@ -1,8 +1,7 @@
-import itertools
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import reduce
-from itertools import groupby
+from itertools import groupby, chain
 from operator import itemgetter
 from typing import (
     Sequence,
@@ -41,11 +40,14 @@ from .sub_projects import (
     _ids_with_children,
     _ids_with_parents,
     _get_project_depth,
+    ProjectsChildren,
 )
 
 log = config.logger(__file__)
 max_depth = config.get("services.projects.sub_projects.max_depth", 10)
 reports_project_name = ".reports"
+datasets_project_name = ".datasets"
+pipelines_project_name = ".pipelines"
 reports_tag = "reports"
 dataset_tag = "dataset"
 pipeline_tag = "pipeline"
@@ -516,7 +518,7 @@ class ProjectBLL:
     def aggregate_project_data(
         func: Callable[[T, T], T],
         project_ids: Sequence[str],
-        child_projects: Mapping[str, Sequence[Project]],
+        child_projects: ProjectsChildren,
         data: Mapping[str, T],
     ) -> Dict[str, T]:
         """
@@ -568,6 +570,136 @@ class ProjectBLL:
             for r in Task.aggregate(task_runtime_pipeline)
         }
 
+    @staticmethod
+    def _get_projects_children(
+        project_ids: Sequence[str], search_hidden: bool, allowed_ids: Sequence[str],
+    ) -> Tuple[ProjectsChildren, Set[str]]:
+        child_projects = _get_sub_projects(
+            project_ids,
+            _only=("id", "name"),
+            search_hidden=search_hidden,
+            allowed_ids=allowed_ids,
+        )
+        return (
+            child_projects,
+            {c.id for c in chain.from_iterable(child_projects.values())},
+        )
+
+    @staticmethod
+    def _get_children_info(
+        project_ids: Sequence[str], child_projects: ProjectsChildren
+    ) -> dict:
+        return {
+            project: sorted(
+                [{"id": c.id, "name": c.name} for c in child_projects.get(project, [])],
+                key=itemgetter("name"),
+            )
+            for project in project_ids
+        }
+
+    @classmethod
+    def _get_project_dataset_stats_core(
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        project_field: str,
+        entity_class: Type[AttributedDocument],
+        include_children: bool = True,
+        filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
+        selected_project_ids: Sequence[str] = None,
+    ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
+        if not project_ids:
+            return {}, {}
+
+        child_projects = {}
+        project_ids_with_children = set(project_ids)
+        if include_children:
+            child_projects, children_ids = cls._get_projects_children(
+                project_ids, search_hidden=True, allowed_ids=selected_project_ids,
+            )
+            project_ids_with_children |= children_ids
+
+        pipeline = [
+            {
+                "$match": cls.get_match_conditions(
+                    company=company,
+                    project_ids=list(project_ids_with_children),
+                    filter_=filter_,
+                    users=users,
+                    project_field=project_field,
+                )
+            },
+            {"$project": {project_field: 1, "tags": 1}},
+            {
+                "$group": {
+                    "_id": f"${project_field}",
+                    "count": {"$sum": 1},
+                    "tags": {"$push": "$tags"},
+                }
+            },
+        ]
+        res = entity_class.aggregate(pipeline)
+
+        project_stats = {
+            result["_id"]: {
+                "count": result.get("count", 0),
+                "tags": set(chain.from_iterable(result.get("tags", []))),
+            }
+            for result in res
+        }
+
+        def concat_dataset_stats(a: dict, b: dict) -> dict:
+            return {
+                "count": a.get("count", 0) + b.get("count", 0),
+                "tags": a.get("tags", {}) | b.get("tags", {}),
+            }
+
+        top_project_stats = cls.aggregate_project_data(
+            func=concat_dataset_stats,
+            project_ids=project_ids,
+            child_projects=child_projects,
+            data=project_stats,
+        )
+        for _, stat in top_project_stats.items():
+            stat["tags"] = sorted(list(stat.get("tags", {})))
+
+        empty_stats = {"count": 0, "tags": []}
+        stats = {
+            project: {"datasets": top_project_stats.get(project, empty_stats)}
+            for project in project_ids
+        }
+        return stats, cls._get_children_info(project_ids, child_projects)
+
+    @classmethod
+    def get_project_dataset_stats(
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        include_children: bool = True,
+        filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
+        selected_project_ids: Sequence[str] = None,
+    ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
+        filter_ = filter_ or {}
+        filter_system_tags = filter_.get("system_tags")
+        if not isinstance(filter_system_tags, list):
+            filter_system_tags = []
+        if dataset_tag not in filter_system_tags:
+            filter_system_tags.append(dataset_tag)
+            filter_["system_tags"] = filter_system_tags
+
+        return cls._get_project_dataset_stats_core(
+            company=company,
+            project_ids=project_ids,
+            project_field="parent",
+            entity_class=Project,
+            include_children=include_children,
+            filter_=filter_,
+            users=users,
+            selected_project_ids=selected_project_ids,
+        )
+
     @classmethod
     def get_project_stats(
         cls,
@@ -583,19 +715,16 @@ class ProjectBLL:
         if not project_ids:
             return {}, {}
 
-        child_projects = (
-            _get_sub_projects(
+        child_projects = {}
+        project_ids_with_children = set(project_ids)
+        if include_children:
+            child_projects, children_ids = cls._get_projects_children(
                 project_ids,
-                _only=("id", "name"),
                 search_hidden=search_hidden,
                 allowed_ids=selected_project_ids,
             )
-            if include_children
-            else {}
-        )
-        project_ids_with_children = set(project_ids) | {
-            c.id for c in itertools.chain.from_iterable(child_projects.values())
-        }
+            project_ids_with_children |= children_ids
+
         status_count_pipeline, runtime_pipeline = cls.make_projects_get_all_pipelines(
             company,
             project_ids=list(project_ids_with_children),
@@ -699,14 +828,7 @@ class ProjectBLL:
             for project in project_ids
         }
 
-        children = {
-            project: sorted(
-                [{"id": c.id, "name": c.name} for c in child_projects.get(project, [])],
-                key=itemgetter("name"),
-            )
-            for project in project_ids
-        }
-        return stats, children
+        return stats, cls._get_children_info(project_ids, child_projects)
 
     @classmethod
     def get_active_users(
@@ -769,13 +891,13 @@ class ProjectBLL:
         children_type: ProjectChildrenType = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
         """
-        Get the projects ids with children matching children_type (if passed) or created by the passed user
+        Get the projects ids matching children_condition (if passed) or where the passed user created any tasks
         including all the parents of these projects
         If project ids are specified then filter the results by these project ids
         """
         if not (users or children_type):
             raise errors.bad_request.ValidationError(
-                "Either active users or children_type should be specified"
+                "Either active users or children_condition should be specified"
             )
 
         query = (
@@ -786,29 +908,42 @@ class ProjectBLL:
         if users:
             query &= Q(user__in=users)
 
+        project_query = None
         if children_type == ProjectChildrenType.dataset:
-            project_query = query & Q(system_tags__in=[dataset_tag])
-            entity_queries = {}
+            child_queries = {
+                Project: query
+                & Q(system_tags__in=[dataset_tag], basename__ne=datasets_project_name)
+            }
         elif children_type == ProjectChildrenType.pipeline:
-            project_query = query & Q(system_tags__in=[pipeline_tag])
-            entity_queries = {}
+            child_queries = {Task: query & Q(system_tags__in=[pipeline_tag])}
         elif children_type == ProjectChildrenType.report:
-            project_query = None
-            entity_queries = {Task: query & Q(system_tags__in=[reports_tag])}
+            child_queries = {Task: query & Q(system_tags__in=[reports_tag])}
         else:
             project_query = query
-            entity_queries = {entity_cls: query for entity_cls in cls.child_classes}
+            child_queries = {entity_cls: query for entity_cls in cls.child_classes}
 
         if project_ids:
             ids_with_children = _ids_with_children(project_ids)
             if project_query:
                 project_query &= Q(id__in=ids_with_children)
-            for entity_cls in entity_queries:
-                entity_queries[entity_cls] &= Q(project__in=ids_with_children)
+            for child_cls in child_queries:
+                child_queries[child_cls] &= (
+                    Q(parent__in=ids_with_children)
+                    if child_cls is Project
+                    else Q(project__in=ids_with_children)
+                )
 
-        res = {p.id for p in Project.objects(project_query).only("id")} if project_query else set()
-        for cls_, query_ in entity_queries.items():
-            res |= set(cls_.objects(query_).distinct(field="project"))
+        res = (
+            {p.id for p in Project.objects(project_query).only("id")}
+            if project_query
+            else set()
+        )
+        for cls_, query_ in child_queries.items():
+            res |= set(
+                cls_.objects(query_).distinct(
+                    field="parent" if cls_ is Project else "project"
+                )
+            )
 
         res = list(res)
         if not res:
@@ -894,10 +1029,11 @@ class ProjectBLL:
         project_ids: Sequence[str],
         filter_: Mapping[str, Any],
         users: Sequence[str],
+        project_field: str = "project",
     ):
         conditions = {
             "company": {"$in": [None, "", company]},
-            "project": {"$in": project_ids},
+            project_field: {"$in": project_ids},
         }
         if users:
             conditions["user"] = {"$in": users}
@@ -921,6 +1057,69 @@ class ProjectBLL:
             }
 
         return conditions
+
+    @classmethod
+    def _calc_own_datasets_core(
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        project_field: str,
+        entity_class: Type[AttributedDocument],
+        filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
+    ) -> Dict[str, dict]:
+        """
+        Returns the amount of hyper datasets per requested project
+        """
+        if not project_ids:
+            return {}
+
+        pipeline = [
+            {
+                "$match": cls.get_match_conditions(
+                    company=company,
+                    project_ids=project_ids,
+                    filter_=filter_,
+                    users=users,
+                    project_field=project_field,
+                )
+            },
+            {"$project": {project_field: 1}},
+            {"$group": {"_id": f"${project_field}", "count": {"$sum": 1}}},
+        ]
+        datasets = {
+            data["_id"]: data["count"] for data in entity_class.aggregate(pipeline)
+        }
+
+        return {pid: {"own_datasets": datasets.get(pid, 0)} for pid in project_ids}
+
+    @classmethod
+    def calc_own_datasets(
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        filter_: Mapping[str, Any] = None,
+        users: Sequence[str] = None,
+    ) -> Dict[str, dict]:
+        """
+        Returns the amount of datasets per requested project
+        """
+        filter_ = filter_ or {}
+        filter_system_tags = filter_.get("system_tags")
+        if not isinstance(filter_system_tags, list):
+            filter_system_tags = []
+        if dataset_tag not in filter_system_tags:
+            filter_system_tags.append(dataset_tag)
+            filter_["system_tags"] = filter_system_tags
+
+        return cls._calc_own_datasets_core(
+            company=company,
+            project_ids=project_ids,
+            project_field="parent",
+            entity_class=Project,
+            filter_=filter_,
+            users=users,
+        )
 
     @classmethod
     def calc_own_contents(
