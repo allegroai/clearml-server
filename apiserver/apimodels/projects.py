@@ -1,4 +1,5 @@
 from jsonmodels import models, fields
+from jsonmodels.fields import EmbeddedField
 
 from apiserver.apimodels import ListField, ActualEnumField, DictField
 from apiserver.apimodels.organization import TagsRequest
@@ -56,6 +57,10 @@ class ProjectModelMetadataValuesRequest(MultiProjectRequest):
     allow_public = fields.BoolField(default=True)
 
 
+class ChildrenCondition(models.Base):
+    system_tags = fields.ListField([str])
+
+
 class ProjectsGetRequest(models.Base):
     include_dataset_stats = fields.BoolField(default=False)
     include_stats = fields.BoolField(default=False)
@@ -68,3 +73,4 @@ class ProjectsGetRequest(models.Base):
     shallow_search = fields.BoolField(default=False)
     search_hidden = fields.BoolField(default=False)
     allow_public = fields.BoolField(default=True)
+    children_condition = EmbeddedField(ChildrenCondition)

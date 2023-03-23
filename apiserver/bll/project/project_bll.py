@@ -571,7 +571,7 @@ class ProjectBLL:
         search_hidden: bool = False,
         filter_: Mapping[str, Any] = None,
         users: Sequence[str] = None,
-        user_active_project_ids: Sequence[str] = None,
+        selected_project_ids: Sequence[str] = None,
     ) -> Tuple[Dict[str, dict], Dict[str, dict]]:
         if not project_ids:
             return {}, {}
@@ -581,7 +581,7 @@ class ProjectBLL:
                 project_ids,
                 _only=("id", "name"),
                 search_hidden=search_hidden,
-                allowed_ids=user_active_project_ids,
+                allowed_ids=selected_project_ids,
             )
             if include_children
             else {}
@@ -753,46 +753,65 @@ class ProjectBLL:
         return tags, system_tags
 
     @classmethod
-    def get_projects_with_active_user(
+    def get_projects_with_selected_children(
         cls,
         company: str,
-        users: Sequence[str],
+        users: Sequence[str] = None,
         project_ids: Optional[Sequence[str]] = None,
         allow_public: bool = True,
+        children_condition: Mapping[str, Any] = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
         """
-        Get the projects ids where user created any tasks including all the parents of these projects
+        Get the projects ids matching children_condition (if passed) or where the passed user created any tasks
+        including all the parents of these projects
         If project ids are specified then filter the results by these project ids
         """
-        query = Q(user__in=users)
+        if not (users or children_condition):
+            raise errors.bad_request.ValidationError(
+                "Either active users or children_condition should be specified"
+            )
 
-        if allow_public:
-            query &= get_company_or_none_constraint(company)
+        projects_query = Project.prepare_query(
+            company, parameters=children_condition, allow_public=allow_public
+        )
+        if children_condition:
+            contained_entities_query = None
         else:
-            query &= Q(company=company)
+            contained_entities_query = (
+                get_company_or_none_constraint(company)
+                if allow_public
+                else Q(company=company)
+            )
 
-        user_projects_query = query
+        if users:
+            user_query = Q(user__in=users)
+            projects_query &= user_query
+            if contained_entities_query:
+                contained_entities_query &= user_query
+
         if project_ids:
             ids_with_children = _ids_with_children(project_ids)
-            query &= Q(project__in=ids_with_children)
-            user_projects_query &= Q(id__in=ids_with_children)
+            projects_query &= Q(id__in=ids_with_children)
+            if contained_entities_query:
+                contained_entities_query &= Q(project__in=ids_with_children)
 
-        res = {p.id for p in Project.objects(user_projects_query).only("id")}
-        for cls_ in (Task, Model):
-            res |= set(cls_.objects(query).distinct(field="project"))
+        res = {p.id for p in Project.objects(projects_query).only("id")}
+        if contained_entities_query:
+            for cls_ in (Task, Model):
+                res |= set(cls_.objects(contained_entities_query).distinct(field="project"))
 
         res = list(res)
         if not res:
             return res, res
 
-        user_active_project_ids = _ids_with_parents(res)
+        selected_project_ids = _ids_with_parents(res)
         filtered_ids = (
-            list(set(user_active_project_ids) & set(project_ids))
+            list(set(selected_project_ids) & set(project_ids))
             if project_ids
-            else list(user_active_project_ids)
+            else list(selected_project_ids)
         )
 
-        return filtered_ids, user_active_project_ids
+        return filtered_ids, selected_project_ids
 
     @classmethod
     def get_task_parents(

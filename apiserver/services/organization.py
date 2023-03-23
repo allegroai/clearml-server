@@ -76,7 +76,7 @@ def get_entities_count(call: APICall, company, request: EntitiesCountRequest):
                 requested_ids = data.get("id")
                 if isinstance(requested_ids, str):
                     requested_ids = [requested_ids]
-                ids, _ = project_bll.get_projects_with_active_user(
+                ids, _ = project_bll.get_projects_with_selected_children(
                     company=company,
                     users=request.active_users,
                     project_ids=requested_ids,

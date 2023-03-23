@@ -17,7 +17,7 @@ from typing import (
 
 from boltons.iterutils import first, partition
 from dateutil.parser import parse as parse_datetime
-from mongoengine import Q, Document, ListField, StringField, IntField
+from mongoengine import Q, Document, ListField, StringField, IntField, QuerySet
 from pymongo.command_cursor import CommandCursor
 
 from apiserver.apierrors import errors, APIError
@@ -39,7 +39,7 @@ from apiserver.redis_manager import redman
 from apiserver.utilities.dicts import project_dict, exclude_fields_from_dict
 
 log = config.logger("dbmodel")
-
+mongo_conf = config.get("services._mongo")
 ACCESS_REGEX = re.compile(r"^(?P<prefix>>=|>|<=|<)?(?P<value>.*)$")
 ACCESS_MODIFIER = {">=": "gte", ">": "gt", "<=": "lte", "<": "lt"}
 
@@ -158,7 +158,9 @@ class GetMixin(PropsMixin):
         def _get_op(self, v: str, translate: bool = False) -> Optional[str]:
             try:
                 op = (
-                    v[len(self.op_prefix) :] if v and v.startswith(self.op_prefix) else None
+                    v[len(self.op_prefix) :]
+                    if v and v.startswith(self.op_prefix)
+                    else None
                 )
                 if translate:
                     tup = self._ops.get(op, None)
@@ -166,7 +168,9 @@ class GetMixin(PropsMixin):
                 return op
             except AttributeError:
                 raise errors.bad_request.FieldsValueError(
-                    "invalid value type, string expected", field=self._field, value=str(v)
+                    "invalid value type, string expected",
+                    field=self._field,
+                    value=str(v),
                 )
 
         def _key(self, v) -> Optional[Union[str, bool]]:
@@ -233,8 +237,8 @@ class GetMixin(PropsMixin):
             cls._cache_manager = RedisCacheManager(
                 state_class=cls.GetManyScrollState,
                 redis=redman.connection("apiserver"),
-                expiration_interval=config.get(
-                    "services._mongo.scroll_state_expiration_seconds", 600
+                expiration_interval=mongo_conf.get(
+                    "scroll_state_expiration_seconds", 600
                 ),
             )
 
@@ -451,7 +455,9 @@ class GetMixin(PropsMixin):
             raise
         except Exception as ex:
             raise errors.bad_request.FieldsValueError(
-                "failed parsing query field", error=str(ex), **({"field": field} if field else {})
+                "failed parsing query field",
+                error=str(ex),
+                **({"field": field} if field else {}),
             )
 
         return query & RegexQ(**dict_query)
@@ -570,7 +576,7 @@ class GetMixin(PropsMixin):
         if start is not None:
             return start, cls.validate_scroll_size(parameters)
 
-        max_page_size = config.get("services._mongo.max_page_size", 500)
+        max_page_size = mongo_conf.get("max_page_size", 500)
         page = parameters.get("page", default_page)
         if page is not None and page < 0:
             raise errors.bad_request.ValidationError("page must be >=0", field="page")
@@ -880,6 +886,13 @@ class GetMixin(PropsMixin):
 
         return cls._get_many_no_company(query=_query, override_projection=projection)
 
+    @staticmethod
+    def _get_qs_with_ordering(qs: QuerySet, order_by: Sequence):
+        disk_use_setting = mongo_conf.get("allow_disk_use.sort", None)
+        if disk_use_setting is not None:
+            qs = qs.allow_disk_use(disk_use_setting)
+        return qs.order_by(*order_by)
+
     @classmethod
     def _get_many_no_company(
         cls: Union["GetMixin", Document],
@@ -1173,7 +1186,7 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
         kwargs.update(
             allowDiskUse=allow_disk_use
             if allow_disk_use is not None
-            else config.get("apiserver.mongo.aggregate.allow_disk_use", True)
+            else mongo_conf.get("allow_disk_use.aggregate", True)
         )
         return cls.objects.aggregate(pipeline, **kwargs)
 

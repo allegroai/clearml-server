@@ -114,13 +114,16 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     _adjust_search_parameters(
         data, shallow_search=request.shallow_search,
     )
-    user_active_project_ids = None
-    if request.active_users:
-        ids, user_active_project_ids = project_bll.get_projects_with_active_user(
+    selected_project_ids = None
+    if request.active_users or request.children_condition:
+        ids, selected_project_ids = project_bll.get_projects_with_selected_children(
             company=company_id,
             users=request.active_users,
             project_ids=requested_ids,
             allow_public=allow_public,
+            children_condition=request.children_condition.to_struct()
+            if request.children_condition
+            else None,
         )
         if not ids:
             return {"projects": []}
@@ -158,7 +161,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             search_hidden=request.search_hidden,
             filter_=request.include_stats_filter,
             users=request.active_users,
-            user_active_project_ids=user_active_project_ids,
+            selected_project_ids=selected_project_ids,
         )
 
         for project in projects:

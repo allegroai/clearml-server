@@ -19,6 +19,7 @@ from apiserver.database.fields import (
     SafeSortedListField,
     EmbeddedDocumentListField,
     NullableStringField,
+    NoneType,
 )
 from apiserver.database.model import AttributedDocument
 from apiserver.database.model.base import ProperDictMixin, GetMixin
@@ -89,7 +90,9 @@ class Artifact(EmbeddedDocument):
     content_size = LongField()
     timestamp = LongField()
     type_data = EmbeddedDocumentField(ArtifactTypeData)
-    display_data = SafeSortedListField(ListField(UnionField((int, float, str))))
+    display_data = SafeSortedListField(
+        ListField(UnionField((int, float, str, NoneType)))
+    )
 
 
 class ParamsItem(EmbeddedDocument, ProperDictMixin):
@@ -231,6 +234,7 @@ class Task(AttributedDocument):
         range_fields=("started", "active_duration", "last_metrics.*", "last_iteration"),
         datetime_fields=("status_changed", "last_update"),
         pattern_fields=("name", "comment", "report"),
+        fields=("execution.queue", "runtime.*", "models.input.model"),
     )
 
     id = StringField(primary_key=True)

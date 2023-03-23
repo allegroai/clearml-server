@@ -33,6 +33,31 @@ class TestSubProjects(TestService):
         ).projects[0]
         self.assertEqual(data.dataset_stats, {"file_count": 2, "total_size": 1000})
 
+    def test_query_children(self):
+        test_root_name = "TestQueryChildren"
+        test_root = self._temp_project(name=test_root_name)
+        child_with_tag = self._temp_project(
+            name=f"{test_root_name}/Project1/WithTag", system_tags=["test"]
+        )
+        child_without_tag = self._temp_project(name=f"{test_root_name}/Project2/WithoutTag")
+
+        projects = self.api.projects.get_all_ex(parent=[test_root], shallow_search=True).projects
+        self.assertEqual({p.basename for p in projects}, {"Project1", "Project2"})
+
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root], children_condition={"system_tags": ["test"]}, shallow_search=True
+        ).projects
+        self.assertEqual({p.basename for p in projects}, {"Project1"})
+        projects = self.api.projects.get_all_ex(
+            parent=[projects[0].id], children_condition={"system_tags": ["test"]}, shallow_search=True
+        ).projects
+        self.assertEqual(projects[0].id, child_with_tag)
+
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root], children_condition={"system_tags": ["not existent"]}, shallow_search=True
+        ).projects
+        self.assertEqual(len(projects), 0)
+
     def test_project_aggregations(self):
         """This test requires user with user_auth_only... credentials in db"""
         user2_client = APIClient(
