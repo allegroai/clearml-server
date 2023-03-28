@@ -410,7 +410,6 @@ def get_scalar_metric_data(call, company_id, _):
         metrics={metric: []},
         scroll_id=scroll_id,
         no_scroll=no_scroll,
-        model_events=model_events,
     )
 
     call.result.data = dict(
@@ -576,7 +575,6 @@ def _get_multitask_plots(
         sort=[{"iter": {"order": "desc"}}],
         scroll_id=scroll_id,
         no_scroll=no_scroll,
-        model_events=model_events,
     )
     return_events = _get_top_iter_unique_events_per_task(
         result.events, max_iters=last_iters, task_names=task_names
@@ -786,7 +784,6 @@ def get_debug_images_v1_8(call, company_id, _):
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
-        model_events=model_events,
     )
 
     return_events = result.events

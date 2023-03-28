@@ -714,7 +714,6 @@ class EventBLL(object):
         size=500,
         scroll_id=None,
         no_scroll=False,
-        model_events=False,
     ) -> TaskEventsResult:
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -743,7 +742,7 @@ class EventBLL(object):
             if metrics:
                 must.append(get_metric_variants_condition(metrics))
 
-            if last_iter_count is None or model_events:
+            if last_iter_count is None:
                 must.append({"terms": {"task": task_ids}})
             else:
                 tasks_iters = self.get_last_iters(
