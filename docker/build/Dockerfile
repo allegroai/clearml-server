@@ -1,4 +1,4 @@
-FROM centos/nodejs-12-centos7 AS webapp
+FROM node:18-bullseye as webapp_builder
 
 ARG CLEARML_WEB_GIT_URL=https://github.com/allegroai/clearml-web.git
 
@@ -23,7 +23,7 @@ COPY docker/build/internal_files/clearml.conf.template /tmp/internal_files/
 COPY docker/build/internal_files/clearml_subpath.conf.template /tmp/internal_files/
 RUN /bin/bash -c '/tmp/internal_files/final_image_preparation.sh'
 
-COPY --from=webapp /opt/open-webapp/build /usr/share/nginx/html
+COPY --from=webapp_builder /opt/open-webapp/build /usr/share/nginx/html
 COPY --from=webapp_builder /opt/open-webapp/dist/report-widgets /usr/share/nginx/widgets
 
 EXPOSE 8080
