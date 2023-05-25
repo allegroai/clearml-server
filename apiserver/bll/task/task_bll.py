@@ -473,6 +473,9 @@ class TaskBLL:
         if remove_from_all_queues:
             cls.remove_task_from_all_queues(company_id=company_id, task=task)
 
+        if task.status not in [TaskStatus.queued, TaskStatus.in_progress]:
+            return {"updated": 0}
+
         return ChangeStatusRequest(
             task=task,
             new_status=task.enqueue_status or TaskStatus.created,
