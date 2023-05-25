@@ -13,7 +13,7 @@ flask-cors>=3.0.5
 flask>=0.12.2
 furl>=2.0.0
 google-cloud-storage>=2.8.0
-gunicorn>=19.7.1
+gunicorn>=20.1.0
 humanfriendly>=4.17
 jinja2<3.0
 jsonmodels>=2.3
@@ -31,5 +31,6 @@ python-rapidjson>=0.6.3
 redis>=4.5.4,<5
 requests>=2.13.0
 semantic_version>=2.8.3,<3
+setuptools>=65.5.1
 six
 validators>=0.12.4
