@@ -266,6 +266,7 @@ def delete_task(
     if move_to_trash:
         # make sure that whatever changes were done to the task are saved
         # the task itself will be deleted later in the move_tasks_to_trash operation
+        task.last_update = datetime.utcnow()
         task.save()
     else:
         task.delete()

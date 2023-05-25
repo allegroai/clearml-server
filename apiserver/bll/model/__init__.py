@@ -108,25 +108,27 @@ class ModelBLL:
 
         if model.task:
             task = Task.objects(id=model.task).first()
-            if task and task.status == TaskStatus.published:
-                if not force:
-                    raise errors.bad_request.ModelCreatingTaskExists(
-                        "and published, use force=True to delete", task=model.task
-                    )
-                if task.models.output and model_id in task.models.output:
-                    now = datetime.utcnow()
+            if task:
+                now = datetime.utcnow()
+                if task.status == TaskStatus.published:
+                    if not force:
+                        raise errors.bad_request.ModelCreatingTaskExists(
+                            "and published, use force=True to delete", task=model.task
+                        )
                     Task._get_collection().update_one(
                         filter={"_id": model.task, "models.output.model": model_id},
                         update={
                             "$set": {
                                 "models.output.$[elem].model": deleted_model_id,
                                 "output.error": f"model deleted on {now.isoformat()}",
+                                "last_change": now,
                             },
-                            "last_change": now,
                         },
                         array_filters=[{"elem.model": model_id}],
                         upsert=False,
                     )
+                else:
+                    task.update(pull__models__output__model=model_id, set__last_change=now)
 
         del_count = Model.objects(id=model_id, company=company_id).delete()
         return del_count, model

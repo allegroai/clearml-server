@@ -1,3 +1,4 @@
+from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidModelId
 from apiserver.tests.automated import TestService
 
@@ -10,6 +11,31 @@ IN_PROGRESS = "in_progress"
 class TestModelsService(TestService):
     def setUp(self, version="2.9"):
         super().setUp(version=version)
+
+    def test_delete_model_for_task(self):
+        # non published task
+        task_id, model_id = self._create_task_and_model()
+        task = self.api.tasks.get_by_id(task=task_id).task
+        self.assertEqual(task.models.output[0].model, model_id)
+        res = self.api.models.delete(model=model_id)
+        self.assertTrue(res.deleted)
+        with self.api.raises(errors.bad_request.InvalidModelId):
+            self.api.models.get_by_id(model=model_id)
+        task = self.api.tasks.get_by_id(task=task_id).task
+        self.assertEqual(task.models.output, [])
+
+        # published task
+        task_id, model_id = self._create_task_and_model()
+        self.api.tasks.stopped(task=task_id)
+        self.api.tasks.publish(task=task_id, publish_model=False)
+        with self.api.raises(errors.bad_request.ModelCreatingTaskExists):
+            self.api.models.delete(model=model_id)
+        res = self.api.models.delete(model=model_id, force=True)
+        self.assertTrue(res.deleted)
+        with self.api.raises(errors.bad_request.InvalidModelId):
+            self.api.models.get_by_id(model=model_id)
+        task = self.api.tasks.get_by_id(task=task_id).task
+        self.assertEqual(task.models.output[0].model, f"__DELETED__{model_id}")
 
     def test_publish_output_model_running_task(self):
         task_id, model_id = self._create_task_and_model()

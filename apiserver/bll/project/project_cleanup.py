@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from typing import Tuple, Set, Sequence
 
 import attr
@@ -15,7 +16,7 @@ from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task, ArtifactModes, TaskType
+from apiserver.database.model.task.task import Task, ArtifactModes, TaskType, TaskStatus
 from .project_bll import ProjectBLL
 from .sub_projects import _ids_with_children
 
@@ -185,29 +186,43 @@ def _delete_models(
         return 0, set(), set()
 
     model_ids = list({m.id for m in models})
-
+    deleted = "__DELETED__"
     Task._get_collection().update_many(
         filter={
             "project": {"$nin": projects},
             "models.input.model": {"$in": model_ids},
         },
-        update={"$set": {"models.input.$[elem].model": None}},
+        update={"$set": {"models.input.$[elem].model": deleted}},
         array_filters=[{"elem.model": {"$in": model_ids}}],
         upsert=False,
     )
 
     model_tasks = list({m.task for m in models if m.task})
     if model_tasks:
+        now = datetime.utcnow()
+        # update published tasks
         Task._get_collection().update_many(
             filter={
                 "_id": {"$in": model_tasks},
                 "project": {"$nin": projects},
                 "models.output.model": {"$in": model_ids},
+                "status": TaskStatus.published,
             },
-            update={"$set": {"models.output.$[elem].model": None}},
+            update={
+                "$set": {
+                    "models.output.$[elem].model": deleted,
+                    "last_change": now,
+                }
+            },
             array_filters=[{"elem.model": {"$in": model_ids}}],
             upsert=False,
         )
+        # update unpublished tasks
+        Task.objects(
+            id__in=model_tasks,
+            project__nin=projects,
+            status__ne=TaskStatus.published,
+        ).update(pull__models__output__model__in=model_ids, set__last_change=now)
 
     event_urls, model_urls = set(), set()
     for m in models:
