@@ -1146,6 +1146,7 @@ class ProjectBLL:
         company: str,
         project_ids: Sequence[str],
         filter_: Mapping[str, Any] = None,
+        specific_state: Optional[EntityVisibility] = None,
         users: Sequence[str] = None,
     ) -> Dict[str, dict]:
         """
@@ -1155,6 +1156,20 @@ class ProjectBLL:
         """
         if not project_ids:
             return {}
+
+        if specific_state:
+            filter_ = filter_ or {}
+            system_tags_filter = filter_.get("system_tags", [])
+            archived = EntityVisibility.archived.value
+            non_archived = f"-{EntityVisibility.archived.value}"
+            if not any(t in system_tags_filter for t in (archived, non_archived)):
+                filter_ = {k: v for k, v in filter_.items()}
+                filter_["system_tags"] = [
+                    archived
+                    if specific_state == EntityVisibility.archived
+                    else non_archived,
+                    *system_tags_filter,
+                ]
 
         pipeline = [
             {

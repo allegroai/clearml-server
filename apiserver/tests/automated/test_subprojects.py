@@ -348,7 +348,7 @@ class TestSubProjects(TestService):
             id=[project1, project2], check_own_contents=True
         ).projects
         res1 = next(p for p in res if p.id == project1)
-        self.assertEqual(res1.own_tasks, 2)
+        self.assertEqual(res1.own_tasks, 1)
         self.assertEqual(res1.own_models, 1)
 
         res2 = next(p for p in res if p.id == project2)

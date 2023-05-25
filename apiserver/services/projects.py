@@ -201,6 +201,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 company=company_id,
                 project_ids=project_ids,
                 filter_=stats_filter,
+                specific_state=request.stats_for_state,
                 users=request.active_users,
             )
 
