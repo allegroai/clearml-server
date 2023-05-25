@@ -146,20 +146,46 @@ class TestReports(TestService):
                 for m in range(2)
                 for v in range(2)
             ]
-            self.send_batch([*debug_image_events, *plot_events])
+            scalar_events = [
+                self._create_task_event(
+                    task=non_report_task,
+                    type_="training_stats_scalar",
+                    iteration=iter_,
+                    metric=f"Metric_{m}",
+                    variant=f"Variant_{v}",
+                    value=m * v,
+                    **event_args,
+                )
+                for m in range(2)
+                for v in range(2)
+                for iter_ in (1, -(2 ** 31))
+            ]
+            self.send_batch([*debug_image_events, *plot_events, *scalar_events])
 
             res = self.api.reports.get_task_data(
                 id=[non_report_task], only_fields=["name"], model_events=model_events
             )
             self.assertEqual(len(res.tasks), 1)
             self.assertEqual(res.tasks[0].id, non_report_task)
-            self.assertFalse(any(field in res for field in ("plots", "debug_images")))
+            self.assertFalse(
+                any(
+                    field in res
+                    for field in (
+                        "plots",
+                        "debug_images",
+                        "scalar_metrics_iter_histogram",
+                        "single_value_metrics",
+                    )
+                )
+            )
 
             res = self.api.reports.get_task_data(
                 id=[non_report_task],
                 only_fields=["name"],
                 debug_images={"metrics": []},
                 plots={"metrics": [{"metric": "Metric_1"}]},
+                scalar_metrics_iter_histogram={},
+                single_value_metrics={},
                 model_events=model_events,
             )
             self.assertEqual(len(res.debug_images), 1)
@@ -167,6 +193,20 @@ class TestReports(TestService):
             self.assertEqual(task_events.task, non_report_task)
             self.assertEqual(len(task_events.iterations), 1)
             self.assertEqual(len(task_events.iterations[0].events), 4)
+
+            self.assertEqual(len(res.single_value_metrics), 1)
+            task_metrics = res.single_value_metrics[0]
+            self.assertEqual(task_metrics.task, non_report_task)
+            self.assertEqual(
+                {(v["metric"], v["variant"]) for v in task_metrics["values"]},
+                {(f"Metric_{x}", f"Variant_{y}") for x in range(2) for y in range(2)},
+            )
+            self.assertEqual(len(task_events.iterations[0].events), 4)
+
+            for m in ("Metric_0", "Metric_1"):
+                for v in ("Variant_0", "Variant_1"):
+                    tasks = nested_get(res.scalar_metrics_iter_histogram, (m, v))
+                    self.assertEqual(list(tasks.keys()), [non_report_task])
 
             self.assertEqual(len(res.plots), 1)
             for m, v in (("Metric_1", "Variant_0"), ("Metric_1", "Variant_1")):

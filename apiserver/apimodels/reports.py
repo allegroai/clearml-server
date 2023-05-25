@@ -61,10 +61,17 @@ class ScalarMetricsIterHistogram(HistogramRequestBase):
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
+class SingleValueMetrics(Base):
+    pass
+
+
 class GetTasksDataRequest(Base):
     debug_images: EventsRequest = EmbeddedField(EventsRequest)
     plots: EventsRequest = EmbeddedField(EventsRequest)
-    scalar_metrics_iter_histogram: ScalarMetricsIterHistogram = EmbeddedField(ScalarMetricsIterHistogram)
+    scalar_metrics_iter_histogram: ScalarMetricsIterHistogram = EmbeddedField(
+        ScalarMetricsIterHistogram
+    )
+    single_value_metrics: SingleValueMetrics = EmbeddedField(SingleValueMetrics)
     allow_public = BoolField(default=True)
     model_events: bool = BoolField(default=False)
 

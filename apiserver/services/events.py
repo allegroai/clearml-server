@@ -508,6 +508,12 @@ def multi_task_scalar_metrics_iter_histogram(
     )
 
 
+def _get_single_value_metrics_response(
+    value_metrics: Mapping[str, dict]
+) -> Sequence[dict]:
+    return [{"task": task, "values": values} for task, values in value_metrics.items()]
+
+
 @endpoint("events.get_task_single_value_metrics")
 def get_task_single_value_metrics(
     call, company_id: str, request: SingleValueMetricsRequest
@@ -517,9 +523,7 @@ def get_task_single_value_metrics(
             company_id, request.tasks, request.model_events
         ),
     )
-    call.result.data = dict(
-        tasks=[{"task": task, "values": values} for task, values in res.items()]
-    )
+    call.result.data = dict(tasks=_get_single_value_metrics_response(res))
 
 
 @endpoint("events.get_multi_task_plots", required_fields=["tasks"])

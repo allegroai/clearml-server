@@ -33,6 +33,7 @@ from apiserver.services.events import (
     _get_metrics_response,
     _get_metric_variants_from_request,
     _get_multitask_plots,
+    _get_single_value_metrics_response,
 )
 from apiserver.services.tasks import (
     escape_execution_parameters,
@@ -221,7 +222,10 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
     conform_data(call, tasks)
     res = {"tasks": tasks, **ret_params}
     if not (
-        request.debug_images or request.plots or request.scalar_metrics_iter_histogram
+        request.debug_images
+        or request.plots
+        or request.scalar_metrics_iter_histogram
+        or request.single_value_metrics
     ):
         return res
 
@@ -258,6 +262,11 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
             metric_variants=_get_metric_variants_from_request(
                 request.scalar_metrics_iter_histogram.metrics
             ),
+        )
+
+    if request.single_value_metrics:
+        res["single_value_metrics"] = _get_single_value_metrics_response(
+            event_bll.metrics.get_task_single_value_metrics(companies=companies)
         )
 
     call.result.data = res
