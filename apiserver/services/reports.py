@@ -3,6 +3,8 @@ from datetime import datetime
 from itertools import chain
 from typing import Sequence
 
+from mongoengine import Q
+
 from apiserver.apimodels.reports import (
     CreateReportRequest,
     UpdateReportRequest,
@@ -177,12 +179,14 @@ def get_all_ex(call: APICall, company_id, request: GetAllRequest):
         project_ids = call_data["project"]
         if not isinstance(project_ids, list):
             project_ids = [project_ids]
-        call_data["project"] = [
-            *project_ids,
-            *Project.objects(
-                parent__in=project_ids, basename=reports_project_name
-            ).scalar("id"),
-        ]
+
+        query = Q(parent__in=project_ids) | Q(id__in=project_ids)
+        project_ids = Project.objects(
+            query & Q(basename=reports_project_name)
+        ).scalar("id")
+        if not project_ids:
+            return {"tasks": []}
+        call_data["project"] = list(project_ids)
 
     ret_params = {}
     tasks = Task.get_many_with_join(
