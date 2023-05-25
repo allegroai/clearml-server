@@ -96,6 +96,10 @@ class UpdateRequest(TaskUpdateRequest):
     status_message = StringField(default="")
 
 
+class DequeueRequest(UpdateRequest):
+    remove_from_all_queues = BoolField(default=False)
+
+
 class EnqueueRequest(UpdateRequest):
     queue = StringField()
     queue_name = StringField()
@@ -272,6 +276,10 @@ class TaskBatchRequest(BatchRequest):
 
 class StopManyRequest(TaskBatchRequest):
     force = BoolField(default=False)
+
+
+class DequeueManyRequest(TaskBatchRequest):
+    remove_from_all_queues = BoolField(default=False)
 
 
 class EnqueueManyRequest(TaskBatchRequest):

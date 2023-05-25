@@ -61,6 +61,7 @@ def archive_task(
             user_id=user_id,
             status_message=status_message,
             status_reason=status_reason,
+            remove_from_all_queues=True,
         )
     except APIError:
         # dequeue may fail if the task was not enqueued
@@ -99,6 +100,7 @@ def dequeue_task(
     user_id: str,
     status_message: str,
     status_reason: str,
+    remove_from_all_queues: bool = False,
 ) -> Tuple[int, dict]:
     query = dict(id=task_id, company=company_id)
     task = Task.get_for_writing(**query)
@@ -111,6 +113,7 @@ def dequeue_task(
         user_id=user_id,
         status_message=status_message,
         status_reason=status_reason,
+        remove_from_all_queues=remove_from_all_queues,
     )
     return 1, res
 
@@ -244,6 +247,7 @@ def delete_task(
             user_id=user_id,
             status_message=status_message,
             status_reason=status_reason,
+            remove_from_all_queues=True,
         )
     except APIError:
         # dequeue may fail if the task was not enqueued
@@ -295,6 +299,8 @@ def reset_task(
     except APIError:
         # dequeue may fail if the task was not enqueued
         pass
+
+    TaskBLL.remove_task_from_all_queues(company_id=company_id, task=task)
 
     cleaned_up = cleanup_task(
         company=company_id,

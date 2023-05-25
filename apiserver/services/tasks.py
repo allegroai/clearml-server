@@ -65,6 +65,8 @@ from apiserver.apimodels.tasks import (
     CompletedRequest,
     CompletedResponse,
     GetAllReq,
+    DequeueRequest,
+    DequeueManyRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -383,7 +385,8 @@ def close(call: APICall, company_id, req_model: UpdateRequest):
             req_model,
             company_id=company_id,
             user_id=call.identity.user,
-            new_status=TaskStatus.closed)
+            new_status=TaskStatus.closed,
+        )
     )
 
 
@@ -929,27 +932,24 @@ def enqueue_many(call: APICall, company_id, request: EnqueueManyRequest):
 
 
 @endpoint(
-    "tasks.dequeue",
-    request_data_model=UpdateRequest,
-    response_data_model=DequeueResponse,
+    "tasks.dequeue", response_data_model=DequeueResponse,
 )
-def dequeue(call: APICall, company_id, request: UpdateRequest):
+def dequeue(call: APICall, company_id, request: DequeueRequest):
     dequeued, res = dequeue_task(
         task_id=request.task,
         company_id=company_id,
         user_id=call.identity.user,
         status_message=request.status_message,
         status_reason=request.status_reason,
+        remove_from_all_queues=request.remove_from_all_queues,
     )
     call.result.data_model = DequeueResponse(dequeued=dequeued, **res)
 
 
 @endpoint(
-    "tasks.dequeue_many",
-    request_data_model=TaskBatchRequest,
-    response_data_model=DequeueManyResponse,
+    "tasks.dequeue_many", response_data_model=DequeueManyResponse,
 )
-def dequeue_many(call: APICall, company_id, request: TaskBatchRequest):
+def dequeue_many(call: APICall, company_id, request: DequeueManyRequest):
     results, failures = run_batch_operation(
         func=partial(
             dequeue_task,
@@ -957,6 +957,7 @@ def dequeue_many(call: APICall, company_id, request: TaskBatchRequest):
             user_id=call.identity.user,
             status_message=request.status_message,
             status_reason=request.status_reason,
+            remove_from_all_queues=request.remove_from_all_queues,
         ),
         ids=request.ids,
     )
@@ -1357,5 +1358,7 @@ def delete_models(call: APICall, company_id: str, request: DeleteModelsRequest):
         if names
     }
 
-    updated = task.update(last_change=datetime.utcnow(), last_changed_by=call.identity.user, **commands,)
+    updated = task.update(
+        last_change=datetime.utcnow(), last_changed_by=call.identity.user, **commands,
+    )
     return {"updated": updated}

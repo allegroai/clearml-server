@@ -30,6 +30,7 @@ from apiserver.database.model.task.task import (
     TaskModelTypes,
 )
 from apiserver.database.model import EntityVisibility
+from apiserver.database.model.queue import Queue
 from apiserver.database.utils import get_company_or_none_constraint, id as create_id
 from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
@@ -447,6 +448,12 @@ class TaskBLL:
 
         return ret
 
+    @staticmethod
+    def remove_task_from_all_queues(company_id: str, task: Task) -> int:
+        return Queue.objects(company=company_id, entries__task=task.id).update(
+            pull__entries__task=task.id, last_update=datetime.utcnow()
+        )
+
     @classmethod
     def dequeue_and_change_status(
         cls,
@@ -455,12 +462,16 @@ class TaskBLL:
         user_id: str,
         status_message: str,
         status_reason: str,
+        remove_from_all_queues=False,
     ):
         try:
             cls.dequeue(task, company_id, silent_fail=True)
         except APIError:
             # dequeue may fail if the queue was deleted
             pass
+
+        if remove_from_all_queues:
+            cls.remove_task_from_all_queues(company_id=company_id, task=task)
 
         return ChangeStatusRequest(
             task=task,
