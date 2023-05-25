@@ -171,9 +171,19 @@ def _delete_reports_project_if_empty(project_id):
 def get_all_ex(call: APICall, company_id, request: GetAllRequest):
     call_data = call.data
     call_data["type"] = TaskType.report
-    call_data["include_subprojects"] = True
 
-    process_include_subprojects(call_data)
+    # bring projects one level down in case not the .reports project was passed
+    if "project" in call_data:
+        project_ids = call_data["project"]
+        if not isinstance(project_ids, list):
+            project_ids = [project_ids]
+        call_data["project"] = [
+            *project_ids,
+            *Project.objects(
+                parent__in=project_ids, basename=reports_project_name
+            ).scalar("id"),
+        ]
+
     ret_params = {}
     tasks = Task.get_many_with_join(
         company=company_id,

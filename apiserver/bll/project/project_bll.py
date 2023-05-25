@@ -951,9 +951,7 @@ class ProjectBLL:
                 )
 
         res = (
-            {p.id for p in Project.objects(project_query).only("id")}
-            if project_query
-            else set()
+            set(Project.objects(project_query).scalar("id")) if project_query else set()
         )
         for cls_, query_ in child_queries.items():
             res |= set(

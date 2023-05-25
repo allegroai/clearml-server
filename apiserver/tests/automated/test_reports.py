@@ -96,6 +96,44 @@ class TestReports(TestService):
         self.assertEqual(project.get("parent"), None)
         self.assertEqual(project.name, ".reports")
 
+    def test_root_reports(self):
+        root_report = self._temp_report(name="Rep1")
+        project_name = "Test reports"
+        project = self._temp_project(name=project_name)
+        project_report = self._temp_report(name="Rep2", project=project)
+
+        projects = self.api.projects.get_all_ex(
+            name=r"^\.reports$",
+            children_type="report",
+            include_stats=True,
+            check_own_contents=True,
+            search_hidden=True,
+        ).projects
+        self.assertEqual(len(projects), 1)
+        p = projects[0]
+        self.assertEqual(p.name, ".reports")
+        self.assertEqual(p.own_tasks, 1)
+
+        projects = self.api.projects.get_all_ex(
+            name=rf"^{project_name}/\.reports$",
+            children_type="report",
+            include_stats=True,
+            check_own_contents=True,
+            search_hidden=True,
+        ).projects
+        self.assertEqual(len(projects), 1)
+        p = projects[0]
+        self.assertEqual(p.name, f"{project_name}/.reports")
+        self.assertEqual(p.own_tasks, 1)
+
+        reports = self.api.reports.get_all_ex().tasks
+        self.assertTrue({root_report, project_report}.issubset({r.id for r in reports}))
+        reports = self.api.reports.get_all_ex(project=project).tasks
+        self.assertEqual([project_report], [r.id for r in reports])
+        reports = self.api.reports.get_all_ex(project=[None]).tasks
+        self.assertIn(root_report, {r.id for r in reports})
+        self.assertNotIn(project_report, {r.id for r in reports})
+
     def test_reports_search(self):
         report_task = self._temp_report(name="Rep1")
         non_report_task = self._temp_task(name="hello")
@@ -235,6 +273,15 @@ class TestReports(TestService):
         }
 
     delete_params = {"force": True}
+
+    def _temp_project(self, name, **kwargs):
+        return self.create_temp(
+            "projects",
+            delete_params=self.delete_params,
+            name=name,
+            description="",
+            **kwargs,
+        )
 
     def _temp_report(self, name, **kwargs):
         return self.create_temp(

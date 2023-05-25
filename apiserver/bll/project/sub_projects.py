@@ -144,8 +144,8 @@ def _ids_with_children(project_ids: Sequence[str]) -> Sequence[str]:
     """
     Return project ids with the ids of all the subprojects
     """
-    subprojects = Project.objects(path__in=project_ids).only("id")
-    return list({*project_ids, *(child.id for child in subprojects)})
+    children_ids = Project.objects(path__in=project_ids).scalar("id")
+    return list({*project_ids, *children_ids})
 
 
 def _update_subproject_names(
