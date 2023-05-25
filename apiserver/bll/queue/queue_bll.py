@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import Callable, Sequence, Optional, Tuple
+from typing import Sequence, Optional, Tuple, Union
 
 from elasticsearch import Elasticsearch
 from mongoengine import Q
@@ -16,6 +16,8 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.queue import Queue, Entry
 
 log = config.logger(__file__)
+MOVE_FIRST = "first"
+MOVE_LAST = "last"
 
 
 class QueueBLL(object):
@@ -323,42 +325,130 @@ class QueueBLL(object):
         company_id: str,
         queue_id: str,
         task_id: str,
-        pos_func: Callable[[int], int],
+        move_count: Union[int, str],
     ) -> int:
         """
         Moves the task in the queue to the position calculated by pos_func
         Returns the updated task position in the queue
         """
-        with translate_errors_context():
-            queue = self.get_queue_with_task(
+        def get_queue_and_task_position():
+            q = self.get_queue_with_task(
                 company_id=company_id, queue_id=queue_id, task_id=task_id
             )
+            return q, next(i for i, e in enumerate(q.entries) if e.task == task_id)
 
-            position = next(i for i, e in enumerate(queue.entries) if e.task == task_id)
-            new_position = pos_func(position)
+        with translate_errors_context():
+            queue, position = get_queue_and_task_position()
+            if move_count == MOVE_FIRST:
+                new_position = 0
+            elif move_count == MOVE_LAST:
+                new_position = len(queue.entries) - 1
+            else:
+                new_position = position + move_count
+            if new_position == position:
+                return new_position
 
-            if new_position != position:
-                entry = queue.entries[position]
-                query = dict(id=queue_id, company=company_id)
-                updated = Queue.objects(entries__task=task_id, **query).update_one(
-                    pull__entries=entry, last_update=datetime.utcnow()
-                )
-                if not updated:
-                    raise errors.bad_request.RemovedDuringReposition(
-                        task=task_id, **query
-                    )
-                inst = {"$push": {"entries": {"$each": [entry.to_proper_dict()]}}}
-                if new_position >= 0:
-                    inst["$push"]["entries"]["$position"] = new_position
-                res = Queue.objects(entries__task__ne=task_id, **query).update_one(
-                    __raw__=inst
-                )
-                if not res:
-                    raise errors.bad_request.FailedAddingDuringReposition(
-                        task=task_id, **query
-                    )
+            without_entry = {
+                "$filter": {
+                    "input": "$entries",
+                    "as": "entry",
+                    "cond": {"$ne": ["$$entry.task", task_id]},
+                }
+            }
+            task_entry = {
+                "$filter": {
+                    "input": "$entries",
+                    "as": "entry",
+                    "cond": {"$eq": ["$$entry.task", task_id]},
+                }
+            }
+            if move_count == MOVE_FIRST:
+                operations = [
+                    {
+                        "$set": {
+                            "entries": {"$concatArrays": [task_entry, without_entry]}
+                        }
+                    }
+                ]
+            elif move_count == MOVE_LAST:
+                operations = [
+                    {
+                        "$set": {
+                            "entries": {"$concatArrays": [without_entry, task_entry]}
+                        }
+                    }
+                ]
+            else:
+                operations = [
+                    {
+                        "$set": {
+                            "new_pos": {
+                                "$add": [
+                                    {"$indexOfArray": ["$entries.task", task_id]},
+                                    move_count,
+                                ]
+                            },
+                            "without_entry": without_entry,
+                            "task_entry": task_entry,
+                        }
+                    },
+                    {
+                        "$set": {
+                            "entries": {
+                                "$switch": {
+                                    "branches": [
+                                        {
+                                            "case": {"$lte": ["$new_pos", 0]},
+                                            "then": {
+                                                "$concatArrays": [
+                                                    "$task_entry",
+                                                    "$without_entry",
+                                                ]
+                                            },
+                                        },
+                                        {
+                                            "case": {
+                                                "$gte": [
+                                                    "$new_pos",
+                                                    {"$size": "$without_entry"},
+                                                ]
+                                            },
+                                            "then": {
+                                                "$concatArrays": [
+                                                    "$without_entry",
+                                                    "$task_entry",
+                                                ]
+                                            },
+                                        },
+                                    ],
+                                    "default": {
+                                        "$concatArrays": [
+                                            {"$slice": ["$without_entry", "$new_pos"]},
+                                            "$task_entry",
+                                            {
+                                                "$slice": [
+                                                    "$without_entry",
+                                                    "$new_pos",
+                                                    {"$size": "$without_entry"},
+                                                ]
+                                            },
+                                        ]
+                                    },
+                                }
+                            }
+                        }
+                    },
+                    {"$unset": ["new_pos", "without_entry", "task_entry"]},
+                ]
 
-            return new_position
+            updated = Queue.objects(
+                id=queue_id, company=company_id, entries__task=task_id
+            ).update_one(__raw__=operations)
+
+            if not updated:
+                raise errors.bad_request.FailedAddingDuringReposition(task=task_id)
+
+            return get_queue_and_task_position()[1]
 
     def count_entries(self, company: str, queue_id: str) -> Optional[int]:
         res = next(

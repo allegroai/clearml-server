@@ -21,6 +21,7 @@ from apiserver.apimodels.queues import (
 )
 from apiserver.bll.model import Metadata
 from apiserver.bll.queue import QueueBLL
+from apiserver.bll.queue.queue_bll import MOVE_FIRST, MOVE_LAST
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import Task
@@ -195,7 +196,7 @@ def move_task_forward(call: APICall, company_id, req_model: MoveTaskRequest):
             company_id=company_id,
             queue_id=req_model.queue,
             task_id=req_model.task,
-            pos_func=lambda p: max(0, p - req_model.count),
+            move_count=-req_model.count,
         )
     )
 
@@ -212,7 +213,7 @@ def move_task_backward(call: APICall, company_id, req_model: MoveTaskRequest):
             company_id=company_id,
             queue_id=req_model.queue,
             task_id=req_model.task,
-            pos_func=lambda p: max(0, p + req_model.count),
+            move_count=req_model.count,
         )
     )
 
@@ -229,7 +230,7 @@ def move_task_to_front(call: APICall, company_id, req_model: TaskRequest):
             company_id=company_id,
             queue_id=req_model.queue,
             task_id=req_model.task,
-            pos_func=lambda p: 0,
+            move_count=MOVE_FIRST,
         )
     )
 
@@ -246,7 +247,7 @@ def move_task_to_back(call: APICall, company_id, req_model: TaskRequest):
             company_id=company_id,
             queue_id=req_model.queue,
             task_id=req_model.task,
-            pos_func=lambda p: -1,
+            move_count=MOVE_LAST,
         )
     )
 

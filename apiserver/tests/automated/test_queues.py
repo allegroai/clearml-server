@@ -138,27 +138,70 @@ class TestQueues(TestService):
         queue = self._temp_queue("TestTempQueue")
         tasks = [
             self._create_temp_queued_task(t, queue)["id"]
-            for t in ("temp task1", "temp task2", "temp task3")
+            for t in ("temp task1", "temp task2", "temp task3", "temp task4")
         ]
         res = self.api.queues.get_by_id(queue=queue)
         self.assertQueueTasks(res.queue, tasks)
 
-        new_pos = self.api.queues.move_task_backward(
-            queue=queue, task=tasks[0], count=2
-        ).position
-        self.assertEqual(new_pos, 2)
-        res = self.api.queues.get_by_id(queue=queue)
-        changed_tasks = tasks[1:] + tasks[:1]
-        self.assertQueueTasks(res.queue, changed_tasks)
-
-        new_pos = self.api.queues.move_task_forward(
-            queue=queue, task=tasks[0], count=2
+        # no change in position
+        new_pos = self.api.queues.move_task_to_front(
+            queue=queue, task=tasks[0]
         ).position
         self.assertEqual(new_pos, 0)
         res = self.api.queues.get_by_id(queue=queue)
         self.assertQueueTasks(res.queue, tasks)
 
-        self.assertGetNextTasks(queue, tasks)
+        # move backwards in the middle
+        new_pos = self.api.queues.move_task_backward(
+            queue=queue, task=tasks[0], count=2
+        ).position
+        self.assertEqual(new_pos, 2)
+        res = self.api.queues.get_by_id(queue=queue)
+        changed_tasks = tasks[1:3] + [tasks[0], tasks[3]]
+        self.assertQueueTasks(res.queue, changed_tasks)
+
+        # move backwards beyond the end
+        new_pos = self.api.queues.move_task_backward(
+            queue=queue, task=tasks[0], count=100
+        ).position
+        self.assertEqual(new_pos, 3)
+        res = self.api.queues.get_by_id(queue=queue)
+        changed_tasks = tasks[1:] + [tasks[0]]
+        self.assertQueueTasks(res.queue, changed_tasks)
+
+        # move forwards in the middle
+        new_pos = self.api.queues.move_task_forward(
+            queue=queue, task=tasks[0], count=2
+        ).position
+        self.assertEqual(new_pos, 1)
+        res = self.api.queues.get_by_id(queue=queue)
+        changed_tasks = [tasks[1], tasks[0]] + tasks[2:]
+        self.assertQueueTasks(res.queue, changed_tasks)
+
+        # move forwards beyond the beginning
+        new_pos = self.api.queues.move_task_forward(
+            queue=queue, task=tasks[0], count=100
+        ).position
+        self.assertEqual(new_pos, 0)
+        res = self.api.queues.get_by_id(queue=queue)
+        self.assertQueueTasks(res.queue, tasks)
+
+        # move to back
+        new_pos = self.api.queues.move_task_to_back(
+            queue=queue, task=tasks[0]
+        ).position
+        self.assertEqual(new_pos, 3)
+        res = self.api.queues.get_by_id(queue=queue)
+        changed_tasks = tasks[1:] + [tasks[0]]
+        self.assertQueueTasks(res.queue, changed_tasks)
+
+        # move to front
+        new_pos = self.api.queues.move_task_to_front(
+            queue=queue, task=tasks[0]
+        ).position
+        self.assertEqual(new_pos, 0)
+        res = self.api.queues.get_by_id(queue=queue)
+        self.assertQueueTasks(res.queue, tasks)
 
     def test_get_all_ex(self):
         queue_name = "TestTempQueue1"
