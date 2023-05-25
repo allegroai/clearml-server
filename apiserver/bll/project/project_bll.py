@@ -16,7 +16,6 @@ from typing import (
     Any,
 )
 
-from boltons.iterutils import partition
 from mongoengine import Q, Document
 
 from apiserver import database
@@ -58,7 +57,7 @@ class ProjectBLL:
 
     @classmethod
     def merge_project(
-        cls, company, source_id: str, destination_id: str
+        cls, company: str, source_id: str, destination_id: str
     ) -> Tuple[int, int, Set[str]]:
         """
         Move all the tasks and sub projects from the source project to the destination
@@ -901,6 +900,7 @@ class ProjectBLL:
         project_ids: Optional[Sequence[str]] = None,
         allow_public: bool = True,
         children_type: ProjectChildrenType = None,
+        children_tags: Sequence[str] = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
         """
         Get the projects ids matching children_condition (if passed) or where the passed user created any tasks
@@ -921,15 +921,20 @@ class ProjectBLL:
             query &= Q(user__in=users)
 
         project_query = None
+        child_query = (
+            query & GetMixin.get_list_field_query("tags", children_tags)
+            if children_tags
+            else query
+        )
         if children_type == ProjectChildrenType.dataset:
             child_queries = {
-                Project: query
+                Project: child_query
                 & Q(system_tags__in=[dataset_tag], basename__ne=datasets_project_name)
             }
         elif children_type == ProjectChildrenType.pipeline:
-            child_queries = {Task: query & Q(system_tags__in=[pipeline_tag])}
+            child_queries = {Task: child_query & Q(system_tags__in=[pipeline_tag])}
         elif children_type == ProjectChildrenType.report:
-            child_queries = {Task: query & Q(system_tags__in=[reports_tag])}
+            child_queries = {Task: child_query & Q(system_tags__in=[reports_tag])}
         else:
             project_query = query
             child_queries = {entity_cls: query for entity_cls in cls.child_classes}
@@ -1065,10 +1070,11 @@ class ProjectBLL:
                 raise errors.bad_request.ValidationError(
                     f"List of strings expected for the field: {field}"
                 )
-            exclude, include = partition(field_filter, lambda x: x.startswith("-"))
+            helper = GetMixin.ListFieldBucketHelper(field, legacy=True)
+            actions = helper.get_actions(field_filter)
             conditions[field] = {
-                **({"$in": include} if include else {}),
-                **({"$nin": [e[1:] for e in exclude]} if exclude else {}),
+                f"${action}": list(set(actions[action]))
+                for action in filter(None, actions)
             }
 
         return conditions

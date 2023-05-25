@@ -82,3 +82,4 @@ class ProjectsGetRequest(models.Base):
     search_hidden = fields.BoolField(default=False)
     allow_public = fields.BoolField(default=True)
     children_type = ActualEnumField(ProjectChildrenType)
+    children_tags = fields.ListField(str)

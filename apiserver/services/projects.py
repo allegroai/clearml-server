@@ -7,12 +7,12 @@ from apiserver.apierrors import errors
 from apiserver.apierrors.errors.bad_request import InvalidProjectId
 from apiserver.apimodels.base import UpdateResponse, MakePublicRequest, IdResponse
 from apiserver.apimodels.projects import (
+    DeleteRequest,
     GetParamsRequest,
     ProjectTagsRequest,
     ProjectTaskParentsRequest,
     ProjectHyperparamValuesRequest,
     ProjectsGetRequest,
-    DeleteRequest,
     MoveRequest,
     MergeRequest,
     ProjectRequest,
@@ -99,19 +99,31 @@ def _adjust_search_parameters(data: dict, shallow_search: bool):
         data["parent"] = [None]
 
 
-def _get_project_stats_filter(request: ProjectsGetRequest) -> Tuple[Optional[dict], bool]:
+def _get_project_stats_filter(
+    request: ProjectsGetRequest,
+) -> Tuple[Optional[dict], bool]:
     if request.include_stats_filter or not request.children_type:
         return request.include_stats_filter, request.search_hidden
 
+    stats_filter = {"tags": request.children_tags} if request.children_tags else {}
     if request.children_type == ProjectChildrenType.pipeline:
-        return {"system_tags": [pipeline_tag], "type": [TaskType.controller]}, True
+        return (
+            {
+                **stats_filter,
+                "system_tags": [pipeline_tag],
+                "type": [TaskType.controller],
+            },
+            True,
+        )
     if request.children_type == ProjectChildrenType.report:
-        return {"system_tags": [reports_tag], "type": [TaskType.report]}, True
+        return (
+            {**stats_filter, "system_tags": [reports_tag], "type": [TaskType.report]},
+            True,
+        )
+    return stats_filter, request.search_hidden
 
-    return request.include_stats_filter, request.search_hidden
 
-
-@endpoint("projects.get_all_ex", request_data_model=ProjectsGetRequest)
+@endpoint("projects.get_all_ex")
 def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     data = call.data
     conform_tag_fields(call, data)
@@ -137,6 +149,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             project_ids=requested_ids,
             allow_public=allow_public,
             children_type=request.children_type,
+            children_tags=request.children_tags,
         )
         if not ids:
             return {"projects": []}
@@ -174,19 +187,20 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     conform_output_tags(call, projects)
     project_ids = list({project["id"] for project in projects})
 
+    stats_filter, stats_search_hidden = _get_project_stats_filter(request)
     if request.check_own_contents:
         if request.children_type == ProjectChildrenType.dataset:
             contents = project_bll.calc_own_datasets(
                 company=company_id,
                 project_ids=project_ids,
-                filter_=request.include_stats_filter,
+                filter_=stats_filter,
                 users=request.active_users,
             )
         else:
             contents = project_bll.calc_own_contents(
                 company=company_id,
                 project_ids=project_ids,
-                filter_=_get_project_stats_filter(request)[0],
+                filter_=stats_filter,
                 users=request.active_users,
             )
 
@@ -199,19 +213,18 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
                 company=company_id,
                 project_ids=project_ids,
                 include_children=request.stats_with_children,
-                filter_=request.include_stats_filter,
+                filter_=stats_filter,
                 users=request.active_users,
                 selected_project_ids=selected_project_ids,
             )
         else:
-            filter_, search_hidden = _get_project_stats_filter(request)
             stats, children = project_bll.get_project_stats(
                 company=company_id,
                 project_ids=project_ids,
                 specific_state=request.stats_for_state,
                 include_children=request.stats_with_children,
-                search_hidden=search_hidden,
-                filter_=filter_,
+                search_hidden=stats_search_hidden,
+                filter_=stats_filter,
                 users=request.active_users,
                 selected_project_ids=selected_project_ids,
             )
@@ -348,7 +361,7 @@ def delete(call: APICall, company_id: str, request: DeleteRequest):
     "projects.get_unique_metric_variants", request_data_model=GetUniqueMetricsRequest
 )
 def get_unique_metric_variants(
-    call: APICall, company_id: str, request: GetUniqueMetricsRequest,
+    call: APICall, company_id: str, request: GetUniqueMetricsRequest
 ):
 
     metrics = project_queries.get_unique_metric_variants(
@@ -361,7 +374,7 @@ def get_unique_metric_variants(
     call.result.data = {"metrics": metrics}
 
 
-@endpoint("projects.get_model_metadata_keys",)
+@endpoint("projects.get_model_metadata_keys")
 def get_model_metadata_keys(call: APICall, company_id: str, request: GetParamsRequest):
     total, remaining, keys = project_queries.get_model_metadata_keys(
         company_id,
@@ -505,7 +518,7 @@ def get_task_parents(
     call: APICall, company_id: str, request: ProjectTaskParentsRequest
 ):
     call.result.data = {
-        "parents": project_bll.get_task_parents(
+        "parents": ProjectBLL.get_task_parents(
             company_id,
             projects=request.projects,
             include_subprojects=request.include_subprojects,
