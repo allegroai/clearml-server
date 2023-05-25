@@ -195,6 +195,7 @@ class TestTaskEvents(TestService):
         with self.api.raises(errors.bad_request.EventsNotAdded):
             self.send(log_event)
 
+        # mixed batch
         events = [
             {
                 **self._create_task_event("training_stats_scalar", model, iteration),
@@ -207,6 +208,18 @@ class TestTaskEvents(TestService):
             for metric_idx in range(5)
             for variant_idx in range(5)
         ]
+        task = self._temp_task()
+        # noinspection PyTypeChecker
+        events.append(
+            self._create_task_event(
+                "log",
+                task=task,
+                iteration=0,
+                msg=f"This is a log message",
+                metric="Metric0",
+                variant="Variant0",
+            )
+        )
         self.send_batch(events)
         data = self.api.events.scalar_metrics_iter_histogram(
             task=model, model_events=True
@@ -228,6 +241,8 @@ class TestTaskEvents(TestService):
         self.assertEqual(1, metric_data.max_value_iteration)
         self.assertEqual(0, metric_data.min_value)
         self.assertEqual(0, metric_data.min_value_iteration)
+
+        self._assert_log_events(task=task, expected_total=1)
 
     def test_error_events(self):
         task = self._temp_task()
