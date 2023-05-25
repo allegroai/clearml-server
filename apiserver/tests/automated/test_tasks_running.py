@@ -46,7 +46,6 @@ class TestTasksRunning(TestService):
         task_input = dict(
             name="task-1",
             type="testing",
-            input=dict(mapping={}, view=dict()),
         )
         if is_development:
             task_input["system_tags"] = ["development"]

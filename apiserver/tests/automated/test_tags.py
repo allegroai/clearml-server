@@ -222,7 +222,7 @@ class TestTags(TestService):
         return self.create_temp("models", **kwargs)
 
     def _temp_task(self, **kwargs):
-        self.update_missing(kwargs, name="Test tags", type="testing", input=dict(view=dict()))
+        self.update_missing(kwargs, name="Test tags", type="testing")
         return self.create_temp("tasks", **kwargs)
 
     def _send(self, service, action, **kwargs):

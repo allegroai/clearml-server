@@ -103,7 +103,7 @@ class TestWorkersService(TestService):
 
     def _create_running_task(self, task_name):
         task_input = dict(
-            name=task_name, type="testing", input=dict(mapping={}, view={})
+            name=task_name, type="testing"
         )
 
         task_id = self.create_temp("tasks", **task_input)

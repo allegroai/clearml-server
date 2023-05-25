@@ -139,6 +139,5 @@ class TestEntityOrdering(TestService):
             name="test",
             comment=self.test_comment,
             type="testing",
-            input=dict(view=dict()),
             **kwargs,
         )

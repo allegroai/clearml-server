@@ -10,7 +10,7 @@ class TestTasksDiff(TestService):
 
     def new_task(self, **kwargs):
         return self.create_temp(
-            "tasks", name="test", type="testing", input=dict(view=dict()), **kwargs
+            "tasks", name="test", type="testing", **kwargs
         )
 
     def _compare_script(self, task_id, script):

@@ -35,7 +35,7 @@ class TestUsersService(TestService):
         task = (
             self.api.impersonate(user_3)
             .tasks.create(
-                name="test", type="testing", input=dict(view={}), project=project
+                name="test", type="testing", project=project
             )
             .id
         )

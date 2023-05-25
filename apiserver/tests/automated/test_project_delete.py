@@ -10,7 +10,7 @@ class TestProjectsDelete(TestService):
 
     def new_task(self, **kwargs):
         return self.create_temp(
-            "tasks", type="testing", name=db_id(), input=dict(view=dict()), **kwargs
+            "tasks", type="testing", name=db_id(), **kwargs
         )
 
     def new_model(self, **kwargs):

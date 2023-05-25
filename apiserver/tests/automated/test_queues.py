@@ -234,7 +234,6 @@ class TestQueues(TestService):
         task_input = dict(
             name=task_name,
             type="testing" if is_testing else "training",
-            input=dict(mapping={}, view={}),
             script={"repository": "test", "entry_point": "test"},
             system_tags=["development"] if is_development else None,
         )

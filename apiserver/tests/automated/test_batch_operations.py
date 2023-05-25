@@ -127,7 +127,7 @@ class TestBatchOperations(TestService):
 
     def _temp_task(self):
         return self.create_temp(
-            service="tasks", type="testing", name=self.name, input=dict(view={}),
+            service="tasks", type="testing", name=self.name,
         )
 
     def _temp_task_model(self, task, **kwargs) -> str:

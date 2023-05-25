@@ -13,7 +13,7 @@ class TestTasksEdit(TestService):
 
     def new_task(self, **kwargs):
         self.update_missing(
-            kwargs, type="testing", name="test", input=dict(view=dict())
+            kwargs, type="testing", name="test"
         )
         return self.create_temp("tasks", **kwargs)
 

@@ -109,7 +109,7 @@ class TestModelsService(TestService):
 
     def test_publish_task_no_output_model(self):
         task_id = self.create_temp(
-            service="tasks", type="testing", name="server-test", input=dict(view={})
+            service="tasks", type="testing", name="server-test"
         )
         self.api.tasks.started(task=task_id)
         self.api.tasks.stopped(task=task_id)
@@ -263,7 +263,6 @@ class TestModelsService(TestService):
             service="tasks",
             type=kwargs.pop("type", "testing"),
             name=kwargs.pop("name", "server-test"),
-            input=kwargs.pop("input", dict(view={})),
             **kwargs,
         )
 
@@ -277,7 +276,6 @@ class TestModelsService(TestService):
             service="tasks",
             type="testing",
             name="server-test",
-            input=dict(view={}),
             execution=dict(model=execution_model_id),
         )
         self.api.tasks.started(task=task_id)

@@ -14,7 +14,6 @@ class TestTasksArtifacts(TestService):
             kwargs,
             type="testing",
             name="test artifacts",
-            input=dict(view=dict()),
             delete_params=dict(force=True),
         )
         return self.create_temp("tasks", **kwargs)

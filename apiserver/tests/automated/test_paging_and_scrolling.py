@@ -75,6 +75,5 @@ class TestPagingAndScrolling(TestService):
             name=name,
             comment="Test task",
             type="testing",
-            input=dict(view=dict()),
             **kwargs,
         )

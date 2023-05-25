@@ -242,7 +242,7 @@ class TestTasksResetDelete(TestService):
 
     def new_task(self, **kwargs):
         self.update_missing(
-            kwargs, name=self.name, type="testing", input=dict(view=dict())
+            kwargs, name=self.name, type="testing"
         )
         return self.create_temp("tasks", delete_params=self.delete_params, **kwargs,)
 

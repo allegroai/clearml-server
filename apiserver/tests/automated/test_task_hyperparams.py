@@ -24,7 +24,6 @@ class TestTasksHyperparams(TestService):
             kwargs,
             type="testing",
             name="test hyperparams",
-            input=dict(view=dict()),
             delete_params=dict(force=True),
         )
         return self.create_temp("tasks", **kwargs), kwargs["project"]

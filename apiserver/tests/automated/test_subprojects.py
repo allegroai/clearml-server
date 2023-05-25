@@ -379,7 +379,6 @@ class TestSubProjects(TestService):
             delete_params=self.delete_params,
             type=type or "testing",
             name=name or db_id(),
-            input=dict(view=dict()),
             client=client,
             **kwargs,
         )

@@ -94,7 +94,7 @@ class TestProjectTags(TestService):
 
     def new_task(self, **kwargs):
         self.update_missing(
-            kwargs, type="testing", name="test project tags", input=dict(view=dict())
+            kwargs, type="testing", name="test project tags"
         )
         return self.create_temp("tasks", **kwargs)
 

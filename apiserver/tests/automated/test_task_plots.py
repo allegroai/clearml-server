@@ -8,7 +8,7 @@ from apiserver.tests.automated import TestService
 class TestTaskPlots(TestService):
     def _temp_task(self, name="test task events"):
         task_input = dict(
-            name=name, type="training", input=dict(mapping={}, view=dict(entries=[])),
+            name=name, type="training"
         )
         return self.create_temp("tasks", **task_input)
 

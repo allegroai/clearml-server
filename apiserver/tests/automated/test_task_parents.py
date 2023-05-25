@@ -83,6 +83,6 @@ class TestTaskParent(TestService):
 
     def new_task(self, **kwargs):
         self.update_missing(
-            kwargs, type="testing", name="test task parents", input=dict(view=dict())
+            kwargs, type="testing", name="test task parents"
         )
         return self.create_temp("tasks", **kwargs)

@@ -45,7 +45,7 @@ class TestMoveUnderProject(TestService):
 
     def _temp_task(self):
         task_input = dict(
-            name=self.entity_name, type="training", input=dict(mapping={}, view=dict(entries=[])),
+            name=self.entity_name, type="training"
         )
         return self.create_temp("tasks", **task_input)
 

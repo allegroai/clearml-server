@@ -96,7 +96,6 @@ class TestTasksFiltering(TestService):
             kwargs,
             type="testing",
             name="test tasks filtering",
-            input=dict(view=dict()),
             delete_params=dict(force=True),
         )
         return self.create_temp("tasks", **kwargs)

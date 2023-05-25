@@ -43,7 +43,6 @@ class TestPipelines(TestService):
                 "tasks",
                 name=name,
                 type="testing",
-                input=dict(view=dict()),
                 project=project,
                 system_tags=["pipeline"],
             ),
