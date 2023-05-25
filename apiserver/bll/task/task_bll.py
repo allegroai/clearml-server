@@ -7,7 +7,7 @@ from redis import StrictRedis
 from six import string_types
 
 import apiserver.database.utils as dbutils
-from apiserver.apierrors import errors
+from apiserver.apierrors import errors, APIError
 from apiserver.apimodels.tasks import TaskInputModel
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.organization import OrgBLL, Tags
@@ -453,11 +453,7 @@ class TaskBLL:
                     "__", "."
                 )
                 raw_updates[value_iteration_field] = {
-                    "$cond": [
-                        condition,
-                        iter_value,
-                        f"${value_iteration_field}",
-                    ]
+                    "$cond": [condition, iter_value, f"${value_iteration_field}",]
                 }
 
             for metric_key, metric_data in last_scalar_events.items():
@@ -525,8 +521,8 @@ class TaskBLL:
         status_reason: str,
     ):
         try:
-            cls.dequeue(task, company_id)
-        except errors.bad_request.InvalidQueueOrTaskNotQueued:
+            cls.dequeue(task, company_id, silent_fail=True)
+        except APIError:
             # dequeue may fail if the queue was deleted
             pass
 
