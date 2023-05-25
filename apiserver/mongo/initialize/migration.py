@@ -18,9 +18,15 @@ _migration_dir = _parent_dir / _migrations
 
 
 def check_mongo_empty() -> bool:
-    return not all(
-        get_db(alias).list_collection_names() for alias in utils.get_options(Database)
-    )
+    for alias in utils.get_options(Database):
+        collection_names = get_db(alias).list_collection_names()
+        if collection_names and any(
+            name in collection_names
+            for name in ["company", "user", "versions"]
+        ):
+            return False
+
+    return True
 
 
 def get_last_server_version() -> Version:
