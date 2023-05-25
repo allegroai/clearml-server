@@ -754,7 +754,9 @@ class GetMixin(PropsMixin):
     @classmethod
     def _get_collation_override(cls, field: str) -> Optional[dict]:
         return first(
-            v for k, v in cls._field_collation_overrides.items() if field.startswith(k)
+            v
+            for k, v in cls._field_collation_overrides.items()
+            if field.startswith(k) or field.startswith(f"-{k}")
         )
 
     @classmethod
