@@ -967,6 +967,7 @@ class PrePopulate:
             for ev in events:
                 ev["task"] = task_id
                 ev["company_id"] = company_id
+                ev["allow_locked"] = True
             cls.event_bll.add_events(
-                company_id, events=events, worker="", allow_locked=True
+                company_id, events=events, worker=""
             )

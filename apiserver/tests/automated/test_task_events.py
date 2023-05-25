@@ -218,6 +218,7 @@ class TestTaskEvents(TestService):
                 msg=f"This is a log message",
                 metric="Metric0",
                 variant="Variant0",
+                allow_locked=True,
             )
         )
         self.send_batch(events)

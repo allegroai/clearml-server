@@ -70,9 +70,8 @@ def _assert_task_or_model_exists(
 @endpoint("events.add")
 def add(call: APICall, company_id, _):
     data = call.data.copy()
-    allow_locked = data.pop("allow_locked", False)
     added, err_count, err_info = event_bll.add_events(
-        company_id, [data], call.worker, allow_locked=allow_locked
+        company_id, [data], call.worker
     )
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
@@ -87,7 +86,6 @@ def add_batch(call: APICall, company_id, _):
         company_id,
         events,
         call.worker,
-        allow_locked=events[0].get("allow_locked", False),
     )
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
