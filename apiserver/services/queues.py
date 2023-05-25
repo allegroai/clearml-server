@@ -171,7 +171,7 @@ def get_next_task(call: APICall, company_id, request: GetNextTaskRequest):
     if entry:
         data = {"entry": entry.to_proper_dict()}
         if request.get_task_info:
-            task = Task.objects(id=entry.task).first()
+            task = Task.objects(id=entry.task).only("company", "user").first()
             if task:
                 data["task_info"] = {"company": task.company, "user": task.user}
 
