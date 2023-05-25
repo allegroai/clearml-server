@@ -19,7 +19,7 @@ _migration_dir = _parent_dir / _migrations
 
 def check_mongo_empty() -> bool:
     return not all(
-        get_db(alias).collection_names() for alias in utils.get_options(Database)
+        get_db(alias).list_collection_names() for alias in utils.get_options(Database)
     )
 
 

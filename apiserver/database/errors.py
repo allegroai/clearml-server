@@ -16,7 +16,7 @@ from mongoengine.errors import (
     LookUpError,
     InvalidQueryError,
 )
-from pymongo.errors import PyMongoError, NotMasterError
+from pymongo.errors import PyMongoError, NotPrimaryError
 
 from apiserver.apierrors import errors
 
@@ -198,7 +198,7 @@ def translate_errors_context(message=None, **kwargs):
         MongoEngineErrorsHandler.invalid_query_error(e, message, **kwargs)
     except PyMongoError as e:
         raise errors.server_error.InternalError(message, err=str(e))
-    except NotMasterError as e:
+    except NotPrimaryError as e:
         raise errors.server_error.InternalError(message, err=str(e))
     except MakeGetAllQueryError as e:
         raise errors.bad_request.ValidationError(e.error, field=e.field)
