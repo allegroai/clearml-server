@@ -134,9 +134,7 @@ class TestModelsService(TestService):
         self._assert_model_ready(model_id, True)
 
     def test_publish_task_no_output_model(self):
-        task_id = self.create_temp(
-            service="tasks", type="testing", name="server-test"
-        )
+        task_id = self.create_temp(service="tasks", type="testing", name="server-test")
         self.api.tasks.started(task=task_id)
         self.api.tasks.stopped(task=task_id)
 
@@ -296,7 +294,10 @@ class TestModelsService(TestService):
 
     def _create_task_and_model(self):
         execution_model_id = self.create_temp(
-            service="models", name="test", uri="file:///a", labels={}
+            service="models",
+            name="test",
+            uri="https://files.trains-master.hosted.allegro.ai/a.jpg",
+            labels={},
         )
         task_id = self.create_temp(
             service="tasks",

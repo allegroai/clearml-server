@@ -77,7 +77,7 @@ def delete_project(
         raise errors.bad_request.InvalidProjectId(id=project_id)
 
     delete_external_artifacts = delete_external_artifacts and config.get(
-        "services.async_urls_delete.enabled", False
+        "services.async_urls_delete.enabled", True
     )
     is_pipeline = "pipeline" in (project.system_tags or [])
     project_ids = _ids_with_children([project_id])

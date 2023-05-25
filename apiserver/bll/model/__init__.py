@@ -6,6 +6,7 @@ from mongoengine import Q
 from apiserver.apierrors import errors
 from apiserver.apimodels.models import ModelTaskPublishResponse
 from apiserver.bll.task.utils import deleted_prefix, get_last_metric_updates
+from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus
@@ -82,7 +83,7 @@ class ModelBLL:
 
     @classmethod
     def delete_model(
-        cls, model_id: str, company_id: str, force: bool
+        cls, model_id: str, company_id: str, user_id: str, force: bool, delete_external_artifacts: bool = True,
     ) -> Tuple[int, Model]:
         model = cls.get_company_model_by_id(
             company_id=company_id,
@@ -128,7 +129,32 @@ class ModelBLL:
                         upsert=False,
                     )
                 else:
-                    task.update(pull__models__output__model=model_id, set__last_change=now)
+                    task.update(
+                        pull__models__output__model=model_id, set__last_change=now
+                    )
+
+        delete_external_artifacts = delete_external_artifacts and config.get(
+            "services.async_urls_delete.enabled", True
+        )
+        if delete_external_artifacts:
+            from apiserver.bll.task.task_cleanup import (
+                collect_debug_image_urls,
+                collect_plot_image_urls,
+                _schedule_for_delete,
+            )
+            urls = set()
+            urls.update(collect_debug_image_urls(company_id, model_id))
+            urls.update(collect_plot_image_urls(company_id, model_id))
+            if model.uri:
+                urls.add(model.uri)
+            if urls:
+                _schedule_for_delete(
+                    task_id=model_id,
+                    company=company_id,
+                    user=user_id,
+                    urls=urls,
+                    can_delete_folders=False,
+                )
 
         del_count = Model.objects(id=model_id, company=company_id).delete()
         return del_count, model

@@ -105,12 +105,20 @@ def collect_debug_image_urls(company: str, task_or_model: str) -> Set[str]:
 
 
 supported_storage_types = {
-    "https://": StorageType.fileserver,
-    "http://": StorageType.fileserver,
     "s3://": StorageType.s3,
     "azure://": StorageType.azure,
     "gs://": StorageType.gs,
 }
+
+supported_storage_types.update(
+    {
+        p: StorageType.fileserver
+        for p in config.get(
+            "services.async_urls_delete.fileserver.url_prefixes",
+            ["https://", "http://"],
+        )
+    }
+)
 
 
 def _schedule_for_delete(
@@ -196,7 +204,7 @@ def cleanup_task(
         task, force
     )
     delete_external_artifacts = delete_external_artifacts and config.get(
-        "services.async_urls_delete.enabled", False
+        "services.async_urls_delete.enabled", True
     )
     event_urls, artifact_urls, model_urls = set(), set(), set()
     if return_file_urls or delete_external_artifacts:

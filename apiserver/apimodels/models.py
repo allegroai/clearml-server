@@ -44,10 +44,12 @@ class ModelRequest(models.Base):
 
 class DeleteModelRequest(ModelRequest):
     force = fields.BoolField(default=False)
+    delete_external_artifacts = fields.BoolField(default=True)
 
 
 class ModelsDeleteManyRequest(BatchRequest):
     force = fields.BoolField(default=False)
+    delete_external_artifacts = fields.BoolField(default=True)
 
 
 class PublishModelRequest(ModelRequest):

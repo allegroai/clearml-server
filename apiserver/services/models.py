@@ -522,7 +522,11 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
 @endpoint("models.delete", request_data_model=DeleteModelRequest)
 def delete(call: APICall, company_id, request: DeleteModelRequest):
     del_count, model = ModelBLL.delete_model(
-        model_id=request.model, company_id=company_id, force=request.force
+        model_id=request.model,
+        company_id=company_id,
+        user_id=call.identity.user,
+        force=request.force,
+        delete_external_artifacts=request.delete_external_artifacts,
     )
     if del_count:
         _reset_cached_tags(
@@ -539,7 +543,13 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
 )
 def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
     results, failures = run_batch_operation(
-        func=partial(ModelBLL.delete_model, company_id=company_id, force=request.force),
+        func=partial(
+            ModelBLL.delete_model,
+            company_id=company_id,
+            user_id=call.identity.user,
+            force=request.force,
+            delete_external_artifacts=request.delete_external_artifacts,
+        ),
         ids=request.ids,
     )
 
