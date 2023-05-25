@@ -145,7 +145,7 @@ services:
       CLEARML_REDIS_SERVICE_HOST: redis
       CLEARML_REDIS_SERVICE_PORT: 6379
       PYTHONPATH: /opt/clearml/apiserver
-      CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[]"
+      CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[${CLEARML_FILES_HOST:-}]"
     entrypoint:
       - python3
       - -m
