@@ -1,3 +1,5 @@
+from typing import Union, Sequence
+
 from mongoengine import Q
 
 from apiserver.apimodels.base import UpdateResponse
@@ -39,14 +41,18 @@ worker_bll = WorkerBLL()
 queue_bll = QueueBLL(worker_bll)
 
 
+def conform_queue_data(call: APICall, queue_data: Union[Sequence[dict], dict]):
+    conform_output_tags(call, queue_data)
+    unescape_metadata(call, queue_data)
+
+
 @endpoint("queues.get_by_id", min_version="2.4", request_data_model=GetByIdRequest)
 def get_by_id(call: APICall, company_id, request: GetByIdRequest):
     queue = queue_bll.get_by_id(
         company_id, request.queue, max_task_entries=request.max_task_entries
     )
     queue_dict = queue.to_proper_dict()
-    conform_output_tags(call, queue_dict)
-    unescape_metadata(call, queue_dict)
+    conform_queue_data(call, queue_dict)
     call.result.data = {"queue": queue_dict}
 
 
@@ -85,8 +91,7 @@ def get_all_ex(call: APICall, company: str, request: GetAllRequest):
         max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )
-    conform_output_tags(call, queues)
-    unescape_metadata(call, queues)
+    conform_queue_data(call, queues)
     call.result.data = {"queues": queues, **ret_params}
 
 
@@ -102,8 +107,7 @@ def get_all(call: APICall, company: str, request: GetAllRequest):
         max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )
-    conform_output_tags(call, queues)
-    unescape_metadata(call, queues)
+    conform_queue_data(call, queues)
     call.result.data = {"queues": queues, **ret_params}
 
 
@@ -135,8 +139,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
     updated, fields = queue_bll.update(
         company_id=company_id, queue_id=req_model.queue, **data
     )
-    conform_output_tags(call, fields)
-    unescape_metadata(call, fields)
+    conform_queue_data(call, fields)
     call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
 

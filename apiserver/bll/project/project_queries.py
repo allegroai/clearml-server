@@ -209,7 +209,11 @@ class ProjectQueries:
 
     @classmethod
     def get_unique_metric_variants(
-        cls, company_id, project_ids: Sequence[str], include_subprojects: bool
+        cls,
+        company_id,
+        project_ids: Sequence[str],
+        include_subprojects: bool,
+        model_metrics: bool = False,
     ):
         pipeline = [
             {
@@ -246,7 +250,8 @@ class ProjectQueries:
             {"$sort": OrderedDict({"_id.metric": 1, "_id.variant": 1})},
         ]
 
-        result = Task.aggregate(pipeline)
+        entity_cls = Model if model_metrics else Task
+        result = entity_cls.aggregate(pipeline)
         return [r["metrics"][0] for r in result]
 
     @classmethod

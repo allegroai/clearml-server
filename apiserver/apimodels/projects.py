@@ -29,6 +29,10 @@ class ProjectOrNoneRequest(models.Base):
     include_subprojects = fields.BoolField(default=True)
 
 
+class GetUniqueMetricsRequest(ProjectOrNoneRequest):
+    model_metrics = fields.BoolField(default=False)
+
+
 class GetParamsRequest(ProjectOrNoneRequest):
     page = fields.IntField(default=0)
     page_size = fields.IntField(default=500)

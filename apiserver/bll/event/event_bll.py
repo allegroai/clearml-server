@@ -30,6 +30,7 @@ from apiserver.bll.event.history_debug_image_iterator import HistoryDebugImageIt
 from apiserver.bll.event.history_plots_iterator import HistoryPlotsIterator
 from apiserver.bll.event.metric_debug_images_iterator import MetricDebugImagesIterator
 from apiserver.bll.event.metric_plots_iterator import MetricPlotsIterator
+from apiserver.bll.model import ModelBLL
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.database.model.model import Model
@@ -250,7 +251,6 @@ class EventBLL(object):
             task_or_model_ids.add(task_or_model_id)
             if (
                 iter is not None
-                and not model_events
                 and event.get("metric") not in self._skip_iteration_for_metric
             ):
                 task_iteration[task_or_model_id] = max(
@@ -261,11 +261,10 @@ class EventBLL(object):
                 self._update_last_metric_events_for_task(
                     last_events=task_last_events[task_or_model_id], event=event,
                 )
-                if event_type == EventType.metrics_scalar.value:
-                    self._update_last_scalar_events_for_task(
-                        last_events=task_last_scalar_events[task_or_model_id],
-                        event=event,
-                    )
+            if event_type == EventType.metrics_scalar.value:
+                self._update_last_scalar_events_for_task(
+                    last_events=task_last_scalar_events[task_or_model_id], event=event,
+                )
 
             actions.append(es_action)
 
@@ -303,12 +302,21 @@ class EventBLL(object):
                         else:
                             errors_per_type["Error when indexing events batch"] += 1
 
-                if not model_events:
-                    remaining_tasks = set()
-                    now = datetime.utcnow()
-                    for task_or_model_id in task_or_model_ids:
-                        # Update related tasks. For reasons of performance, we prefer to update
-                        # all of them and not only those who's events were successful
+                remaining_tasks = set()
+                now = datetime.utcnow()
+                for task_or_model_id in task_or_model_ids:
+                    # Update related tasks. For reasons of performance, we prefer to update
+                    # all of them and not only those who's events were successful
+                    if model_events:
+                        ModelBLL.update_statistics(
+                            company_id=company_id,
+                            model_id=task_or_model_id,
+                            last_iteration_max=task_iteration.get(task_or_model_id),
+                            last_scalar_events=task_last_scalar_events.get(
+                                task_or_model_id
+                            ),
+                        )
+                    else:
                         updated = self._update_task(
                             company_id=company_id,
                             task_id=task_or_model_id,
@@ -319,15 +327,14 @@ class EventBLL(object):
                             ),
                             last_events=task_last_events.get(task_or_model_id),
                         )
-
                         if not updated:
                             remaining_tasks.add(task_or_model_id)
                             continue
 
-                    if remaining_tasks:
-                        TaskBLL.set_last_update(
-                            remaining_tasks, company_id, last_update=now
-                        )
+                if remaining_tasks:
+                    TaskBLL.set_last_update(
+                        remaining_tasks, company_id, last_update=now
+                    )
 
             # this is for backwards compatibility with streaming bulk throwing exception on those
             invalid_iterations_count = errors_per_type.get(invalid_iteration_error)
@@ -484,7 +491,9 @@ class EventBLL(object):
         )
 
     def _get_event_id(self, event):
-        id_values = (str(event[field]) for field in self.event_id_fields if field in event)
+        id_values = (
+            str(event[field]) for field in self.event_id_fields if field in event
+        )
         return hashlib.md5("-".join(id_values).encode()).hexdigest()
 
     def scroll_task_events(
@@ -556,9 +565,7 @@ class EventBLL(object):
             must.append(get_metric_variants_condition(metric_variants))
 
         query = {"bool": {"must": must}}
-        search_args = dict(
-            es=self.es, company_id=company_id, event_type=event_type,
-        )
+        search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
@@ -586,7 +593,7 @@ class EventBLL(object):
                                 "events": {
                                     "top_hits": {
                                         "sort": {"iter": {"order": "desc"}},
-                                        "size": last_iterations_per_plot
+                                        "size": last_iterations_per_plot,
                                     }
                                 }
                             },
@@ -597,11 +604,7 @@ class EventBLL(object):
         }
 
         with translate_errors_context():
-            es_response = search_company_events(
-                body=es_req,
-                ignore=404,
-                **search_args,
-            )
+            es_response = search_company_events(body=es_req, ignore=404, **search_args)
 
         aggs_result = es_response.get("aggregations")
         if not aggs_result:
@@ -614,9 +617,7 @@ class EventBLL(object):
             for hit in variants_bucket["events"]["hits"]["hits"]
         ]
         self.uncompress_plots(events)
-        return TaskEventsResult(
-            events=events, total_events=len(events)
-        )
+        return TaskEventsResult(events=events, total_events=len(events))
 
     def _get_events_from_es_res(self, es_res: dict) -> Tuple[list, int, Optional[str]]:
         """
@@ -731,12 +732,7 @@ class EventBLL(object):
             if not company_ids:
                 return TaskEventsResult()
 
-            task_ids = (
-                [task_id]
-                if isinstance(task_id, str)
-                else task_id
-            )
-
+            task_ids = [task_id] if isinstance(task_id, str) else task_id
 
             must = []
             if metrics:
@@ -967,7 +963,7 @@ class EventBLL(object):
         event_type: EventType,
         task_id: Union[str, Sequence[str]],
         iters: int,
-        metrics: MetricVariants = None
+        metrics: MetricVariants = None,
     ) -> Mapping[str, Sequence]:
         company_ids = [company_id] if isinstance(company_id, str) else company_id
         company_ids = [

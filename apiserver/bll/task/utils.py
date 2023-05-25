@@ -5,7 +5,9 @@ import attr
 import six
 
 from apiserver.apierrors import errors
+from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
+from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, TaskSystemTags
 from apiserver.database.utils import get_options
@@ -167,7 +169,7 @@ def update_project_time(project_ids: Union[str, Sequence[str]]):
 
 
 def get_task_for_update(
-        company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
+    company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
 ) -> Task:
     """
     Loads only task id and return the task only if it is updatable (status == 'created')
@@ -189,9 +191,88 @@ def get_task_for_update(
     return task
 
 
-def update_task(task: Task, user_id: str, update_cmds: dict, set_last_update: bool = True):
+def update_task(
+    task: Task, user_id: str, update_cmds: dict, set_last_update: bool = True
+):
     now = datetime.utcnow()
     last_updates = dict(last_change=now, last_changed_by=user_id)
     if set_last_update:
         last_updates.update(last_update=now)
     return task.update(**update_cmds, **last_updates)
+
+
+def get_last_metric_updates(
+    task_id: str,
+    last_scalar_events: dict,
+    raw_updates: dict,
+    extra_updates: dict,
+    model_events: bool = False,
+):
+    max_values = config.get("services.tasks.max_last_metrics", 2000)
+    total_metrics = set()
+    if max_values:
+        query = dict(id=task_id)
+        to_add = sum(len(v) for m, v in last_scalar_events.items())
+        if to_add <= max_values:
+            query[f"unique_metrics__{max_values - to_add}__exists"] = True
+        db_cls = Model if model_events else Task
+        task = db_cls.objects(**query).only("unique_metrics").first()
+        if task and task.unique_metrics:
+            total_metrics = set(task.unique_metrics)
+
+    new_metrics = []
+
+    def add_last_metric_conditional_update(
+        metric_path: str, metric_value, iter_value: int, is_min: bool
+    ):
+        """
+        Build an aggregation for an atomic update of the min or max value and the corresponding iteration
+        """
+        if is_min:
+            field_prefix = "min"
+            op = "$gt"
+        else:
+            field_prefix = "max"
+            op = "$lt"
+
+        value_field = f"{metric_path}__{field_prefix}_value".replace("__", ".")
+        condition = {
+            "$or": [
+                {"$lte": [f"${value_field}", None]},
+                {op: [f"${value_field}", metric_value]},
+            ]
+        }
+        raw_updates[value_field] = {
+            "$cond": [condition, metric_value, f"${value_field}"]
+        }
+
+        value_iteration_field = f"{metric_path}__{field_prefix}_value_iteration".replace(
+            "__", "."
+        )
+        raw_updates[value_iteration_field] = {
+            "$cond": [condition, iter_value, f"${value_iteration_field}"]
+        }
+
+    for metric_key, metric_data in last_scalar_events.items():
+        for variant_key, variant_data in metric_data.items():
+            metric = f"{variant_data.get('metric')}/{variant_data.get('variant')}"
+            if max_values:
+                if len(total_metrics) >= max_values and metric not in total_metrics:
+                    continue
+                total_metrics.add(metric)
+
+            new_metrics.append(metric)
+            path = f"last_metrics__{metric_key}__{variant_key}"
+            for key, value in variant_data.items():
+                if key in ("min_value", "max_value"):
+                    add_last_metric_conditional_update(
+                        metric_path=path,
+                        metric_value=value,
+                        iter_value=variant_data.get(f"{key}_iter", 0),
+                        is_min=(key == "min_value"),
+                    )
+                elif key in ("metric", "variant", "value"):
+                    extra_updates[f"set__{path}__{key}"] = value
+
+    if new_metrics:
+        extra_updates["add_to_set__unique_metrics"] = new_metrics

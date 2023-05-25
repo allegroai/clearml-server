@@ -3,6 +3,8 @@ from mongoengine import (
     DateTimeField,
     BooleanField,
     EmbeddedDocumentField,
+    IntField,
+    ListField,
 )
 
 from apiserver.database import Database, strict
@@ -17,12 +19,14 @@ from apiserver.database.model.base import GetMixin
 from apiserver.database.model.metadata import MetadataItem
 from apiserver.database.model.model_labels import ModelLabels
 from apiserver.database.model.project import Project
+from apiserver.database.model.task.metrics import MetricEvent
 from apiserver.database.model.task.task import Task
 
 
 class Model(AttributedDocument):
     _field_collation_overrides = {
         "metadata.": AttributedDocument._numeric_locale,
+        "last_metrics.": AttributedDocument._numeric_locale,
     }
 
     meta = {
@@ -67,6 +71,7 @@ class Model(AttributedDocument):
             "parent",
             "metadata.*",
         ),
+        range_fields=("last_metrics.*", "last_iteration"),
         datetime_fields=("last_update",),
     )
 
@@ -92,6 +97,9 @@ class Model(AttributedDocument):
     metadata = SafeMapField(
         field=EmbeddedDocumentField(MetadataItem), user_set_allowed=True
     )
+    last_iteration = IntField(default=0)
+    last_metrics = SafeMapField(field=SafeMapField(EmbeddedDocumentField(MetricEvent)))
+    unique_metrics = ListField(StringField(required=True), exclude_by_default=True)
 
     def get_index_company(self) -> str:
         return self.company or self.company_origin or ""

@@ -1,6 +1,6 @@
 from datetime import datetime
 from functools import partial
-from typing import Sequence
+from typing import Sequence, Union
 
 from mongoengine import Q, EmbeddedDocument
 
@@ -59,6 +59,11 @@ org_bll = OrgBLL()
 project_bll = ProjectBLL()
 
 
+def conform_model_data(call: APICall, model_data: Union[Sequence[dict], dict]):
+    conform_output_tags(call, model_data)
+    unescape_metadata(call, model_data)
+
+
 @endpoint("models.get_by_id", required_fields=["model"])
 def get_by_id(call: APICall, company_id, _):
     model_id = call.data["model"]
@@ -74,8 +79,7 @@ def get_by_id(call: APICall, company_id, _):
         raise errors.bad_request.InvalidModelId(
             "no such public or company model", id=model_id, company=company_id,
         )
-    conform_output_tags(call, models[0])
-    unescape_metadata(call, models[0])
+    conform_model_data(call, models[0])
     call.result.data = {"model": models[0]}
 
 
@@ -102,8 +106,7 @@ def get_by_task_id(call: APICall, company_id, _):
             "no such public or company model", id=model_id, company=company_id,
         )
     model_dict = model.to_proper_dict()
-    conform_output_tags(call, model_dict)
-    unescape_metadata(call, model_dict)
+    conform_model_data(call, model_dict)
     call.result.data = {"model": model_dict}
 
 
@@ -119,8 +122,7 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
         allow_public=request.allow_public,
         ret_params=ret_params,
     )
-    conform_output_tags(call, models)
-    unescape_metadata(call, models)
+    conform_model_data(call, models)
 
     if not request.include_stats:
         call.result.data = {"models": models, **ret_params}
@@ -142,8 +144,7 @@ def get_by_id_ex(call: APICall, company_id, _):
     models = Model.get_many_with_join(
         company=company_id, query_dict=call.data, allow_public=True
     )
-    conform_output_tags(call, models)
-    unescape_metadata(call, models)
+    conform_model_data(call, models)
     call.result.data = {"models": models}
 
 
@@ -159,8 +160,7 @@ def get_all(call: APICall, company_id, _):
         allow_public=True,
         ret_params=ret_params,
     )
-    conform_output_tags(call, models)
-    unescape_metadata(call, models)
+    conform_model_data(call, models)
     call.result.data = {"models": models, **ret_params}
 
 
@@ -428,8 +428,7 @@ def edit(call: APICall, company_id, _):
                 _reset_cached_tags(company_id, projects=[new_project, model.project])
             else:
                 _update_cached_tags(company_id, project=model.project, fields=fields)
-        conform_output_tags(call, fields)
-        unescape_metadata(call, fields)
+        conform_model_data(call, fields)
         call.result.data_model = UpdateResponse(updated=updated, fields=fields)
     else:
         call.result.data_model = UpdateResponse(updated=0)
@@ -461,8 +460,7 @@ def _update_model(call: APICall, company_id, model_id=None):
             _update_cached_tags(
                 company_id, project=model.project, fields=updated_fields
             )
-    conform_output_tags(call, updated_fields)
-    unescape_metadata(call, updated_fields)
+    conform_model_data(call, updated_fields)
     return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 

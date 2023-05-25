@@ -182,7 +182,7 @@ def get_by_id(call: APICall, company_id, req_model: TaskRequest):
         req_model.task, company_id=company_id, allow_public=True
     )
     task_dict = task.to_proper_dict()
-    unprepare_from_saved(call, task_dict)
+    conform_task_data(call, task_dict)
     call.result.data = {"task": task_dict}
 
 
@@ -231,7 +231,7 @@ def get_all_ex(call: APICall, company_id, request: GetAllReq):
         allow_public=request.allow_public,
         ret_params=ret_params,
     )
-    unprepare_from_saved(call, tasks)
+    conform_task_data(call, tasks)
     call.result.data = {"tasks": tasks, **ret_params}
 
 
@@ -245,7 +245,7 @@ def get_by_id_ex(call: APICall, company_id, _):
         company=company_id, query_dict=call_data, allow_public=True,
     )
 
-    unprepare_from_saved(call, tasks)
+    conform_task_data(call, tasks)
     call.result.data = {"tasks": tasks}
 
 
@@ -264,7 +264,7 @@ def get_all(call: APICall, company_id, _):
         allow_public=True,
         ret_params=ret_params,
     )
-    unprepare_from_saved(call, tasks)
+    conform_task_data(call, tasks)
     call.result.data = {"tasks": tasks, **ret_params}
 
 
@@ -430,7 +430,7 @@ def prepare_for_save(call: APICall, fields: dict, previous_task: Task = None):
     return fields
 
 
-def unprepare_from_saved(call: APICall, tasks_data: Union[Sequence[dict], dict]):
+def conform_task_data(call: APICall, tasks_data: Union[Sequence[dict], dict]):
     if isinstance(tasks_data, dict):
         tasks_data = [tasks_data]
 
@@ -608,7 +608,7 @@ def update(call: APICall, company_id, req_model: UpdateRequest):
                     company_id, project=task.project, fields=updated_fields
                 )
             update_project_time(updated_fields.get("project"))
-        unprepare_from_saved(call, updated_fields)
+        conform_task_data(call, updated_fields)
         return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 
@@ -763,7 +763,7 @@ def edit(call: APICall, company_id, req_model: UpdateRequest):
                         company_id, project=task.project, fields=fixed_fields
                     )
                 update_project_time(fields.get("project"))
-            unprepare_from_saved(call, fields)
+            conform_task_data(call, fields)
             call.result.data_model = UpdateResponse(updated=updated, fields=fields)
         else:
             call.result.data_model = UpdateResponse(updated=0)

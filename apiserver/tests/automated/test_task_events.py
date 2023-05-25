@@ -16,9 +16,7 @@ class TestTaskEvents(TestService):
     delete_params = dict(can_fail=True, force=True)
 
     def _temp_task(self, name="test task events"):
-        task_input = dict(
-            name=name, type="training",
-        )
+        task_input = dict(name=name, type="training",)
         return self.create_temp(
             "tasks", delete_paramse=self.delete_params, **task_input
         )
@@ -219,6 +217,17 @@ class TestTaskEvents(TestService):
         variant_data = metric_data.Variant0
         self.assertEqual(variant_data.x, [0, 1])
         self.assertEqual(variant_data.y, [0.0, 1.0])
+
+        model_data = self.api.models.get_all_ex(
+            id=[model], only_fields=["last_metrics", "last_iteration"]
+        ).models[0]
+        metric_data = first(first(model_data.last_metrics.values()).values())
+        self.assertEqual(1, model_data.last_iteration)
+        self.assertEqual(1, metric_data.value)
+        self.assertEqual(1, metric_data.max_value)
+        self.assertEqual(1, metric_data.max_value_iteration)
+        self.assertEqual(0, metric_data.min_value)
+        self.assertEqual(0, metric_data.min_value_iteration)
 
     def test_error_events(self):
         task = self._temp_task()

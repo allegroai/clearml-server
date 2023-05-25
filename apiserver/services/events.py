@@ -561,7 +561,6 @@ def _get_multitask_plots(
     metrics: MetricVariants = None,
     scroll_id=None,
     no_scroll=True,
-    model_events=False,
 ) -> Tuple[dict, int, str]:
     task_names = {
         t.id: t.name for t in itertools.chain.from_iterable(companies.values())
@@ -598,7 +597,6 @@ def get_multi_task_plots(call, company_id, _):
         last_iters=iters,
         scroll_id=scroll_id,
         no_scroll=no_scroll,
-        model_events=model_events,
     )
     call.result.data = dict(
         plots=return_events,

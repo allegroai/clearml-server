@@ -66,6 +66,7 @@ class GetTasksDataRequest(Base):
     plots: EventsRequest = EmbeddedField(EventsRequest)
     scalar_metrics_iter_histogram: ScalarMetricsIterHistogram = EmbeddedField(ScalarMetricsIterHistogram)
     allow_public = BoolField(default=True)
+    model_events: bool = BoolField(default=False)
 
 
 class GetAllRequest(Base):

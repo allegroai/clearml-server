@@ -5,7 +5,7 @@ from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.models import ModelTaskPublishResponse
-from apiserver.bll.task.utils import deleted_prefix
+from apiserver.bll.task.utils import deleted_prefix, get_last_metric_updates
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus
@@ -28,11 +28,7 @@ class ModelBLL:
 
     @staticmethod
     def assert_exists(
-        company_id,
-        model_ids,
-        only=None,
-        allow_public=False,
-        return_models=True,
+        company_id, model_ids, only=None, allow_public=False, return_models=True,
     ) -> Optional[Sequence[Model]]:
         model_ids = [model_ids] if isinstance(model_ids, str) else model_ids
         ids = set(model_ids)
@@ -179,12 +175,36 @@ class ModelBLL:
                         "labels_count": {"$size": {"$objectToArray": "$labels"}}
                     }
                 },
-                {
-                    "$project": {"labels_count": 1},
-                },
+                {"$project": {"labels_count": 1}},
             ]
         )
-        return {
-            r.pop("_id"): r
-            for r in result
-        }
+        return {r.pop("_id"): r for r in result}
+
+    @staticmethod
+    def update_statistics(
+        company_id: str,
+        model_id: str,
+        last_iteration_max: int = None,
+        last_scalar_events: Dict[str, Dict[str, dict]] = None,
+    ):
+        updates = {"last_update": datetime.utcnow()}
+        if last_iteration_max is not None:
+            updates.update(max__last_iteration=last_iteration_max)
+
+        raw_updates = {}
+        if last_scalar_events is not None:
+            raw_updates = {}
+            if last_scalar_events is not None:
+                get_last_metric_updates(
+                    task_id=model_id,
+                    last_scalar_events=last_scalar_events,
+                    raw_updates=raw_updates,
+                    extra_updates=updates,
+                    model_events=True,
+                )
+
+        ret = Model.objects(id=model_id).update_one(**updates)
+        if ret and raw_updates:
+            Model.objects(id=model_id).update_one(__raw__=[{"$set": raw_updates}])
+
+        return ret

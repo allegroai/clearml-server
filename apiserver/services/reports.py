@@ -17,6 +17,8 @@ from apiserver.apimodels.reports import (
 from apiserver.apierrors import errors
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.bll.project.project_bll import reports_project_name, reports_tag
+from apiserver.database.model.model import Model
+from apiserver.services.models import conform_model_data
 from apiserver.services.utils import process_include_subprojects, sort_tags_response
 from apiserver.bll.organization import OrgBLL
 from apiserver.bll.project import ProjectBLL
@@ -35,7 +37,7 @@ from apiserver.services.events import (
 from apiserver.services.tasks import (
     escape_execution_parameters,
     _hidden_query,
-    unprepare_from_saved,
+    conform_task_data,
 )
 
 org_bll = OrgBLL()
@@ -178,7 +180,7 @@ def get_all_ex(call: APICall, company_id, request: GetAllRequest):
         allow_public=request.allow_public,
         ret_params=ret_params,
     )
-    unprepare_from_saved(call, tasks)
+    conform_task_data(call, tasks)
 
     call.result.data = {"tasks": tasks, **ret_params}
 
@@ -198,18 +200,25 @@ def _get_task_metrics_from_request(
 
 @endpoint("reports.get_task_data")
 def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
+    if request.model_events:
+        entity_cls = Model
+        conform_data = conform_model_data
+    else:
+        entity_cls = Task
+        conform_data = conform_task_data
+
     call_data = escape_execution_parameters(call)
     process_include_subprojects(call_data)
 
     ret_params = {}
-    tasks = Task.get_many_with_join(
+    tasks = entity_cls.get_many_with_join(
         company=company_id,
         query_dict=call_data,
         query=_hidden_query(call_data),
         allow_public=request.allow_public,
         ret_params=ret_params,
     )
-    unprepare_from_saved(call, tasks)
+    conform_data(call, tasks)
     res = {"tasks": tasks, **ret_params}
     if not (
         request.debug_images or request.plots or request.scalar_metrics_iter_histogram
@@ -217,7 +226,9 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
         return res
 
     task_ids = [task["id"] for task in tasks]
-    companies = _get_task_or_model_index_companies(company_id, task_ids=task_ids)
+    companies = _get_task_or_model_index_companies(
+        company_id, task_ids=task_ids, model_events=request.model_events
+    )
     if request.debug_images:
         result = event_bll.debug_images_iterator.get_task_events(
             companies={

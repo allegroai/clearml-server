@@ -15,10 +15,10 @@ from apiserver.apimodels.projects import (
     DeleteRequest,
     MoveRequest,
     MergeRequest,
-    ProjectOrNoneRequest,
     ProjectRequest,
     ProjectModelMetadataValuesRequest,
     ProjectChildrenType,
+    GetUniqueMetricsRequest,
 )
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL, ProjectQueries
@@ -345,16 +345,17 @@ def delete(call: APICall, company_id: str, request: DeleteRequest):
 
 
 @endpoint(
-    "projects.get_unique_metric_variants", request_data_model=ProjectOrNoneRequest
+    "projects.get_unique_metric_variants", request_data_model=GetUniqueMetricsRequest
 )
 def get_unique_metric_variants(
-    call: APICall, company_id: str, request: ProjectOrNoneRequest
+    call: APICall, company_id: str, request: GetUniqueMetricsRequest,
 ):
 
     metrics = project_queries.get_unique_metric_variants(
         company_id,
         [request.project] if request.project else None,
         include_subprojects=request.include_subprojects,
+        model_metrics=request.model_metrics,
     )
 
     call.result.data = {"metrics": metrics}
