@@ -2,7 +2,7 @@ from os import getenv
 
 from boltons.iterutils import first
 from redis import StrictRedis
-from rediscluster import RedisCluster
+from redis.cluster import RedisCluster
 
 from apiserver.apierrors.errors.server_error import ConfigError, GeneralError
 from apiserver.config_repo import config
@@ -83,7 +83,7 @@ class RedisManager(object):
     def host(self, alias):
         r = self.connection(alias)
         if isinstance(r, RedisCluster):
-            connections = first(r.connection_pool._available_connections.values())
+            connections = r.get_default_node().redis_connection.connection_pool._available_connections
         else:
             connections = r.connection_pool._available_connections
 
