@@ -509,5 +509,6 @@ def get_task_parents(
             projects=request.projects,
             include_subprojects=request.include_subprojects,
             state=request.tasks_state,
+            name=request.task_name,
         )
     }

@@ -977,6 +977,7 @@ class ProjectBLL:
         projects: Sequence[str],
         include_subprojects: bool,
         state: Optional[EntityVisibility] = None,
+        name: str = None,
     ) -> Sequence[dict]:
         """
         Get list of unique parent tasks sorted by task name for the passed company projects
@@ -1003,9 +1004,11 @@ class ProjectBLL:
         parents = Task.get_many_with_join(
             company_id,
             query=Q(id__in=parent_ids),
+            query_dict={"name": name} if name else None,
             allow_public=True,
             override_projection=("id", "name", "project.name"),
         )
+
         return sorted(parents, key=itemgetter("name"))
 
     @classmethod

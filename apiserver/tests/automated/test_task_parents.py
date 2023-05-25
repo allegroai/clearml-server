@@ -56,6 +56,33 @@ class TestTaskParent(TestService):
             parents,
         )
 
+    def test_query_by_name(self):
+        project_name = "Test parents project"
+        project = self.create_temp("projects", name=project_name, description="test")
+
+        parent_names = [f"Parent{i}" for i in range(3)]
+        parents = [self.new_task(project=project, name=name) for name in parent_names]
+
+        for idx in range(2):
+            self.new_task(project=project, name=f"Child{idx}", parent=parents[idx])
+
+        parents = self.api.projects.get_task_parents(
+            projects=[project], task_name="Parent"
+        ).parents
+        self.assertEqual(len(parents), 2)
+
+        for parent_name in parent_names[:2]:
+            res = self.api.projects.get_task_parents(
+                projects=[project], task_name=parent_name
+            ).parents
+            self.assertEqual(len(res), 1)
+            self.assertEqual(res[0].name, parent_name)
+
+        parents = self.api.projects.get_task_parents(
+            projects=[project], task_name=parent_names[2]
+        ).parents
+        self.assertEqual(len(parents), 0)
+
     def test_query_by_state(self):
         project_name = "Test parents project"
         project = self.create_temp("projects", name=project_name, description="test")
@@ -74,15 +101,17 @@ class TestTaskParent(TestService):
         self.assertEqual([parent1, parent2], [p.id for p in parents])
 
         # Active tasks
-        parents = self.api.projects.get_task_parents(projects=[project], tasks_state="active").parents
+        parents = self.api.projects.get_task_parents(
+            projects=[project], tasks_state="active"
+        ).parents
         self.assertEqual([parent1], [p.id for p in parents])
 
         # Archived tasks
-        parents = self.api.projects.get_task_parents(projects=[project], tasks_state="archived").parents
+        parents = self.api.projects.get_task_parents(
+            projects=[project], tasks_state="archived"
+        ).parents
         self.assertEqual([parent2], [p.id for p in parents])
 
     def new_task(self, **kwargs):
-        self.update_missing(
-            kwargs, type="testing", name="test task parents"
-        )
+        self.update_missing(kwargs, type="testing", name="test task parents")
         return self.create_temp("tasks", **kwargs)

@@ -45,6 +45,7 @@ class MultiProjectRequest(models.Base):
 
 class ProjectTaskParentsRequest(MultiProjectRequest):
     tasks_state = ActualEnumField(EntityVisibility)
+    task_name = fields.StringField()
 
 
 class ProjectHyperparamValuesRequest(MultiProjectRequest):
