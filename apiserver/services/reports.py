@@ -264,6 +264,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
             companies=companies,
             last_iters=request.plots.iters,
             metrics=_get_metric_variants_from_request(request.plots.metrics),
+            last_iters_per_task_metric=request.plots.last_iters_per_task_metric,
         )[0]
 
     if request.scalar_metrics_iter_histogram:

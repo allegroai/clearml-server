@@ -57,6 +57,10 @@ class EventsRequest(Base):
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
+class PlotEventsRequest(EventsRequest):
+    last_iters_per_task_metric: bool = BoolField(default=True)
+
+
 class ScalarMetricsIterHistogram(HistogramRequestBase):
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
@@ -67,7 +71,7 @@ class SingleValueMetrics(Base):
 
 class GetTasksDataRequest(Base):
     debug_images: EventsRequest = EmbeddedField(EventsRequest)
-    plots: EventsRequest = EmbeddedField(EventsRequest)
+    plots: PlotEventsRequest = EmbeddedField(PlotEventsRequest)
     scalar_metrics_iter_histogram: ScalarMetricsIterHistogram = EmbeddedField(
         ScalarMetricsIterHistogram
     )

@@ -153,7 +153,7 @@ class TestSubProjects(TestService):
                 self.assertEqual(p.own_tasks, 0)
                 self.assertIsNone(p.get("own_datasets"))
                 self.assertEqual(
-                    p.stats.active.total_tasks, 1 if p.basename != "Project4" else 0
+                    p.stats.active.total_tasks, 1 if p.basename != "Project2" else 0
                 )
 
     def test_project_aggregations(self):

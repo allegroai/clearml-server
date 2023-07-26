@@ -30,6 +30,7 @@ from apiserver.apimodels.events import (
     GetVariantSampleRequest,
     GetMetricSamplesRequest,
     TaskMetric,
+    MultiTaskPlotsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants, TaskCompanies
@@ -554,6 +555,7 @@ def get_multi_task_plots_v1_7(call, company_id, _):
 def _get_multitask_plots(
     companies: TaskCompanies,
     last_iters: int,
+    last_iters_per_task_metric: bool,
     metrics: MetricVariants = None,
     scroll_id=None,
     no_scroll=True,
@@ -573,6 +575,7 @@ def _get_multitask_plots(
         size=config.get(
             "services.events.events_retrieval.multi_plots_batch_size", 1000
         ),
+        last_iters_per_task_metric=last_iters_per_task_metric,
     )
     return_events = _get_top_iter_unique_events_per_task(
         result.events, max_iters=last_iters, task_names=task_names
@@ -580,19 +583,17 @@ def _get_multitask_plots(
     return return_events, result.total_events, result.next_scroll_id
 
 
-@endpoint("events.get_multi_task_plots", min_version="1.8", required_fields=["tasks"])
-def get_multi_task_plots(call, company_id, _):
-    task_ids = call.data["tasks"]
-    iters = call.data.get("iters", 1)
-    scroll_id = call.data.get("scroll_id")
-    no_scroll = call.data.get("no_scroll", False)
-    model_events = call.data.get("model_events", False)
-
+@endpoint("events.get_multi_task_plots", min_version="1.8")
+def get_multi_task_plots(call, company_id, request: MultiTaskPlotsRequest):
     companies = _get_task_or_model_index_companies(
-        company_id, task_ids, model_events=model_events
+        company_id, request.tasks, model_events=request.model_events
     )
     return_events, total_events, next_scroll_id = _get_multitask_plots(
-        companies=companies, last_iters=iters, scroll_id=scroll_id, no_scroll=no_scroll,
+        companies=companies,
+        last_iters=request.iters,
+        scroll_id=request.scroll_id,
+        no_scroll=request.no_scroll,
+        last_iters_per_task_metric=request.last_iters_per_task_metric,
     )
     call.result.data = dict(
         plots=return_events,

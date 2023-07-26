@@ -155,6 +155,13 @@ class TaskMetricsRequest(MultiTasksRequestBase):
     event_type: EventType = ActualEnumField(EventType, required=True)
 
 
+class MultiTaskPlotsRequest(MultiTasksRequestBase):
+    iters: int = IntField(default=1)
+    scroll_id: str = StringField()
+    no_scroll: bool = BoolField(default=False)
+    last_iters_per_task_metric: bool = BoolField(default=True)
+
+
 class TaskPlotsRequest(Base):
     task: str = StringField(required=True)
     iters: int = IntField(default=1)

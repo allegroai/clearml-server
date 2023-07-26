@@ -717,6 +717,7 @@ class EventBLL(object):
         size=500,
         scroll_id=None,
         no_scroll=False,
+        last_iters_per_task_metric=False,
     ) -> TaskEventsResult:
         if scroll_id == self.empty_scroll:
             return TaskEventsResult()
@@ -743,25 +744,47 @@ class EventBLL(object):
             if last_iter_count is None:
                 must.append({"terms": {"task": task_ids}})
             else:
-                tasks_iters = self.get_last_iters(
-                    company_id=company_ids,
-                    event_type=event_type,
-                    task_id=task_ids,
-                    iters=last_iter_count,
-                    metrics=metrics,
-                )
-                should = [
-                    {
-                        "bool": {
-                            "must": [
-                                {"term": {"task": task}},
-                                {"terms": {"iter": last_iters}},
-                            ]
+                if last_iters_per_task_metric:
+                    task_metric_iters = self.get_last_iters_per_metric(
+                        company_id=company_ids,
+                        event_type=event_type,
+                        task_id=task_ids,
+                        iters=last_iter_count,
+                        metrics=metrics,
+                    )
+                    should = [
+                        {
+                            "bool": {
+                                "must": [
+                                    {"term": {"task": task}},
+                                    {"term": {"metric": metric}},
+                                    {"terms": {"iter": last_iters}},
+                                ]
+                            }
                         }
-                    }
-                    for task, last_iters in tasks_iters.items()
-                    if last_iters
-                ]
+                        for (task, metric), last_iters in task_metric_iters.items()
+                        if last_iters
+                    ]
+                else:
+                    tasks_iters = self.get_last_iters(
+                        company_id=company_ids,
+                        event_type=event_type,
+                        task_id=task_ids,
+                        iters=last_iter_count,
+                        metrics=metrics,
+                    )
+                    should = [
+                        {
+                            "bool": {
+                                "must": [
+                                    {"term": {"task": task}},
+                                    {"terms": {"iter": last_iters}},
+                                ]
+                            }
+                        }
+                        for task, last_iters in tasks_iters.items()
+                        if last_iters
+                    ]
                 if not should:
                     return TaskEventsResult()
                 must.append({"bool": {"should": should}})
@@ -958,6 +981,68 @@ class EventBLL(object):
             iterations.append(hit["_source"]["iter"])
 
         return iterations, vectors
+
+    def get_last_iters_per_metric(
+        self,
+        company_id: Union[str, Sequence[str]],
+        event_type: EventType,
+        task_id: Union[str, Sequence[str]],
+        iters: int,
+        metrics: MetricVariants = None,
+    ) -> Mapping[Tuple[str, str], Sequence]:
+        company_ids = [company_id] if isinstance(company_id, str) else company_id
+        company_ids = [
+            c_id
+            for c_id in set(company_ids)
+            if not check_empty_data(self.es, c_id, event_type)
+        ]
+        if not company_ids:
+            return {}
+
+        task_ids = [task_id] if isinstance(task_id, str) else task_id
+        must = [{"terms": {"task": task_ids}}]
+        if metrics:
+            must.append(get_metric_variants_condition(metrics))
+
+        es_req: dict = {
+            "size": 0,
+            "aggs": {
+                "tasks": {
+                    "terms": {"field": "task"},
+                    "aggs": {
+                        "metrics": {
+                            "terms": {"field": "metric"},
+                            "aggs": {
+                                "iters": {
+                                    "terms": {
+                                        "field": "iter",
+                                        "size": iters,
+                                        "order": {"_key": "desc"},
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "query": {"bool": {"must": must}},
+        }
+
+        with translate_errors_context():
+            es_res = search_company_events(
+                self.es,
+                company_id=company_ids,
+                event_type=event_type,
+                body=es_req,
+            )
+        if "aggregations" not in es_res:
+            return {}
+
+        return {
+            (tb["key"], mb["key"]): [ib["key"] for ib in mb["iters"]["buckets"]]
+            for tb in es_res["aggregations"]["tasks"]["buckets"]
+            for mb in tb["metrics"]["buckets"]
+        }
 
     def get_last_iters(
         self,
