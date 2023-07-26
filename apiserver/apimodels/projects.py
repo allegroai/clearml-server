@@ -1,10 +1,11 @@
-from enum import Enum
+from enum import Enum, auto
 
 from jsonmodels import models, fields
 
 from apiserver.apimodels import ListField, ActualEnumField, DictField
 from apiserver.apimodels.organization import TagsRequest
 from apiserver.database.model import EntityVisibility
+from apiserver.utilities.stringenum import StringEnum
 
 
 class ProjectRequest(models.Base):
@@ -50,6 +51,15 @@ class MultiProjectRequest(models.Base):
 class ProjectTaskParentsRequest(MultiProjectRequest):
     tasks_state = ActualEnumField(EntityVisibility)
     task_name = fields.StringField()
+
+
+class EntityTypeEnum(StringEnum):
+    task = auto()
+    model = auto()
+
+
+class ProjectUserNamesRequest(MultiProjectRequest):
+    entity = ActualEnumField(EntityTypeEnum, default=EntityTypeEnum.task)
 
 
 class ProjectHyperparamValuesRequest(MultiProjectRequest):

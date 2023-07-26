@@ -183,6 +183,8 @@ class TestSubProjects(TestService):
         self.assertEqual(res.types, [])
         res = self.api.projects.get_task_parents(projects=[project])
         self.assertEqual(res.parents, [])
+        res = self.api.projects.get_user_names(projects=[project])
+        self.assertEqual(res.users, [])
         res = self.api.organization.get_entities_count(
             projects={"id": [project]}, active_users=[user]
         )
@@ -206,6 +208,8 @@ class TestSubProjects(TestService):
         self.assertEqual(res.projects[0].stats.active.total_tasks, 2)
         res = self.api.projects.get_task_parents(projects=[project])
         self._assert_ids(res.parents, [task1])
+        res = self.api.projects.get_user_names(projects=[project])
+        self.assertEqual(res.users, [{"id": "Test1", "name": "Test User"}])
         res = self.api.models.get_frameworks(projects=[project])
         self.assertEqual(res.frameworks, [framework])
         res = self.api.tasks.get_types(projects=[project])
