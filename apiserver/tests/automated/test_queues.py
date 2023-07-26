@@ -84,6 +84,9 @@ class TestQueues(TestService):
         res = self.api.queues.get_by_id(queue=queue)
         self.assertQueueTasks(res.queue, [task])
         self.assertTaskTags(task, system_tags=[])
+        self.api.tasks.dequeue(task=task, new_status="published")
+        res = self.api.tasks.get_by_id(task=task)
+        self.assertEqual(res.task.status, "published")
 
     def test_dequeue_not_queued_task(self):
         # queue = self._temp_queue("TestTempQueue")

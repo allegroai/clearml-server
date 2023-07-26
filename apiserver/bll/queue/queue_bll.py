@@ -172,6 +172,7 @@ class QueueBLL(object):
                             status_reason="Queue was deleted",
                             status_message="",
                             user_id=user_id,
+                            force=True,
                         ).execute(enqueue_status=None)
                     except Exception as ex:
                         log.exception(

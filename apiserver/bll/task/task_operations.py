@@ -23,6 +23,7 @@ from apiserver.database.model.task.task import (
     Execution,
     DEFAULT_LAST_ITERATION,
 )
+from apiserver.database.utils import get_options
 from apiserver.utilities.dicts import nested_set
 
 log = config.logger(__file__)
@@ -102,7 +103,11 @@ def dequeue_task(
     status_message: str,
     status_reason: str,
     remove_from_all_queues: bool = False,
+    new_status=None,
 ) -> Tuple[int, dict]:
+    if new_status and new_status not in get_options(TaskStatus):
+        raise errors.bad_request.ValidationError(f"Invalid task status: {new_status}")
+
     # get the task without write access to make sure that it actually exists
     task = Task.get(
         id=task_id,
@@ -128,6 +133,7 @@ def dequeue_task(
         status_message=status_message,
         status_reason=status_reason,
         remove_from_all_queues=remove_from_all_queues,
+        new_status=new_status,
     )
     return 1, res
 

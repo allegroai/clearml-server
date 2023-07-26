@@ -463,6 +463,7 @@ class TaskBLL:
         status_message: str,
         status_reason: str,
         remove_from_all_queues=False,
+        new_status=None,
     ):
         try:
             cls.dequeue(task, company_id, silent_fail=True)
@@ -478,10 +479,11 @@ class TaskBLL:
 
         return ChangeStatusRequest(
             task=task,
-            new_status=task.enqueue_status or TaskStatus.created,
+            new_status=new_status or task.enqueue_status or TaskStatus.created,
             status_reason=status_reason,
             status_message=status_message,
             user_id=user_id,
+            force=True,
         ).execute(enqueue_status=None)
 
     @classmethod

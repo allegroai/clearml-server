@@ -921,6 +921,7 @@ def dequeue(call: APICall, company_id, request: DequeueRequest):
         status_message=request.status_message,
         status_reason=request.status_reason,
         remove_from_all_queues=request.remove_from_all_queues,
+        new_status=request.new_status,
     )
     call.result.data_model = DequeueResponse(dequeued=dequeued, **res)
 
@@ -937,6 +938,7 @@ def dequeue_many(call: APICall, company_id, request: DequeueManyRequest):
             status_message=request.status_message,
             status_reason=request.status_reason,
             remove_from_all_queues=request.remove_from_all_queues,
+            new_status=request.new_status,
         ),
         ids=request.ids,
     )
