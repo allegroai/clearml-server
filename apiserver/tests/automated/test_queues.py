@@ -9,6 +9,10 @@ from apiserver.tests.automated import TestService, utc_now_tz_aware
 
 
 class TestQueues(TestService):
+    def setUp(self, **kwargs):
+        super().setUp(**kwargs)
+        self.user = self.api.users.get_current_user().user
+
     def test_default_queue(self):
         res = self.api.queues.get_default()
         self.assertIsNotNone(res.id)
@@ -313,4 +317,9 @@ class TestQueues(TestService):
             machine_stats=dict(cpu_usage=[10, 20]),
             task=task["id"],
         )
-        return dict(name=worker, ip="127.0.0.1", task=task)
+        return dict(
+            name=worker,
+            ip="127.0.0.1",
+            task=task,
+            key=f"worker_{self.user.company.id}_{self.user.id}_{worker}"
+        )

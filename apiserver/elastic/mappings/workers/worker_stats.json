@@ -1,8 +1,8 @@
 {
   "index_patterns": "worker_stats_*",
   "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0
+    "number_of_replicas": 0,
+    "number_of_shards": 1
   },
   "mappings": {
     "_source": {
@@ -31,6 +31,9 @@
         "type": "keyword"
       },
       "task": {
+        "type": "keyword"
+      },
+      "company_id": {
         "type": "keyword"
       }
     }
