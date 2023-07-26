@@ -140,7 +140,11 @@ class ProjectQueries:
         name: str,
         include_subprojects: bool,
         allow_public: bool = True,
+        page: int = 0,
+        page_size: int = 500,
     ) -> ParamValues:
+        page = max(0, page)
+        page_size = max(1, page_size)
         company_constraint = self._get_company_constraint(company_id, allow_public)
         project_constraint = self._get_project_constraint(
             project_ids, include_subprojects
@@ -160,7 +164,7 @@ class ProjectQueries:
         if not last_updated_task:
             return 0, []
 
-        redis_key = f"hyperparam_values_{company_id}_{'_'.join(project_ids)}_{section}_{name}_{allow_public}"
+        redis_key = f"hyperparam_values_{company_id}_{'_'.join(project_ids)}_{section}_{name}_{allow_public}_{page}_{page_size}"
         last_update = last_updated_task.last_update or datetime.utcnow()
         cached_res = self._get_cached_param_values(
             key=redis_key,
@@ -172,7 +176,6 @@ class ProjectQueries:
         if cached_res:
             return cached_res
 
-        max_values = config.get("services.tasks.hyperparam_values.max_count", 100)
         pipeline = [
             {
                 "$match": {
@@ -184,7 +187,8 @@ class ProjectQueries:
             {"$project": {"value": f"${key_path}.value"}},
             {"$group": {"_id": "$value"}},
             {"$sort": {"_id": 1}},
-            {"$limit": max_values},
+            {"$skip": page * page_size},
+            {"$limit": page_size},
             {
                 "$group": {
                     "_id": 1,
@@ -311,7 +315,11 @@ class ProjectQueries:
         key: str,
         include_subprojects: bool,
         allow_public: bool = True,
+        page: int = 0,
+        page_size: int = 500,
     ) -> ParamValues:
+        page = max(0, page)
+        page_size = max(1, page_size)
         company_constraint = self._get_company_constraint(company_id, allow_public)
         project_constraint = self._get_project_constraint(
             project_ids, include_subprojects
@@ -331,7 +339,7 @@ class ProjectQueries:
         if not last_updated_model:
             return 0, []
 
-        redis_key = f"modelmetadata_values_{company_id}_{'_'.join(project_ids)}_{key}_{allow_public}"
+        redis_key = f"modelmetadata_values_{company_id}_{'_'.join(project_ids)}_{key}_{allow_public}_{page}_{page_size}"
         last_update = last_updated_model.last_update or datetime.utcnow()
         cached_res = self._get_cached_param_values(
             key=redis_key, last_update=last_update
@@ -339,7 +347,6 @@ class ProjectQueries:
         if cached_res:
             return cached_res
 
-        max_values = config.get("services.models.metadata_values.max_count", 100)
         pipeline = [
             {
                 "$match": {
@@ -351,7 +358,8 @@ class ProjectQueries:
             {"$project": {"value": f"${key_path}.value"}},
             {"$group": {"_id": "$value"}},
             {"$sort": {"_id": 1}},
-            {"$limit": max_values},
+            {"$skip": page * page_size},
+            {"$limit": page_size},
             {
                 "$group": {
                     "_id": 1,

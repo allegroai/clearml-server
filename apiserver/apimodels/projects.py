@@ -62,15 +62,19 @@ class ProjectUserNamesRequest(MultiProjectRequest):
     entity = ActualEnumField(EntityTypeEnum, default=EntityTypeEnum.task)
 
 
-class ProjectHyperparamValuesRequest(MultiProjectRequest):
+class MultiProjectPagedRequest(MultiProjectRequest):
+    allow_public = fields.BoolField(default=True)
+    page = fields.IntField(default=0)
+    page_size = fields.IntField(default=500)
+
+
+class ProjectHyperparamValuesRequest(MultiProjectPagedRequest):
     section = fields.StringField(required=True)
     name = fields.StringField(required=True)
-    allow_public = fields.BoolField(default=True)
 
 
-class ProjectModelMetadataValuesRequest(MultiProjectRequest):
+class ProjectModelMetadataValuesRequest(MultiProjectPagedRequest):
     key = fields.StringField(required=True)
-    allow_public = fields.BoolField(default=True)
 
 
 class ProjectChildrenType(Enum):
