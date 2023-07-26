@@ -881,6 +881,7 @@ class EventBLL(object):
         max_metrics, max_variants = get_max_metric_and_variant_counts(
             query=query, **search_args,
         )
+        max_variants = int(max_variants // 2)
         es_req = {
             "size": 0,
             "query": query,
@@ -1004,14 +1005,16 @@ class EventBLL(object):
         if metrics:
             must.append(get_metric_variants_condition(metrics))
 
+        max_tasks = min(len(task_ids), 1000)
+        max_metrics = 10_000 // (max_tasks * iters)
         es_req: dict = {
             "size": 0,
             "aggs": {
                 "tasks": {
-                    "terms": {"field": "task"},
+                    "terms": {"field": "task", "size": max_tasks},
                     "aggs": {
                         "metrics": {
-                            "terms": {"field": "metric"},
+                            "terms": {"field": "metric", "size": max_metrics},
                             "aggs": {
                                 "iters": {
                                     "terms": {
@@ -1066,11 +1069,12 @@ class EventBLL(object):
         if metrics:
             must.append(get_metric_variants_condition(metrics))
 
+        max_tasks = min(len(task_ids), 1000)
         es_req: dict = {
             "size": 0,
             "aggs": {
                 "tasks": {
-                    "terms": {"field": "task"},
+                    "terms": {"field": "task", "size": max_tasks},
                     "aggs": {
                         "iters": {
                             "terms": {
