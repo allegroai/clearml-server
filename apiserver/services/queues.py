@@ -83,7 +83,7 @@ def get_all_ex(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
 
-    call_data = Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call.data)
     queues = queue_bll.get_queue_infos(
         company_id=company,
         query_dict=call_data,
@@ -99,7 +99,7 @@ def get_all_ex(call: APICall, company: str, request: GetAllRequest):
 def get_all(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
-    call_data = Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call.data)
     queues = queue_bll.get_all(
         company_id=company,
         query_dict=call_data,

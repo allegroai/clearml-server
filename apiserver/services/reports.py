@@ -222,7 +222,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
         entity_cls = Task
         conform_data = conform_task_data
 
-    call_data = escape_execution_parameters(call)
+    call_data = escape_execution_parameters(call.data)
     process_include_subprojects(call_data)
 
     ret_params = {}

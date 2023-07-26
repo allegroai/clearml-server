@@ -70,9 +70,7 @@ def _assert_task_or_model_exists(
 @endpoint("events.add")
 def add(call: APICall, company_id, _):
     data = call.data.copy()
-    added, err_count, err_info = event_bll.add_events(
-        company_id, [data], call.worker
-    )
+    added, err_count, err_info = event_bll.add_events(company_id, [data], call.worker)
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
 
@@ -82,11 +80,7 @@ def add_batch(call: APICall, company_id, _):
     if events is None or len(events) == 0:
         raise errors.bad_request.BatchContainsNoItems()
 
-    added, err_count, err_info = event_bll.add_events(
-        company_id,
-        events,
-        call.worker,
-    )
+    added, err_count, err_info = event_bll.add_events(company_id, events, call.worker,)
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
 
@@ -576,6 +570,7 @@ def _get_multitask_plots(
         sort=[{"iter": {"order": "desc"}}],
         scroll_id=scroll_id,
         no_scroll=no_scroll,
+        size=10000,
     )
     return_events = _get_top_iter_unique_events_per_task(
         result.events, max_iters=last_iters, task_names=task_names
@@ -595,10 +590,7 @@ def get_multi_task_plots(call, company_id, _):
         company_id, task_ids, model_events=model_events
     )
     return_events, total_events, next_scroll_id = _get_multitask_plots(
-        companies=companies,
-        last_iters=iters,
-        scroll_id=scroll_id,
-        no_scroll=no_scroll,
+        companies=companies, last_iters=iters, scroll_id=scroll_id, no_scroll=no_scroll,
     )
     call.result.data = dict(
         plots=return_events,
@@ -784,6 +776,7 @@ def get_debug_images_v1_8(call, company_id, _):
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
+        size=10000,
     )
 
     return_events = result.events
@@ -960,12 +953,12 @@ def clear_task_log(call: APICall, company_id: str, request: ClearTaskLogRequest)
 def _get_top_iter_unique_events_per_task(
     events, max_iters: int, task_names: Mapping[str, str]
 ):
-    key = itemgetter("metric", "variant", "task", "iter")
-
+    key_fields = ("metric", "variant", "task")
     unique_events = itertools.chain.from_iterable(
         itertools.islice(group, max_iters)
         for _, group in itertools.groupby(
-            sorted(events, key=key, reverse=True), key=key
+            sorted(events, key=itemgetter(*(key_fields + ("iter",))), reverse=True),
+            key=itemgetter(*key_fields),
         )
     )
 

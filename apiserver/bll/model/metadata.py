@@ -5,7 +5,6 @@ from mongoengine import Document
 from apiserver.apierrors import errors
 from apiserver.apimodels.metadata import MetadataItem
 from apiserver.database.model.base import GetMixin
-from apiserver.service_repo import APICall
 from apiserver.utilities.parameter_key_escaper import (
     ParameterKeyEscaper,
     mongoengine_safe,
@@ -87,13 +86,13 @@ class Metadata:
         return paths
 
     @classmethod
-    def escape_query_parameters(cls, call: APICall) -> dict:
-        if not call.data:
-            return call.data
+    def escape_query_parameters(cls, call_data: dict) -> dict:
+        if not call_data:
+            return call_data
 
-        keys = list(call.data)
+        keys = list(call_data)
         call_data = {
-            safe_key: call.data[key]
+            safe_key: call_data[key]
             for key, safe_key in zip(keys, Metadata.escape_paths(keys))
         }
 
