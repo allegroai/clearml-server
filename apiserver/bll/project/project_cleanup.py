@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Tuple, Set, Sequence
 
 import attr
+from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.bll.event import EventBLL
@@ -17,7 +18,14 @@ from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, ArtifactModes, TaskType, TaskStatus
-from .project_bll import ProjectBLL
+from .project_bll import (
+    ProjectBLL,
+    pipeline_tag,
+    pipelines_project_name,
+    dataset_tag,
+    datasets_project_name,
+    reports_tag,
+)
 from .sub_projects import _ids_with_children
 
 log = config.logger(__file__)
@@ -34,30 +42,82 @@ class DeleteProjectResult:
     urls: TaskUrls = None
 
 
+def _get_child_project_ids(
+    project_id: str,
+) -> Tuple[Sequence[str], Sequence[str], Sequence[str]]:
+    project_ids = _ids_with_children([project_id])
+    pipeline_ids = list(
+        Project.objects(
+            id__in=project_ids,
+            system_tags__in=[pipeline_tag],
+            basename__ne=pipelines_project_name,
+        ).scalar("id")
+    )
+    dataset_ids = list(
+        Project.objects(
+            id__in=project_ids,
+            system_tags__in=[dataset_tag],
+            basename__ne=datasets_project_name,
+        ).scalar("id")
+    )
+    return project_ids, pipeline_ids, dataset_ids
+
+
 def validate_project_delete(company: str, project_id: str):
     project = Project.get_for_writing(
         company=company, id=project_id, _only=("id", "path", "system_tags")
     )
     if not project:
         raise errors.bad_request.InvalidProjectId(id=project_id)
-    is_pipeline = "pipeline" in (project.system_tags or [])
-    project_ids = _ids_with_children([project_id])
+
+    project_ids, pipeline_ids, dataset_ids = _get_child_project_ids(project_id)
     ret = {}
-    for cls in ProjectBLL.child_classes:
-        ret[f"{cls.__name__.lower()}s"] = cls.objects(project__in=project_ids).count()
-    for cls in ProjectBLL.child_classes:
-        query = dict(
-            project__in=project_ids, system_tags__nin=[EntityVisibility.archived.value]
-        )
-        name = f"non_archived_{cls.__name__.lower()}s"
-        if not is_pipeline:
-            ret[name] = cls.objects(**query).count()
-        else:
-            ret[name] = (
-                cls.objects(**query, type=TaskType.controller).count()
-                if cls == Task
-                else 0
+    if pipeline_ids:
+        pipelines_with_active_controllers = Task.objects(
+            project__in=pipeline_ids,
+            type=TaskType.controller,
+            system_tags__nin=[EntityVisibility.archived.value],
+        ).distinct("project")
+        ret["pipelines"] = len(pipelines_with_active_controllers)
+    else:
+        ret["pipelines"] = 0
+    if dataset_ids:
+        datasets_with_data = Task.objects(
+            project__in=dataset_ids, system_tags__nin=[EntityVisibility.archived.value],
+        ).distinct("project")
+        ret["datasets"] = len(datasets_with_data)
+    else:
+        ret["datasets"] = 0
+
+    project_ids = list(set(project_ids) - set(pipeline_ids) - set(dataset_ids))
+    if project_ids:
+        in_project_query = Q(project__in=project_ids)
+        for cls in (Task, Model):
+            query = (
+                in_project_query & Q(system_tags__nin=[reports_tag])
+                if cls is Task
+                else in_project_query
             )
+            ret[f"{cls.__name__.lower()}s"] = cls.objects(query).count()
+            ret[f"non_archived_{cls.__name__.lower()}s"] = cls.objects(
+                query & Q(system_tags__nin=[EntityVisibility.archived.value])
+            ).count()
+        ret["reports"] = Task.objects(
+            in_project_query & Q(system_tags__in=[reports_tag])
+        ).count()
+        ret["non_archived_reports"] = Task.objects(
+            in_project_query
+            & Q(
+                system_tags__in=[reports_tag],
+                system_tags__nin=[EntityVisibility.archived.value],
+            )
+        ).count()
+    else:
+        for cls in (Task, Model):
+            ret[f"{cls.__name__.lower()}s"] = 0
+            ret[f"non_archived_{cls.__name__.lower()}s"] = 0
+        ret["reports"] = 0
+        ret["non_archived_reports"] = 0
 
     return ret
 
@@ -79,31 +139,49 @@ def delete_project(
     delete_external_artifacts = delete_external_artifacts and config.get(
         "services.async_urls_delete.enabled", True
     )
-    is_pipeline = "pipeline" in (project.system_tags or [])
-    project_ids = _ids_with_children([project_id])
+    project_ids, pipeline_ids, dataset_ids = _get_child_project_ids(project_id)
     if not force:
-        query = dict(
-            project__in=project_ids, system_tags__nin=[EntityVisibility.archived.value]
-        )
-        if not is_pipeline:
+        if pipeline_ids:
+            active_controllers = Task.objects(
+                project__in=pipeline_ids,
+                type=TaskType.controller,
+                system_tags__nin=[EntityVisibility.archived.value],
+            ).only("id")
+            if active_controllers:
+                raise errors.bad_request.ProjectHasPipelines(
+                    "please archive all the controllers or use force=true",
+                    id=project_id,
+                )
+        if dataset_ids:
+            datasets_with_data = Task.objects(
+                project__in=dataset_ids,
+                system_tags__nin=[EntityVisibility.archived.value],
+            ).only("id")
+            if datasets_with_data:
+                raise errors.bad_request.ProjectHasDatasets(
+                    "please delete all the dataset versions or use force=true",
+                    id=project_id,
+                )
+
+        regular_projects = list(set(project_ids) - set(pipeline_ids) - set(dataset_ids))
+        if regular_projects:
             for cls, error in (
                 (Task, errors.bad_request.ProjectHasTasks),
                 (Model, errors.bad_request.ProjectHasModels),
             ):
-                non_archived = cls.objects(**query).only("id")
+                non_archived = cls.objects(
+                    project__in=regular_projects,
+                    system_tags__nin=[EntityVisibility.archived.value],
+                ).only("id")
                 if non_archived:
-                    raise error("use force=true to delete", id=project_id)
-        else:
-            non_archived = Task.objects(**query, type=TaskType.controller).only("id")
-            if non_archived:
-                raise errors.bad_request.ProjectHasTasks(
-                    "please archive all the runs inside the project", id=project_id
-                )
+                    raise error("use force=true", id=project_id)
 
     if not delete_contents:
         disassociated = defaultdict(int)
         for cls in ProjectBLL.child_classes:
-            disassociated[cls] = cls.objects(project__in=project_ids).update(project=None)
+            disassociated[cls] = cls.objects(project__in=project_ids).update(
+                project=None
+            )
         res = DeleteProjectResult(disassociated_tasks=disassociated[Task])
     else:
         deleted_models, model_event_urls, model_urls = _delete_models(
@@ -209,19 +287,14 @@ def _delete_models(
                 "status": TaskStatus.published,
             },
             update={
-                "$set": {
-                    "models.output.$[elem].model": deleted,
-                    "last_change": now,
-                }
+                "$set": {"models.output.$[elem].model": deleted, "last_change": now,}
             },
             array_filters=[{"elem.model": {"$in": model_ids}}],
             upsert=False,
         )
         # update unpublished tasks
         Task.objects(
-            id__in=model_tasks,
-            project__nin=projects,
-            status__ne=TaskStatus.published,
+            id__in=model_tasks, project__nin=projects, status__ne=TaskStatus.published,
         ).update(pull__models__output__model__in=model_ids, set__last_change=now)
 
     event_urls, model_urls = set(), set()
