@@ -22,6 +22,7 @@ from apiserver.apimodels.workers import (
     GetActivityReportRequest,
     GetActivityReportResponse,
     ActivityReportSeries,
+    GetCountRequest,
 )
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
@@ -48,6 +49,20 @@ def get_all(call: APICall, company_id: str, request: GetAllRequest):
             system_tags=request.system_tags,
         )
     )
+
+
+@endpoint(
+    "workers.get_count", request_data_model=GetCountRequest,
+)
+def get_all(call: APICall, company_id: str, request: GetCountRequest):
+    call.result.data = {
+        "count": worker_bll.get_count(
+            company_id,
+            request.last_seen,
+            tags=request.tags,
+            system_tags=request.system_tags,
+        )
+    }
 
 
 @endpoint("workers.register", min_version="2.4", request_data_model=RegisterRequest)

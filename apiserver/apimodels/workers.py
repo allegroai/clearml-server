@@ -12,7 +12,7 @@ from jsonmodels.fields import (
 )
 from jsonmodels.models import Base
 
-from apiserver.apimodels import make_default, ListField, EnumField, JsonSerializableMixin
+from apiserver.apimodels import ListField, EnumField, JsonSerializableMixin
 
 DEFAULT_TIMEOUT = 10 * 60
 
@@ -102,6 +102,10 @@ class GetAllRequest(Base):
 
 class GetAllResponse(Base):
     workers = ListField(WorkerResponseEntry)
+
+
+class GetCountRequest(GetAllRequest):
+    last_seen = IntField(default=0)
 
 
 class StatsBase(Base):

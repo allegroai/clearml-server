@@ -200,6 +200,24 @@ class WorkerBLL:
         finally:
             self._save_worker(entry)
 
+    def get_count(
+        self,
+        company_id: str,
+        last_seen: Optional[int] = None,
+        tags: Sequence[str] = None,
+        system_tags: Sequence[str] = None,
+    ):
+        if not last_seen:
+            return len(
+                self._get_keys(company_id, user_tags=tags, system_tags=system_tags)
+            )
+
+        return len(
+            self.get_all(
+                company_id, last_seen=last_seen, tags=tags, system_tags=system_tags
+            )
+        )
+
     def get_all(
         self,
         company_id: str,
@@ -396,15 +414,16 @@ class WorkerBLL:
             msg = "Failed saving worker entry"
             log.exception(msg)
 
-    def _get(
+    def _get_keys(
         self,
         company: str,
         user: str = "*",
-        worker_id: str = "*",
         user_tags: Sequence[str] = None,
         system_tags: Sequence[str] = None,
-    ) -> Sequence[WorkerEntry]:
-        """Get worker entries matching the company and user, worker patterns"""
+    ) -> Sequence[bytes]:
+        if not (user_tags or system_tags):
+            match = self._get_worker_key(company, user, "*")
+            return list(self.redis.scan_iter(match))
 
         def filter_by_user(in_keys: Set[bytes]) -> Set[bytes]:
             if user == "*":
@@ -412,64 +431,73 @@ class WorkerBLL:
             user_bytes = user.encode()
             return {k for k in in_keys if user_bytes in k}
 
-        if user_tags or system_tags:
-            worker_keys = set()
-            for tags, tags_field in (
-                (user_tags, "tags"),
-                (system_tags, "systemtags"),
-            ):
-                if not tags:
-                    continue
-                timestamp = int(time())
-                include, exclude = partition(tags, key=lambda x: x[0] != "-")
-                if include:
-                    tagged_workers = set()
-                    for tag in include:
-                        tagged_workers_key = self._get_tagged_workers_key(
-                            company, tags_field, tag
-                        )
-                        self.redis.zremrangebyscore(
-                            tagged_workers_key, min=0, max=timestamp
-                        )
-                        tagged_workers.update(
-                            self.redis.zrange(tagged_workers_key, 0, -1)
-                        )
-                    tagged_workers = filter_by_user(tagged_workers)
-                    worker_keys = (
-                        worker_keys.intersection(tagged_workers)
-                        if worker_keys
-                        else tagged_workers
+        worker_keys = set()
+        for tags, tags_field in (
+            (user_tags, "tags"),
+            (system_tags, "systemtags"),
+        ):
+            if not tags:
+                continue
+
+            timestamp = int(time())
+            include, exclude = partition(tags, key=lambda x: x[0] != "-")
+            if include:
+                tagged_workers = set()
+                for tag in include:
+                    tagged_workers_key = self._get_tagged_workers_key(
+                        company, tags_field, tag
+                    )
+                    self.redis.zremrangebyscore(
+                        tagged_workers_key, min=0, max=timestamp
+                    )
+                    tagged_workers.update(self.redis.zrange(tagged_workers_key, 0, -1))
+
+                tagged_workers = filter_by_user(tagged_workers)
+                worker_keys = (
+                    worker_keys.intersection(tagged_workers)
+                    if worker_keys
+                    else tagged_workers
+                )
+                if not worker_keys:
+                    return []
+
+            if exclude:
+                if not worker_keys:
+                    all_workers_key = self._get_all_workers_key(company)
+                    self.redis.zremrangebyscore(all_workers_key, min=0, max=timestamp)
+                    worker_keys.update(self.redis.zrange(all_workers_key, 0, -1))
+                    worker_keys = filter_by_user(worker_keys)
+                    if not worker_keys:
+                        return []
+
+                for tag in exclude:
+                    tagged_workers_key = self._get_tagged_workers_key(
+                        company, tags_field, tag[1:]
+                    )
+                    self.redis.zremrangebyscore(
+                        tagged_workers_key, min=0, max=timestamp
+                    )
+                    worker_keys.difference_update(
+                        self.redis.zrange(tagged_workers_key, 0, -1)
                     )
                     if not worker_keys:
                         return []
-                if exclude:
-                    if not worker_keys:
-                        all_workers_key = self._get_all_workers_key(company)
-                        self.redis.zremrangebyscore(
-                            all_workers_key, min=0, max=timestamp
-                        )
-                        worker_keys.update(self.redis.zrange(all_workers_key, 0, -1))
-                        worker_keys = filter_by_user(worker_keys)
-                        if not worker_keys:
-                            return []
-                    for tag in exclude:
-                        tagged_workers_key = self._get_tagged_workers_key(
-                            company, tags_field, tag[1:]
-                        )
-                        self.redis.zremrangebyscore(
-                            tagged_workers_key, min=0, max=timestamp
-                        )
-                        worker_keys.difference_update(
-                            self.redis.zrange(tagged_workers_key, 0, -1)
-                        )
-                        if not worker_keys:
-                            return []
-        else:
-            match = self._get_worker_key(company, user, "*")
-            worker_keys = self.redis.scan_iter(match)
+
+        return list(worker_keys)
+
+    def _get(
+        self,
+        company: str,
+        user: str = "*",
+        user_tags: Sequence[str] = None,
+        system_tags: Sequence[str] = None,
+    ) -> Sequence[WorkerEntry]:
+        """Get worker entries matching the company and user, worker patterns"""
 
         entries = []
-        for key in worker_keys:
+        for key in self._get_keys(
+            company, user=user, user_tags=user_tags, system_tags=system_tags
+        ):
             data = self.redis.get(key)
             if data:
                 entries.append(WorkerEntry.from_json(data))

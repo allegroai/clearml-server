@@ -27,6 +27,25 @@ class TestWorkersService(TestService):
         self.api.workers.unregister(worker=test_worker)
         self._check_exists(test_worker, False)
 
+    def test_get_count(self):
+        test_workers = [f"test_{uuid4().hex}" for _ in range(2)]
+        system_tag = f"tag_{uuid4().hex}"
+        for w in test_workers:
+            self.api.workers.register(worker=w, system_tags=[system_tag])
+        # total workers count include the new ones
+        count = self.api.workers.get_count().count
+        self.assertGreater(count, len(test_workers))
+        # filter by system tag and last seen
+        count = self.api.workers.get_count(system_tags=[system_tag], last_seen=4).count
+        self.assertEqual(count, len(test_workers))
+        time.sleep(5)
+        # workers not seen recently
+        count = self.api.workers.get_count(system_tags=[system_tag], last_seen=4).count
+        self.assertEqual(count, 0)
+        # but still visible without the last seen filter
+        count = self.api.workers.get_count(system_tags=[system_tag]).count
+        self.assertEqual(count, len(test_workers))
+
     def test_workers_timeout(self):
         test_worker = f"test_{uuid4().hex}"
         self._check_exists(test_worker, False)
