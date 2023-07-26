@@ -29,17 +29,12 @@ class EntitiesCountRequest(models.Base):
     allow_public = fields.BoolField(default=True)
 
 
-class DownloadType(StringEnum):
-    csv = auto()
-
-
 class EntityType(StringEnum):
     task = auto()
     model = auto()
 
 
 class PrepareDownloadForGetAll(models.Base):
-    download_type = ActualEnumField(DownloadType, default=DownloadType.csv)
     entity_type = ActualEnumField(EntityType)
     allow_public = fields.BoolField(default=True)
     search_hidden = fields.BoolField(default=False)
