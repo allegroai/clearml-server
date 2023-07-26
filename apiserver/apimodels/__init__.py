@@ -61,6 +61,13 @@ class ListField(fields.ListField):
             item.validate()
 
 
+class ScalarField(fields.BaseField):
+
+    """String field."""
+
+    types = (str, int, float, bool)
+
+
 class DictField(fields.BaseField):
     types = (dict,)
 
