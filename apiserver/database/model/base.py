@@ -137,8 +137,8 @@ class GetMixin(PropsMixin):
         op_prefix = "__$"
         _unary_operators = {
             "__$not": False,
-            "__$nop": True,
         }
+        _reset_operator = "__$nop"
         _operators = {
             "__$all": Q.AND,
             "__$and": Q.AND,
@@ -154,26 +154,33 @@ class GetMixin(PropsMixin):
         @attr.s(auto_attribs=True)
         class Term:
             operator: str = None
+            reset: bool = False
             include: bool = True
             value: str = None
 
         def __init__(self, field: str, data: Sequence[str], legacy=False):
             self._field = field
-            self._support_legacy = legacy
             self.allow_empty = False
             self.global_operator = None
             self.actions = defaultdict(list)
 
+            self._support_legacy = legacy
             current_context = self.default_operator
             for d in self._get_next_term(data):
                 if d.operator is not None:
                     current_context = d.operator
+                    self._support_legacy = False
                     if self.global_operator is None:
                         self.global_operator = d.operator
                     continue
 
                 if self.global_operator is None:
                     self.global_operator = self.default_operator
+
+                if d.reset:
+                    current_context = self.default_operator
+                    self._support_legacy = legacy
+                    continue
 
                 if d.value is None:
                     self.allow_empty = True
@@ -186,7 +193,9 @@ class GetMixin(PropsMixin):
             if self.global_operator is None:
                 self.global_operator = self.default_operator
 
-        def _get_next_term(self, data: Sequence[str]) -> Generator[Term, None, None]:
+        def _get_next_term(
+            self, data: Sequence[str]
+        ) -> Generator[Term, None, None]:
             unary_operator = None
             for value in data:
                 if value is None:
@@ -200,6 +209,11 @@ class GetMixin(PropsMixin):
                         field=self._field,
                         value=str(value),
                     )
+
+                if value == self._reset_operator:
+                    unary_operator = None
+                    yield self.Term(reset=True)
+                    continue
 
                 if value.startswith(self.op_prefix):
                     if unary_operator:
@@ -215,14 +229,12 @@ class GetMixin(PropsMixin):
                     operator = self._operators.get(value)
                     if operator is None:
                         raise FieldsValueError(
-                            "Unsupported operator",
-                            field=self._field,
-                            operator=value,
+                            "Unsupported operator", field=self._field, operator=value,
                         )
                     yield self.Term(operator=operator)
                     continue
 
-                if self._support_legacy and value.startswith("-"):
+                if not unary_operator and self._support_legacy and value.startswith("-"):
                     value = value[1:]
                     if not value:
                         raise FieldsValueError(
@@ -230,7 +242,6 @@ class GetMixin(PropsMixin):
                             field=self._field,
                             value=value,
                         )
-                    unary_operator = None
                     yield self.Term(value=value, include=False)
                     continue
 
