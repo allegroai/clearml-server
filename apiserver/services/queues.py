@@ -83,11 +83,11 @@ def get_all_ex(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
 
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
     queues = queue_bll.get_queue_infos(
         company_id=company,
-        query_dict=call.data,
-        query=_hidden_query(call.data),
+        query_dict=call_data,
+        query=_hidden_query(call_data),
         max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )
@@ -99,11 +99,11 @@ def get_all_ex(call: APICall, company: str, request: GetAllRequest):
 def get_all(call: APICall, company: str, request: GetAllRequest):
     conform_tag_fields(call, call.data)
     ret_params = {}
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
     queues = queue_bll.get_all(
         company_id=company,
-        query_dict=call.data,
-        query=_hidden_query(call.data),
+        query_dict=call_data,
+        query=_hidden_query(call_data),
         max_task_entries=request.max_task_entries,
         ret_params=ret_params,
     )

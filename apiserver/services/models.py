@@ -67,11 +67,10 @@ def conform_model_data(call: APICall, model_data: Union[Sequence[dict], dict]):
 @endpoint("models.get_by_id", required_fields=["model"])
 def get_by_id(call: APICall, company_id, _):
     model_id = call.data["model"]
-
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
     models = Model.get_many(
         company=company_id,
-        query_dict=call.data,
+        query_dict=call_data,
         query=Q(id=model_id),
         allow_public=True,
     )
@@ -113,12 +112,12 @@ def get_by_task_id(call: APICall, company_id, _):
 @endpoint("models.get_all_ex", request_data_model=ModelsGetRequest)
 def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
     conform_tag_fields(call, call.data)
-    process_include_subprojects(call.data)
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
+    process_include_subprojects(call_data)
     ret_params = {}
     models = Model.get_many_with_join(
         company=company_id,
-        query_dict=call.data,
+        query_dict=call_data,
         allow_public=request.allow_public,
         ret_params=ret_params,
     )
@@ -140,9 +139,9 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
 @endpoint("models.get_by_id_ex", required_fields=["id"])
 def get_by_id_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
     models = Model.get_many_with_join(
-        company=company_id, query_dict=call.data, allow_public=True
+        company=company_id, query_dict=call_data, allow_public=True
     )
     conform_model_data(call, models)
     call.result.data = {"models": models}
@@ -151,12 +150,13 @@ def get_by_id_ex(call: APICall, company_id, _):
 @endpoint("models.get_all", required_fields=[])
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
-    Metadata.escape_query_parameters(call)
+    call_data = Metadata.escape_query_parameters(call)
+    process_include_subprojects(call_data)
     ret_params = {}
     models = Model.get_many(
         company=company_id,
-        parameters=call.data,
-        query_dict=call.data,
+        parameters=call_data,
+        query_dict=call_data,
         allow_public=True,
         ret_params=ret_params,
     )

@@ -204,9 +204,7 @@ def _hidden_query(data: dict) -> Q:
 @endpoint("tasks.get_all_ex")
 def get_all_ex(call: APICall, company_id, request: GetAllReq):
     conform_tag_fields(call, call.data)
-
     call_data = escape_execution_parameters(call)
-
     process_include_subprojects(call_data)
     ret_params = {}
     tasks = Task.get_many_with_join(
@@ -223,9 +221,7 @@ def get_all_ex(call: APICall, company_id, request: GetAllReq):
 @endpoint("tasks.get_by_id_ex", required_fields=["id"])
 def get_by_id_ex(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
-
     call_data = escape_execution_parameters(call)
-
     tasks = Task.get_many_with_join(
         company=company_id, query_dict=call_data, allow_public=True,
     )
@@ -237,8 +233,8 @@ def get_by_id_ex(call: APICall, company_id, _):
 @endpoint("tasks.get_all", required_fields=[])
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
-
     call_data = escape_execution_parameters(call)
+    process_include_subprojects(call_data)
 
     ret_params = {}
     tasks = Task.get_many(

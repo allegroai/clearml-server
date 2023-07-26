@@ -1,12 +1,21 @@
 import re
+from functools import partial
 
-from apiserver.apimodels.pipelines import StartPipelineResponse, StartPipelineRequest
+import attr
+
+from apiserver.apierrors.errors.bad_request import CannotRemoveAllRuns
+from apiserver.apimodels.pipelines import (
+    StartPipelineResponse,
+    StartPipelineRequest,
+    DeleteRunsRequest,
+)
 from apiserver.bll.organization import OrgBLL
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
-from apiserver.bll.task.task_operations import enqueue_task
+from apiserver.bll.task.task_operations import enqueue_task, delete_task
+from apiserver.bll.util import run_batch_operation
 from apiserver.database.model.project import Project
-from apiserver.database.model.task.task import Task
+from apiserver.database.model.task.task import Task, TaskType
 from apiserver.service_repo import APICall, endpoint
 
 org_bll = OrgBLL()
@@ -29,6 +38,45 @@ def _update_task_name(task: Task):
     ).count()
     new_name = f"{name_prefix} #{count}" if count > 0 else name_prefix
     task.update(name=new_name)
+
+
+@endpoint("pipelines.delete_runs")
+def delete_runs(call: APICall, company_id: str, request: DeleteRunsRequest):
+    existing_runs = set(
+        Task.objects(project=request.project, type=TaskType.controller).scalar("id")
+    )
+    if not existing_runs.difference(request.ids):
+        raise CannotRemoveAllRuns(project=request.project)
+
+    # make sure that only controller tasks are deleted
+    ids = existing_runs.intersection(request.ids)
+    if not ids:
+        return dict(succeeded=[], failed=[])
+
+    results, failures = run_batch_operation(
+        func=partial(
+            delete_task,
+            company_id=company_id,
+            user_id=call.identity.user,
+            move_to_trash=False,
+            force=True,
+            return_file_urls=False,
+            delete_output_models=True,
+            status_message="",
+            status_reason="Pipeline run deleted",
+            delete_external_artifacts=True,
+        ),
+        ids=list(ids),
+    )
+
+    succeeded = []
+    if results:
+        for _id, (deleted, task, cleanup_res) in results:
+            succeeded.append(
+                dict(id=_id, deleted=bool(deleted), **attr.asdict(cleanup_res))
+            )
+
+    call.result.data = dict(succeeded=succeeded, failed=failures)
 
 
 @endpoint(

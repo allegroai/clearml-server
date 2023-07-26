@@ -342,6 +342,32 @@ class TestSubProjects(TestService):
         self.assertEqual([p.id for p in res], [project2])
         self.api.projects.delete(project=project1, force=True)
 
+    def test_include_subprojects(self):
+        project1, _ = self._temp_project_with_tasks(name="project1x")
+        project2, _ = self._temp_project_with_tasks(name="project1x/project22")
+        self._temp_model(project=project1)
+        self._temp_model(project=project2)
+
+        # tasks
+        res = self.api.tasks.get_all_ex(project=project1).tasks
+        self.assertEqual(len(res), 2)
+        res = self.api.tasks.get_all(project=project1).tasks
+        self.assertEqual(len(res), 2)
+        res = self.api.tasks.get_all_ex(project=project1, include_subprojects=True).tasks
+        self.assertEqual(len(res), 4)
+        res = self.api.tasks.get_all(project=project1, include_subprojects=True).tasks
+        self.assertEqual(len(res), 4)
+
+        # models
+        res = self.api.models.get_all_ex(project=project1).models
+        self.assertEqual(len(res), 1)
+        res = self.api.models.get_all(project=project1).models
+        self.assertEqual(len(res), 1)
+        res = self.api.models.get_all_ex(project=project1, include_subprojects=True).models
+        self.assertEqual(len(res), 2)
+        res = self.api.models.get_all(project=project1, include_subprojects=True).models
+        self.assertEqual(len(res), 2)
+
     def test_get_all_with_check_own_contents(self):
         project1, _ = self._temp_project_with_tasks(name="project1x")
         project2 = self._temp_project(name="project2x")
