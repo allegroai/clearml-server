@@ -173,7 +173,7 @@ def _delete_reports_project_if_empty(project_id):
 def get_all_ex(call: APICall, company_id, request: GetAllRequest):
     call_data = call.data
     call_data["type"] = TaskType.report
-
+    process_include_subprojects(call_data)
     # bring projects one level down in case not the .reports project was passed
     if "project" in call_data:
         project_ids = call_data["project"]
