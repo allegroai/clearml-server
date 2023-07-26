@@ -101,7 +101,7 @@ def _upgrade_tags(call: APICall, tags: Sequence, system_tags: Sequence):
 def validate_tags(tags: Sequence[str], system_tags: Sequence[str]):
     for values in filter(None, (tags, system_tags)):
         unsupported = [
-            t for t in values if t.startswith(GetMixin.ListFieldBucketHelper.op_prefix)
+            t for t in values if t.startswith(GetMixin.NewListFieldBucketHelper.op_prefix)
         ]
         if unsupported:
             raise errors.bad_request.FieldsValueError(

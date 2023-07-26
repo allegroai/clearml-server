@@ -51,7 +51,7 @@ class TestUsersService(TestService):
         self._assertUsers((user_2, user_3), users)
 
         # specific project
-        users = self.api.users.get_all_ex(active_in_projects=[project]).users
+        users = self.api.users.get_all_ex(id=user_ids, active_in_projects=[project]).users
         self._assertUsers((user_3,), users)
 
     def _assertUsers(self, expected: Sequence, users: Sequence):

@@ -13,7 +13,8 @@ from typing import (
     TypeVar,
     Callable,
     Mapping,
-    Any, Union,
+    Any,
+    Union,
 )
 
 from mongoengine import Q, Document
@@ -1089,12 +1090,15 @@ class ProjectBLL:
                 raise errors.bad_request.ValidationError(
                     f"List of strings expected for the field: {field}"
                 )
-            helper = GetMixin.ListFieldBucketHelper(field, legacy=True)
-            actions = helper.get_actions(field_filter)
-            conditions[field] = {
-                f"${action}": list(set(actions[action]))
-                for action in filter(None, actions)
-            }
+            helper = GetMixin.NewListFieldBucketHelper(
+                field, data=field_filter, legacy=True
+            )
+            conditions[field] = {}
+            for action, values in helper.actions.items():
+                value = list(set(values))
+                for key in reversed(action.split("__")):
+                    value = {f"${key}": value}
+                conditions[field].update(value)
 
         return conditions
 

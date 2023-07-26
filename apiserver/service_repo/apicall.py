@@ -655,7 +655,11 @@ class APICall(DataContainer):
             }
             if self.content_type.lower() == JSON_CONTENT_TYPE:
                 try:
-                    func = json.dumps if self._json_flags.pop("ensure_ascii", True) else json.dumps_notascii
+                    func = (
+                        json.dumps
+                        if self._json_flags.pop("ensure_ascii", True)
+                        else json.dumps_notascii
+                    )
                     res = func(res, **(self._json_flags or {}))
                 except Exception as ex:
                     # JSON serialization may fail, probably problem with data or error_data so pop it and try again
@@ -685,8 +689,12 @@ class APICall(DataContainer):
             cookies=self._result.cookies,
         )
 
-    def get_redacted_headers(self):
-        headers = self.headers.copy()
+    def get_redacted_headers(self, fields=None):
+        headers = (
+            {k: v for k, v in self._headers.items() if k in fields}
+            if fields
+            else self.headers
+        )
         if not self.requires_authorization or self.auth:
             # We won't log the authorization header if call shouldn't be authorized, or if it was successfully
             #  authorized. This means we'll only log authorization header for calls that failed to authorize (hopefully
