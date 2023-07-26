@@ -39,6 +39,7 @@ from apiserver.utilities.dicts import nested_get
 org_bll = OrgBLL()
 project_bll = ProjectBLL()
 redis = redman.connection("apiserver")
+conf = config.get("services.organization")
 
 
 @endpoint("organization.get_tags", request_data_model=TagsRequest)
@@ -182,9 +183,6 @@ def _get_download_getter_fn(
     return getter
 
 
-download_conf = config.get("services.organization.download")
-
-
 @endpoint("organization.prepare_download_for_get_all")
 def prepare_download_for_get_all(
     call: APICall, company: str, request: PrepareDownloadForGetAllRequest
@@ -214,12 +212,13 @@ def prepare_download_for_get_all(
         allow_public=request.allow_public,
         entity_type=request.entity_type,
     )
+    # retrieve one element just to make sure that there are no issues with the call parameters
     if getter:
         getter(0, 1)
 
     redis.setex(
         f"get_all_download_{call.id}",
-        int(download_conf.get("redis_timeout_sec", 300)),
+        int(conf.get("download.redis_timeout_sec", 300)),
         json.dumps(call.data),
     )
 
@@ -250,7 +249,8 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAllReque
             mapping.get("name", mapping["field"]): {
                 "field_path": mapping["field"].split("."),
                 "values": {
-                    v.get("key"): v.get("value") for v in (mapping.get("values") or [])
+                    v.get("key"): v.get("value")
+                    for v in (mapping.get("values") or [])
                 },
             }
             for mapping in call_data.get("field_mappings", [])
@@ -287,16 +287,18 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAllReque
 
         with ThreadPoolExecutor(1) as pool:
             page = 0
-            page_size = int(download_conf.get("batch_size", 500))
-            future = pool.submit(get_fn, page, page_size)
-
-            while True:
+            page_size = int(conf.get("download.batch_size", 500))
+            items_left = int(conf.get("download.max_download_items", 1000))
+            future = pool.submit(get_fn, page, min(page_size, items_left))
+            while items_left > 0:
                 result = future.result()
                 if not result:
                     break
 
+                items_left -= len(result)
                 page += 1
-                future = pool.submit(get_fn, page, page_size)
+                if items_left > 0:
+                    future = pool.submit(get_fn, page, min(page_size, items_left))
 
                 with StringIO() as fp:
                     writer = csv.writer(fp)
@@ -323,7 +325,7 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAllReque
         if not project:
             return
 
-        return project.basename[: download_conf.get("max_project_name_length", 60)]
+        return project.basename[: conf.get("download.max_project_name_length", 60)]
 
     call.result.filename = "-".join(
         filter(None, ("clearml", get_project_name(), f"{request.entity_type}s.csv"))

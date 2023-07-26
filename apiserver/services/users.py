@@ -98,9 +98,7 @@ def get_current_user(call: APICall, company_id, _):
     user_id = call.identity.user
 
     projection = (
-        {"company.name"}
-        .union(User.get_fields())
-        .difference(User.get_exclude_fields())
+        {"company.name"}.union(User.get_fields()).difference(User.get_exclude_fields())
     )
     res = User.get_many_with_join(
         query=Q(id=user_id),
@@ -114,9 +112,13 @@ def get_current_user(call: APICall, company_id, _):
     user = res[0]
     user["role"] = call.identity.role
 
-    resp = {
-        "user": user,
-        "getting_started": config.get("apiserver.getting_started_info", None),
+    resp = dict(
+        user=user, getting_started=config.get("apiserver.getting_started_info", None)
+    )
+    resp["settings"] = {
+        "max_download_items": int(
+            config.get("services.organization.download.max_download_items", 1000)
+        )
     }
     call.result.data = resp
 
