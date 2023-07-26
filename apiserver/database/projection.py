@@ -3,10 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import groupby, chain
 from typing import Sequence, Dict, Callable
 
+from boltons import iterutils
+
 from apiserver.apierrors import errors
+from apiserver.config_repo import config
 from apiserver.database.props import PropsMixin
 
 SEP = "."
+max_items_per_fetch = config.get("services._mongo.max_page_size", 500)
 
 
 class _ReferenceProxy(dict):
@@ -278,10 +282,11 @@ class ProjectionHelper(object):
                     doc_only = list(filter(None, data["only"]))
                     doc_only = list({"id"} | set(doc_only)) if doc_only else None
 
-                    for res in projection_func(
-                        doc_type=doc_type, projection=doc_only, ids=ids
-                    ):
-                        self._proxy_manager.update(res)
+                    for ids_chunk in iterutils.chunked_iter(ids, max_items_per_fetch):
+                        for res in projection_func(
+                            doc_type=doc_type, projection=doc_only, ids=ids_chunk
+                        ):
+                            self._proxy_manager.update(res)
 
                 if len(ref_projection) == 1:
                     do_projection(items[0])
