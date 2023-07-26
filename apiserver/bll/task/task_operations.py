@@ -46,6 +46,7 @@ def archive_task(
             company_id=company_id,
             only=(
                 "id",
+                "company",
                 "execution",
                 "status",
                 "project",
@@ -102,10 +103,23 @@ def dequeue_task(
     status_reason: str,
     remove_from_all_queues: bool = False,
 ) -> Tuple[int, dict]:
-    query = dict(id=task_id, company=company_id)
-    task = Task.get_for_writing(**query)
+    # get the task without write access to make sure that it actually exists
+    task = Task.get(
+        id=task_id,
+        company=company_id,
+        _only=(
+            "id",
+            "company",
+            "execution",
+            "status",
+            "project",
+            "enqueue_status",
+        ),
+        include_public=True,
+    )
     if not task:
-        raise errors.bad_request.InvalidTaskId(**query)
+        TaskBLL.remove_task_from_all_queues(company_id, task_id=task_id)
+        return 1, {"updated": 0}
 
     res = TaskBLL.dequeue_and_change_status(
         task,
@@ -301,7 +315,7 @@ def reset_task(
         # dequeue may fail if the task was not enqueued
         pass
 
-    TaskBLL.remove_task_from_all_queues(company_id=company_id, task=task)
+    TaskBLL.remove_task_from_all_queues(company_id=company_id, task_id=task.id)
 
     cleaned_up = cleanup_task(
         company=company_id,

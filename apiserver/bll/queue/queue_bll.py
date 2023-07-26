@@ -155,7 +155,13 @@ class QueueBLL(object):
                         task = Task.get_for_writing(
                             company=company_id,
                             id=item.task,
-                            _only=["id", "status", "enqueue_status", "project"],
+                            _only=[
+                                "id",
+                                "company",
+                                "status",
+                                "enqueue_status",
+                                "project",
+                            ],
                         )
                         if not task:
                             continue
@@ -321,16 +327,13 @@ class QueueBLL(object):
             return len(entries_to_remove) if res else 0
 
     def reposition_task(
-        self,
-        company_id: str,
-        queue_id: str,
-        task_id: str,
-        move_count: Union[int, str],
+        self, company_id: str, queue_id: str, task_id: str, move_count: Union[int, str],
     ) -> int:
         """
         Moves the task in the queue to the position calculated by pos_func
         Returns the updated task position in the queue
         """
+
         def get_queue_and_task_position():
             q = self.get_queue_with_task(
                 company_id=company_id, queue_id=queue_id, task_id=task_id

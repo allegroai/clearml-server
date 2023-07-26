@@ -1024,7 +1024,15 @@ def archive(call: APICall, company_id, request: ArchiveRequest):
     tasks = TaskBLL.assert_exists(
         company_id,
         task_ids=request.tasks,
-        only=("id", "execution", "status", "project", "system_tags", "enqueue_status"),
+        only=(
+            "id",
+            "company",
+            "execution",
+            "status",
+            "project",
+            "system_tags",
+            "enqueue_status",
+        ),
     )
     archived = 0
     for task in tasks:
