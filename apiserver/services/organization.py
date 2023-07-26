@@ -177,6 +177,9 @@ def _get_download_getter_fn(
     return getter
 
 
+download_conf = config.get("services.organization.download")
+
+
 @endpoint("organization.prepare_download_for_get_all")
 def prepare_download_for_get_all(
     call: APICall, company: str, request: PrepareDownloadForGetAll
@@ -194,7 +197,7 @@ def prepare_download_for_get_all(
 
     redis.setex(
         f"get_all_download_{call.id}",
-        int(config.get("services.organization.download.redis_timeout_sec", 300)),
+        int(download_conf.get("redis_timeout_sec", 300)),
         json.dumps(call.data),
     )
 
@@ -248,7 +251,7 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAll):
         with ThreadPoolExecutor(1) as pool:
             page = 0
             page_size = int(
-                config.get("services.organization.download.batch_size", 500)
+                download_conf.get("batch_size", 500)
             )
             future = pool.submit(get_fn, page, page_size)
 
@@ -270,6 +273,26 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAll):
         if page == 0:
             yield csv.writer(SingleLine()).writerow(projection)
 
-    call.result.filename = f"{request.entity_type}_export.csv"
+    def get_project_name() -> Optional[str]:
+        projects = call_data.get("project")
+        if not projects or not isinstance(projects, (list, str)):
+            return
+        if isinstance(projects, list):
+            if len(projects) > 1:
+                return
+            projects = projects[0]
+            if projects is None:
+                return "root"
+        project: Project = Project.objects(id=projects).only("basename").first()
+        if not project:
+            return
+
+        return project.basename[:download_conf.get("max_project_name_length", 60)]
+
+    call.result.filename = "-".join(
+        filter(
+            None, ("clearml", get_project_name(), f"{request.entity_type}s.csv")
+        )
+    )
     call.result.content_type = "text/csv"
     call.result.raw_data = stream_with_context(generate())

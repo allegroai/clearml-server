@@ -1,8 +1,10 @@
+import unicodedata
 from functools import partial
 
 from flask import request, Response, redirect
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.exceptions import BadRequest
+from werkzeug.urls import url_quote
 
 from apiserver.apierrors import APIError
 from apiserver.apierrors.base import BaseError
@@ -44,9 +46,17 @@ class RequestHandlers:
             else:
                 headers = None
                 if call.result.filename:
-                    headers = {
-                        "Content-Disposition": f"attachment; filename={call.result.filename}"
-                    }
+                    try:
+                        call.result.filename.encode("ascii")
+                    except UnicodeEncodeError:
+                        simple = unicodedata.normalize("NFKD", call.result.filename)
+                        simple = simple.encode("ascii", "ignore").decode("ascii")
+                        # safe = RFC 5987 attr-char
+                        quoted = url_quote(call.result.filename, safe="")
+                        filenames = f"filename={simple}; filename*=UTF-8''{quoted}"
+                    else:
+                        filenames = f"filename={call.result.filename}"
+                    headers = {"Content-Disposition": "attachment; " + filenames}
 
                 response = Response(
                     content,
