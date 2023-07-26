@@ -1,7 +1,6 @@
 from operator import itemgetter
 from typing import Sequence
 
-from apiserver.apierrors.errors.bad_request import InvalidTaskStatus
 from apiserver.tests.automated import TestService
 
 

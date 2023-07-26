@@ -80,7 +80,7 @@ class QueueMetrics:
         logged = 0
         for q in queues:
             queue_doc = make_doc(q)
-            self.es.index(index=es_index, body=queue_doc)
+            self.es.index(index=es_index, document=queue_doc)
             redis_key = _queue_metrics_key_pattern.format(queue=q.id)
             redis.set(redis_key, json.dumps(queue_doc))
             logged += 1

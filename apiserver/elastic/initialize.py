@@ -85,7 +85,7 @@ def check_elastic_empty() -> bool:
                 es = Elasticsearch(
                     hosts=cluster_conf.get("hosts", None),
                     http_auth=es_factory.get_credentials("events", cluster_conf),
-                    **cluster_conf.get("args", {})
+                    **cluster_conf.get("args", {}),
                 )
                 return not es.indices.get_template(name="events*")
             except exceptions.NotFoundError as ex:
@@ -115,5 +115,7 @@ def init_es_data():
         args = cluster_conf.get("args", {})
         http_auth = es_factory.get_credentials(name)
 
-        res = apply_mappings_to_cluster(hosts_config, name, es_args=args, http_auth=http_auth)
+        res = apply_mappings_to_cluster(
+            hosts_config, name, es_args=args, http_auth=http_auth
+        )
         log.info(res)

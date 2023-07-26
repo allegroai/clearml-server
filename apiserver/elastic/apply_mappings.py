@@ -21,7 +21,7 @@ def apply_mappings_to_cluster(
         with f.open() as json_data:
             data = json.load(json_data)
             template_name = f.stem
-            res = es.indices.put_template(template_name, body=data)
+            res = es.indices.put_template(name=template_name, body=data)
             return {"mapping": template_name, "result": res}
 
     p = HERE / "mappings"

@@ -64,7 +64,7 @@ def get_index_name(company_id: Union[str, Sequence[str]], event_type: str):
 
 def check_empty_data(es: Elasticsearch, company_id: str, event_type: EventType) -> bool:
     es_index = get_index_name(company_id, event_type.value)
-    if not es.indices.exists(es_index):
+    if not es.indices.exists(index=es_index):
         return True
     return False
 

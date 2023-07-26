@@ -8,8 +8,7 @@ from typing import Sequence, Optional
 
 import dpath
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter, Retry
 
 from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.bll.util import get_server_uuid

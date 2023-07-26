@@ -9,9 +9,8 @@ import requests
 import six
 from boltons.iterutils import remap
 from boltons.typeutils import issubclass
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter, Retry
 from requests.auth import HTTPBasicAuth
-from requests.packages.urllib3.util.retry import Retry
 
 from apiserver.apierrors.base import BaseError
 from apiserver.config_repo import config
