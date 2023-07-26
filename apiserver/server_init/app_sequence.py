@@ -46,7 +46,6 @@ class AppSequence:
         self._attach_request_handlers(request_handlers)
 
     def _attach_request_handlers(self, request_handlers: RequestHandlers):
-        self.app.before_first_request(request_handlers.before_app_first_request)
         self.app.before_request(request_handlers.before_request)
         self.app.after_request(request_handlers.after_request)
 

@@ -3,6 +3,7 @@ import json
 import mimetypes
 import os
 import shutil
+import urllib.parse
 from argparse import ArgumentParser
 from collections import defaultdict
 from pathlib import Path
@@ -13,7 +14,6 @@ from flask_compress import Compress
 from flask_cors import CORS
 from werkzeug.exceptions import NotFound
 from werkzeug.security import safe_join
-from werkzeug.urls import url_unquote_plus
 
 from config import config
 from utils import get_env_bool
@@ -133,7 +133,7 @@ def batch_delete():
         log_errors[msg].append(str(path_))
 
     for file in files:
-        path = url_unquote_plus(file)
+        path = urllib.parse.unquote_plus(file)
         if not path or not path.strip("/"):
             # empty path may result in deleting all company data. Too dangerous
             record_error("Empty path not allowed", file, path)
