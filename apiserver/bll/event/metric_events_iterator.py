@@ -86,7 +86,7 @@ class MetricEventsIterator:
             task_id: company_id
             for task_id, company_id in companies.items()
             if not check_empty_data(
-                self.es, company_id=company_id, event_type=EventType.metrics_scalar
+                self.es, company_id=company_id, event_type=self.event_type
             )
         }
         if not companies:
