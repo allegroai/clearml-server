@@ -301,6 +301,7 @@ def download_for_get_all(call: APICall, company, request: DownloadForGetAllReque
                 with StringIO() as fp:
                     writer = csv.writer(fp)
                     if page == 1:
+                        fp.write("\ufeff")  # utf-8 signature
                         writer.writerow(field_mappings)
                     writer.writerows(get_projected_fields(r) for r in result)
                     yield fp.getvalue()
