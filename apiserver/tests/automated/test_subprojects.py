@@ -90,6 +90,18 @@ class TestSubProjects(TestService):
         self.assertEqual(p.basename, "project1")
         self.assertEqual(p.stats.active.total_tasks, 1)
 
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root],
+            children_type="report",
+            children_tags=["__$any", "__$not", "test1", "test2"],
+            shallow_search=True,
+            include_stats=True,
+            check_own_contents=True,
+        ).projects
+        self.assertEqual(len(projects), 2)
+        for p in projects:
+            self.assertEqual(p.stats.active.total_tasks, 1)
+
     def test_query_children(self):
         test_root_name = "TestQueryChildren"
         test_root = self._temp_project(name=test_root_name)

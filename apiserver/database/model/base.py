@@ -163,6 +163,7 @@ class GetMixin(PropsMixin):
             self.allow_empty = False
             self.global_operator = None
             self.actions = defaultdict(list)
+            self.explicit_operator = False
 
             self._support_legacy = legacy
             current_context = self.default_operator
@@ -172,6 +173,7 @@ class GetMixin(PropsMixin):
                     self._support_legacy = False
                     if self.global_operator is None:
                         self.global_operator = d.operator
+                        self.explicit_operator = True
                     continue
 
                 if self.global_operator is None:

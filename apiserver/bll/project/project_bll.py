@@ -1084,6 +1084,7 @@ class ProjectBLL:
         if not filter_:
             return conditions
 
+        or_conditions = []
         for field, field_filter in filter_.items():
             if not (
                 field_filter
@@ -1096,12 +1097,28 @@ class ProjectBLL:
             helper = GetMixin.NewListFieldBucketHelper(
                 field, data=field_filter, legacy=True
             )
-            conditions[field] = {}
+            field_conditions = {}
             for action, values in helper.actions.items():
                 value = list(set(values))
                 for key in reversed(action.split("__")):
                     value = {f"${key}": value}
-                conditions[field].update(value)
+                field_conditions.update(value)
+            if (
+                helper.explicit_operator
+                and helper.global_operator == Q.OR
+                and len(field_conditions) > 1
+            ):
+                or_conditions.append(
+                    [{field: {op: cond}} for op, cond in field_conditions.items()]
+                )
+            else:
+                conditions[field] = field_conditions
+
+        if or_conditions:
+            if len(or_conditions) == 1:
+                conditions["$or"] = next(iter(or_conditions))
+            else:
+                conditions["$and"] = [{"$or": c} for c in or_conditions]
 
         return conditions
 
