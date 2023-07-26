@@ -570,7 +570,9 @@ def _get_multitask_plots(
         sort=[{"iter": {"order": "desc"}}],
         scroll_id=scroll_id,
         no_scroll=no_scroll,
-        size=10000,
+        size=config.get(
+            "services.events.events_retrieval.multi_plots_batch_size", 1000
+        ),
     )
     return_events = _get_top_iter_unique_events_per_task(
         result.events, max_iters=last_iters, task_names=task_names
@@ -776,7 +778,6 @@ def get_debug_images_v1_8(call, company_id, _):
         sort=[{"iter": {"order": "desc"}}],
         last_iter_count=iters,
         scroll_id=scroll_id,
-        size=10000,
     )
 
     return_events = result.events
