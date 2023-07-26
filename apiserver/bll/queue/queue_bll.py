@@ -242,6 +242,7 @@ class QueueBLL(object):
                     {
                         "name": w.id,
                         "ip": w.ip,
+                        "key": w.key,
                         "task": w.task.to_struct() if w.task else None,
                     }
                     for w in queue_workers.get(item["id"], [])
