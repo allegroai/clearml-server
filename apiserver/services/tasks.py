@@ -101,7 +101,7 @@ from apiserver.bll.task.task_operations import (
     move_tasks_to_trash,
 )
 from apiserver.bll.task.utils import update_task, get_task_for_update, deleted_prefix
-from apiserver.bll.util import SetFieldsResolver, run_batch_operation
+from apiserver.bll.util import run_batch_operation
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.task.output import Output
@@ -141,29 +141,12 @@ project_bll = ProjectBLL()
 def set_task_status_from_call(
     request: UpdateRequest, company_id: str, user_id: str, new_status=None, **set_fields
 ) -> dict:
-    fields_resolver = SetFieldsResolver(set_fields)
     task = TaskBLL.get_task_with_access(
         request.task,
         company_id=company_id,
-        only=tuple(
-            {"status", "project", "started", "duration"} | fields_resolver.get_names()
-        ),
+        only=("id", "status", "project"),
         requires_write_access=True,
     )
-
-    if "duration" not in fields_resolver.get_names():
-        if new_status == Task.started:
-            fields_resolver.add_fields(min__duration=max(0, task.duration or 0))
-        elif new_status in (
-            TaskStatus.completed,
-            TaskStatus.failed,
-            TaskStatus.stopped,
-        ):
-            fields_resolver.add_fields(
-                duration=int((task.started - datetime.utcnow()).total_seconds())
-                if task.started
-                else 0
-            )
 
     status_reason = request.status_reason
     status_message = request.status_message
@@ -175,7 +158,7 @@ def set_task_status_from_call(
         status_message=status_message,
         force=force,
         user_id=user_id,
-    ).execute(**fields_resolver.get_fields(task))
+    ).execute(**set_fields)
 
 
 @endpoint("tasks.get_by_id", request_data_model=TaskRequest)

@@ -271,7 +271,7 @@ class Task(AttributedDocument):
     unique_metrics = ListField(StringField(required=True), exclude_by_default=True)
     metric_stats = SafeMapField(field=EmbeddedDocumentField(MetricEventStats))
     company_origin = StringField(exclude_by_default=True)
-    duration = IntField()  # task duration in seconds
+    duration = IntField()  # obsolete, do not use
     hyperparams = SafeMapField(field=SafeMapField(EmbeddedDocumentField(ParamsItem)))
     configuration = SafeMapField(field=EmbeddedDocumentField(ConfigurationItem))
     runtime = SafeDictField(default=dict)

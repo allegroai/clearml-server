@@ -4,9 +4,6 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from typing import (
     Optional,
     Callable,
-    Dict,
-    Any,
-    Set,
     Iterable,
     Tuple,
     Sequence,
@@ -16,59 +13,7 @@ from typing import (
 from boltons import iterutils
 
 from apiserver.apierrors import APIError
-from apiserver.database.model import AttributedDocument
 from apiserver.database.model.settings import Settings
-
-
-class SetFieldsResolver:
-    """
-    The class receives set fields dictionary
-    and for the set fields that require 'min' or 'max'
-    operation replace them with a simple set in case the
-    DB document does not have these fields set
-    """
-
-    SET_MODIFIERS = ("min", "max")
-
-    def __init__(self, set_fields: Dict[str, Any]):
-        self.orig_fields = {}
-        self.fields = {}
-        self.add_fields(**set_fields)
-
-    def add_fields(self, **set_fields: Any):
-        self.orig_fields.update(set_fields)
-        self.fields.update(
-            {
-                f: fname
-                for f, modifier, dunder, fname in (
-                    (f,) + f.partition("__") for f in set_fields.keys()
-                )
-                if dunder and modifier in self.SET_MODIFIERS
-            }
-        )
-
-    def _get_updated_name(self, doc: AttributedDocument, name: str) -> str:
-        if name in self.fields and doc.get_field_value(self.fields[name]) is None:
-            return self.fields[name]
-        return name
-
-    def get_fields(self, doc: AttributedDocument):
-        """
-        For the given document return the set fields instructions
-        with min/max operations replaced with a single set in case
-        the document does not have the field set
-        """
-        return {
-            self._get_updated_name(doc, name): value
-            for name, value in self.orig_fields.items()
-        }
-
-    def get_names(self) -> Set[str]:
-        """
-        Returns the names of the fields that had min/max modifiers
-        in the format suitable for projection (dot separated)
-        """
-        return set(name.replace("__", ".") for name in self.fields.values())
 
 
 @functools.lru_cache()
