@@ -933,7 +933,10 @@ class ProjectBLL:
                 & Q(system_tags__in=[dataset_tag], basename__ne=datasets_project_name)
             }
         elif children_type == ProjectChildrenType.pipeline:
-            child_queries = {Task: child_query & Q(system_tags__in=[pipeline_tag])}
+            child_queries = {
+                Project: child_query
+                & Q(system_tags__in=[pipeline_tag], basename__ne=pipelines_project_name)
+            }
         elif children_type == ProjectChildrenType.report:
             child_queries = {Task: child_query & Q(system_tags__in=[reports_tag])}
         else:
