@@ -165,6 +165,9 @@ def _get_download_getter_fn(
 
     def getter(page: int, page_size: int) -> Sequence[dict]:
         call_data.pop("scroll_id", None)
+        call_data.pop("start", None)
+        call_data.pop("size", None)
+        call_data.pop("refresh_scroll", None)
         call_data["page"] = page
         call_data["page_size"] = page_size
         return get_fn()
