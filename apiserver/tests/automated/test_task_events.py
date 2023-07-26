@@ -14,8 +14,9 @@ from apiserver.tests.automated import TestService
 
 class TestTaskEvents(TestService):
     delete_params = dict(can_fail=True, force=True)
+    default_task_name = "test task events"
 
-    def _temp_task(self, name="test task events"):
+    def _temp_task(self, name=default_task_name):
         task_input = dict(name=name, type="training",)
         return self.create_temp(
             "tasks", delete_paramse=self.delete_params, **task_input
@@ -115,6 +116,7 @@ class TestTaskEvents(TestService):
         self.assertEqual(len(res), 1)
         data = res[0]
         self.assertEqual(data.task, task)
+        self.assertEqual(data.task_name, self.default_task_name)
         self.assertEqual(len(data["values"]), 1)
         value = data["values"][0]
         self.assertEqual(value.metric, metric)
@@ -147,6 +149,7 @@ class TestTaskEvents(TestService):
 
         data = self.api.events.get_task_single_value_metrics(tasks=[task]).tasks[0]
         self.assertEqual(data.task, task)
+        self.assertEqual(data.task_name, self.default_task_name)
         self.assertEqual(len(data["values"]), 1)
         value = data["values"][0]
         self.assertEqual(value.value, new_value)

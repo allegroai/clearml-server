@@ -76,7 +76,9 @@ def _assert_report(company_id, task_id, only_fields=None, requires_write_access=
 @endpoint("reports.update", response_data_model=UpdateResponse)
 def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     task = _assert_report(
-        task_id=request.task, company_id=company_id, only_fields=("status",),
+        task_id=request.task,
+        company_id=company_id,
+        only_fields=("status",),
     )
 
     partial_update_dict = {
@@ -181,9 +183,9 @@ def get_all_ex(call: APICall, company_id, request: GetAllRequest):
             project_ids = [project_ids]
 
         query = Q(parent__in=project_ids) | Q(id__in=project_ids)
-        project_ids = Project.objects(
-            query & Q(basename=reports_project_name)
-        ).scalar("id")
+        project_ids = Project.objects(query & Q(basename=reports_project_name)).scalar(
+            "id"
+        )
         if not project_ids:
             return {"tasks": []}
         call_data["project"] = list(project_ids)
@@ -281,7 +283,10 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
 
     if request.single_value_metrics:
         res["single_value_metrics"] = _get_single_value_metrics_response(
-            event_bll.metrics.get_task_single_value_metrics(companies=companies)
+            companies=companies,
+            value_metrics=event_bll.metrics.get_task_single_value_metrics(
+                companies=companies
+            ),
         )
 
     call.result.data = res
@@ -295,7 +300,9 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
         )
 
     task = _assert_report(
-        company_id=company_id, task_id=request.task, only_fields=("project",),
+        company_id=company_id,
+        task_id=request.task,
+        only_fields=("project",),
     )
     user_id = call.identity.user
     project_name = request.project_name
@@ -326,7 +333,8 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
 
 
 @endpoint(
-    "reports.publish", response_data_model=UpdateResponse,
+    "reports.publish",
+    response_data_model=UpdateResponse,
 )
 def publish(call: APICall, company_id, request: PublishReportRequest):
     task = _assert_report(company_id=company_id, task_id=request.task)
@@ -384,7 +392,9 @@ def unarchive(call: APICall, company_id, request: ArchiveReportRequest):
 @endpoint("reports.delete")
 def delete(call: APICall, company_id, request: DeleteReportRequest):
     task = _assert_report(
-        company_id=company_id, task_id=request.task, only_fields=("project",),
+        company_id=company_id,
+        task_id=request.task,
+        only_fields=("project",),
     )
     if (
         task.status != TaskStatus.created

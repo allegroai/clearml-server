@@ -151,12 +151,13 @@ class TestReports(TestService):
 
     def test_reports_task_data(self):
         report_task = self._temp_report(name="Rep1")
+        non_reports_task_name = "test non-reports"
         for model_events in (False, True):
             if model_events:
-                non_report_task = self._temp_model(name="hello")
+                non_report_task = self._temp_model(name=non_reports_task_name)
                 event_args = {"model_event": True}
             else:
-                non_report_task = self._temp_task(name="hello")
+                non_report_task = self._temp_task(name=non_reports_task_name)
                 event_args = {}
             debug_image_events = [
                 self._create_task_event(
@@ -235,6 +236,7 @@ class TestReports(TestService):
             self.assertEqual(len(res.single_value_metrics), 1)
             task_metrics = res.single_value_metrics[0]
             self.assertEqual(task_metrics.task, non_report_task)
+            self.assertEqual(task_metrics.task_name, non_reports_task_name)
             self.assertEqual(
                 {(v["metric"], v["variant"]) for v in task_metrics["values"]},
                 {(f"Metric_{x}", f"Variant_{y}") for x in range(2) for y in range(2)},
@@ -253,7 +255,7 @@ class TestReports(TestService):
                 task_plots = tasks[non_report_task]
                 self.assertEqual(len(task_plots), 1)
                 iter_plots = task_plots["1"]
-                self.assertEqual(iter_plots.name, "hello")
+                self.assertEqual(iter_plots.name, non_reports_task_name)
                 self.assertEqual(len(iter_plots.plots), 1)
                 ev = iter_plots.plots[0]
                 self.assertEqual(ev["metric"], m)
