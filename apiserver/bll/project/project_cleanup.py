@@ -128,7 +128,7 @@ def delete_project(
     project_id: str,
     force: bool,
     delete_contents: bool,
-    delete_external_artifacts=True,
+    delete_external_artifacts: bool,
 ) -> Tuple[DeleteProjectResult, Set[str]]:
     project = Project.get_for_writing(
         company=company, id=project_id, _only=("id", "path", "system_tags")

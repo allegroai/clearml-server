@@ -14,6 +14,8 @@ from .metadata import Metadata
 
 
 class ModelBLL:
+    event_bll = None
+
     @classmethod
     def get_company_model_by_id(
         cls, company_id: str, model_id: str, only_fields=None
@@ -156,6 +158,11 @@ class ModelBLL:
                     can_delete_folders=False,
                 )
 
+        if not cls.event_bll:
+            from apiserver.bll.event import EventBLL
+            cls.event_bll = EventBLL()
+
+        cls.event_bll.delete_task_events(company_id, model_id, allow_locked=True, model=True)
         del_count = Model.objects(id=model_id, company=company_id).delete()
         return del_count, model
 

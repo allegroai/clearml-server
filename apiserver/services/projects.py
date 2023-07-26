@@ -356,6 +356,7 @@ def delete(call: APICall, company_id: str, request: DeleteRequest):
         project_id=request.project,
         force=request.force,
         delete_contents=request.delete_contents,
+        delete_external_artifacts=request.delete_external_artifacts,
     )
     _reset_cached_tags(company_id, projects=list(affected_projects))
     call.result.data = {**attr.asdict(res)}

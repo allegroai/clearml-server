@@ -23,6 +23,7 @@ class MoveRequest(ProjectRequest):
 class DeleteRequest(ProjectRequest):
     force = fields.BoolField(default=False)
     delete_contents = fields.BoolField(default=False)
+    delete_external_artifacts = fields.BoolField(default=True)
 
 
 class ProjectOrNoneRequest(models.Base):
