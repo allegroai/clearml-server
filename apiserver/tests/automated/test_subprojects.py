@@ -141,9 +141,7 @@ class TestSubProjects(TestService):
         for p in projects:
             self.assertEqual(
                 p.stats.active.total_tasks,
-                2
-                if p.basename in ("Project1", "Project2")
-                else 1
+                2 if p.basename in ("Project1", "Project2") else 1,
             )
 
         for i, type_ in enumerate(("dataset", "pipeline", "report")):
@@ -164,9 +162,7 @@ class TestSubProjects(TestService):
             else:
                 self.assertEqual(p.own_tasks, 0)
                 self.assertIsNone(p.get("own_datasets"))
-                self.assertEqual(
-                    p.stats.active.total_tasks, 1 if p.basename != "Project2" else 0
-                )
+                self.assertEqual(p.stats.active.total_tasks, 1)
 
     def test_project_aggregations(self):
         """This test requires user with user_auth_only... credentials in db"""
@@ -365,7 +361,9 @@ class TestSubProjects(TestService):
         self.assertEqual(len(res), 2)
         res = self.api.tasks.get_all(project=project1).tasks
         self.assertEqual(len(res), 2)
-        res = self.api.tasks.get_all_ex(project=project1, include_subprojects=True).tasks
+        res = self.api.tasks.get_all_ex(
+            project=project1, include_subprojects=True
+        ).tasks
         self.assertEqual(len(res), 4)
         res = self.api.tasks.get_all(project=project1, include_subprojects=True).tasks
         self.assertEqual(len(res), 4)
@@ -375,7 +373,9 @@ class TestSubProjects(TestService):
         self.assertEqual(len(res), 1)
         res = self.api.models.get_all(project=project1).models
         self.assertEqual(len(res), 1)
-        res = self.api.models.get_all_ex(project=project1, include_subprojects=True).models
+        res = self.api.models.get_all_ex(
+            project=project1, include_subprojects=True
+        ).models
         self.assertEqual(len(res), 2)
         res = self.api.models.get_all(project=project1, include_subprojects=True).models
         self.assertEqual(len(res), 2)

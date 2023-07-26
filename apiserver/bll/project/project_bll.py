@@ -960,7 +960,7 @@ class ProjectBLL:
         for cls_, query_ in child_queries.items():
             res |= set(
                 cls_.objects(query_).distinct(
-                    field="parent" if cls_ is Project else "project"
+                    field="id" if cls_ is Project else "project"
                 )
             )
 
