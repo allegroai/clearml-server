@@ -148,7 +148,8 @@ class GetMixin(PropsMixin):
         }
         default_operator = Q.OR
         mongo_modifiers = {
-            Q.AND: {True: "all", False: "not__all"},
+            # not_all modifier currently not supported due to the backwards compatibility
+            Q.AND: {True: "all", False: "nin"},
             Q.OR: {True: "in", False: "nin"},
         }
 
