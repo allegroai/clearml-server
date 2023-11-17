@@ -90,7 +90,7 @@ class Token(Payload):
             return token
         except Exception as e:
             raise errors.unauthorized.InvalidToken(
-                "failed parsing token, %s" % e.args[0]
+                "failed parsing token", reason=e.args[0]
             )
 
     @classmethod

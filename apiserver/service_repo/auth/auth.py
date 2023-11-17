@@ -30,24 +30,35 @@ def get_auth_func(auth_type):
     raise errors.unauthorized.BadAuthType()
 
 
-def authorize_token(jwt_token, *_, **__):
+def authorize_token(jwt_token, service, action, call):
     """Validate token against service/endpoint and requests data (dicts).
     Returns a parsed token object (auth payload)
     """
+    call_info = {"ip": call.real_ip}
+
+    def log_error(msg):
+        info = ", ".join(f"{k}={v}" for k, v in call_info.items())
+        log.error(f"{msg} Call info: {info}")
+
     try:
         return Token.from_encoded_token(jwt_token)
 
     except jwt.exceptions.InvalidKeyError as ex:
+        log_error("Failed parsing token.")
         raise errors.unauthorized.InvalidToken(
             "jwt invalid key error", reason=ex.args[0]
         )
     except jwt.InvalidTokenError as ex:
+        log_error("Failed parsing token.")
         raise errors.unauthorized.InvalidToken("invalid jwt token", reason=ex.args[0])
     except ValueError as ex:
-        log.exception("Failed while processing token: %s" % ex.args[0])
+        log_error(f"Failed while processing token: {str(ex.args[0])}.")
         raise errors.unauthorized.InvalidToken(
             "failed processing token", reason=ex.args[0]
         )
+    except Exception:
+        log_error("Failed processing token.")
+        raise
 
 
 def authorize_credentials(auth_data, service, action, call):
