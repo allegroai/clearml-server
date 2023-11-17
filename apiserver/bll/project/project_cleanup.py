@@ -185,10 +185,10 @@ def delete_project(
         res = DeleteProjectResult(disassociated_tasks=disassociated[Task])
     else:
         deleted_models, model_event_urls, model_urls = _delete_models(
-            company=company, projects=project_ids
+            company=company, user=user, projects=project_ids
         )
         deleted_tasks, task_event_urls, artifact_urls = _delete_tasks(
-            company=company, projects=project_ids
+            company=company, user=user, projects=project_ids
         )
         event_urls = task_event_urls | model_event_urls
         if delete_external_artifacts:
@@ -217,7 +217,7 @@ def delete_project(
     return res, affected
 
 
-def _delete_tasks(company: str, projects: Sequence[str]) -> Tuple[int, Set, Set]:
+def _delete_tasks(company: str, user: str, projects: Sequence[str]) -> Tuple[int, Set, Set]:
     """
     Delete only the task themselves and their non published version.
     Child models under the same project are deleted separately.
@@ -229,8 +229,17 @@ def _delete_tasks(company: str, projects: Sequence[str]) -> Tuple[int, Set, Set]
         return 0, set(), set()
 
     task_ids = {t.id for t in tasks}
-    Task.objects(parent__in=task_ids, project__nin=projects).update(parent=None)
-    Model.objects(task__in=task_ids, project__nin=projects).update(task=None)
+    now = datetime.utcnow()
+    Task.objects(parent__in=task_ids, project__nin=projects).update(
+        parent=None,
+        last_change=now,
+        last_changed_by=user,
+    )
+    Model.objects(task__in=task_ids, project__nin=projects).update(
+        task=None,
+        last_change=now,
+        last_changed_by=user,
+    )
 
     event_urls, artifact_urls = set(), set()
     for task in tasks:
@@ -253,7 +262,7 @@ def _delete_tasks(company: str, projects: Sequence[str]) -> Tuple[int, Set, Set]
 
 
 def _delete_models(
-    company: str, projects: Sequence[str]
+    company: str, user: str, projects: Sequence[str]
 ) -> Tuple[int, Set[str], Set[str]]:
     """
     Delete project models and update the tasks from other projects
@@ -287,7 +296,11 @@ def _delete_models(
                 "status": TaskStatus.published,
             },
             update={
-                "$set": {"models.output.$[elem].model": deleted, "last_change": now,}
+                "$set": {
+                    "models.output.$[elem].model": deleted,
+                    "last_change": now,
+                    "last_changed_by": user,
+                }
             },
             array_filters=[{"elem.model": {"$in": model_ids}}],
             upsert=False,
@@ -295,7 +308,11 @@ def _delete_models(
         # update unpublished tasks
         Task.objects(
             id__in=model_tasks, project__nin=projects, status__ne=TaskStatus.published,
-        ).update(pull__models__output__model__in=model_ids, set__last_change=now)
+        ).update(
+            pull__models__output__model__in=model_ids,
+            set__last_change=now,
+            set__last_changed_by=user,
+        )
 
     event_urls, model_urls = set(), set()
     for m in models:

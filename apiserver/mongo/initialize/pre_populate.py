@@ -960,7 +960,7 @@ class PrePopulate:
             return tasks
 
     @classmethod
-    def _import_events(cls, f: IO[bytes], company_id: str, _, task_id: str):
+    def _import_events(cls, f: IO[bytes], company_id: str, user_id: str, task_id: str):
         print(f"Writing events for task {task_id} into database")
         for events_chunk in chunked_iter(cls.json_lines(f), 1000):
             events = [json.loads(item) for item in events_chunk]
@@ -969,5 +969,8 @@ class PrePopulate:
                 ev["company_id"] = company_id
                 ev["allow_locked"] = True
             cls.event_bll.add_events(
-                company_id, events=events, worker=""
+                company_id=company_id,
+                user_id=user_id,
+                events=events,
+                worker="",
             )

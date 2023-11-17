@@ -80,7 +80,14 @@ class ModelBLL:
                     id=model.task, data=task_publish_res
                 )
 
-        updated = model.update(upsert=False, ready=True, last_update=datetime.utcnow())
+        now = datetime.utcnow()
+        updated = model.update(
+            upsert=False,
+            ready=True,
+            last_update=now,
+            last_change=now,
+            last_changed_by=user_id,
+        )
         return updated, published_task
 
     @classmethod
@@ -125,6 +132,7 @@ class ModelBLL:
                                 "models.output.$[elem].model": deleted_model_id,
                                 "output.error": f"model deleted on {now.isoformat()}",
                                 "last_change": now,
+                                "last_changed_by": user_id,
                             },
                         },
                         array_filters=[{"elem.model": model_id}],
@@ -132,7 +140,9 @@ class ModelBLL:
                     )
                 else:
                     task.update(
-                        pull__models__output__model=model_id, set__last_change=now
+                        pull__models__output__model=model_id,
+                        set__last_change=now,
+                        set__last_changed_by=user_id,
                     )
 
         delete_external_artifacts = delete_external_artifacts and config.get(
@@ -167,25 +177,29 @@ class ModelBLL:
         return del_count, model
 
     @classmethod
-    def archive_model(cls, model_id: str, company_id: str):
+    def archive_model(cls, model_id: str, company_id: str, user_id: str):
         cls.get_company_model_by_id(
             company_id=company_id, model_id=model_id, only_fields=("id",)
         )
+        now = datetime.utcnow()
         archived = Model.objects(company=company_id, id=model_id).update(
             add_to_set__system_tags=EntityVisibility.archived.value,
-            last_update=datetime.utcnow(),
+            last_change=now,
+            last_changed_by=user_id,
         )
 
         return archived
 
     @classmethod
-    def unarchive_model(cls, model_id: str, company_id: str):
+    def unarchive_model(cls, model_id: str, company_id: str, user_id: str):
         cls.get_company_model_by_id(
             company_id=company_id, model_id=model_id, only_fields=("id",)
         )
+        now = datetime.utcnow()
         unarchived = Model.objects(company=company_id, id=model_id).update(
             pull__system_tags=EntityVisibility.archived.value,
-            last_update=datetime.utcnow(),
+            last_change=now,
+            last_changed_by=user_id,
         )
 
         return unarchived
@@ -218,11 +232,18 @@ class ModelBLL:
     @staticmethod
     def update_statistics(
         company_id: str,
+        user_id: str,
         model_id: str,
+        last_update: datetime = None,
         last_iteration_max: int = None,
         last_scalar_events: Dict[str, Dict[str, dict]] = None,
     ):
-        updates = {"last_update": datetime.utcnow()}
+        last_update = last_update or datetime.utcnow()
+        updates = {
+            "last_update": datetime.utcnow(),
+            "last_change": last_update,
+            "last_changed_by": user_id,
+        }
         if last_iteration_max is not None:
             updates.update(max__last_iteration=last_iteration_max)
 

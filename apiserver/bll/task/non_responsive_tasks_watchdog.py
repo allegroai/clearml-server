@@ -85,6 +85,7 @@ class NonResponsiveTasksWatchdog:
                     status_changed=now,
                     last_update=now,
                     last_change=now,
+                    last_changed_by="__apiserver__",
                 )
                 if updated:
                     project_ids.add(task.project)

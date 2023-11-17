@@ -222,8 +222,13 @@ def cleanup_task(
 
     deleted_task_id = f"{deleted_prefix}{task.id}"
     updated_children = 0
+    now = datetime.utcnow()
     if update_children:
-        updated_children = Task.objects(parent=task.id).update(parent=deleted_task_id)
+        updated_children = Task.objects(parent=task.id).update(
+            parent=deleted_task_id,
+            last_change=now,
+            last_changed_by=user,
+        )
 
     deleted_models = 0
     updated_models = 0
@@ -249,15 +254,25 @@ def cleanup_task(
 
             deleted_models += Model.objects(id__in=list(model_ids)).delete()
             if in_use_model_ids:
-                Model.objects(id__in=list(in_use_model_ids)).update(unset__task=1)
+                Model.objects(id__in=list(in_use_model_ids)).update(
+                    unset__task=1,
+                    set__last_change=now,
+                    set__last_changed_by=user,
+                )
             continue
 
         if update_children:
             updated_models += Model.objects(id__in=[m.id for m in models]).update(
-                task=deleted_task_id
+                task=deleted_task_id,
+                last_change=now,
+                last_changed_by=user,
             )
         else:
-            Model.objects(id__in=[m.id for m in models]).update(unset__task=1)
+            Model.objects(id__in=[m.id for m in models]).update(
+                unset__task=1,
+                set__last_change=now,
+                set__last_changed_by=user,
+            )
 
     event_bll.delete_task_events(
         task.company, task.id, allow_locked=force, async_delete=async_events_delete

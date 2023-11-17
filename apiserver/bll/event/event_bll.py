@@ -130,7 +130,11 @@ class EventBLL(object):
             return res
 
     def add_events(
-        self, company_id, events, worker
+        self,
+        company_id: str,
+        user_id: str,
+        events: Sequence[dict],
+        worker: str,
     ) -> Tuple[int, int, dict]:
         task_ids = {}
         model_ids = {}
@@ -311,21 +315,24 @@ class EventBLL(object):
                         else:
                             errors_per_type["Error when indexing events batch"] += 1
 
+            now = datetime.utcnow()
             for model_id in used_model_ids:
                 ModelBLL.update_statistics(
                     company_id=company_id,
+                    user_id=user_id,
                     model_id=model_id,
+                    last_update=now,
                     last_iteration_max=task_iteration.get(model_id),
                     last_scalar_events=task_last_scalar_events.get(model_id),
                 )
             remaining_tasks = set()
-            now = datetime.utcnow()
             for task_id in used_task_ids:
                 # Update related tasks. For reasons of performance, we prefer to update
                 # all of them and not only those who's events were successful
                 updated = self._update_task(
                     company_id=company_id,
                     task_id=task_id,
+                    user_id=user_id,
                     now=now,
                     iter_max=task_iteration.get(task_id),
                     last_scalar_events=task_last_scalar_events.get(task_id),
@@ -336,7 +343,12 @@ class EventBLL(object):
                     continue
 
             if remaining_tasks:
-                TaskBLL.set_last_update(remaining_tasks, company_id, last_update=now)
+                TaskBLL.set_last_update(
+                    remaining_tasks,
+                    company_id=company_id,
+                    user_id=user_id,
+                    last_update=now,
+                )
 
             # this is for backwards compatibility with streaming bulk throwing exception on those
             invalid_iterations_count = errors_per_type.get(invalid_iteration_error)
@@ -466,9 +478,10 @@ class EventBLL(object):
 
     def _update_task(
         self,
-        company_id,
-        task_id,
-        now,
+        company_id: str,
+        user_id: str,
+        task_id: str,
+        now: datetime,
         iter_max=None,
         last_scalar_events=None,
         last_events=None,
@@ -484,8 +497,9 @@ class EventBLL(object):
             return False
 
         return TaskBLL.update_statistics(
-            task_id,
-            company_id,
+            task_id=task_id,
+            company_id=company_id,
+            user_id=user_id,
             last_update=now,
             last_iteration_max=iter_max,
             last_scalar_events=last_scalar_events,

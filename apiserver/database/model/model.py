@@ -90,6 +90,8 @@ class Model(AttributedDocument):
     labels = ModelLabels()
     ready = BooleanField(required=True)
     last_update = DateTimeField()
+    last_change = DateTimeField()
+    last_changed_by = StringField()
     ui_cache = SafeDictField(
         default=dict, user_set_allowed=True, exclude_by_default=True
     )

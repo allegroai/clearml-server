@@ -76,7 +76,9 @@ def get_by_id(call: APICall, company_id, _):
     )
     if not models:
         raise errors.bad_request.InvalidModelId(
-            "no such public or company model", id=model_id, company=company_id,
+            "no such public or company model",
+            id=model_id,
+            company=company_id,
         )
     conform_model_data(call, models[0])
     call.result.data = {"model": models[0]}
@@ -102,7 +104,9 @@ def get_by_task_id(call: APICall, company_id, _):
     ).first()
     if not model:
         raise errors.bad_request.InvalidModelId(
-            "no such public or company model", id=model_id, company=company_id,
+            "no such public or company model",
+            id=model_id,
+            company=company_id,
         )
     model_dict = model.to_proper_dict()
     conform_model_data(call, model_dict)
@@ -128,7 +132,10 @@ def get_all_ex(call: APICall, company_id, request: ModelsGetRequest):
         return
 
     model_ids = {model["id"] for model in models}
-    stats = ModelBLL.get_model_stats(company=company_id, model_ids=list(model_ids),)
+    stats = ModelBLL.get_model_stats(
+        company=company_id,
+        model_ids=list(model_ids),
+    )
 
     for model in models:
         model["stats"] = stats.get(model["id"])
@@ -220,7 +227,9 @@ def _update_cached_tags(company: str, project: str, fields: dict):
 
 def _reset_cached_tags(company: str, projects: Sequence[str]):
     org_bll.reset_tags(
-        company, Tags.Model, projects=projects,
+        company,
+        Tags.Model,
+        projects=projects,
     )
 
 
@@ -283,6 +292,8 @@ def update_for_task(call: APICall, company_id, _):
             id=database.utils.id(),
             created=now,
             last_update=now,
+            last_change=now,
+            last_changed_by=call.identity.user,
             user=call.identity.user,
             company=company_id,
             project=task.project,
@@ -301,6 +312,7 @@ def update_for_task(call: APICall, company_id, _):
     TaskBLL.update_statistics(
         task_id=task_id,
         company_id=company_id,
+        user_id=call.identity.user,
         last_iteration_max=iteration,
         models__output=[
             ModelItem(
@@ -320,7 +332,6 @@ def update_for_task(call: APICall, company_id, _):
     response_data_model=CreateModelResponse,
 )
 def create(call: APICall, company_id, req_model: CreateModelRequest):
-
     if req_model.public:
         company_id = ""
 
@@ -345,6 +356,8 @@ def create(call: APICall, company_id, req_model: CreateModelRequest):
         company=company_id,
         created=now,
         last_update=now,
+        last_change=now,
+        last_changed_by=call.identity.user,
         **fields,
     )
     model.save()
@@ -414,12 +427,20 @@ def edit(call: APICall, company_id, _):
     task_id = model.task or fields.get("task")
     if task_id and iteration is not None:
         TaskBLL.update_statistics(
-            task_id=task_id, company_id=company_id, last_iteration_max=iteration,
+            task_id=task_id,
+            company_id=company_id,
+            user_id=call.identity.user,
+            last_iteration_max=iteration,
         )
 
     if fields:
+        now = datetime.utcnow()
+        fields.update(
+            last_change=now,
+            last_changed_by=call.identity.user,
+        )
         if any(uf in fields for uf in last_update_fields):
-            fields.update(last_update=datetime.utcnow())
+            fields.update(last_update=now)
 
         updated = model.update(upsert=False, **fields)
         if updated:
@@ -445,13 +466,25 @@ def _update_model(call: APICall, company_id, model_id=None):
     iteration = data.get("iteration")
     if task_id and iteration is not None:
         TaskBLL.update_statistics(
-            task_id=task_id, company_id=company_id, last_iteration_max=iteration,
+            task_id=task_id,
+            company_id=company_id,
+            user_id=call.identity.user,
+            last_iteration_max=iteration,
         )
 
-    updated_count, updated_fields = Model.safe_update(company_id, model.id, data)
+    now = datetime.utcnow()
+    updated_count, updated_fields = Model.safe_update(
+        company_id,
+        model.id,
+        data,
+        injected_update=dict(
+            last_change=now,
+            last_changed_by=call.identity.user,
+        ),
+    )
     if updated_count:
         if any(uf in updated_fields for uf in last_update_fields):
-            model.update(upsert=False, last_update=datetime.utcnow())
+            model.update(upsert=False, last_update=now)
 
         new_project = updated_fields.get("project", model.project)
         if new_project != model.project:
@@ -573,7 +606,10 @@ def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
 )
 def archive_many(call: APICall, company_id, request: BatchRequest):
     results, failures = run_batch_operation(
-        func=partial(ModelBLL.archive_model, company_id=company_id), ids=request.ids,
+        func=partial(
+            ModelBLL.archive_model, company_id=company_id, user_id=call.identity.user
+        ),
+        ids=request.ids,
     )
     call.result.data_model = BatchResponse(
         succeeded=[dict(id=_id, archived=bool(archived)) for _id, archived in results],
@@ -588,7 +624,8 @@ def archive_many(call: APICall, company_id, request: BatchRequest):
 )
 def unarchive_many(call: APICall, company_id, request: BatchRequest):
     results, failures = run_batch_operation(
-        func=partial(ModelBLL.unarchive_model, company_id=company_id), ids=request.ids,
+        func=partial(ModelBLL.unarchive_model, company_id=company_id, user_id=call.identity.user),
+        ids=request.ids,
     )
     call.result.data_model = BatchResponse(
         succeeded=[
@@ -601,7 +638,11 @@ def unarchive_many(call: APICall, company_id, request: BatchRequest):
 @endpoint("models.make_public", min_version="2.9", request_data_model=MakePublicRequest)
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Model.set_public(
-        company_id, ids=request.ids, invalid_cls=InvalidModelId, enabled=True
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidModelId,
+        enabled=True,
     )
 
 
@@ -610,7 +651,11 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Model.set_public(
-        company_id, request.ids, invalid_cls=InvalidModelId, enabled=False
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidModelId,
+        enabled=False,
     )
 
 
@@ -635,28 +680,36 @@ def move(call: APICall, company_id: str, request: MoveRequest):
 
 @endpoint("models.add_or_update_metadata", min_version="2.13")
 def add_or_update_metadata(
-    _: APICall, company_id: str, request: AddOrUpdateMetadataRequest
+    call: APICall, company_id: str, request: AddOrUpdateMetadataRequest
 ):
     model_id = request.model
     model = ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
+    now = datetime.utcnow()
     return {
         "updated": Metadata.edit_metadata(
             model,
             items=request.metadata,
             replace_metadata=request.replace_metadata,
-            last_update=datetime.utcnow(),
+            last_update=now,
+            last_change=now,
+            last_changed_by=call.identity.user,
         )
     }
 
 
 @endpoint("models.delete_metadata", min_version="2.13")
-def delete_metadata(_: APICall, company_id: str, request: DeleteMetadataRequest):
+def delete_metadata(call: APICall, company_id: str, request: DeleteMetadataRequest):
     model_id = request.model
     model = ModelBLL.get_company_model_by_id(
         company_id=company_id, model_id=model_id, only_fields=("id",)
     )
+    now = datetime.utcnow()
     return {
         "updated": Metadata.delete_metadata(
-            model, keys=request.keys, last_update=datetime.utcnow()
+            model,
+            keys=request.keys,
+            last_update=now,
+            last_change=now,
+            last_changed_by=call.identity.user,
         )
     }

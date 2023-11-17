@@ -506,7 +506,11 @@ def get_tags(call: APICall, company, request: ProjectTagsRequest):
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Project.set_public(
-        company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=True
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidProjectId,
+        enabled=True,
     )
 
 
@@ -515,7 +519,11 @@ def make_public(call: APICall, company_id, request: MakePublicRequest):
 )
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Project.set_public(
-        company_id, ids=request.ids, invalid_cls=InvalidProjectId, enabled=False
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidProjectId,
+        enabled=False,
     )
 
 

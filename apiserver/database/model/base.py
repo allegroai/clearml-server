@@ -1,5 +1,6 @@
 import re
 from collections import namedtuple, defaultdict
+from datetime import datetime
 from functools import reduce, partial
 from typing import (
     Collection,
@@ -147,8 +148,7 @@ class GetMixin(PropsMixin):
         }
         default_operator = Q.OR
         mongo_modifiers = {
-            # not_all modifier currently not supported due to the backwards compatibility
-            Q.AND: {True: "all", False: "nin"},
+            Q.AND: {True: "all", False: "not__all"},
             Q.OR: {True: "in", False: "nin"},
         }
 
@@ -1234,24 +1234,30 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
     def set_public(
         cls: Type[Document],
         company_id: str,
+        user_id: str,
         ids: Sequence[str],
         invalid_cls: Type[BaseError],
         enabled: bool = True,
     ):
         if enabled:
             items = list(cls.objects(id__in=ids, company=company_id).only("id"))
-            update = dict(set__company_origin=company_id, set__company="")
+            update: dict = dict(set__company_origin=company_id, set__company="")
         else:
             items = list(
                 cls.objects(
                     id__in=ids, company__in=(None, ""), company_origin=company_id
                 ).only("id")
             )
-            update = dict(set__company=company_id, unset__company_origin=1)
+            update: dict = dict(set__company=company_id, unset__company_origin=1)
 
         if len(items) < len(ids):
             missing = tuple(set(ids).difference(i.id for i in items))
             raise invalid_cls(ids=missing)
+
+        if hasattr(cls, "last_change"):
+            update["set__last_change"] = datetime.utcnow()
+        if hasattr(cls, "last_changed_by"):
+            update["set__last_changed_by"] = user_id
 
         return {"updated": cls.objects(id__in=ids).update(**update)}
 

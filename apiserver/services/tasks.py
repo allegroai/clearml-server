@@ -1232,9 +1232,12 @@ def completed(call: APICall, company_id, request: CompletedRequest):
 
 
 @endpoint("tasks.ping", request_data_model=PingRequest)
-def ping(_, company_id, request: PingRequest):
+def ping(call: APICall, company_id, request: PingRequest):
     TaskBLL.set_last_update(
-        task_ids=[request.task], company_id=company_id, last_update=datetime.utcnow()
+        task_ids=[request.task],
+        company_id=company_id,
+        user_id=call.identity.user,
+        last_update=datetime.utcnow(),
     )
 
 
@@ -1277,14 +1280,22 @@ def delete_artifacts(call: APICall, company_id, request: DeleteArtifactsRequest)
 @endpoint("tasks.make_public", min_version="2.9", request_data_model=MakePublicRequest)
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Task.set_public(
-        company_id, request.ids, invalid_cls=InvalidTaskId, enabled=True
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidTaskId,
+        enabled=True,
     )
 
 
 @endpoint("tasks.make_private", min_version="2.9", request_data_model=MakePublicRequest)
 def make_public(call: APICall, company_id, request: MakePublicRequest):
     call.result.data = Task.set_public(
-        company_id, request.ids, invalid_cls=InvalidTaskId, enabled=False
+        company_id=company_id,
+        user_id=call.identity.user,
+        ids=request.ids,
+        invalid_cls=InvalidTaskId,
+        enabled=False,
     )
 
 
@@ -1315,7 +1326,7 @@ def move(call: APICall, company_id: str, request: MoveRequest):
 
 
 @endpoint("tasks.add_or_update_model", min_version="2.13")
-def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequest):
+def add_or_update_model(call: APICall, company_id: str, request: AddUpdateModelRequest):
     get_task_for_update(company_id=company_id, task_id=request.task, force=True)
 
     models_field = f"models__{request.type}"
@@ -1326,6 +1337,7 @@ def add_or_update_model(_: APICall, company_id: str, request: AddUpdateModelRequ
     updated = TaskBLL.update_statistics(
         task_id=request.task,
         company_id=company_id,
+        user_id=call.identity.user,
         last_iteration_max=request.iteration,
         **({f"push__{models_field}": model} if not updated else {}),
     )

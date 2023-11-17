@@ -175,6 +175,7 @@ class WorkerBLL:
                         last_worker_report=now,
                         last_update=now,
                         last_change=now,
+                        last_changed_by=user_id,
                     )
                     # modify(new=True, ...) returns the modified object
                     task = Task.objects(**query).modify(new=True, **update)

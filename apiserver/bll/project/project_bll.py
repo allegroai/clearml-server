@@ -315,11 +315,12 @@ class ProjectBLL:
                 description="",
             )
 
-        extra = (
-            {"set__last_change": datetime.utcnow()}
-            if hasattr(entity_cls, "last_change")
-            else {}
-        )
+        extra = {}
+        if hasattr(entity_cls, "last_change"):
+            extra["set__last_change"] = datetime.utcnow()
+        if hasattr(entity_cls, "last_changed_by"):
+            extra["set__last_changed_by"] = user
+
         entity_cls.objects(company=company, id__in=ids).update(
             set__project=project, **extra
         )

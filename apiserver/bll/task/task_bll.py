@@ -356,6 +356,7 @@ class TaskBLL:
     def set_last_update(
         task_ids: Collection[str],
         company_id: str,
+        user_id: str,
         last_update: datetime,
         **extra_updates,
     ):
@@ -376,6 +377,7 @@ class TaskBLL:
                 upsert=False,
                 last_update=last_update,
                 last_change=last_update,
+                last_changed_by=user_id,
                 **updates,
             )
         return count
@@ -384,6 +386,7 @@ class TaskBLL:
     def update_statistics(
         task_id: str,
         company_id: str,
+        user_id: str,
         last_update: datetime = None,
         last_iteration: int = None,
         last_iteration_max: int = None,
@@ -440,6 +443,7 @@ class TaskBLL:
         ret = TaskBLL.set_last_update(
             task_ids=[task_id],
             company_id=company_id,
+            user_id=user_id,
             last_update=last_update,
             **extra_updates,
         )

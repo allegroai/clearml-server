@@ -71,7 +71,12 @@ def _assert_task_or_model_exists(
 @endpoint("events.add")
 def add(call: APICall, company_id, _):
     data = call.data.copy()
-    added, err_count, err_info = event_bll.add_events(company_id, [data], call.worker)
+    added, err_count, err_info = event_bll.add_events(
+        company_id=company_id,
+        user_id=call.identity.user,
+        events=[data],
+        worker=call.worker,
+    )
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
 
@@ -82,9 +87,10 @@ def add_batch(call: APICall, company_id, _):
         raise errors.bad_request.BatchContainsNoItems()
 
     added, err_count, err_info = event_bll.add_events(
-        company_id,
-        events,
-        call.worker,
+        company_id=company_id,
+        user_id=call.identity.user,
+        events=events,
+        worker=call.worker,
     )
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
