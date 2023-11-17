@@ -215,6 +215,10 @@ class WorkerStats:
                     "date_histogram": {
                         "field": "timestamp",
                         "fixed_interval": f"{interval}s",
+                        "extended_bounds": {
+                          "min": int(from_date) * 1000,
+                          "max": int(to_date) * 1000,
+                        }
                     },
                     "aggs": {"workers_count": {"cardinality": {"field": "worker"}}},
                 }
