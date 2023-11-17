@@ -13,8 +13,7 @@ from jsonmodels.fields import (
 from jsonmodels.models import Base
 
 from apiserver.apimodels import ListField, EnumField, JsonSerializableMixin
-
-DEFAULT_TIMEOUT = 10 * 60
+from apiserver.config_repo import config
 
 
 class WorkerRequest(Base):
@@ -24,7 +23,10 @@ class WorkerRequest(Base):
 
 
 class RegisterRequest(WorkerRequest):
-    timeout = IntField(default=0)  # registration timeout in seconds (if not specified, default is 10min)
+    timeout = IntField(
+        default=int(config.get("services.workers.default_worker_timeout_sec", 10 * 60))
+    )
+    """ registration timeout in seconds (default is 10min) """
     queues = ListField(six.string_types)  # list of queues this worker listens to
 
 

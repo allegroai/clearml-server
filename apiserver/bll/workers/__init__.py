@@ -5,13 +5,13 @@ from typing import Sequence, Set, Optional
 
 import attr
 import elasticsearch.helpers
-from boltons.iterutils import partition
+from boltons.iterutils import partition, chunked_iter
+from pyhocon import ConfigTree
 
 from apiserver.es_factory import es_factory
 from apiserver.apierrors import APIError
 from apiserver.apierrors.errors import bad_request, server_error
 from apiserver.apimodels.workers import (
-    DEFAULT_TIMEOUT,
     IdNameEntry,
     WorkerEntry,
     StatusReportRequest,
@@ -30,12 +30,14 @@ from apiserver.redis_manager import redman
 from apiserver.tools import safe_get
 from .stats import WorkerStats
 
+
 log = config.logger(__file__)
 
 
 class WorkerBLL:
     def __init__(self, es=None, redis=None):
         self.es_client = es or es_factory.connect("workers")
+        self.config = config.get("services.workers", ConfigTree())
         self.redis = redis or redman.connection("workers")
         self._stats = WorkerStats(self.es_client)
 
@@ -68,7 +70,7 @@ class WorkerBLL:
         """
         key = WorkerBLL._get_worker_key(company_id, user_id, worker)
 
-        timeout = timeout or DEFAULT_TIMEOUT
+        timeout = timeout or int(self.config.get("default_worker_timeout_sec", 10 * 60))
         queues = queues or []
 
         with translate_errors_context():
@@ -141,8 +143,6 @@ class WorkerBLL:
 
         try:
             entry.ip = ip
-            now = datetime.utcnow()
-            entry.last_activity_time = now
 
             if tags is not None:
                 entry.tags = tags
@@ -150,15 +150,16 @@ class WorkerBLL:
                 entry.system_tags = system_tags
 
             if report.machine_stats:
-                self._log_stats_to_es(
+                self.log_stats_to_es(
                     company_id=company_id,
-                    company_name=entry.company.name,
-                    worker=entry.key,
+                    worker_id=report.worker,
                     timestamp=report.timestamp,
                     task=report.task,
                     machine_stats=report.machine_stats,
                 )
 
+            now = datetime.utcnow()
+            entry.last_activity_time = now
             entry.queue = report.queue
 
             if report.queues:
@@ -254,18 +255,15 @@ class WorkerBLL:
         tags: Sequence[str] = None,
         system_tags: Sequence[str] = None,
     ) -> Sequence[WorkerResponseEntry]:
-
-        helpers = list(
-            map(
-                WorkerConversionHelper.from_worker_entry,
-                self.get_all(
-                    company_id=company_id,
-                    last_seen=last_seen,
-                    tags=tags,
-                    system_tags=system_tags,
-                ),
+        helpers = [
+            WorkerConversionHelper.from_worker_entry(entry)
+            for entry in self.get_all(
+                company_id=company_id,
+                last_seen=last_seen,
+                tags=tags,
+                system_tags=system_tags,
             )
-        )
+        ]
 
         task_ids = set(filter(None, (helper.task_id for helper in helpers)))
         all_queues = set(
@@ -284,9 +282,7 @@ class WorkerBLL:
                     }
                 },
             ]
-            queues_info = {
-                res["_id"]: res for res in Queue.objects.aggregate(projection)
-            }
+            queues_info = {res["_id"]: res for res in Queue.aggregate(projection)}
             task_ids = task_ids.union(
                 filter(
                     None,
@@ -496,12 +492,15 @@ class WorkerBLL:
         """Get worker entries matching the company and user, worker patterns"""
 
         entries = []
-        for key in self._get_keys(
-            company, user=user, user_tags=user_tags, system_tags=system_tags
+        for keys in chunked_iter(
+            self._get_keys(
+                company, user=user, user_tags=user_tags, system_tags=system_tags
+            ),
+            1000,
         ):
-            data = self.redis.get(key)
+            data = self.redis.mget(keys)
             if data:
-                entries.append(WorkerEntry.from_json(data))
+                entries.extend(WorkerEntry.from_json(d) for d in data if d)
 
         return entries
 
@@ -510,18 +509,17 @@ class WorkerBLL:
         """Get the index name suffix for storing current month data"""
         return datetime.utcnow().strftime("%Y-%m")
 
-    def _log_stats_to_es(
+    def log_stats_to_es(
         self,
         company_id: str,
-        company_name: str,
-        worker: str,
+        worker_id: str,
         timestamp: int,
         task: str,
         machine_stats: MachineStats,
-    ) -> bool:
+    ) -> int:
         """
         Actually writing the worker statistics to Elastic
-        :return: True if successful, False otherwise
+        :return: The amount of logged documents
         """
         es_index = (
             f"{self._stats.worker_stats_prefix_for_company(company_id)}"
@@ -533,8 +531,7 @@ class WorkerBLL:
                 _index=es_index,
                 _source=dict(
                     timestamp=timestamp,
-                    worker=worker,
-                    company=company_name,
+                    worker=worker_id,
                     task=task,
                     category=category,
                     metric=metric,
@@ -559,7 +556,7 @@ class WorkerBLL:
 
         es_res = elasticsearch.helpers.bulk(self.es_client, actions)
         added, errors = es_res[:2]
-        return (added == len(actions)) and not errors
+        return added
 
 
 @attr.s(auto_attribs=True)

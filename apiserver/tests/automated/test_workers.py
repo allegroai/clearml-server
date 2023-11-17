@@ -1,7 +1,6 @@
 import time
 from uuid import uuid4
 from datetime import timedelta
-from operator import attrgetter
 from typing import Sequence
 
 from apiserver.apierrors.errors import bad_request
@@ -72,7 +71,9 @@ class TestWorkersService(TestService):
         self.assertEqual(worker.tags, [tag])
         self.assertEqual(worker.system_tags, [system_tag])
 
-        workers = self.api.workers.get_all(tags=[tag], system_tags=[f"-{system_tag}"]).workers
+        workers = self.api.workers.get_all(
+            tags=[tag], system_tags=[f"-{system_tag}"]
+        ).workers
         self.assertFalse(workers)
 
     def test_filters(self):
@@ -105,25 +106,23 @@ class TestWorkersService(TestService):
             (workers[0],),
             (workers[0],),
         ]
+        timestamp = int(utc_now_tz_aware().timestamp() * 1000)
         for ws, stats in zip(workers_activity, workers_stats):
             for w, s in zip(ws, stats):
                 data = dict(
                     worker=w,
-                    timestamp=int(utc_now_tz_aware().timestamp() * 1000),
+                    timestamp=timestamp,
                     machine_stats=s,
                 )
                 if w == workers[0]:
                     data["task"] = task_id
                 self.api.workers.status_report(**data)
-            time.sleep(1)
+                timestamp += 1000
 
-        res = self.api.workers.get_all(last_seen=100)
-        return [w.key for w in res.workers]
+        return workers
 
     def _create_running_task(self, task_name):
-        task_input = dict(
-            name=task_name, type="testing"
-        )
+        task_input = dict(name=task_name, type="testing")
 
         task_id = self.create_temp("tasks", **task_input)
 
@@ -132,6 +131,7 @@ class TestWorkersService(TestService):
 
     def test_get_keys(self):
         workers = self._simulate_workers()
+        time.sleep(5)  # give to es time to refresh
         res = self.api.workers.get_metric_keys(worker_ids=workers)
         assert {"cpu", "memory"} == set(c.name for c in res["categories"])
         assert all(
@@ -152,6 +152,7 @@ class TestWorkersService(TestService):
         to_date = utc_now_tz_aware() + timedelta(seconds=10)
         from_date = to_date - timedelta(days=1)
 
+        time.sleep(5)  # give to ES time to refresh
         # no variants
         res = self.api.workers.get_stats(
             items=[
@@ -166,25 +167,21 @@ class TestWorkersService(TestService):
             interval=1,
             worker_ids=workers,
         )
-        self.assertWorkersInStats(workers, res["workers"])
-        assert all(
-            {"cpu_usage", "memory_used"}
-            == set(map(attrgetter("metric"), worker["metrics"]))
-            for worker in res["workers"]
-        )
-
-        def _check_dates_and_stats(metric, stats, worker_id) -> bool:
-            return set(
-                map(attrgetter("aggregation"), metric["stats"])
-            ) == stats and len(metric["dates"]) == (4 if worker_id == workers[0] else 2)
-
-        assert all(
-            _check_dates_and_stats(metric, metric_stats, worker["worker"])
-            for worker in res["workers"]
-            for metric, metric_stats in zip(
-                worker["metrics"], ({"avg", "max"}, {"max", "min"})
+        self.assertWorkersInStats(workers, res.workers)
+        for worker in res.workers:
+            self.assertEqual(
+                set(metric.metric for metric in worker.metrics),
+                {"cpu_usage", "memory_used"},
             )
-        )
+
+        for worker in res.workers:
+            for metric, metric_stats in zip(
+                worker.metrics, ({"avg", "max"}, {"max", "min"})
+            ):
+                self.assertEqual(
+                    set(stat.aggregation for stat in metric.stats), metric_stats
+                )
+                self.assertEqual(len(metric.dates), 4 if worker.worker == workers[0] else 2)
 
         # split by variants
         res = self.api.workers.get_stats(
@@ -195,20 +192,15 @@ class TestWorkersService(TestService):
             interval=1,
             worker_ids=workers,
         )
-        self.assertWorkersInStats(workers, res["workers"])
+        self.assertWorkersInStats(workers, res.workers)
 
-        def _check_metric_and_variants(worker):
-            return (
-                all(
-                    _check_dates_and_stats(metric, {"avg"}, worker["worker"])
-                    for metric in worker["metrics"]
+        for worker in res.workers:
+            for metric in worker.metrics:
+                self.assertEqual(
+                    set(metric.variant for metric in worker.metrics),
+                    {"0", "1"} if worker.worker == workers[0] else {"0"},
                 )
-                and set(map(attrgetter("variant"), worker["metrics"])) == {"0", "1"}
-                if worker["worker"] == workers[0]
-                else {"0"}
-            )
-
-        assert all(_check_metric_and_variants(worker) for worker in res["workers"])
+                self.assertEqual(len(metric.dates), 4 if worker.worker == workers[0] else 2)
 
         res = self.api.workers.get_stats(
             items=[dict(key="cpu_usage", aggregation="avg")],
@@ -217,11 +209,10 @@ class TestWorkersService(TestService):
             interval=1,
             worker_ids=["Non existing worker id"],
         )
-        assert not res["workers"]
+        assert not res.workers
 
-    @staticmethod
-    def assertWorkersInStats(workers: Sequence[str], stats: dict):
-        assert set(workers) == set(map(attrgetter("worker"), stats))
+    def assertWorkersInStats(self, workers: Sequence[str], stats: Sequence):
+        self.assertEqual(set(workers), set(item.worker for item in stats))
 
     def test_get_activity_report(self):
         # test no workers data
@@ -238,6 +229,7 @@ class TestWorkersService(TestService):
         to_date = utc_now_tz_aware() + timedelta(seconds=10)
         from_date = to_date - timedelta(minutes=1)
 
+        time.sleep(5)  # give to es time to refresh
         # no variants
         res = self.api.workers.get_activity_report(
             from_date=from_date.timestamp(), to_date=to_date.timestamp(), interval=20
