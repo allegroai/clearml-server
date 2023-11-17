@@ -366,7 +366,7 @@ def get_task_events(_, company_id, request: TaskEventsRequest):
         total = event_bll.events_iterator.count_task_events(
             event_type=request.event_type,
             company_id=task_or_model.get_index_company(),
-            task_id=task_id,
+            task_ids=[task_id],
             metric_variants=metric_variants,
         )
 
@@ -564,8 +564,8 @@ def get_multi_task_plots_v1_7(call, company_id, _):
 
     # Get last 10K events by iteration and group them by unique metric+variant, returning top events for combination
     result = event_bll.get_task_events(
-        list(companies),
-        task_ids,
+        company_id=list(companies),
+        task_id=task_ids,
         event_type=EventType.metrics_plot,
         sort=[{"iter": {"order": "desc"}}],
         size=10000,
@@ -1091,7 +1091,7 @@ def scalar_metrics_iter_raw(
         total = event_bll.events_iterator.count_task_events(
             event_type=EventType.metrics_scalar,
             company_id=task_or_model.get_index_company(),
-            task_id=task_id,
+            task_ids=[task_id],
             metric_variants=metric_variants,
         )
 

@@ -64,13 +64,13 @@ class EventsIterator:
         self,
         event_type: EventType,
         company_id: str,
-        task_id: str,
+        task_ids: Sequence[str],
         metric_variants: MetricVariants = None,
     ) -> int:
         if check_empty_data(self.es, company_id, event_type):
             return 0
 
-        query, _ = self._get_initial_query_and_must(task_id, metric_variants)
+        query, _ = self._get_initial_query_and_must(task_ids, metric_variants)
         es_req = {
             "query": query,
         }
@@ -100,7 +100,7 @@ class EventsIterator:
         For the last key-field value all the events are brought (even if the resulting size exceeds batch_size)
         so that events with this value will not be lost between the calls.
         """
-        query, must = self._get_initial_query_and_must(task_id, metric_variants)
+        query, must = self._get_initial_query_and_must([task_id], metric_variants)
 
         # retrieve the next batch of events
         es_req = {
@@ -158,14 +158,14 @@ class EventsIterator:
 
     @staticmethod
     def _get_initial_query_and_must(
-        task_id: str, metric_variants: MetricVariants = None
+        task_ids: Sequence[str], metric_variants: MetricVariants = None
     ) -> Tuple[dict, list]:
         if not metric_variants:
-            must = [{"term": {"task": task_id}}]
-            query = {"term": {"task": task_id}}
+            query = {"terms": {"task": task_ids}}
+            must = [query]
         else:
             must = [
-                {"term": {"task": task_id}},
+                {"terms": {"task": task_ids}},
                 get_metric_variants_condition(metric_variants),
             ]
             query = {"bool": {"must": must}}

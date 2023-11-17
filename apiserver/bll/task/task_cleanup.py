@@ -26,7 +26,6 @@ from apiserver.database.utils import id as db_id
 
 log = config.logger(__file__)
 event_bll = EventBLL()
-async_events_delete = config.get("services.tasks.async_events_delete", False)
 
 
 @attr.s(auto_attribs=True)
@@ -259,9 +258,9 @@ def cleanup_task(
                 event_bll.delete_multi_task_events(
                     task.company,
                     model_ids,
-                    async_delete=async_events_delete,
+                    model=True,
                 )
-                deleted_models += Model.objects(id__in=list(model_ids)).delete()
+                deleted_models += Model.objects(id__in=model_ids).delete()
 
             if in_use_model_ids:
                 Model.objects(id__in=list(in_use_model_ids)).update(
@@ -284,9 +283,7 @@ def cleanup_task(
                 set__last_changed_by=user,
             )
 
-    event_bll.delete_task_events(
-        task.company, task.id, allow_locked=force, async_delete=async_events_delete
-    )
+    event_bll.delete_task_events(task.company, task.id, allow_locked=force)
 
     if delete_external_artifacts:
         scheduled = _schedule_for_delete(

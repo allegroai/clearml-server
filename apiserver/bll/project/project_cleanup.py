@@ -30,7 +30,6 @@ from .sub_projects import _ids_with_children
 
 log = config.logger(__file__)
 event_bll = EventBLL()
-async_events_delete = config.get("services.tasks.async_events_delete", False)
 
 
 @attr.s(auto_attribs=True)
@@ -258,9 +257,7 @@ def _delete_tasks(
                 }
             )
 
-    event_bll.delete_multi_task_events(
-        company, task_ids, async_delete=async_events_delete
-    )
+    event_bll.delete_multi_task_events(company, task_ids)
     deleted = tasks.delete()
     return deleted, event_urls, artifact_urls
 
@@ -325,8 +322,6 @@ def _delete_models(
     )
     model_urls = {m.uri for m in models if m.uri}
 
-    event_bll.delete_multi_task_events(
-        company, model_ids, async_delete=async_events_delete
-    )
+    event_bll.delete_multi_task_events(company, model_ids, model=True)
     deleted = models.delete()
     return deleted, event_urls, model_urls

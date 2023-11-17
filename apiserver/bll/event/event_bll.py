@@ -5,7 +5,6 @@ import zlib
 from collections import defaultdict
 from contextlib import closing
 from datetime import datetime
-from operator import attrgetter
 from typing import Sequence, Set, Tuple, Optional, List, Mapping, Union
 
 import elasticsearch
@@ -24,6 +23,7 @@ from apiserver.bll.event.event_common import (
     get_metric_variants_condition,
     uncompress_plot,
     get_max_metric_and_variant_counts,
+    PlotFields,
 )
 from apiserver.bll.event.events_iterator import EventsIterator, TaskEventsResult
 from apiserver.bll.event.history_debug_image_iterator import HistoryDebugImageIterator
@@ -47,21 +47,15 @@ from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import loads
 
 # noinspection PyTypeChecker
-EVENT_TYPES: Set[str] = set(map(attrgetter("value"), EventType))
+EVENT_TYPES: Set[str] = set(et.value for et in EventType if et != EventType.all)
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
 MAX_LONG = 2**63 - 1
 MIN_LONG = -(2**63)
 
 
 log = config.logger(__file__)
-
-
-class PlotFields:
-    valid_plot = "valid_plot"
-    plot_len = "plot_len"
-    plot_str = "plot_str"
-    plot_data = "plot_data"
-    source_urls = "source_urls"
+async_task_events_delete = config.get("services.tasks.async_events_delete", False)
+async_delete_threshold = config.get("services.tasks.async_events_delete_threshold", 100_000)
 
 
 class EventBLL(object):
@@ -333,8 +327,8 @@ class EventBLL(object):
                 # all of them and not only those who's events were successful
                 updated = self._update_task(
                     company_id=company_id,
-                    task_id=task_id,
                     user_id=user_id,
+                    task_id=task_id,
                     now=now,
                     iter_max=task_iteration.get(task_id),
                     last_scalar_events=task_last_scalar_events.get(task_id),
@@ -1173,14 +1167,7 @@ class EventBLL(object):
 
         return {"refresh": True}
 
-    def delete_task_events(
-        self,
-        company_id,
-        task_id,
-        allow_locked=False,
-        model=False,
-        async_delete=False,
-    ):
+    def delete_task_events(self, company_id, task_id, allow_locked=False, model=False):
         if model:
             self._validate_model_state(
                 company_id=company_id,
@@ -1191,7 +1178,15 @@ class EventBLL(object):
             self._validate_task_state(
                 company_id=company_id, task_id=task_id, allow_locked=allow_locked
             )
-
+        async_delete = async_task_events_delete
+        if async_delete:
+            total = self.events_iterator.count_task_events(
+                event_type=EventType.all,
+                company_id=company_id,
+                task_ids=[task_id],
+            )
+            if total <= async_delete_threshold:
+                async_delete = False
         es_req = {"query": {"term": {"task": task_id}}}
         with translate_errors_context():
             es_res = delete_company_events(
@@ -1249,7 +1244,7 @@ class EventBLL(object):
             return es_res.get("deleted", 0)
 
     def delete_multi_task_events(
-        self, company_id: str, task_ids: Sequence[str], async_delete=False
+        self, company_id: str, task_ids: Sequence[str], model=False
     ):
         """
         Delete multiple task events. No check is done for tasks write access
@@ -1257,6 +1252,15 @@ class EventBLL(object):
         """
         deleted = 0
         with translate_errors_context():
+            async_delete = async_task_events_delete
+            if async_delete and len(task_ids) < 100:
+                total = self.events_iterator.count_task_events(
+                    event_type=EventType.all,
+                    company_id=company_id,
+                    task_ids=task_ids,
+                )
+                if total <= async_delete_threshold:
+                    async_delete = False
             for tasks in chunked_iter(task_ids, 100):
                 es_req = {"query": {"terms": {"task": tasks}}}
                 es_res = delete_company_events(
