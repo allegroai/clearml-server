@@ -230,11 +230,12 @@ class Task(AttributedDocument):
             "project",
             "parent",
             "hyperparams.*",
+            "execution.queue",
         ),
         range_fields=("started", "active_duration", "last_metrics.*", "last_iteration"),
         datetime_fields=("status_changed", "last_update"),
         pattern_fields=("name", "comment", "report"),
-        fields=("execution.queue", "runtime.*", "models.input.model"),
+        fields=("runtime.*", "models.input.model"),
     )
 
     id = StringField(primary_key=True)
