@@ -83,7 +83,8 @@ def validate_project_delete(company: str, project_id: str):
         ret["pipelines"] = 0
     if dataset_ids:
         datasets_with_data = Task.objects(
-            project__in=dataset_ids, system_tags__nin=[EntityVisibility.archived.value],
+            project__in=dataset_ids,
+            system_tags__nin=[EntityVisibility.archived.value],
         ).distinct("project")
         ret["datasets"] = len(datasets_with_data)
     else:
@@ -217,7 +218,9 @@ def delete_project(
     return res, affected
 
 
-def _delete_tasks(company: str, user: str, projects: Sequence[str]) -> Tuple[int, Set, Set]:
+def _delete_tasks(
+    company: str, user: str, projects: Sequence[str]
+) -> Tuple[int, Set, Set]:
     """
     Delete only the task themselves and their non published version.
     Child models under the same project are deleted separately.
@@ -228,7 +231,7 @@ def _delete_tasks(company: str, user: str, projects: Sequence[str]) -> Tuple[int
     if not tasks:
         return 0, set(), set()
 
-    task_ids = {t.id for t in tasks}
+    task_ids = list({t.id for t in tasks})
     now = datetime.utcnow()
     Task.objects(parent__in=task_ids, project__nin=projects).update(
         parent=None,
@@ -241,10 +244,11 @@ def _delete_tasks(company: str, user: str, projects: Sequence[str]) -> Tuple[int
         last_changed_by=user,
     )
 
-    event_urls, artifact_urls = set(), set()
+    event_urls = collect_debug_image_urls(company, task_ids) | collect_plot_image_urls(
+        company, task_ids
+    )
+    artifact_urls = set()
     for task in tasks:
-        event_urls.update(collect_debug_image_urls(company, task.id))
-        event_urls.update(collect_plot_image_urls(company, task.id))
         if task.execution and task.execution.artifacts:
             artifact_urls.update(
                 {
@@ -255,7 +259,7 @@ def _delete_tasks(company: str, user: str, projects: Sequence[str]) -> Tuple[int
             )
 
     event_bll.delete_multi_task_events(
-        company, list(task_ids), async_delete=async_events_delete
+        company, task_ids, async_delete=async_events_delete
     )
     deleted = tasks.delete()
     return deleted, event_urls, artifact_urls
@@ -307,19 +311,19 @@ def _delete_models(
         )
         # update unpublished tasks
         Task.objects(
-            id__in=model_tasks, project__nin=projects, status__ne=TaskStatus.published,
+            id__in=model_tasks,
+            project__nin=projects,
+            status__ne=TaskStatus.published,
         ).update(
             pull__models__output__model__in=model_ids,
             set__last_change=now,
             set__last_changed_by=user,
         )
 
-    event_urls, model_urls = set(), set()
-    for m in models:
-        event_urls.update(collect_debug_image_urls(company, m.id))
-        event_urls.update(collect_plot_image_urls(company, m.id))
-        if m.uri:
-            model_urls.add(m.uri)
+    event_urls = collect_debug_image_urls(company, model_ids) | collect_plot_image_urls(
+        company, model_ids
+    )
+    model_urls = {m.uri for m in models if m.uri}
 
     event_bll.delete_multi_task_events(
         company, model_ids, async_delete=async_events_delete

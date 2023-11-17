@@ -1,10 +1,10 @@
 from datetime import datetime
 from itertools import chain
 from operator import attrgetter
-from typing import Sequence, Set, Tuple
+from typing import Sequence, Set, Tuple, Union
 
 import attr
-from boltons.iterutils import partition, bucketize, first
+from boltons.iterutils import partition, bucketize, first, chunked_iter
 from furl import furl
 from mongoengine import NotUniqueError
 from pymongo.errors import DuplicateKeyError
@@ -69,37 +69,47 @@ class CleanupResult:
         )
 
 
-def collect_plot_image_urls(company: str, task_or_model: str) -> Set[str]:
+def collect_plot_image_urls(
+    company: str, task_or_model: Union[str, Sequence[str]]
+) -> Set[str]:
     urls = set()
-    next_scroll_id = None
-    while True:
-        events, next_scroll_id = event_bll.get_plot_image_urls(
-            company_id=company, task_id=task_or_model, scroll_id=next_scroll_id
-        )
-        if not events:
-            break
-        for event in events:
-            event_urls = event.get(PlotFields.source_urls)
-            if event_urls:
-                urls.update(set(event_urls))
+    task_ids = task_or_model if isinstance(task_or_model, list) else [task_or_model]
+    for tasks in chunked_iter(task_ids, 100):
+        next_scroll_id = None
+        while True:
+            events, next_scroll_id = event_bll.get_plot_image_urls(
+                company_id=company, task_ids=tasks, scroll_id=next_scroll_id
+            )
+            if not events:
+                break
+            for event in events:
+                event_urls = event.get(PlotFields.source_urls)
+                if event_urls:
+                    urls.update(set(event_urls))
 
     return urls
 
 
-def collect_debug_image_urls(company: str, task_or_model: str) -> Set[str]:
+def collect_debug_image_urls(
+    company: str, task_or_model: Union[str, Sequence[str]]
+) -> Set[str]:
     """
     Return the set of unique image urls
     Uses DebugImagesIterator to make sure that we do not retrieve recycled urls
     """
-    after_key = None
     urls = set()
-    while True:
-        res, after_key = event_bll.get_debug_image_urls(
-            company_id=company, task_id=task_or_model, after_key=after_key,
-        )
-        urls.update(res)
-        if not after_key:
-            break
+    task_ids = task_or_model if isinstance(task_or_model, list) else [task_or_model]
+    for tasks in chunked_iter(task_ids, 100):
+        after_key = None
+        while True:
+            res, after_key = event_bll.get_debug_image_urls(
+                company_id=company,
+                task_ids=tasks,
+                after_key=after_key,
+            )
+            urls.update(res)
+            if not after_key:
+                break
 
     return urls
 
@@ -122,7 +132,11 @@ supported_storage_types.update(
 
 
 def _schedule_for_delete(
-    company: str, user: str, task_id: str, urls: Set[str], can_delete_folders: bool,
+    company: str,
+    user: str,
+    task_id: str,
+    urls: Set[str],
+    can_delete_folders: bool,
 ) -> Set[str]:
     urls_per_storage = bucketize(
         urls,
@@ -236,23 +250,19 @@ def cleanup_task(
         if not models:
             continue
         if delete_output_models and allow_delete:
-            model_ids = set(m.id for m in models if m.id not in in_use_model_ids)
-            for m_id in model_ids:
+            model_ids = list({m.id for m in models if m.id not in in_use_model_ids})
+            if model_ids:
                 if return_file_urls or delete_external_artifacts:
-                    event_urls.update(collect_debug_image_urls(task.company, m_id))
-                    event_urls.update(collect_plot_image_urls(task.company, m_id))
-                try:
-                    event_bll.delete_task_events(
-                        task.company,
-                        m_id,
-                        allow_locked=True,
-                        model=True,
-                        async_delete=async_events_delete,
-                    )
-                except errors.bad_request.InvalidModelId as ex:
-                    log.info(f"Error deleting events for the model {m_id}: {str(ex)}")
+                    event_urls.update(collect_debug_image_urls(task.company, model_ids))
+                    event_urls.update(collect_plot_image_urls(task.company, model_ids))
 
-            deleted_models += Model.objects(id__in=list(model_ids)).delete()
+                event_bll.delete_multi_task_events(
+                    task.company,
+                    model_ids,
+                    async_delete=async_events_delete,
+                )
+                deleted_models += Model.objects(id__in=list(model_ids)).delete()
+
             if in_use_model_ids:
                 Model.objects(id__in=list(in_use_model_ids)).update(
                     unset__task=1,
@@ -319,7 +329,8 @@ def verify_task_children_and_ouptuts(
 
     model_fields = ["id", "ready", "uri"]
     published_models, draft_models = partition(
-        Model.objects(task=task.id).only(*model_fields), key=attrgetter("ready"),
+        Model.objects(task=task.id).only(*model_fields),
+        key=attrgetter("ready"),
     )
     if not force and published_models:
         raise errors.bad_request.TaskCannotBeDeleted(

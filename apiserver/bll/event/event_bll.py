@@ -49,8 +49,8 @@ from apiserver.utilities.json import loads
 # noinspection PyTypeChecker
 EVENT_TYPES: Set[str] = set(map(attrgetter("value"), EventType))
 LOCKED_TASK_STATUSES = (TaskStatus.publishing, TaskStatus.published)
-MAX_LONG = 2 ** 63 - 1
-MIN_LONG = -(2 ** 63)
+MAX_LONG = 2**63 - 1
+MIN_LONG = -(2**63)
 
 
 log = config.logger(__file__)
@@ -272,11 +272,13 @@ class EventBLL(object):
             else:
                 used_task_ids.add(task_or_model_id)
                 self._update_last_metric_events_for_task(
-                    last_events=task_last_events[task_or_model_id], event=event,
+                    last_events=task_last_events[task_or_model_id],
+                    event=event,
                 )
             if event_type == EventType.metrics_scalar.value:
                 self._update_last_scalar_events_for_task(
-                    last_events=task_last_scalar_events[task_or_model_id], event=event,
+                    last_events=task_last_scalar_events[task_or_model_id],
+                    event=event,
                 )
 
             actions.append(es_action)
@@ -583,7 +585,8 @@ class EventBLL(object):
         query = {"bool": {"must": must}}
         search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
-            query=query, **search_args,
+            query=query,
+            **search_args,
         )
         max_variants = int(max_variants // last_iterations_per_plot)
 
@@ -650,9 +653,11 @@ class EventBLL(object):
         return events, total_events, next_scroll_id
 
     def get_debug_image_urls(
-        self, company_id: str, task_id: str, after_key: dict = None
+        self, company_id: str, task_ids: Sequence[str], after_key: dict = None
     ) -> Tuple[Sequence[str], Optional[dict]]:
-        if check_empty_data(self.es, company_id, EventType.metrics_image):
+        if not task_ids or check_empty_data(
+            self.es, company_id, EventType.metrics_image
+        ):
             return [], None
 
         es_req = {
@@ -668,7 +673,10 @@ class EventBLL(object):
             },
             "query": {
                 "bool": {
-                    "must": [{"term": {"task": task_id}}, {"exists": {"field": "url"}}]
+                    "must": [
+                        {"terms": {"task": task_ids}},
+                        {"exists": {"field": "url"}},
+                    ]
                 }
             },
         }
@@ -686,9 +694,13 @@ class EventBLL(object):
         return [bucket["key"]["url"] for bucket in res["buckets"]], res.get("after_key")
 
     def get_plot_image_urls(
-        self, company_id: str, task_id: str, scroll_id: Optional[str]
+        self, company_id: str, task_ids: Sequence[str], scroll_id: Optional[str]
     ) -> Tuple[Sequence[dict], Optional[str]]:
-        if scroll_id == self.empty_scroll:
+        if (
+            scroll_id == self.empty_scroll
+            or not task_ids
+            or check_empty_data(self.es, company_id, EventType.metrics_plot)
+        ):
             return [], None
 
         if scroll_id:
@@ -703,7 +715,7 @@ class EventBLL(object):
                 "query": {
                     "bool": {
                         "must": [
-                            {"term": {"task": task_id}},
+                            {"terms": {"task": task_ids}},
                             {"exists": {"field": PlotFields.source_urls}},
                         ]
                     }
@@ -839,7 +851,8 @@ class EventBLL(object):
         query = {"bool": {"must": [{"term": {"task": task_id}}]}}
         search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
-            query=query, **search_args,
+            query=query,
+            **search_args,
         )
         es_req = {
             "size": 0,
@@ -893,7 +906,8 @@ class EventBLL(object):
         }
         search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
-            query=query, **search_args,
+            query=query,
+            **search_args,
         )
         max_variants = int(max_variants // 2)
         es_req = {
@@ -1037,9 +1051,9 @@ class EventBLL(object):
                                         "order": {"_key": "desc"},
                                     }
                                 }
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             },
             "query": {"bool": {"must": must}},
@@ -1105,7 +1119,10 @@ class EventBLL(object):
 
         with translate_errors_context():
             es_res = search_company_events(
-                self.es, company_id=company_ids, event_type=event_type, body=es_req,
+                self.es,
+                company_id=company_ids,
+                event_type=event_type,
+                body=es_req,
             )
 
         if "aggregations" not in es_res:
@@ -1157,11 +1174,18 @@ class EventBLL(object):
         return {"refresh": True}
 
     def delete_task_events(
-        self, company_id, task_id, allow_locked=False, model=False, async_delete=False,
+        self,
+        company_id,
+        task_id,
+        allow_locked=False,
+        model=False,
+        async_delete=False,
     ):
         if model:
             self._validate_model_state(
-                company_id=company_id, model_id=task_id, allow_locked=allow_locked,
+                company_id=company_id,
+                model_id=task_id,
+                allow_locked=allow_locked,
             )
         else:
             self._validate_task_state(
@@ -1228,7 +1252,7 @@ class EventBLL(object):
         self, company_id: str, task_ids: Sequence[str], async_delete=False
     ):
         """
-        Delete mutliple task events. No check is done for tasks write access
+        Delete multiple task events. No check is done for tasks write access
         so it should be checked by the calling code
         """
         deleted = 0
@@ -1246,7 +1270,7 @@ class EventBLL(object):
                     deleted += es_res.get("deleted", 0)
 
         if not async_delete:
-            return es_res.get("deleted", 0)
+            return deleted
 
     def clear_scroll(self, scroll_id: str):
         if scroll_id == self.empty_scroll:

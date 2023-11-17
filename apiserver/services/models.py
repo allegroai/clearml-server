@@ -682,7 +682,7 @@ def move(call: APICall, company_id: str, request: MoveRequest):
 @endpoint("models.update_tags")
 def update_tags(_, company_id: str, request: UpdateTagsRequest):
     return {
-        "update": org_bll.edit_entity_tags(
+        "updated": org_bll.edit_entity_tags(
             company_id=company_id,
             entity_cls=Model,
             entity_ids=request.ids,
