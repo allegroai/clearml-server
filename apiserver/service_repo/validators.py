@@ -17,7 +17,7 @@ log = config.logger(__file__)
 def validate_data(call: APICall, endpoint: Endpoint):
     """ Perform all required call/endpoint validation, update call result appropriately """
     try:
-        # todo: remove vaildate_required_fields once all endpoints have json schema
+        # todo: remove validate_required_fields once all endpoints have json schema
         validate_required_fields(endpoint, call)
 
         # set models. models will be validated automatically
@@ -50,10 +50,17 @@ def validate_role(endpoint, call):
         pass
 
 
-def validate_auth(endpoint, call):
-    """ Validate authorization for this endpoint and call.
-        If authentication has occurred, the call is updated with the authentication results.
+def validate_auth(endpoint: Endpoint, call: "APICall"):
     """
+    Validate authorization for this endpoint and call.
+    If authentication has occurred, the call is updated with the authentication results.
+    For the endpoints with authorize==False the validation is not performed to improve performance
+    For the endpoints with authorize==True the validation should pass otherwise exception will be thrown
+    For the endpoints with authorize==None the validation will be tried, but it does not have to succeed
+    """
+    if endpoint.authorize is not None and not endpoint.authorize:
+        return
+
     if not call.authorization:
         # No auth data. Invalid if we need to authorize and valid otherwise
         if endpoint.authorize:
@@ -63,10 +70,9 @@ def validate_auth(endpoint, call):
     # prepare arguments for validation
     service, _, action = endpoint.name.partition(".")
 
-    # If we have auth data, we'll try to validate anyway (just so we'll have auth-based permissions whenever possible,
-    # even if endpoint did not require authorization)
+    # noinspection PyBroadException
     try:
-        auth = call.authorization or ""
+        auth = call.authorization
         auth_type, _, auth_data = auth.partition(" ")
         authorize_func = get_auth_func(auth_type)
         call.auth = authorize_func(auth_data, service, action, call)
@@ -78,7 +84,7 @@ def validate_auth(endpoint, call):
 
 def validate_impersonation(endpoint, call):
     """ Validate impersonation headers and set impersonated identity and authorization data accordingly.
-        :returns True if impersonating, False otherwise
+        :return: True if impersonating, False otherwise
     """
     try:
         act_as = call.act_as
