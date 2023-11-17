@@ -72,6 +72,7 @@ class MultiProjectPagedRequest(MultiProjectRequest):
 class ProjectHyperparamValuesRequest(MultiProjectPagedRequest):
     section = fields.StringField(required=True)
     name = fields.StringField(required=True)
+    pattern = fields.StringField()
 
 
 class ProjectModelMetadataValuesRequest(MultiProjectPagedRequest):

@@ -12,17 +12,17 @@ class TestTasksFiltering(TestService):
         param1 = ("Se$tion1", "pa__ram1", True)
         param2 = ("Section2", "param2", False)
         task_count = 5
-        for p in (param1, param2):
+        for (section, name, unique_value) in (param1, param2):
             for idx in range(task_count):
                 t = self.temp_task(project=project)
                 self.api.tasks.edit_hyper_params(
                     task=t,
                     hyperparams=[
                         {
-                            "section": p[0],
-                            "name": p[1],
+                            "section": section,
+                            "name": name,
                             "type": "str",
-                            "value": str(idx) if p[2] else "Constant",
+                            "value": str(idx) if unique_value else "Constant",
                         }
                     ],
                 )
@@ -41,6 +41,18 @@ class TestTasksFiltering(TestService):
         )
         self.assertEqual(res.total, 0)
         self.assertEqual(res["values"], [])
+
+        # search pattern
+        res = self.api.projects.get_hyperparam_values(
+            projects=[project], section=param1[0], name=param1[1], pattern="^1"
+        )
+        self.assertEqual(res.total, 1)
+        self.assertEqual(res["values"], ["1"])
+
+        res = self.api.projects.get_hyperparam_values(
+            projects=[project], section=param1[0], name=param1[1], pattern="11"
+        )
+        self.assertEqual(res.total, 0)
 
     def test_datetime_queries(self):
         tasks = [self.temp_task() for _ in range(5)]

@@ -140,6 +140,7 @@ class ProjectQueries:
         name: str,
         include_subprojects: bool,
         allow_public: bool = True,
+        pattern: str = None,
         page: int = 0,
         page_size: int = 500,
     ) -> ParamValues:
@@ -164,7 +165,20 @@ class ProjectQueries:
         if not last_updated_task:
             return 0, []
 
-        redis_key = f"hyperparam_values_{company_id}_{'_'.join(project_ids)}_{section}_{name}_{allow_public}_{page}_{page_size}"
+        redis_key = "_".join(
+            str(part)
+            for part in (
+                "hyperparam_values",
+                company_id,
+                "_".join(project_ids),
+                section,
+                name,
+                allow_public,
+                pattern,
+                page,
+                page_size,
+            )
+        )
         last_update = last_updated_task.last_update or datetime.utcnow()
         cached_res = self._get_cached_param_values(
             key=redis_key,
@@ -176,14 +190,22 @@ class ProjectQueries:
         if cached_res:
             return cached_res
 
-        pipeline = [
-            {
-                "$match": {
-                    **company_constraint,
-                    **project_constraint,
-                    key_path: {"$exists": True},
+        match_condition = {
+            **company_constraint,
+            **project_constraint,
+            key_path: {"$exists": True},
+        }
+        if pattern:
+            match_condition["$expr"] = {
+                "$regexMatch": {
+                    "input": f"${key_path}.value",
+                    "regex": pattern,
+                    "options": "i",
                 }
-            },
+            }
+
+        pipeline = [
+            {"$match": match_condition},
             {"$project": {"value": f"${key_path}.value"}},
             {"$group": {"_id": "$value"}},
             {"$sort": {"_id": 1}},

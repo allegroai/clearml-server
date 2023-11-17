@@ -452,6 +452,7 @@ def get_hyperparam_values(
         name=request.name,
         include_subprojects=request.include_subprojects,
         allow_public=request.allow_public,
+        pattern=request.pattern,
         page=request.page,
         page_size=request.page_size,
     )
