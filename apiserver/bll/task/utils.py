@@ -1,14 +1,13 @@
 from datetime import datetime
-from typing import Sequence, Union
 
 import attr
 import six
 
 from apiserver.apierrors import errors
+from apiserver.bll.util import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
-from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskStatus, TaskSystemTags
 from apiserver.database.utils import get_options
 from apiserver.utilities.attrs import typed_attrs
@@ -156,16 +155,6 @@ def get_possible_status_changes(current_status):
         )
 
     return possible
-
-
-def update_project_time(project_ids: Union[str, Sequence[str]]):
-    if not project_ids:
-        return
-
-    if isinstance(project_ids, str):
-        project_ids = [project_ids]
-
-    return Project.objects(id__in=project_ids).update(last_update=datetime.utcnow())
 
 
 def get_task_for_update(

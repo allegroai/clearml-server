@@ -7,9 +7,9 @@ from apiserver.bll.task import (
     TaskBLL,
     validate_status_change,
     ChangeStatusRequest,
-    update_project_time,
 )
 from apiserver.bll.task.task_cleanup import cleanup_task, CleanupResult
+from apiserver.bll.util import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model

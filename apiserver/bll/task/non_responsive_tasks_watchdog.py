@@ -1,7 +1,7 @@
 from datetime import timedelta, datetime
 from time import sleep
 
-from apiserver.bll.task import update_project_time
+from apiserver.bll.util import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import TaskStatus, Task
 from apiserver.utilities.threads_manager import ThreadsManager

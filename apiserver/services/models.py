@@ -22,6 +22,7 @@ from apiserver.apimodels.models import (
     ModelsDeleteManyRequest,
     ModelsGetRequest,
 )
+from apiserver.apimodels.tasks import UpdateTagsRequest
 from apiserver.bll.model import ModelBLL, Metadata
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
@@ -219,7 +220,7 @@ def _update_cached_tags(company: str, project: str, fields: dict):
     org_bll.update_tags(
         company,
         Tags.Model,
-        project=project,
+        projects=[project],
         tags=fields.get("tags"),
         system_tags=fields.get("system_tags"),
     )
@@ -674,6 +675,19 @@ def move(call: APICall, company_id: str, request: MoveRequest):
             ids=request.ids,
             project=request.project,
             project_name=request.project_name,
+        )
+    }
+
+
+@endpoint("models.update_tags")
+def update_tags(_, company_id: str, request: UpdateTagsRequest):
+    return {
+        "update": org_bll.edit_entity_tags(
+            company_id=company_id,
+            entity_cls=Model,
+            entity_ids=request.ids,
+            add_tags=request.add_tags,
+            remove_tags=request.remove_tags,
         )
     }
 

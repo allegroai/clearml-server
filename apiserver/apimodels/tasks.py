@@ -333,3 +333,8 @@ class DeleteModelsRequest(TaskRequest):
 class GetAllReq(models.Base):
     allow_public = BoolField(default=True)
     search_hidden = BoolField(default=False)
+
+
+class UpdateTagsRequest(BatchRequest):
+    add_tags = ListField([str])
+    remove_tags = ListField([str])

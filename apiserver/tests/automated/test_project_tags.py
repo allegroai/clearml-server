@@ -92,6 +92,29 @@ class TestProjectTags(TestService):
         self.assertFalse(tag1 in data.tags)
         self.assertTrue(tag2 in data.tags)
 
+    def test_tags_api(self):
+        p = self.create_temp("projects", name="Test tags api", description="test")
+
+        # task
+        initial_tags = ["Task tag"]
+        task = self.new_task(project=p, tags=initial_tags)
+        data = self.api.projects.get_task_tags(projects=[p])
+        self.assertEqual(data.tags, initial_tags)
+        new_tags = ["New task tag"]
+        self.api.tasks.update_tags(ids=[task], add_tags=new_tags, remove_tags=initial_tags)
+        data = self.api.projects.get_task_tags(projects=[p])
+        self.assertEqual(data.tags, new_tags)
+
+        # model
+        initial_tags = ["Model tag"]
+        model = self.new_model(project=p, tags=initial_tags)
+        data = self.api.projects.get_model_tags(projects=[p])
+        self.assertEqual(data.tags, initial_tags)
+        new_tags = ["New model tag"]
+        self.api.models.update_tags(ids=[model], add_tags=new_tags)
+        data = self.api.projects.get_model_tags(projects=[p])
+        self.assertEqual(set(data.tags), set([*new_tags, *initial_tags]))
+
     def new_task(self, **kwargs):
         self.update_missing(
             kwargs, type="testing", name="test project tags"

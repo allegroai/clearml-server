@@ -107,7 +107,7 @@ class _TagsCache:
 
         return ret
 
-    def update_tags(self, company_id: str, project: str, tags=None, system_tags=None):
+    def update_tags(self, company_id: str, projects: Sequence[str], tags=None, system_tags=None):
         """
         Updates tags. If reset is set then both tags and system_tags
         are recalculated. Otherwise only those that are not 'None'
@@ -123,7 +123,7 @@ class _TagsCache:
         if not fields:
             return
 
-        self._delete_redis_keys(company_id, projects=[project], fields=fields)
+        self._delete_redis_keys(company_id, projects=projects, fields=fields)
 
     def reset_tags(self, company_id: str, projects: Sequence[str]):
         self._delete_redis_keys(

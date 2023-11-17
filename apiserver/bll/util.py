@@ -1,6 +1,7 @@
 import functools
 import itertools
 from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime
 from typing import (
     Optional,
     Callable,
@@ -8,11 +9,13 @@ from typing import (
     Tuple,
     Sequence,
     TypeVar,
+    Union,
 )
 
 from boltons import iterutils
 
 from apiserver.apierrors import APIError
+from apiserver.database.model.project import Project
 from apiserver.database.model.settings import Settings
 
 
@@ -77,3 +80,13 @@ def run_batch_operation(
                 }
             )
     return results, failures
+
+
+def update_project_time(project_ids: Union[str, Sequence[str]]):
+    if not project_ids:
+        return
+
+    if isinstance(project_ids, str):
+        project_ids = [project_ids]
+
+    return Project.objects(id__in=project_ids).update(last_update=datetime.utcnow())

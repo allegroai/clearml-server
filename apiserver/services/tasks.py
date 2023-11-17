@@ -67,6 +67,7 @@ from apiserver.apimodels.tasks import (
     GetAllReq,
     DequeueRequest,
     DequeueManyRequest,
+    UpdateTagsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL
@@ -76,7 +77,6 @@ from apiserver.bll.queue import QueueBLL
 from apiserver.bll.task import (
     TaskBLL,
     ChangeStatusRequest,
-    update_project_time,
 )
 from apiserver.bll.task.artifacts import (
     artifacts_prepare_for_save,
@@ -101,7 +101,7 @@ from apiserver.bll.task.task_operations import (
     move_tasks_to_trash,
 )
 from apiserver.bll.task.utils import update_task, get_task_for_update, deleted_prefix
-from apiserver.bll.util import run_batch_operation
+from apiserver.bll.util import run_batch_operation, update_project_time
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.task.output import Output
@@ -112,7 +112,11 @@ from apiserver.database.model.task.task import (
     ModelItem,
     TaskModelTypes,
 )
-from apiserver.database.utils import get_fields_attr, parse_from_call, get_options
+from apiserver.database.utils import (
+    get_fields_attr,
+    parse_from_call,
+    get_options,
+)
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
@@ -493,7 +497,7 @@ def _update_cached_tags(company: str, project: str, fields: dict):
     org_bll.update_tags(
         company,
         Tags.Task,
-        project=project,
+        projects=[project],
         tags=fields.get("tags"),
         system_tags=fields.get("system_tags"),
     )
@@ -1323,6 +1327,19 @@ def move(call: APICall, company_id: str, request: MoveRequest):
     update_project_time(projects)
 
     return {"project_id": project_id}
+
+
+@endpoint("tasks.update_tags")
+def update_tags(_, company_id: str, request: UpdateTagsRequest):
+    return {
+        "update": org_bll.edit_entity_tags(
+            company_id=company_id,
+            entity_cls=Task,
+            entity_ids=request.ids,
+            add_tags=request.add_tags,
+            remove_tags=request.remove_tags,
+        )
+    }
 
 
 @endpoint("tasks.add_or_update_model", min_version="2.13")

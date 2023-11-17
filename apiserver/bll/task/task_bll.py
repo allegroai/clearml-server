@@ -12,6 +12,7 @@ from apiserver.apimodels.tasks import TaskInputModel
 from apiserver.bll.queue import QueueBLL
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
+from apiserver.bll.util import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
@@ -31,7 +32,10 @@ from apiserver.database.model.task.task import (
 )
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.queue import Queue
-from apiserver.database.utils import get_company_or_none_constraint, id as create_id
+from apiserver.database.utils import (
+    get_company_or_none_constraint,
+    id as create_id,
+)
 from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
 from apiserver.services.utils import validate_tags, escape_dict_field, escape_dict
@@ -39,7 +43,6 @@ from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
 from .utils import (
     ChangeStatusRequest,
-    update_project_time,
     deleted_prefix,
     get_last_metric_updates,
 )
@@ -78,7 +81,11 @@ class TaskBLL:
 
     @staticmethod
     def get_by_id(
-        company_id, task_id, required_status=None, only_fields=None, allow_public=False,
+        company_id,
+        task_id,
+        required_status=None,
+        only_fields=None,
+        allow_public=False,
     ):
         if only_fields:
             if isinstance(only_fields, string_types):
@@ -313,7 +320,7 @@ class TaskBLL:
         org_bll.update_tags(
             company_id,
             Tags.Task,
-            project=new_task.project,
+            projects=[new_task.project],
             tags=updated_tags,
             system_tags=updated_system_tags,
         )
