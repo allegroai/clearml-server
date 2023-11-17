@@ -155,6 +155,7 @@ services:
       - http://fileserver:8081
     volumes:
     - c:/opt/clearml/logs:/var/log/clearml
+    - c:/opt/clearml/config:/opt/clearml/config
 
 networks:
   backend:
