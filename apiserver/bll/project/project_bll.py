@@ -551,7 +551,10 @@ class ProjectBLL:
 
     @classmethod
     def get_dataset_stats(
-        cls, company: str, project_ids: Sequence[str], users: Sequence[str] = None,
+        cls,
+        company: str,
+        project_ids: Sequence[str],
+        users: Sequence[str] = None,
     ) -> Dict[str, dict]:
         if not project_ids:
             return {}
@@ -585,7 +588,9 @@ class ProjectBLL:
 
     @staticmethod
     def _get_projects_children(
-        project_ids: Sequence[str], search_hidden: bool, allowed_ids: Sequence[str],
+        project_ids: Sequence[str],
+        search_hidden: bool,
+        allowed_ids: Sequence[str],
     ) -> Tuple[ProjectsChildren, Set[str]]:
         child_projects = _get_sub_projects(
             project_ids,
@@ -629,7 +634,9 @@ class ProjectBLL:
         project_ids_with_children = set(project_ids)
         if include_children:
             child_projects, children_ids = cls._get_projects_children(
-                project_ids, search_hidden=True, allowed_ids=selected_project_ids,
+                project_ids,
+                search_hidden=True,
+                allowed_ids=selected_project_ids,
             )
             project_ids_with_children |= children_ids
 
@@ -903,6 +910,7 @@ class ProjectBLL:
         allow_public: bool = True,
         children_type: ProjectChildrenType = None,
         children_tags: Sequence[str] = None,
+        children_tags_filter: dict = None,
     ) -> Tuple[Sequence[str], Sequence[str]]:
         """
         Get the projects ids matching children_condition (if passed) or where the passed user created any tasks
@@ -923,11 +931,15 @@ class ProjectBLL:
             query &= Q(user__in=users)
 
         project_query = None
-        child_query = (
-            query & GetMixin.get_list_field_query("tags", children_tags)
-            if children_tags
-            else query
-        )
+        if children_tags_filter:
+            child_query = query & GetMixin.get_list_filter_query(
+                "tags", children_tags_filter
+            )
+        elif children_tags:
+            child_query = query & GetMixin.get_list_field_query("tags", children_tags)
+        else:
+            child_query = query
+
         if children_type == ProjectChildrenType.dataset:
             child_queries = {
                 Project: child_query
@@ -1087,39 +1099,54 @@ class ProjectBLL:
 
         or_conditions = []
         for field, field_filter in filter_.items():
-            if not (
-                field_filter
-                and isinstance(field_filter, list)
-                and all(isinstance(t, str) for t in field_filter)
-            ):
+            if not (field_filter and isinstance(field_filter, (list, dict))):
                 raise errors.bad_request.ValidationError(
-                    f"List of strings expected for the field: {field}"
+                    f"Non empty list or dictionary expected for the field: {field}"
                 )
-            helper = GetMixin.NewListFieldBucketHelper(
-                field, data=field_filter, legacy=True
-            )
-            field_conditions = {}
-            for action, values in helper.actions.items():
-                value = list(set(values))
-                for key in reversed(action.split("__")):
-                    value = {f"${key}": value}
-                field_conditions.update(value)
-            if (
-                helper.explicit_operator
-                and helper.global_operator == Q.OR
-                and len(field_conditions) > 1
-            ):
-                or_conditions.append(
-                    [{field: {op: cond}} for op, cond in field_conditions.items()]
+
+            if isinstance(field_filter, list):
+                if not all(isinstance(t, str) for t in field_filter):
+                    raise errors.bad_request.ValidationError(
+                        f"Only string values are allowed in the list filter: {field}"
+                    )
+                helper = GetMixin.NewListFieldBucketHelper(
+                    field, data=field_filter, legacy=True
                 )
+                op = (
+                    Q.OR
+                    if helper.explicit_operator and helper.global_operator == Q.OR
+                    else Q.AND
+                )
+                db_query = {op: helper.actions}
             else:
-                conditions[field] = field_conditions
+                helper = GetMixin.ListQueryFilter.from_data(field, field_filter)
+                db_query = helper.db_query
+
+            for op, actions in db_query.items():
+                field_conditions = {}
+                for action, values in actions.items():
+                    value = list(set(values))
+                    for key in reversed(action.split("__")):
+                        value = {f"${key}": value}
+                    field_conditions.update(value)
+
+                if op == Q.OR and len(field_conditions) > 1:
+                    or_conditions.append(
+                        {
+                            "$or": [
+                                {field: {db_modifier: cond}}
+                                for db_modifier, cond in field_conditions.items()
+                            ]
+                        }
+                    )
+                else:
+                    conditions[field] = field_conditions
 
         if or_conditions:
             if len(or_conditions) == 1:
-                conditions["$or"] = next(iter(or_conditions))
+                conditions = next(iter(or_conditions))
             else:
-                conditions["$and"] = [{"$or": c} for c in or_conditions]
+                conditions["$and"] = [c for c in or_conditions]
 
         return conditions
 

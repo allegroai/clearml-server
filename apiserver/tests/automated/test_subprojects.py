@@ -64,10 +64,38 @@ class TestSubProjects(TestService):
         self.assertEqual(p.basename, "project2")
         self.assertEqual(p.stats.active.total_tasks, 2)
 
+        # new filter
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root],
+            children_type="report",
+            children_tags_filter={"any": {"include": ["test1", "test2"]}},
+            shallow_search=True,
+            include_stats=True,
+            check_own_contents=True,
+        ).projects
+        self.assertEqual(len(projects), 1)
+        p = projects[0]
+        self.assertEqual(p.basename, "project2")
+        self.assertEqual(p.stats.active.total_tasks, 2)
+
         projects = self.api.projects.get_all_ex(
             parent=[test_root],
             children_type="report",
             children_tags=["__$all", "test1", "test2"],
+            shallow_search=True,
+            include_stats=True,
+            check_own_contents=True,
+        ).projects
+        self.assertEqual(len(projects), 1)
+        p = projects[0]
+        self.assertEqual(p.basename, "project2")
+        self.assertEqual(p.stats.active.total_tasks, 1)
+
+        # new filter
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root],
+            children_type="report",
+            children_tags_filter={"all": {"include": ["test1", "test2"]}},
             shallow_search=True,
             include_stats=True,
             check_own_contents=True,
@@ -101,6 +129,20 @@ class TestSubProjects(TestService):
         self.assertEqual(len(projects), 2)
         for p in projects:
             self.assertEqual(p.stats.active.total_tasks, 1)
+
+        # new filter
+        projects = self.api.projects.get_all_ex(
+            parent=[test_root],
+            children_type="report",
+            children_tags_filter={"all": {"exclude": ["test1", "test2"]}},
+            shallow_search=True,
+            include_stats=True,
+            check_own_contents=True,
+        ).projects
+        self.assertEqual(len(projects), 1)
+        p = projects[0]
+        self.assertEqual(p.basename, "project1")
+        self.assertEqual(p.stats.active.total_tasks, 1)
 
     def test_query_children(self):
         test_root_name = "TestQueryChildren"

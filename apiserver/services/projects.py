@@ -108,7 +108,13 @@ def _get_project_stats_filter(
     if request.include_stats_filter or not request.children_type:
         return request.include_stats_filter, request.search_hidden
 
-    stats_filter = {"tags": request.children_tags} if request.children_tags else {}
+    if request.children_tags_filter:
+        stats_filter = {"tags": request.children_tags_filter}
+    elif request.children_tags:
+        stats_filter = {"tags": request.children_tags}
+    else:
+        stats_filter = {}
+
     if request.children_type == ProjectChildrenType.pipeline:
         return (
             {
@@ -153,6 +159,7 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
             allow_public=allow_public,
             children_type=request.children_type,
             children_tags=request.children_tags,
+            children_tags_filter=request.children_tags_filter,
         )
         if not ids:
             return {"projects": []}

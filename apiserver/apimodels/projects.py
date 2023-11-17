@@ -99,3 +99,4 @@ class ProjectsGetRequest(models.Base):
     allow_public = fields.BoolField(default=True)
     children_type = ActualEnumField(ProjectChildrenType)
     children_tags = fields.ListField(str)
+    children_tags_filter = DictField()

@@ -197,9 +197,7 @@ class GetMixin(PropsMixin):
             if self.global_operator is None:
                 self.global_operator = self.default_operator
 
-        def _get_next_term(
-            self, data: Sequence[str]
-        ) -> Generator[Term, None, None]:
+        def _get_next_term(self, data: Sequence[str]) -> Generator[Term, None, None]:
             unary_operator = None
             for value in data:
                 if value is None:
@@ -233,12 +231,18 @@ class GetMixin(PropsMixin):
                     operator = self._operators.get(value)
                     if operator is None:
                         raise FieldsValueError(
-                            "Unsupported operator", field=self._field, operator=value,
+                            "Unsupported operator",
+                            field=self._field,
+                            operator=value,
                         )
                     yield self.Term(operator=operator)
                     continue
 
-                if not unary_operator and self._support_legacy and value.startswith("-"):
+                if (
+                    not unary_operator
+                    and self._support_legacy
+                    and value.startswith("-")
+                ):
                     value = value[1:]
                     if not value:
                         raise FieldsValueError(
@@ -403,11 +407,24 @@ class GetMixin(PropsMixin):
                 parameters = {
                     k: cls._get_fixed_field_value(k, v) for k, v in parameters.items()
                 }
+                filters = parameters.pop("filters", {})
+                if not isinstance(filters, dict):
+                    raise FieldsValueError(
+                        "invalid value type, string expected",
+                        field=filters,
+                        value=str(filters),
+                    )
                 opts = parameters_options
                 for field in opts.pattern_fields:
                     pattern = parameters.pop(field, None)
                     if pattern:
                         dict_query[field] = RegexWrapper(pattern)
+
+                for field, data in cls._pop_matching_params(
+                    patterns=opts.list_fields, parameters=filters
+                ).items():
+                    query &= cls.get_list_filter_query(field, data)
+                    parameters.pop(field, None)
 
                 for field, data in cls._pop_matching_params(
                     patterns=opts.list_fields, parameters=parameters
@@ -532,6 +549,135 @@ class GetMixin(PropsMixin):
 
         return q
 
+    @attr.s(auto_attribs=True)
+    class ListQueryFilter:
+        """
+        Deserialize filters data and build db_query object that represents it with the corresponding
+        mongo engine operations
+        Each part has include and exclude lists that map to mongoengine operations as following:
+        "any"
+          - include -> 'in'
+          - exclude -> 'not_all'
+          - combined by 'or' operation
+        "all"
+          - include -> 'all'
+          - exclude -> 'nin'
+          - combined by 'and' operation
+        "op" optional parameter for combining "and" and "all" parts. Can be "and" or "or". The default is "and"
+        """
+
+        _and_op = "and"
+        _or_op = "or"
+        _allowed_op = [_and_op, _or_op]
+        _db_modifiers: Mapping = {
+            (Q.OR, True): "in",
+            (Q.OR, False): "not__all",
+            (Q.AND, True): "all",
+            (Q.AND, False): "nin",
+        }
+
+        @attr.s(auto_attribs=True)
+        class ListFilter:
+            include: Sequence[str] = []
+            exclude: Sequence[str] = []
+
+            @classmethod
+            def from_dict(cls, d: Mapping):
+                if d is None:
+                    return None
+                return cls(**d)
+
+        any: ListFilter = attr.ib(converter=ListFilter.from_dict, default=None)
+        all: ListFilter = attr.ib(converter=ListFilter.from_dict, default=None)
+        op: str = attr.ib(default="and")
+        db_query: dict = attr.ib(init=False)
+
+        # noinspection PyUnresolvedReferences
+        @op.validator
+        def op_validator(self, _, value):
+            if value not in self._allowed_op:
+                raise ValueError(
+                    f"Invalid list query filter operator: {value}. "
+                    f"Should be one of {str(self._allowed_op)}"
+                )
+
+        @property
+        def and_op(self) -> bool:
+            return self.op == self._and_op
+
+        def __attrs_post_init__(self):
+            self.db_query = {}
+            for op, conditions in ((Q.OR, self.any), (Q.AND, self.all)):
+                if not conditions:
+                    continue
+
+                operations = {}
+                for vals, include in (
+                    (conditions.include, True),
+                    (conditions.exclude, False),
+                ):
+                    if not vals:
+                        continue
+                    operations[self._db_modifiers[(op, include)]] = list(set(vals))
+
+                self.db_query[op] = operations
+
+        @classmethod
+        def from_data(cls, field, data: Mapping):
+            if not isinstance(data, dict):
+                raise errors.bad_request.ValidationError(
+                    "invalid filter for field, dictionary expected",
+                    field=field,
+                    value=str(data),
+                )
+
+            try:
+                return cls(**data)
+            except Exception as ex:
+                raise errors.bad_request.ValidationError(
+                    field=field,
+                    value=str(ex),
+                )
+
+    @classmethod
+    def get_list_filter_query(
+        cls, field: str, data: Mapping
+    ) -> Union[RegexQ, RegexQCombination]:
+        if not data:
+            return RegexQ()
+
+        filter_ = cls.ListQueryFilter.from_data(field, data)
+
+        mongoengine_field = field.replace(".", "__")
+        queries = []
+        for op, actions in filter_.db_query.items():
+            if not actions:
+                continue
+
+            ops = []
+            for action, vals in actions.items():
+                if not vals:
+                    continue
+
+                ops.append(RegexQ(**{f"{mongoengine_field}__{action}": vals}))
+
+            if not ops:
+                continue
+
+            if len(ops) == 1:
+                queries.extend(ops)
+                continue
+
+            queries.append(RegexQCombination(operation=op, children=ops))
+
+        if not queries:
+            return RegexQ()
+        if len(queries) == 1:
+            return queries[0]
+
+        operation = Q.AND if filter_.and_op else Q.OR
+        return RegexQCombination(operation=operation, children=queries)
+
     @classmethod
     def get_list_field_query(cls, field: str, data: Sequence[Optional[str]]) -> RegexQ:
         """
@@ -640,7 +786,7 @@ class GetMixin(PropsMixin):
 
     @classmethod
     def get_projection(cls, parameters, override_projection=None, **__):
-        """ Extract a projection list from the provided dictionary. Supports an override projection. """
+        """Extract a projection list from the provided dictionary. Supports an override projection."""
         if override_projection is not None:
             return override_projection
         if not parameters:
@@ -654,7 +800,8 @@ class GetMixin(PropsMixin):
         """Return include and exclude lists based on passed projection and class definition"""
         if projection:
             include, exclude = partition(
-                projection, key=lambda x: x[0] != ProjectionHelper.exclusion_prefix,
+                projection,
+                key=lambda x: x[0] != ProjectionHelper.exclusion_prefix,
             )
         else:
             include, exclude = [], []
@@ -901,7 +1048,9 @@ class GetMixin(PropsMixin):
                 projection_fields=projection_fields,
             )
             return cls.get_data_with_scroll_support(
-                query_dict=query_dict, data_getter=data_getter, ret_params=ret_params,
+                query_dict=query_dict,
+                data_getter=data_getter,
+                ret_params=ret_params,
             )
 
         return cls._get_many_no_company(
@@ -914,7 +1063,9 @@ class GetMixin(PropsMixin):
 
     @classmethod
     def get_many_public(
-        cls, query: Q = None, projection: Collection[str] = None,
+        cls,
+        query: Q = None,
+        projection: Collection[str] = None,
     ):
         """
         Fetch all public documents matching a provided query.
@@ -1207,7 +1358,7 @@ class UpdateMixin(object):
 
 
 class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
-    """ Provide convenience methods for a subclass of mongoengine.Document """
+    """Provide convenience methods for a subclass of mongoengine.Document"""
 
     @classmethod
     def aggregate(
