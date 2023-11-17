@@ -1,6 +1,8 @@
 from boltons.dictutils import OneToOne
 from mongoengine.queryset.transform import MATCH_OPERATORS
 
+from apiserver.apierrors import errors
+
 
 class ParameterKeyEscaper:
     """
@@ -15,8 +17,13 @@ class ParameterKeyEscaper:
     @classmethod
     def escape(cls, value: str):
         """ Quote a parameter key """
-        value = value.strip().replace("%", "%%")
+        value = value.strip()
+        if not value:
+            raise errors.bad_request.ValidationError(
+                f"Empty key is not allowed"
+            )
 
+        value = value.replace("%", "%%")
         for c, r in cls._mapping.items():
             value = value.replace(c, r)
 
