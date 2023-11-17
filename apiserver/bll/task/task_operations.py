@@ -79,13 +79,20 @@ def archive_task(
 
 
 def unarchive_task(
-    task: str, company_id: str, user_id: str, status_message: str, status_reason: str,
+    task: str,
+    company_id: str,
+    user_id: str,
+    status_message: str,
+    status_reason: str,
 ) -> int:
     """
     Unarchive task. Return 1 if successful
     """
     task = TaskBLL.get_task_with_access(
-        task, company_id=company_id, only=("id",), requires_write_access=True,
+        task,
+        company_id=company_id,
+        only=("id",),
+        requires_write_access=True,
     )
     return task.update(
         status_message=status_message,
@@ -345,11 +352,17 @@ def reset_task(
         unset__output__error=1,
         unset__last_worker=1,
         unset__last_worker_report=1,
+        unset__started=1,
+        unset__completed=1,
+        unset__published=1,
+        unset__active_duration=1,
+        unset__enqueue_status=1,
     )
 
     if clear_all:
         updates.update(
-            set__execution=Execution(), unset__script=1,
+            set__execution=Execution(),
+            unset__script=1,
         )
     else:
         updates.update(unset__execution__queue=1)
@@ -370,11 +383,6 @@ def reset_task(
         status_message="reset",
         user_id=user_id,
     ).execute(
-        started=None,
-        completed=None,
-        published=None,
-        active_duration=None,
-        enqueue_status=None,
         **updates,
     )
 
