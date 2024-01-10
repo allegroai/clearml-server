@@ -33,6 +33,7 @@ class ProjectOrNoneRequest(models.Base):
 
 class GetUniqueMetricsRequest(ProjectOrNoneRequest):
     model_metrics = fields.BoolField(default=False)
+    ids = fields.ListField(str)
 
 
 class GetParamsRequest(ProjectOrNoneRequest):

@@ -239,6 +239,7 @@ class ProjectQueries:
         company_id,
         project_ids: Sequence[str],
         include_subprojects: bool,
+        ids: Sequence[str],
         model_metrics: bool = False,
     ):
         pipeline = [
@@ -246,6 +247,7 @@ class ProjectQueries:
                 "$match": {
                     **cls._get_company_constraint(company_id),
                     **cls._get_project_constraint(project_ids, include_subprojects),
+                    **({"_id": {"$in": ids}} if ids else {}),
                 }
             },
             {"$project": {"metrics": {"$objectToArray": "$last_metrics"}}},

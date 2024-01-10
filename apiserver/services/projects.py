@@ -380,6 +380,7 @@ def get_unique_metric_variants(
         company_id,
         [request.project] if request.project else None,
         include_subprojects=request.include_subprojects,
+        ids=request.ids,
         model_metrics=request.model_metrics,
     )
 
