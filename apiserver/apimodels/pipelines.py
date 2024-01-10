@@ -18,8 +18,4 @@ class StartPipelineRequest(models.Base):
     task = fields.StringField(required=True)
     queue = fields.StringField(required=True)
     args = ListField(Arg)
-
-
-class StartPipelineResponse(models.Base):
-    pipeline = fields.StringField(required=True)
-    enqueued = fields.BoolField(required=True)
+    verify_watched_queue = fields.BoolField(default=False)

@@ -5,22 +5,24 @@ import attr
 
 from apiserver.apierrors.errors.bad_request import CannotRemoveAllRuns
 from apiserver.apimodels.pipelines import (
-    StartPipelineResponse,
     StartPipelineRequest,
     DeleteRunsRequest,
 )
 from apiserver.bll.organization import OrgBLL
 from apiserver.bll.project import ProjectBLL
+from apiserver.bll.queue import QueueBLL
 from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.task_operations import enqueue_task, delete_task
 from apiserver.bll.util import run_batch_operation
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import Task, TaskType
 from apiserver.service_repo import APICall, endpoint
+from apiserver.utilities.dicts import nested_get
 
 org_bll = OrgBLL()
 project_bll = ProjectBLL()
 task_bll = TaskBLL()
+queue_bll = QueueBLL()
 
 
 def _update_task_name(task: Task):
@@ -79,9 +81,7 @@ def delete_runs(call: APICall, company_id: str, request: DeleteRunsRequest):
     call.result.data = dict(succeeded=succeeded, failed=failures)
 
 
-@endpoint(
-    "pipelines.start_pipeline", response_data_model=StartPipelineResponse,
-)
+@endpoint("pipelines.start_pipeline")
 def start_pipeline(call: APICall, company_id: str, request: StartPipelineRequest):
     hyperparams = None
     if request.args:
@@ -113,5 +113,14 @@ def start_pipeline(call: APICall, company_id: str, request: StartPipelineRequest
         status_message="Starting pipeline",
         status_reason="",
     )
+    extra = {}
+    if request.verify_watched_queue and queued:
+        res_queue = nested_get(res, ("fields", "execution.queue"))
+        if res_queue:
+            extra["queue_watched"] = queue_bll.check_for_workers(company_id, res_queue)
 
-    return StartPipelineResponse(pipeline=task.id, enqueued=bool(queued))
+    call.result.data = dict(
+        pipeline=task.id,
+        enqueued=bool(queued),
+        **extra,
+    )

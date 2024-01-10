@@ -37,29 +37,44 @@ class TestPipelines(TestService):
 
         res = self.api.pipelines.start_pipeline(task=task, queue=queue, args=args)
         pipeline_task = res.pipeline
-        try:
-            self.assertTrue(res.enqueued)
-            pipeline = self.api.tasks.get_all_ex(id=[pipeline_task]).tasks[0]
-            self.assertTrue(pipeline.name.startswith(task_name))
-            self.assertEqual(pipeline.status, "queued")
-            self.assertEqual(pipeline.project.id, project)
-            self.assertEqual(
-                pipeline.hyperparams.Args,
-                {
-                    a["name"]: {
-                        "section": "Args",
-                        "name": a["name"],
-                        "value": a["value"],
-                    }
-                    for a in args
-                },
-            )
-        finally:
-            self.api.tasks.delete(task=pipeline_task, force=True)
+        self.assertTrue(res.enqueued)
+        pipeline = self.api.tasks.get_all_ex(id=[pipeline_task]).tasks[0]
+        self.assertTrue(pipeline.name.startswith(task_name))
+        self.assertEqual(pipeline.status, "queued")
+        self.assertEqual(pipeline.project.id, project)
+        self.assertEqual(
+            pipeline.hyperparams.Args,
+            {
+                a["name"]: {
+                    "section": "Args",
+                    "name": a["name"],
+                    "value": a["value"],
+                }
+                for a in args
+            },
+        )
+
+        # watched queue
+        queue = self._temp_queue("test pipelines")
+        project, task = self._temp_project_and_task(name="pipelines test1")
+        res = self.api.pipelines.start_pipeline(
+            task=task, queue=queue, verify_watched_queue=True
+        )
+        self.assertEqual(res.queue_watched, False)
+
+        self.api.workers.register(worker="test pipelines", queues=[queue])
+        project, task = self._temp_project_and_task(name="pipelines test2")
+        res = self.api.pipelines.start_pipeline(
+            task=task, queue=queue, verify_watched_queue=True
+        )
+        self.assertEqual(res.queue_watched, True)
 
     def _temp_project_and_task(self, name) -> Tuple[str, str]:
         project = self.create_temp(
-            "projects", name=name, description="test", delete_params=dict(force=True),
+            "projects",
+            name=name,
+            description="test",
+            delete_params=dict(force=True, delete_contents=True),
         )
 
         return (
@@ -72,3 +87,6 @@ class TestPipelines(TestService):
                 system_tags=["pipeline"],
             ),
         )
+
+    def _temp_queue(self, queue_name, **kwargs):
+        return self.create_temp("queues", name=queue_name, **kwargs)
