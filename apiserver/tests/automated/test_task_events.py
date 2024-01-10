@@ -285,6 +285,15 @@ class TestTaskEvents(TestService):
 
         self._assert_log_events(task=task, expected_total=1)
 
+        metrics = self.api.events.get_multi_task_metrics(
+            tasks=[model],
+            event_type="training_stats_scalar",
+            model_events=True,
+        ).metrics
+        self.assertEqual([m.metric for m in metrics], [f"Metric{i}" for i in range(5)])
+        variants = [f"Variant{i}" for i in range(5)]
+        self.assertTrue(all(m.variants == variants for m in metrics))
+
     def test_error_events(self):
         task = self._temp_task()
         events = [

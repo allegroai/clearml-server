@@ -876,10 +876,10 @@ class PrePopulate:
                         "30795571a4704717a80de8705897ytuyg",
                     ]
 
-            auth_user = cls.auth_user_cls.from_json(json.dumps(user))
+            auth_user = cls.auth_user_cls.from_json(json.dumps(user), created=True)
             auth_user.company = company_id
             auth_user.save()
-            be_user = cls.user_cls.from_json(json.dumps(be_users[uid]))
+            be_user = cls.user_cls.from_json(json.dumps(be_users[uid]), created=True)
             be_user.company = company_id
             be_user.save()
 
