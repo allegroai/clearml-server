@@ -156,6 +156,10 @@ class TaskMetricsRequest(MultiTasksRequestBase):
     event_type: EventType = ActualEnumField(EventType, required=True)
 
 
+class MultiTaskMetricsRequest(MultiTasksRequestBase):
+    event_type: EventType = ActualEnumField(EventType, default=EventType.all)
+
+
 class MultiTaskPlotsRequest(MultiTasksRequestBase):
     iters: int = IntField(default=1)
     scroll_id: str = StringField()

@@ -31,6 +31,7 @@ from apiserver.apimodels.events import (
     GetMetricSamplesRequest,
     TaskMetric,
     MultiTaskPlotsRequest,
+    MultiTaskMetricsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants, TaskCompanies
@@ -962,6 +963,30 @@ def get_task_metrics(call: APICall, company_id, request: TaskMetricsRequest):
     )
     call.result.data = {
         "metrics": [{"task": task, "metrics": metrics} for (task, metrics) in res]
+    }
+
+
+@endpoint("events.get_multi_task_metrics")
+def get_multi_task_metrics(call: APICall, company_id, request: MultiTaskMetricsRequest):
+    companies = _get_task_or_model_index_companies(
+        company_id, request.tasks, model_events=request.model_events
+    )
+    if not companies:
+        return {"metrics": []}
+
+    metrics = event_bll.metrics.get_multi_task_metrics(
+        companies=companies,
+        event_type=request.event_type
+    )
+    res = [
+        {
+            "metric": m,
+            "variants": sorted(vars_),
+        }
+        for m, vars_ in metrics.items()
+    ]
+    call.result.data = {
+        "metrics": sorted(res, key=itemgetter("metric"))
     }
 
 

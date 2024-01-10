@@ -21,6 +21,7 @@ from apiserver.bll.event.event_common import (
     TaskCompanies,
 )
 from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
+from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.tools import safe_get
@@ -463,12 +464,96 @@ class EventMetrics:
 
         return {"bool": {"must": must}}
 
+    def get_multi_task_metrics(self, companies: TaskCompanies, event_type: EventType) -> Mapping[str, list]:
+        """
+        For the requested tasks return reported metrics and variants
+        """
+        tasks_ids = {
+            company: [t.id for t in tasks]
+            for company, tasks in companies.items()
+        }
+        with ThreadPoolExecutor(EventSettings.max_workers) as pool:
+            companies_res: Sequence = list(
+                pool.map(
+                    partial(
+                        self._get_multi_task_metrics,
+                        event_type=event_type,
+                    ),
+                    tasks_ids.items(),
+                )
+            )
+
+        if len(companies_res) == 1:
+            return companies_res[0]
+
+        res = defaultdict(set)
+        for c_res in companies_res:
+            for m, vars_ in c_res.items():
+                res[m].update(vars_)
+
+        return {
+            k: list(v)
+            for k, v in res.items()
+        }
+
+    def _get_multi_task_metrics(
+        self, company_tasks: Tuple[str, Sequence[str]], event_type: EventType
+    ) -> Mapping[str, list]:
+        company_id, task_ids = company_tasks
+        if check_empty_data(self.es, company_id, event_type):
+            return {}
+
+        search_args = dict(
+            es=self.es,
+            company_id=company_id,
+            event_type=event_type,
+        )
+        query = QueryBuilder.terms("task", task_ids)
+        max_metrics, max_variants = get_max_metric_and_variant_counts(
+            query=query,
+            **search_args,
+        )
+        es_req = {
+            "size": 0,
+            "query": query,
+            "aggs": {
+                "metrics": {
+                    "terms": {
+                        "field": "metric",
+                        "size": max_metrics,
+                        "order": {"_key": "asc"},
+                    },
+                    "aggs": {
+                        "variants": {
+                            "terms": {
+                                "field": "variant",
+                                "size": max_variants,
+                                "order": {"_key": "asc"},
+                            },
+                        }
+                    }
+                }
+            },
+        }
+
+        es_res = search_company_events(
+            body=es_req,
+            **search_args,
+        )
+        aggs_result = es_res.get("aggregations")
+        if not aggs_result:
+            return {}
+
+        return {
+            mb["key"]: [vb["key"] for vb in mb["variants"]["buckets"]]
+            for mb in aggs_result["metrics"]["buckets"]
+        }
+
     def get_task_metrics(
         self, company_id, task_ids: Sequence, event_type: EventType
     ) -> Sequence:
         """
-        For the requested tasks return all the metrics that
-        reported events of the requested types
+        For the requested tasks return reported metrics per task
         """
         if check_empty_data(self.es, company_id, event_type):
             return {}

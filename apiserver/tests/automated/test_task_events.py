@@ -70,6 +70,26 @@ class TestTaskEvents(TestService):
         self._assert_task_metrics(tasks, "log")
         self._assert_task_metrics(tasks, "training_stats_scalar")
 
+        self._assert_multitask_metrics(
+            tasks=list(tasks), metrics=["Metric1", "Metric2", "Metric3"]
+        )
+        self._assert_multitask_metrics(
+            tasks=list(tasks),
+            event_type="training_debug_image",
+            metrics=["Metric1", "Metric2", "Metric3"],
+        )
+        self._assert_multitask_metrics(tasks=list(tasks), event_type="plot", metrics=[])
+
+    def _assert_multitask_metrics(
+        self, tasks: Sequence[str], metrics: Sequence[str], event_type: str = None
+    ):
+        res = self.api.events.get_multi_task_metrics(
+            tasks=tasks,
+            **({"event_type": event_type} if event_type else {}),
+        ).metrics
+        self.assertEqual([r.metric for r in res], metrics)
+        self.assertTrue(all(r.variants == ["Test variant"] for r in res))
+
     def _assert_task_metrics(self, tasks: dict, event_type: str):
         res = self.api.events.get_task_metrics(tasks=list(tasks), event_type=event_type)
         for task, metrics in tasks.items():
