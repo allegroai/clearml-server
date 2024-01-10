@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Sequence
 
 import attr
 import six
+from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.bll.util import update_project_time
@@ -10,6 +12,7 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus, TaskSystemTags
 from apiserver.database.utils import get_options
+from apiserver.service_repo.auth import Identity
 from apiserver.utilities.attrs import typed_attrs
 
 valid_statuses = get_options(TaskStatus)
@@ -157,15 +160,75 @@ def get_possible_status_changes(current_status):
     return possible
 
 
+def get_many_tasks_for_writing(
+    company_id: str,
+    identity: Identity,
+    query: Q = None,
+    only: Sequence = None,
+    throw_on_forbidden: bool = True,
+) -> Sequence[Task]:
+    if only:
+        missing = [f for f in ("company", ) if f not in only]
+        if missing:
+            only = [*only, *missing]
+
+    result = list(
+        Task.get_many(
+            company=company_id,
+            query=query,
+            override_projection=only,
+            allow_public=True,
+            return_dicts=False,
+        )
+    )
+
+    forbidden_tasks = {task.id for task in result if not task.company}
+    if forbidden_tasks:
+        if throw_on_forbidden:
+            raise errors.forbidden.NoWritePermission(
+                f"cannot modify public task(s), ids={tuple(forbidden_tasks)}"
+            )
+        result = [task for task in result if task.id not in forbidden_tasks]
+
+    return result
+
+
+def get_task_with_write_access(
+    task_id: str,
+    company_id: str,
+    identity: Identity,
+    only=None,
+) -> Task:
+    """
+    Gets a task that has a required write access
+    :except errors.bad_request.InvalidTaskId: if the task is not found
+    :except errors.forbidden.NoWritePermission: if write_access was required and the task cannot be modified
+    """
+    query = dict(id=task_id, company=company_id)
+
+    task = Task.get_for_writing(_only=only, **query)
+    if not task:
+        raise errors.bad_request.InvalidTaskId(**query)
+
+    return task
+
+
 def get_task_for_update(
-    company_id: str, task_id: str, allow_all_statuses: bool = False, force: bool = False
+    company_id: str,
+    task_id: str,
+    identity: Identity,
+    allow_all_statuses: bool = False,
+    force: bool = False
 ) -> Task:
     """
     Loads only task id and return the task only if it is updatable (status == 'created')
     """
-    task = Task.get_for_writing(company=company_id, id=task_id, _only=("id", "status"))
-    if not task:
-        raise errors.bad_request.InvalidTaskId(id=task_id)
+    task = get_task_with_write_access(
+        task_id=task_id,
+        company_id=company_id,
+        only=("id", "status"),
+        identity=identity,
+    )
 
     if allow_all_statuses:
         return task

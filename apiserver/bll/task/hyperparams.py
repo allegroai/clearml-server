@@ -15,6 +15,7 @@ from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.utils import get_task_for_update, update_task
 from apiserver.config_repo import config
 from apiserver.database.model.task.task import ParamsItem, Task, ConfigurationItem
+from apiserver.service_repo.auth import Identity
 from apiserver.utilities.parameter_key_escaper import (
     ParameterKeyEscaper,
     mongoengine_safe,
@@ -31,7 +32,10 @@ class HyperParams:
     def get_params(cls, company_id: str, task_ids: Sequence[str]) -> Dict[str, dict]:
         only = ("id", "hyperparams")
         tasks = task_bll.assert_exists(
-            company_id=company_id, task_ids=task_ids, only=only, allow_public=True,
+            company_id=company_id,
+            task_ids=task_ids,
+            only=only,
+            allow_public=True,
         )
 
         return {
@@ -63,7 +67,7 @@ class HyperParams:
     def delete_params(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         hyperparams: Sequence[HyperParamKey],
         force: bool,
@@ -74,6 +78,7 @@ class HyperParams:
             task_id=task_id,
             allow_all_statuses=properties_only,
             force=force,
+            identity=identity,
         )
 
         with_param, without_param = iterutils.partition(
@@ -96,7 +101,7 @@ class HyperParams:
 
         return update_task(
             task,
-            user_id=user_id,
+            user_id=identity.user,
             update_cmds=delete_cmds,
             set_last_update=not properties_only,
         )
@@ -105,7 +110,7 @@ class HyperParams:
     def edit_params(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         hyperparams: Sequence[HyperParamItem],
         replace_hyperparams: str,
@@ -117,6 +122,7 @@ class HyperParams:
             task_id=task_id,
             allow_all_statuses=properties_only,
             force=force,
+            identity=identity,
         )
 
         update_cmds = dict()
@@ -135,7 +141,7 @@ class HyperParams:
 
         return update_task(
             task,
-            user_id=user_id,
+            user_id=identity.user,
             update_cmds=update_cmds,
             set_last_update=not properties_only,
         )
@@ -163,7 +169,10 @@ class HyperParams:
         else:
             only.append("configuration")
         tasks = task_bll.assert_exists(
-            company_id=company_id, task_ids=task_ids, only=only, allow_public=True,
+            company_id=company_id,
+            task_ids=task_ids,
+            only=only,
+            allow_public=True,
         )
 
         return {
@@ -209,13 +218,15 @@ class HyperParams:
     def edit_configuration(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         configuration: Sequence[Configuration],
         replace_configuration: bool,
         force: bool,
     ) -> int:
-        task = get_task_for_update(company_id=company_id, task_id=task_id, force=force)
+        task = get_task_for_update(
+            company_id=company_id, task_id=task_id, force=force, identity=identity
+        )
 
         update_cmds = dict()
         configuration = {
@@ -228,22 +239,24 @@ class HyperParams:
             for name, value in configuration.items():
                 update_cmds[f"set__configuration__{mongoengine_safe(name)}"] = value
 
-        return update_task(task, user_id=user_id, update_cmds=update_cmds)
+        return update_task(task, user_id=identity.user, update_cmds=update_cmds)
 
     @classmethod
     def delete_configuration(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         configuration: Sequence[str],
         force: bool,
     ) -> int:
-        task = get_task_for_update(company_id=company_id, task_id=task_id, force=force)
+        task = get_task_for_update(
+            company_id=company_id, task_id=task_id, force=force, identity=identity
+        )
 
         delete_cmds = {
             f"unset__configuration__{ParameterKeyEscaper.escape(name)}": 1
             for name in set(configuration)
         }
 
-        return update_task(task, user_id=user_id, update_cmds=delete_cmds)
+        return update_task(task, user_id=identity.user, update_cmds=delete_cmds)

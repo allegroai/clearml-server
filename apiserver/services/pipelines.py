@@ -57,7 +57,7 @@ def delete_runs(call: APICall, company_id: str, request: DeleteRunsRequest):
         func=partial(
             delete_task,
             company_id=company_id,
-            user_id=call.identity.user,
+            identity=call.identity,
             move_to_trash=False,
             force=True,
             return_file_urls=False,
@@ -108,7 +108,7 @@ def start_pipeline(call: APICall, company_id: str, request: StartPipelineRequest
     queued, res = enqueue_task(
         task_id=task.id,
         company_id=company_id,
-        user_id=call.identity.user,
+        identity=call.identity,
         queue_id=request.queue,
         status_message="Starting pipeline",
         status_reason="",

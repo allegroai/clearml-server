@@ -59,27 +59,6 @@ class TaskBLL:
         self.redis: StrictRedis = redis or redman.connection("apiserver")
 
     @staticmethod
-    def get_task_with_access(
-        task_id, company_id, only=None, allow_public=False, requires_write_access=False
-    ) -> Task:
-        """
-        Gets a task that has a required write access
-        :except errors.bad_request.InvalidTaskId: if the task is not found
-        :except errors.forbidden.NoWritePermission: if write_access was required and the task cannot be modified
-        """
-        with translate_errors_context():
-            query = dict(id=task_id, company=company_id)
-            if requires_write_access:
-                task = Task.get_for_writing(_only=only, **query)
-            else:
-                task = Task.get(_only=only, **query, include_public=allow_public)
-
-            if not task:
-                raise errors.bad_request.InvalidTaskId(**query)
-
-            return task
-
-    @staticmethod
     def get_by_id(
         company_id,
         task_id,

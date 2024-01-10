@@ -152,7 +152,7 @@ class QueueBLL(object):
 
                 for item in queue.entries:
                     try:
-                        task = Task.get_for_writing(
+                        task = Task.get(
                             company=company_id,
                             id=item.task,
                             _only=[

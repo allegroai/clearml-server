@@ -1283,21 +1283,6 @@ class GetMixin(PropsMixin):
             )
         return result
 
-    @classmethod
-    def get_many_for_writing(cls, company, *args, **kwargs):
-        result = cls.get_many(
-            company=company,
-            *args,
-            **dict(return_dicts=False, **kwargs),
-            allow_public=True,
-        )
-        forbidden_objects = {obj.id for obj in result if not obj.company}
-        if forbidden_objects:
-            object_name = cls.__name__.lower()
-            raise errors.forbidden.NoWritePermission(
-                f"cannot modify public {object_name}(s), ids={tuple(forbidden_objects)}"
-            )
-        return result
 
 
 class UpdateMixin(object):

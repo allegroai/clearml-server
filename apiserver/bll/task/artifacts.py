@@ -5,6 +5,7 @@ from apiserver.apimodels.tasks import Artifact as ApiArtifact, ArtifactId
 from apiserver.bll.task.utils import get_task_for_update, update_task
 from apiserver.database.model.task.task import DEFAULT_ARTIFACT_MODE, Artifact
 from apiserver.database.utils import hash_field_name
+from apiserver.service_repo.auth import Identity
 from apiserver.utilities.dicts import nested_get, nested_set
 from apiserver.utilities.parameter_key_escaper import mongoengine_safe
 
@@ -48,12 +49,14 @@ class Artifacts:
     def add_or_update_artifacts(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         artifacts: Sequence[ApiArtifact],
         force: bool,
     ) -> int:
-        task = get_task_for_update(company_id=company_id, task_id=task_id, force=force,)
+        task = get_task_for_update(
+            company_id=company_id, task_id=task_id, force=force, identity=identity
+        )
 
         artifacts = {
             get_artifact_id(a): Artifact(**a)
@@ -64,18 +67,20 @@ class Artifacts:
             f"set__execution__artifacts__{mongoengine_safe(name)}": value
             for name, value in artifacts.items()
         }
-        return update_task(task, user_id=user_id, update_cmds=update_cmds)
+        return update_task(task, user_id=identity.user, update_cmds=update_cmds)
 
     @classmethod
     def delete_artifacts(
         cls,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         task_id: str,
         artifact_ids: Sequence[ArtifactId],
         force: bool,
     ) -> int:
-        task = get_task_for_update(company_id=company_id, task_id=task_id, force=force,)
+        task = get_task_for_update(
+            company_id=company_id, task_id=task_id, force=force, identity=identity
+        )
 
         artifact_ids = [
             get_artifact_id(a)
@@ -85,4 +90,4 @@ class Artifacts:
             f"unset__execution__artifacts__{id_}": 1 for id_ in set(artifact_ids)
         }
 
-        return update_task(task, user_id=user_id, update_cmds=delete_cmds)
+        return update_task(task, user_id=identity.user, update_cmds=delete_cmds)

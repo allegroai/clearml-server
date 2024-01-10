@@ -44,6 +44,7 @@ from apiserver.bll.task.param_utils import (
 from apiserver.config_repo import config
 from apiserver.config.info import get_default_company
 from apiserver.database.model import EntityVisibility, User
+from apiserver.database.model.auth import Role
 from apiserver.database.model.model import Model
 from apiserver.database.model.project import Project
 from apiserver.database.model.task.task import (
@@ -54,6 +55,7 @@ from apiserver.database.model.task.task import (
     TaskModelNames,
 )
 from apiserver.database.utils import get_options
+from apiserver.service_repo.auth import Identity
 from apiserver.utilities import json
 from apiserver.utilities.dicts import nested_get, nested_set, nested_delete
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
@@ -717,7 +719,10 @@ class PrePopulate:
 
     @classmethod
     def _generate_new_ids(
-        cls, reader: ZipFile, entity_files: Sequence, metadata: Mapping[str, Any],
+        cls,
+        reader: ZipFile,
+        entity_files: Sequence,
+        metadata: Mapping[str, Any],
     ) -> Mapping[str, str]:
         if not metadata or not any(
             metadata.get(key) for key in ("new_ids", "example_ids", "private_ids")
@@ -970,7 +975,7 @@ class PrePopulate:
                 ev["allow_locked"] = True
             cls.event_bll.add_events(
                 company_id=company_id,
-                user_id=user_id,
+                identity=Identity(user_id, company=company_id, role=Role.admin),
                 events=events,
                 worker="",
             )

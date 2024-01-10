@@ -31,6 +31,7 @@ from apiserver.bll.event.history_plots_iterator import HistoryPlotsIterator
 from apiserver.bll.event.metric_debug_images_iterator import MetricDebugImagesIterator
 from apiserver.bll.event.metric_plots_iterator import MetricPlotsIterator
 from apiserver.bll.model import ModelBLL
+from apiserver.bll.task.utils import get_many_tasks_for_writing
 from apiserver.bll.util import parallel_chunked_decorator
 from apiserver.database import utils as dbutils
 from apiserver.database.model.model import Model
@@ -42,6 +43,7 @@ from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.redis_manager import redman
+from apiserver.service_repo.auth import Identity
 from apiserver.tools import safe_get
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import loads
@@ -55,7 +57,9 @@ MIN_LONG = -(2**63)
 
 log = config.logger(__file__)
 async_task_events_delete = config.get("services.tasks.async_events_delete", False)
-async_delete_threshold = config.get("services.tasks.async_events_delete_threshold", 100_000)
+async_delete_threshold = config.get(
+    "services.tasks.async_events_delete_threshold", 100_000
+)
 
 
 class EventBLL(object):
@@ -97,7 +101,9 @@ class EventBLL(object):
         return self._metrics
 
     @staticmethod
-    def _get_valid_entities(company_id, ids: Mapping[str, bool], model=False) -> Set:
+    def _get_valid_entities(
+        company_id, ids: Mapping[str, bool], identity: Identity, model=False
+    ) -> Set:
         """Verify that task or model exists and can be updated"""
         if not ids:
             return set()
@@ -116,20 +122,34 @@ class EventBLL(object):
             ):
                 if not requested_ids:
                     continue
-                query = Q(id__in=requested_ids, company=company_id)
-                res.update(
-                    (Model if model else Task).objects(query & locked_q).scalar("id")
-                )
+
+                query = Q(id__in=requested_ids) & locked_q
+                if model:
+                    ids = Model.objects(query & Q(company=company_id)).scalar("id")
+                else:
+                    ids = {
+                        t.id
+                        for t in get_many_tasks_for_writing(
+                            company_id=company_id,
+                            identity=identity,
+                            query=query,
+                            only=("id",),
+                            throw_on_forbidden=False,
+                        )
+                    }
+
+                res.update(ids)
 
             return res
 
     def add_events(
         self,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         events: Sequence[dict],
         worker: str,
     ) -> Tuple[int, int, dict]:
+        user_id = identity.user
         task_ids = {}
         model_ids = {}
         for event in events:
@@ -161,8 +181,12 @@ class EventBLL(object):
                 "Inconsistent model_event setting in the passed events",
                 tasks=found_in_both,
             )
-        valid_models = self._get_valid_entities(company_id, ids=model_ids, model=True)
-        valid_tasks = self._get_valid_entities(company_id, ids=task_ids)
+        valid_models = self._get_valid_entities(
+            company_id, ids=model_ids, identity=identity, model=True
+        )
+        valid_tasks = self._get_valid_entities(
+            company_id, ids=task_ids, identity=identity
+        )
 
         actions: List[dict] = []
         used_task_ids = set()

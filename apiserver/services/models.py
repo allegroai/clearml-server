@@ -28,6 +28,7 @@ from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
 from apiserver.bll.task.task_operations import publish_task
+from apiserver.bll.task.utils import get_task_with_write_access
 from apiserver.bll.util import run_batch_operation
 from apiserver.config_repo import config
 from apiserver.database.model import validate_id
@@ -46,6 +47,7 @@ from apiserver.database.utils import (
     filter_fields,
 )
 from apiserver.service_repo import APICall, endpoint
+from apiserver.service_repo.auth import Identity
 from apiserver.services.utils import (
     conform_tag_fields,
     conform_output_tags,
@@ -249,13 +251,12 @@ def update_for_task(call: APICall, company_id, _):
         )
 
     query = dict(id=task_id, company=company_id)
-    task = Task.get_for_writing(
-        id=task_id,
-        company=company_id,
-        _only=["models", "execution", "name", "status", "project"],
+    task = get_task_with_write_access(
+        task_id=task_id,
+        company_id=company_id,
+        identity=call.identity,
+        only=("models", "execution", "name", "status", "project"),
     )
-    if not task:
-        raise errors.bad_request.InvalidTaskId(**query)
 
     allowed_states = [TaskStatus.created, TaskStatus.in_progress]
     if task.status not in allowed_states:
@@ -343,7 +344,7 @@ def create(call: APICall, company_id, req_model: CreateModelRequest):
     task = req_model.task
     req_data = req_model.to_struct()
     if task:
-        validate_task(company_id, req_data)
+        validate_task(company_id, call.identity, req_data)
 
     fields = filter_fields(Model, req_data)
     conform_tag_fields(call, fields, validate=True)
@@ -373,7 +374,7 @@ def prepare_update_fields(call, company_id, fields: dict):
         # clear UI cache if URI is provided (model updated)
         fields["ui_cache"] = fields.pop("ui_cache", {})
     if "task" in fields:
-        validate_task(company_id, fields)
+        validate_task(company_id, call.identity, fields)
 
     if "labels" in fields:
         labels = fields["labels"]
@@ -403,8 +404,11 @@ def prepare_update_fields(call, company_id, fields: dict):
     return fields
 
 
-def validate_task(company_id, fields: dict):
-    Task.get_for_writing(company=company_id, id=fields["task"], _only=["id"])
+def validate_task(company_id: str, identity: Identity, fields: dict):
+    task_id = fields["task"]
+    get_task_with_write_access(
+        task_id=task_id, company_id=company_id, identity=identity, only=("id",)
+    )
 
 
 @endpoint("models.edit", required_fields=["model"], response_data_model=UpdateResponse)
@@ -514,7 +518,7 @@ def set_ready(call: APICall, company_id: str, request: PublishModelRequest):
     updated, published_task = ModelBLL.publish_model(
         model_id=request.model,
         company_id=company_id,
-        user_id=call.identity.user,
+        identity=call.identity,
         force_publish_task=request.force_publish_task,
         publish_task_func=publish_task if request.publish_task else None,
     )
@@ -533,7 +537,7 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
         func=partial(
             ModelBLL.publish_model,
             company_id=company_id,
-            user_id=call.identity.user,
+            identity=call.identity,
             force_publish_task=request.force_publish_task,
             publish_task_func=publish_task if request.publish_task else None,
         ),

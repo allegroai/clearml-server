@@ -9,6 +9,7 @@ from apiserver.bll.task import (
     ChangeStatusRequest,
 )
 from apiserver.bll.task.task_cleanup import cleanup_task, CleanupResult
+from apiserver.bll.task.utils import get_task_with_write_access
 from apiserver.bll.util import update_project_time
 from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
@@ -24,6 +25,7 @@ from apiserver.database.model.task.task import (
     DEFAULT_LAST_ITERATION,
 )
 from apiserver.database.utils import get_options
+from apiserver.service_repo.auth import Identity
 from apiserver.utilities.dicts import nested_set
 
 log = config.logger(__file__)
@@ -33,7 +35,7 @@ queue_bll = QueueBLL()
 def archive_task(
     task: Union[str, Task],
     company_id: str,
-    user_id: str,
+    identity: Identity,
     status_message: str,
     status_reason: str,
 ) -> int:
@@ -42,9 +44,10 @@ def archive_task(
     Return 1 if successful
     """
     if isinstance(task, str):
-        task = TaskBLL.get_task_with_access(
+        task = get_task_with_write_access(
             task,
             company_id=company_id,
+            identity=identity,
             only=(
                 "id",
                 "company",
@@ -54,8 +57,9 @@ def archive_task(
                 "system_tags",
                 "enqueue_status",
             ),
-            requires_write_access=True,
         )
+
+    user_id = identity.user
     try:
         TaskBLL.dequeue_and_change_status(
             task,
@@ -79,34 +83,34 @@ def archive_task(
 
 
 def unarchive_task(
-    task: str,
+    task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     status_message: str,
     status_reason: str,
 ) -> int:
     """
     Unarchive task. Return 1 if successful
     """
-    task = TaskBLL.get_task_with_access(
-        task,
+    task = get_task_with_write_access(
+        task_id,
         company_id=company_id,
+        identity=identity,
         only=("id",),
-        requires_write_access=True,
     )
     return task.update(
         status_message=status_message,
         status_reason=status_reason,
         pull__system_tags=EntityVisibility.archived.value,
         last_change=datetime.utcnow(),
-        last_changed_by=user_id,
+        last_changed_by=identity.user,
     )
 
 
 def dequeue_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     status_message: str,
     status_reason: str,
     remove_from_all_queues: bool = False,
@@ -119,7 +123,19 @@ def dequeue_task(
     task = Task.get(
         id=task_id,
         company=company_id,
-        _only=(
+        _only=("id",),
+        include_public=True,
+    )
+    if not task:
+        TaskBLL.remove_task_from_all_queues(company_id, task_id=task_id)
+        return 1, {"updated": 0}
+
+    user_id = identity.user
+    task = get_task_with_write_access(
+        task_id,
+        company_id=company_id,
+        identity=identity,
+        only=(
             "id",
             "company",
             "execution",
@@ -127,11 +143,7 @@ def dequeue_task(
             "project",
             "enqueue_status",
         ),
-        include_public=True,
     )
-    if not task:
-        TaskBLL.remove_task_from_all_queues(company_id, task_id=task_id)
-        return 1, {"updated": 0}
 
     res = TaskBLL.dequeue_and_change_status(
         task,
@@ -148,7 +160,7 @@ def dequeue_task(
 def enqueue_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     queue_id: str,
     status_message: str,
     status_reason: str,
@@ -173,11 +185,11 @@ def enqueue_task(
         # try to get default queue
         queue_id = queue_bll.get_default(company_id).id
 
-    query = dict(id=task_id, company=company_id)
-    task = Task.get_for_writing(**query)
-    if not task:
-        raise errors.bad_request.InvalidTaskId(**query)
+    task = get_task_with_write_access(
+        task_id=task_id, company_id=company_id, identity=identity
+    )
 
+    user_id = identity.user
     if validate:
         TaskBLL.validate(task)
 
@@ -207,9 +219,9 @@ def enqueue_task(
 
     # set the current queue ID in the task
     if task.execution:
-        Task.objects(**query).update(execution__queue=queue_id, multi=False)
+        Task.objects(id=task_id).update(execution__queue=queue_id, multi=False)
     else:
-        Task.objects(**query).update(execution=Execution(queue=queue_id), multi=False)
+        Task.objects(id=task_id).update(execution=Execution(queue=queue_id), multi=False)
 
     nested_set(res, ("fields", "execution.queue"), queue_id)
     return 1, res
@@ -242,7 +254,7 @@ def move_tasks_to_trash(tasks: Sequence[str]) -> int:
 def delete_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     move_to_trash: bool,
     force: bool,
     return_file_urls: bool,
@@ -251,8 +263,9 @@ def delete_task(
     status_reason: str,
     delete_external_artifacts: bool,
 ) -> Tuple[int, Task, CleanupResult]:
-    task = TaskBLL.get_task_with_access(
-        task_id, company_id=company_id, requires_write_access=True
+    user_id = identity.user
+    task = get_task_with_write_access(
+        task_id, company_id=company_id, identity=identity
     )
 
     if (
@@ -305,15 +318,16 @@ def delete_task(
 def reset_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     force: bool,
     return_file_urls: bool,
     delete_output_models: bool,
     clear_all: bool,
     delete_external_artifacts: bool,
 ) -> Tuple[dict, CleanupResult, dict]:
-    task = TaskBLL.get_task_with_access(
-        task_id, company_id=company_id, requires_write_access=True
+    user_id = identity.user
+    task = get_task_with_write_access(
+        task_id, company_id=company_id, identity=identity
     )
 
     if not force and task.status == TaskStatus.published:
@@ -392,14 +406,15 @@ def reset_task(
 def publish_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     force: bool,
-    publish_model_func: Callable[[str, str, str], Any] = None,
+    publish_model_func: Callable[[str, str, Identity], Any] = None,
     status_message: str = "",
     status_reason: str = "",
 ) -> dict:
-    task = TaskBLL.get_task_with_access(
-        task_id, company_id=company_id, requires_write_access=True
+    user_id = identity.user
+    task = get_task_with_write_access(
+        task_id, company_id=company_id, identity=identity
     )
     if not force:
         validate_status_change(task.status, TaskStatus.published)
@@ -422,7 +437,7 @@ def publish_task(
                 .first()
             )
             if model and not model.ready:
-                publish_model_func(model.id, company_id, user_id)
+                publish_model_func(model.id, company_id, identity)
 
         # set task status to published, and update (or set) it's new output (view and models)
         return ChangeStatusRequest(
@@ -446,7 +461,7 @@ def publish_task(
 def stop_task(
     task_id: str,
     company_id: str,
-    user_id: str,
+    identity: Identity,
     user_name: str,
     status_reason: str,
     force: bool,
@@ -459,10 +474,11 @@ def stop_task(
     is set to 'stopping' to allow the worker to stop the task and report by itself
     :return: updated task fields
     """
-
-    task = TaskBLL.get_task_with_access(
+    user_id = identity.user
+    task = get_task_with_write_access(
         task_id,
         company_id=company_id,
+        identity=identity,
         only=(
             "status",
             "project",
@@ -472,7 +488,6 @@ def stop_task(
             "last_update",
             "execution.queue",
         ),
-        requires_write_access=True,
     )
 
     def is_run_by_worker(t: Task) -> bool:

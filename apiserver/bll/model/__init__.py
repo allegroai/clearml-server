@@ -10,6 +10,7 @@ from apiserver.config_repo import config
 from apiserver.database.model import EntityVisibility
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task, TaskStatus
+from apiserver.service_repo.auth import Identity
 from .metadata import Metadata
 
 
@@ -57,14 +58,15 @@ class ModelBLL:
         cls,
         model_id: str,
         company_id: str,
-        user_id: str,
+        identity: Identity,
         force_publish_task: bool = False,
-        publish_task_func: Callable[[str, str, str, bool], dict] = None,
+        publish_task_func: Callable[[str, str, Identity, bool], dict] = None,
     ) -> Tuple[int, ModelTaskPublishResponse]:
         model = cls.get_company_model_by_id(company_id=company_id, model_id=model_id)
         if model.ready:
             raise errors.bad_request.ModelIsReady(company=company_id, model=model_id)
 
+        user_id = identity.user
         published_task = None
         if model.task and publish_task_func:
             task = (
@@ -74,7 +76,7 @@ class ModelBLL:
             )
             if task and task.status != TaskStatus.published:
                 task_publish_res = publish_task_func(
-                    model.task, company_id, user_id, force_publish_task
+                    model.task, company_id, identity, force_publish_task
                 )
                 published_task = ModelTaskPublishResponse(
                     id=model.task, data=task_publish_res
