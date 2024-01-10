@@ -42,7 +42,10 @@ class RequestHandlers:
                 response = redirect(call.result.redirect.url, call.result.redirect.code)
             else:
                 headers = None
+                disable_cache = False
                 if call.result.filename:
+                    # make sure that downloaded files are not cached by the client
+                    disable_cache = True
                     try:
                         call.result.filename.encode("ascii")
                     except UnicodeEncodeError:
@@ -61,6 +64,9 @@ class RequestHandlers:
                     status=call.result.code,
                     headers=headers,
                 )
+                if disable_cache:
+                    response.cache_control.no_store = True
+                    response.cache_control.max_age = 0
 
             if call.result.cookies:
                 for key, value in call.result.cookies.items():
