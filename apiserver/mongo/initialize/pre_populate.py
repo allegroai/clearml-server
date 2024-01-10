@@ -1021,7 +1021,7 @@ class PrePopulate:
         ):
             old_path = old_field.split(".")
             old_model = nested_get(task_data, old_path)
-            new_models = models.get(type_, [])
+            new_models = [m for m in models.get(type_, []) if m.get("model") is not None]
             name = TaskModelNames[type_]
             if old_model and not any(
                 m
