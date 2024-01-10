@@ -146,9 +146,10 @@ class GetMixin(PropsMixin):
             "__$any": Q.OR,
             "__$or": Q.OR,
         }
-        default_operator = Q.OR
+        default_global_operator = Q.AND
+        default_context = Q.OR
+        # not_all modifier currently not supported due to the backwards compatibility
         mongo_modifiers = {
-            # not_all modifier currently not supported due to the backwards compatibility
             Q.AND: {True: "all", False: "nin"},
             Q.OR: {True: "in", False: "nin"},
         }
@@ -165,24 +166,22 @@ class GetMixin(PropsMixin):
             self.allow_empty = False
             self.global_operator = None
             self.actions = defaultdict(list)
-            self.explicit_operator = False
 
             self._support_legacy = legacy
-            current_context = self.default_operator
+            current_context = self.default_context
             for d in self._get_next_term(data):
                 if d.operator is not None:
                     current_context = d.operator
                     self._support_legacy = False
                     if self.global_operator is None:
                         self.global_operator = d.operator
-                        self.explicit_operator = True
                     continue
 
                 if self.global_operator is None:
-                    self.global_operator = self.default_operator
+                    self.global_operator = self.default_global_operator
 
                 if d.reset:
-                    current_context = self.default_operator
+                    current_context = self.default_context
                     self._support_legacy = legacy
                     continue
 
@@ -195,7 +194,7 @@ class GetMixin(PropsMixin):
                 )
 
             if self.global_operator is None:
-                self.global_operator = self.default_operator
+                self.global_operator = self.default_global_operator
 
         def _get_next_term(self, data: Sequence[str]) -> Generator[Term, None, None]:
             unary_operator = None

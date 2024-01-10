@@ -1125,11 +1125,7 @@ class ProjectBLL:
                 helper = GetMixin.NewListFieldBucketHelper(
                     field, data=field_filter, legacy=True
                 )
-                op = (
-                    Q.OR
-                    if helper.explicit_operator and helper.global_operator == Q.OR
-                    else Q.AND
-                )
+                op = helper.global_operator
                 db_query = {op: helper.actions}
             else:
                 helper = GetMixin.ListQueryFilter.from_data(field, field_filter)
