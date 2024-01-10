@@ -1134,7 +1134,7 @@ class ProjectBLL:
             for op, actions in db_query.items():
                 field_conditions = {}
                 for action, values in actions.items():
-                    value = list(set(values))
+                    value = list(set(values)) if isinstance(values, list) else values
                     for key in reversed(action.split("__")):
                         value = {f"${key}": value}
                     field_conditions.update(value)

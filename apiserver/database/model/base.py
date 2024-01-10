@@ -617,7 +617,20 @@ class GetMixin(PropsMixin):
                 ):
                     if not vals:
                         continue
-                    operations[self._db_modifiers[(op, include)]] = list(set(vals))
+
+                    unique = set(vals)
+                    if None in unique:
+                        # noinspection PyTypeChecker
+                        unique.remove(None)
+                        if include:
+                            operations["size"] = 0
+                        else:
+                            operations["not__size"] = 0
+
+                    if not unique:
+                        continue
+
+                    operations[self._db_modifiers[(op, include)]] = list(unique)
 
                 self.db_query[op] = operations
 
@@ -655,7 +668,8 @@ class GetMixin(PropsMixin):
 
             ops = []
             for action, vals in actions.items():
-                if not vals:
+                # cannot just check vals here since 0 is acceptable value
+                if vals is None or vals == []:
                     continue
 
                 ops.append(RegexQ(**{f"{mongoengine_field}__{action}": vals}))
