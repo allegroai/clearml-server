@@ -341,6 +341,17 @@ class ProjectBLL:
     ) -> Tuple[Sequence, Sequence]:
         archived = EntityVisibility.archived.value
 
+        def project_task_fields():
+            return {
+                "$project": {
+                    "project": 1,
+                    "status": 1,
+                    "system_tags": 1,
+                    "started": 1,
+                    "completed": 1,
+                }
+            }
+
         def ensure_valid_fields():
             """
             Make sure system tags is always an array (required by subsequent $in in archived_tasks_cond
@@ -368,6 +379,7 @@ class ProjectBLL:
                     users=users,
                 )
             },
+            project_task_fields(),
             ensure_valid_fields(),
             {
                 "$group": {
@@ -516,6 +528,7 @@ class ProjectBLL:
                     users=users,
                 )
             },
+            project_task_fields(),
             ensure_valid_fields(),
             {
                 # for each project

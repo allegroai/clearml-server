@@ -255,6 +255,14 @@ class StatisticsReporter:
                 }
             },
             {
+                "$project": {
+                    "last_worker": 1,
+                    "last_update": 1,
+                    "started": 1,
+                    "last_iteration": 1,
+                }
+            },
+            {
                 "$group": {
                     "_id": "$last_worker" if workers else None,
                     "count": {"$sum": 1},
