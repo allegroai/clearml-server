@@ -193,7 +193,7 @@ create_fields = {
     "project": Project,
     "parent": Model,
     "framework": None,
-    "design": None,
+    "design": dict,
     "labels": dict,
     "ready": None,
     "metadata": list,

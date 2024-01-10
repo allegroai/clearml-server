@@ -110,6 +110,7 @@ from apiserver.bll.task.utils import (
 from apiserver.bll.util import run_batch_operation, update_project_time
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model import EntityVisibility
+from apiserver.database.model.project import Project
 from apiserver.database.model.task.output import Output
 from apiserver.database.model.task.task import (
     Task,
@@ -412,17 +413,18 @@ create_fields = {
     "error": None,
     "comment": None,
     "parent": Task,
-    "project": None,
+    "project": Project,
     "input": None,
     "models": None,
-    "container": None,
+    "container": dict,
     "output_dest": None,
     "execution": None,
-    "hyperparams": None,
-    "configuration": None,
+    "hyperparams": dict,
+    "configuration": dict,
     "script": None,
-    "runtime": None,
+    "runtime": dict,
 }
+
 
 dict_fields_paths = [("execution", "model_labels"), "container"]
 
