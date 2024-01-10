@@ -5,8 +5,9 @@ from apiserver.apimodels import DictField, callable_default
 
 
 class GetSupportedModesRequest(Base):
-    state = StringField(help_text="ASCII base64 encoded application state")
-    callback_url_prefix = StringField()
+    pass
+    # state = StringField(help_text="ASCII base64 encoded application state")
+    # callback_url_prefix = StringField()
 
 
 class BasicGuestMode(Base):
