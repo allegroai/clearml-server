@@ -41,6 +41,7 @@ class MultiTaskScalarMetricsIterHistogramRequest(HistogramRequestBase):
             )
         ],
     )
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
     model_events: bool = BoolField(default=False)
 
 
@@ -148,7 +149,7 @@ class MultiTasksRequestBase(Base):
 
 
 class SingleValueMetricsRequest(MultiTasksRequestBase):
-    pass
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
 class TaskMetricsRequest(MultiTasksRequestBase):
@@ -160,6 +161,7 @@ class MultiTaskPlotsRequest(MultiTasksRequestBase):
     scroll_id: str = StringField()
     no_scroll: bool = BoolField(default=False)
     last_iters_per_task_metric: bool = BoolField(default=True)
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
 class TaskPlotsRequest(Base):

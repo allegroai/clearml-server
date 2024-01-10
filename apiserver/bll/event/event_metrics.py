@@ -161,7 +161,9 @@ class EventMetrics:
         return res
 
     def get_task_single_value_metrics(
-        self, companies: TaskCompanies
+        self,
+        companies: TaskCompanies,
+        metric_variants: MetricVariants = None,
     ) -> Mapping[str, dict]:
         """
         For the requested tasks return all the events delivered for the single iteration (-2**31)
@@ -179,7 +181,13 @@ class EventMetrics:
         with ThreadPoolExecutor(max_workers=EventSettings.max_workers) as pool:
             task_events = list(
                 itertools.chain.from_iterable(
-                    pool.map(self._get_task_single_value_metrics, companies.items())
+                    pool.map(
+                        partial(
+                            self._get_task_single_value_metrics,
+                            metric_variants=metric_variants,
+                        ),
+                        companies.items(),
+                    )
                 ),
             )
 
@@ -195,19 +203,19 @@ class EventMetrics:
         }
 
     def _get_task_single_value_metrics(
-        self, tasks: Tuple[str, Sequence[str]]
+        self, tasks: Tuple[str, Sequence[str]], metric_variants: MetricVariants = None
     ) -> Sequence[dict]:
         company_id, task_ids = tasks
+        must = [
+            {"terms": {"task": task_ids}},
+            {"term": {"iter": SINGLE_SCALAR_ITERATION}},
+        ]
+        if metric_variants:
+            must.append(get_metric_variants_condition(metric_variants))
+
         es_req = {
             "size": 10000,
-            "query": {
-                "bool": {
-                    "must": [
-                        {"terms": {"task": task_ids}},
-                        {"term": {"iter": SINGLE_SCALAR_ITERATION}},
-                    ]
-                }
-            },
+            "query": {"bool": {"must": must}},
         }
         with translate_errors_context():
             es_res = search_company_events(
@@ -280,7 +288,8 @@ class EventMetrics:
         query = {"bool": {"must": must}}
         search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
-            query=query, **search_args,
+            query=query,
+            **search_args,
         )
         max_variants = int(max_variants // 2)
         es_req = {
@@ -366,7 +375,8 @@ class EventMetrics:
         query = self._get_task_metrics_query(task_id=task_id, metrics=metrics)
         search_args = dict(es=self.es, company_id=company_id, event_type=event_type)
         max_metrics, max_variants = get_max_metric_and_variant_counts(
-            query=query, **search_args,
+            query=query,
+            **search_args,
         )
         max_variants = int(max_variants // 2)
         es_req = {
@@ -432,7 +442,9 @@ class EventMetrics:
 
     @classmethod
     def _get_task_metrics_query(
-        cls, task_id: str, metrics: Sequence[Tuple[str, str]],
+        cls,
+        task_id: str,
+        metrics: Sequence[Tuple[str, str]],
     ):
         must = cls._task_conditions(task_id)
         if metrics:

@@ -38,6 +38,7 @@ from apiserver.bll.event.events_iterator import Scroll
 from apiserver.bll.event.scalar_key import ScalarKeyEnum, ScalarKey
 from apiserver.bll.model import ModelBLL
 from apiserver.bll.task import TaskBLL
+from apiserver.bll.task.utils import get_task_with_write_access
 from apiserver.config_repo import config
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task
@@ -73,7 +74,7 @@ def add(call: APICall, company_id, _):
     data = call.data.copy()
     added, err_count, err_info = event_bll.add_events(
         company_id=company_id,
-        user_id=call.identity.user,
+        identity=call.identity,
         events=[data],
         worker=call.worker,
     )
@@ -88,7 +89,7 @@ def add_batch(call: APICall, company_id, _):
 
     added, err_count, err_info = event_bll.add_events(
         company_id=company_id,
-        user_id=call.identity.user,
+        identity=call.identity,
         events=events,
         worker=call.worker,
     )
@@ -521,6 +522,7 @@ def multi_task_scalar_metrics_iter_histogram(
             ),
             samples=request.samples,
             key=request.key,
+            metric_variants=_get_metric_variants_from_request(request.metrics),
         )
     )
 
@@ -548,7 +550,8 @@ def get_task_single_value_metrics(
         tasks=_get_single_value_metrics_response(
             companies=companies,
             value_metrics=event_bll.metrics.get_task_single_value_metrics(
-                companies=companies
+                companies=companies,
+                metric_variants=_get_metric_variants_from_request(request.metrics),
             ),
         )
     )
@@ -591,10 +594,11 @@ def _get_multitask_plots(
     companies: TaskCompanies,
     last_iters: int,
     last_iters_per_task_metric: bool,
-    metrics: MetricVariants = None,
+    request_metrics: Sequence[ApiMetrics] = None,
     scroll_id=None,
     no_scroll=True,
 ) -> Tuple[dict, int, str]:
+    metrics = _get_metric_variants_from_request(request_metrics)
     task_names = {
         t.id: t.name for t in itertools.chain.from_iterable(companies.values())
     }
@@ -629,6 +633,7 @@ def get_multi_task_plots(call, company_id, request: MultiTaskPlotsRequest):
         scroll_id=request.scroll_id,
         no_scroll=request.no_scroll,
         last_iters_per_task_metric=request.last_iters_per_task_metric,
+        request_metrics=request.metrics,
     )
     call.result.data = dict(
         plots=return_events,
@@ -965,7 +970,9 @@ def delete_for_task(call, company_id, _):
     task_id = call.data["task"]
     allow_locked = call.data.get("allow_locked", False)
 
-    task_bll.assert_exists(company_id, task_id, return_tasks=False)
+    get_task_with_write_access(
+        task_id=task_id, company_id=company_id, identity=call.identity, only=("id",)
+    )
     call.result.data = dict(
         deleted=event_bll.delete_task_events(
             company_id, task_id, allow_locked=allow_locked
@@ -990,7 +997,9 @@ def delete_for_model(call: APICall, company_id: str, _):
 def clear_task_log(call: APICall, company_id: str, request: ClearTaskLogRequest):
     task_id = request.task
 
-    task_bll.assert_exists(company_id, task_id, return_tasks=False)
+    get_task_with_write_access(
+        task_id=task_id, company_id=company_id, identity=call.identity, only=("id",)
+    )
     call.result.data = dict(
         deleted=event_bll.clear_task_log(
             company_id=company_id,

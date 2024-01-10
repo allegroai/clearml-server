@@ -19,7 +19,9 @@ from apiserver.apimodels.reports import (
 from apiserver.apierrors import errors
 from apiserver.apimodels.base import UpdateResponse
 from apiserver.bll.project.project_bll import reports_project_name, reports_tag
+from apiserver.bll.task.utils import get_task_with_write_access
 from apiserver.database.model.model import Model
+from apiserver.service_repo.auth import Identity
 from apiserver.services.models import conform_model_data
 from apiserver.services.utils import process_include_subprojects, sort_tags_response
 from apiserver.bll.organization import OrgBLL
@@ -57,15 +59,15 @@ update_fields = {
 }
 
 
-def _assert_report(company_id, task_id, only_fields=None, requires_write_access=True):
+def _assert_report(company_id: str, task_id: str, identity: Identity, only_fields=None):
     if only_fields and "type" not in only_fields:
         only_fields += ("type",)
 
-    task = TaskBLL.get_task_with_access(
+    task = get_task_with_write_access(
         task_id=task_id,
         company_id=company_id,
+        identity=identity,
         only=only_fields,
-        requires_write_access=requires_write_access,
     )
     if task.type != TaskType.report:
         raise errors.bad_request.OperationSupportedOnReportsOnly(id=task_id)
@@ -78,6 +80,7 @@ def update_report(call: APICall, company_id: str, request: UpdateReportRequest):
     task = _assert_report(
         task_id=request.task,
         company_id=company_id,
+        identity=call.identity,
         only_fields=("status",),
     )
 
@@ -265,7 +268,7 @@ def get_task_data(call: APICall, company_id, request: GetTasksDataRequest):
         res["plots"] = _get_multitask_plots(
             companies=companies,
             last_iters=request.plots.iters,
-            metrics=_get_metric_variants_from_request(request.plots.metrics),
+            request_metrics=request.plots.metrics,
             last_iters_per_task_metric=request.plots.last_iters_per_task_metric,
         )[0]
 
@@ -302,6 +305,7 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
     task = _assert_report(
         company_id=company_id,
         task_id=request.task,
+        identity=call.identity,
         only_fields=("project",),
     )
     user_id = call.identity.user
@@ -337,7 +341,9 @@ def move(call: APICall, company_id: str, request: MoveReportRequest):
     response_data_model=UpdateResponse,
 )
 def publish(call: APICall, company_id, request: PublishReportRequest):
-    task = _assert_report(company_id=company_id, task_id=request.task)
+    task = _assert_report(
+        company_id=company_id, task_id=request.task, identity=call.identity
+    )
     updates = ChangeStatusRequest(
         task=task,
         new_status=TaskStatus.published,
@@ -352,7 +358,9 @@ def publish(call: APICall, company_id, request: PublishReportRequest):
 
 @endpoint("reports.archive")
 def archive(call: APICall, company_id, request: ArchiveReportRequest):
-    task = _assert_report(company_id=company_id, task_id=request.task)
+    task = _assert_report(
+        company_id=company_id, task_id=request.task, identity=call.identity
+    )
     archived = task.update(
         status_message=request.message,
         status_reason="",
@@ -366,7 +374,9 @@ def archive(call: APICall, company_id, request: ArchiveReportRequest):
 
 @endpoint("reports.unarchive")
 def unarchive(call: APICall, company_id, request: ArchiveReportRequest):
-    task = _assert_report(company_id=company_id, task_id=request.task)
+    task = _assert_report(
+        company_id=company_id, task_id=request.task, identity=call.identity
+    )
     unarchived = task.update(
         status_message=request.message,
         status_reason="",
@@ -394,6 +404,7 @@ def delete(call: APICall, company_id, request: DeleteReportRequest):
     task = _assert_report(
         company_id=company_id,
         task_id=request.task,
+        identity=call.identity,
         only_fields=("project",),
     )
     if (
