@@ -21,6 +21,10 @@ from apiserver.apimodels.models import (
     ModelsPublishManyRequest,
     ModelsDeleteManyRequest,
     ModelsGetRequest,
+    ModelRequest,
+    TaskRequest,
+    UpdateForTaskRequest,
+    UpdateModelRequest,
 )
 from apiserver.apimodels.tasks import UpdateTagsRequest
 from apiserver.bll.model import ModelBLL, Metadata
@@ -67,9 +71,9 @@ def conform_model_data(call: APICall, model_data: Union[Sequence[dict], dict]):
     unescape_metadata(call, model_data)
 
 
-@endpoint("models.get_by_id", required_fields=["model"])
-def get_by_id(call: APICall, company_id, _):
-    model_id = call.data["model"]
+@endpoint("models.get_by_id")
+def get_by_id(call: APICall, company_id, request: ModelRequest):
+    model_id = request.model
     call_data = Metadata.escape_query_parameters(call.data)
     models = Model.get_many(
         company=company_id,
@@ -87,12 +91,12 @@ def get_by_id(call: APICall, company_id, _):
     call.result.data = {"model": models[0]}
 
 
-@endpoint("models.get_by_task_id", required_fields=["task"])
-def get_by_task_id(call: APICall, company_id, _):
+@endpoint("models.get_by_task_id")
+def get_by_task_id(call: APICall, company_id, request: TaskRequest):
     if call.requested_endpoint_version > ModelsBackwardsCompatibility.max_version:
         raise errors.moved_permanently.NotSupported("use models.get_by_id/get_all apis")
 
-    task_id = call.data["task"]
+    task_id = request.task
 
     query = dict(id=task_id, company=company_id)
     task = Task.get(_only=["models"], **query)
@@ -157,7 +161,7 @@ def get_by_id_ex(call: APICall, company_id, _):
     call.result.data = {"models": models}
 
 
-@endpoint("models.get_all", required_fields=[])
+@endpoint("models.get_all")
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     call_data = Metadata.escape_query_parameters(call.data)
@@ -236,15 +240,15 @@ def _reset_cached_tags(company: str, projects: Sequence[str]):
     )
 
 
-@endpoint("models.update_for_task", required_fields=["task"])
-def update_for_task(call: APICall, company_id, _):
+@endpoint("models.update_for_task")
+def update_for_task(call: APICall, company_id, request: UpdateForTaskRequest):
     if call.requested_endpoint_version > ModelsBackwardsCompatibility.max_version:
         raise errors.moved_permanently.NotSupported("use tasks.add_or_update_model")
 
-    task_id = call.data["task"]
-    uri = call.data.get("uri")
-    iteration = call.data.get("iteration")
-    override_model_id = call.data.get("override_model_id")
+    task_id = request.task
+    uri = request.uri
+    iteration = request.iteration
+    override_model_id = request.override_model_id
     if not (uri or override_model_id) or (uri and override_model_id):
         raise errors.bad_request.MissingRequiredFields(
             "exactly one field is required", fields=("uri", "override_model_id")
@@ -411,9 +415,9 @@ def validate_task(company_id: str, identity: Identity, fields: dict):
     )
 
 
-@endpoint("models.edit", required_fields=["model"], response_data_model=UpdateResponse)
-def edit(call: APICall, company_id, _):
-    model_id = call.data["model"]
+@endpoint("models.edit", response_data_model=UpdateResponse)
+def edit(call: APICall, company_id, request: UpdateModelRequest):
+    model_id = request.model
 
     model = ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
 
@@ -428,7 +432,7 @@ def edit(call: APICall, company_id, _):
             d.update(value)
             fields[key] = d
 
-    iteration = call.data.get("iteration")
+    iteration = request.iteration
     task_id = model.task or fields.get("task")
     if task_id and iteration is not None:
         TaskBLL.update_statistics(
@@ -460,13 +464,9 @@ def edit(call: APICall, company_id, _):
         call.result.data_model = UpdateResponse(updated=0)
 
 
-def _update_model(call: APICall, company_id, model_id=None):
-    model_id = model_id or call.data["model"]
-
+def _update_model(call: APICall, company_id, model_id):
     model = ModelBLL.get_company_model_by_id(company_id=company_id, model_id=model_id)
-
     data = prepare_update_fields(call, company_id, call.data)
-
     task_id = data.get("task")
     iteration = data.get("iteration")
     if task_id and iteration is not None:
@@ -502,11 +502,9 @@ def _update_model(call: APICall, company_id, model_id=None):
     return UpdateResponse(updated=updated_count, fields=updated_fields)
 
 
-@endpoint(
-    "models.update", required_fields=["model"], response_data_model=UpdateResponse
-)
-def update(call, company_id, _):
-    call.result.data_model = _update_model(call, company_id)
+@endpoint("models.update", response_data_model=UpdateResponse)
+def update(call, company_id, request: UpdateModelRequest):
+    call.result.data_model = _update_model(call, company_id, model_id=request.model)
 
 
 @endpoint(
@@ -629,7 +627,9 @@ def archive_many(call: APICall, company_id, request: BatchRequest):
 )
 def unarchive_many(call: APICall, company_id, request: BatchRequest):
     results, failures = run_batch_operation(
-        func=partial(ModelBLL.unarchive_model, company_id=company_id, user_id=call.identity.user),
+        func=partial(
+            ModelBLL.unarchive_model, company_id=company_id, user_id=call.identity.user
+        ),
         ids=request.ids,
     )
     call.result.data_model = BatchResponse(

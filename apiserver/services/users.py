@@ -7,7 +7,11 @@ from mongoengine import Q
 
 from apiserver.apierrors import errors
 from apiserver.apimodels.base import UpdateResponse
-from apiserver.apimodels.users import CreateRequest, SetPreferencesRequest
+from apiserver.apimodels.users import (
+    CreateRequest,
+    SetPreferencesRequest,
+    UserRequest,
+)
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.user import UserBLL
 from apiserver.config_repo import config
@@ -48,13 +52,13 @@ def get_user(call, company_id, user_id, only=None):
         return res.to_proper_dict()
 
 
-@endpoint("users.get_by_id", required_fields=["user"])
-def get_by_id(call: APICall, company_id, _):
-    user_id = call.data["user"]
+@endpoint("users.get_by_id")
+def get_by_id(call: APICall, company_id, request: UserRequest):
+    user_id = request.user
     call.result.data = {"user": get_user(call, company_id, user_id)}
 
 
-@endpoint("users.get_all_ex", required_fields=[])
+@endpoint("users.get_all_ex")
 def get_all_ex(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
         res = User.get_many_with_join(company=company_id, query_dict=call.data)
@@ -62,7 +66,7 @@ def get_all_ex(call: APICall, company_id, _):
         call.result.data = {"users": res}
 
 
-@endpoint("users.get_all_ex", min_version="2.8", required_fields=[])
+@endpoint("users.get_all_ex", min_version="2.8")
 def get_all_ex2_8(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
         data = call.data
@@ -83,7 +87,7 @@ def get_all_ex2_8(call: APICall, company_id, _):
         call.result.data = {"users": res}
 
 
-@endpoint("users.get_all", required_fields=[])
+@endpoint("users.get_all")
 def get_all(call: APICall, company_id, _):
     with translate_errors_context("retrieving users"):
         res = User.get_many(
@@ -138,9 +142,9 @@ def create(call: APICall):
     UserBLL.create(call.data_model)
 
 
-@endpoint("users.delete", required_fields=["user"])
-def delete(call: APICall):
-    UserBLL.delete(call.data["user"])
+@endpoint("users.delete")
+def delete(_: APICall, __, request: UserRequest):
+    UserBLL.delete(request.user)
 
 
 def update_user(user_id, company_id, data: dict) -> Tuple[int, dict]:
@@ -159,9 +163,9 @@ def update_user(user_id, company_id, data: dict) -> Tuple[int, dict]:
         return User.safe_update(company_id, user_id, partial_update_dict)
 
 
-@endpoint("users.update", required_fields=["user"], response_data_model=UpdateResponse)
-def update(call, company_id, _):
-    user_id = call.data["user"]
+@endpoint("users.update", response_data_model=UpdateResponse)
+def update(call, company_id, request: UserRequest):
+    user_id = request.user
     update_count, updated_fields = update_user(user_id, company_id, call.data)
     call.result.data_model = UpdateResponse(updated=update_count, fields=updated_fields)
 

@@ -4,6 +4,10 @@ from jsonmodels.models import Base
 from apiserver.apimodels import DictField
 
 
+class UserRequest(Base):
+    user = StringField(required=True)
+
+
 class CreateRequest(Base):
     id = StringField(required=True)
     name = StringField(required=True)

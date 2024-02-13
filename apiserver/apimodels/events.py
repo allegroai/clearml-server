@@ -13,6 +13,14 @@ from apiserver.config_repo import config
 from apiserver.utilities.stringenum import StringEnum
 
 
+class TaskRequest(Base):
+    task: str = StringField(required=True)
+
+
+class ModelRequest(Base):
+    model: str = StringField(required=True)
+
+
 class HistogramRequestBase(Base):
     samples: int = IntField(default=2000, validators=[Min(1), Max(6000)])
     key: ScalarKeyEnum = ActualEnumField(ScalarKeyEnum, default=ScalarKeyEnum.iter)
@@ -26,6 +34,11 @@ class MetricVariants(Base):
 class ScalarMetricsIterHistogramRequest(HistogramRequestBase):
     task: str = StringField(required=True)
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+    model_events: bool = BoolField(default=False)
+
+
+class GetMetricsAndVariantsRequest(Base):
+    task: str = StringField(required=True)
     model_events: bool = BoolField(default=False)
 
 
@@ -51,6 +64,12 @@ class TaskMetric(Base):
     variants: Sequence[str] = ListField(items_types=str)
 
 
+class LegacyMetricEventsRequest(TaskRequest):
+    iters: int = IntField(default=1, validators=validators.Min(1))
+    scroll_id: str = StringField()
+    model_events: bool = BoolField(default=False)
+
+
 class MetricEventsRequest(Base):
     metrics: Sequence[TaskMetric] = ListField(
         items_types=TaskMetric, validators=[Length(minimum_value=1)]
@@ -59,7 +78,14 @@ class MetricEventsRequest(Base):
     navigate_earlier: bool = BoolField(default=True)
     refresh: bool = BoolField(default=False)
     scroll_id: str = StringField()
-    model_events: bool = BoolField()
+    model_events: bool = BoolField(default=False)
+
+
+class VectorMetricsIterHistogramRequest(Base):
+    task: str = StringField(required=True)
+    metric: str = StringField(required=True)
+    variant: str = StringField(required=True)
+    model_events: bool = BoolField(default=False)
 
 
 class GetVariantSampleRequest(Base):
@@ -108,6 +134,11 @@ class TaskEventsRequest(TaskEventsRequestBase):
     scroll_id: str = StringField()
     count_total: bool = BoolField(default=True)
     model_events: bool = BoolField(default=False)
+
+
+class LegacyLogEventsRequest(TaskEventsRequestBase):
+    order: Optional[str] = ActualEnumField(LogOrderEnum, default=LogOrderEnum.desc)
+    scroll_id: str = StringField()
 
 
 class LogEventsRequest(TaskEventsRequestBase):
@@ -160,6 +191,11 @@ class MultiTaskMetricsRequest(MultiTasksRequestBase):
     event_type: EventType = ActualEnumField(EventType, default=EventType.all)
 
 
+class LegacyMultiTaskEventsRequest(MultiTasksRequestBase):
+    iters: int = IntField(default=1, validators=validators.Min(1))
+    scroll_id: str = StringField()
+
+
 class MultiTaskPlotsRequest(MultiTasksRequestBase):
     iters: int = IntField(default=1)
     scroll_id: str = StringField()
@@ -174,6 +210,14 @@ class TaskPlotsRequest(Base):
     scroll_id: str = StringField()
     no_scroll: bool = BoolField(default=False)
     metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
+    model_events: bool = BoolField(default=False)
+
+
+class GetScalarMetricDataRequest(Base):
+    task: str = StringField(required=True)
+    metric: str = StringField(required=True)
+    scroll_id: str = StringField()
+    no_scroll: bool = BoolField(default=False)
     model_events: bool = BoolField(default=False)
 
 

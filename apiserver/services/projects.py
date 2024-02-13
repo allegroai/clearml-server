@@ -59,13 +59,12 @@ create_fields = {
 }
 
 
-@endpoint("projects.get_by_id", required_fields=["project"])
-def get_by_id(call):
-    assert isinstance(call, APICall)
-    project_id = call.data["project"]
+@endpoint("projects.get_by_id")
+def get_by_id(call: APICall, company: str, request: ProjectRequest):
+    project_id = request.project
 
     with translate_errors_context():
-        query = Q(id=project_id) & get_company_or_none_constraint(call.identity.company)
+        query = Q(id=project_id) & get_company_or_none_constraint(company)
         project = Project.objects(query).first()
         if not project:
             raise errors.bad_request.InvalidProjectId(id=project_id)
@@ -147,8 +146,10 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
     requested_ids = data.get("id")
     if isinstance(requested_ids, str):
         requested_ids = [requested_ids]
+
     _adjust_search_parameters(
-        data, shallow_search=request.shallow_search,
+        data,
+        shallow_search=request.shallow_search,
     )
     selected_project_ids = None
     if request.active_users or request.children_type:
@@ -246,7 +247,9 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
     if request.include_dataset_stats:
         dataset_stats = project_bll.get_dataset_stats(
-            company=company_id, project_ids=project_ids, users=request.active_users,
+            company=company_id,
+            project_ids=project_ids,
+            users=request.active_users,
         )
         for project in projects:
             project["dataset_stats"] = dataset_stats.get(project["id"])
@@ -255,15 +258,16 @@ def get_all_ex(call: APICall, company_id: str, request: ProjectsGetRequest):
 
 
 @endpoint("projects.get_all")
-def get_all(call: APICall):
+def get_all(call: APICall, company: str, _):
     data = call.data
     conform_tag_fields(call, data)
     _adjust_search_parameters(
-        data, shallow_search=data.get("shallow_search", False),
+        data,
+        shallow_search=data.get("shallow_search", False),
     )
     ret_params = {}
     projects = Project.get_many(
-        company=call.identity.company,
+        company=company,
         query_dict=data,
         query=_hidden_query(
             search_hidden=data.get("search_hidden"), ids=data.get("id")
@@ -277,9 +281,11 @@ def get_all(call: APICall):
 
 
 @endpoint(
-    "projects.create", required_fields=["name"], response_data_model=IdResponse,
+    "projects.create",
+    required_fields=["name"],
+    response_data_model=IdResponse,
 )
-def create(call: APICall):
+def create(call: APICall, company: str, _):
     identity = call.identity
 
     with translate_errors_context():
@@ -288,15 +294,15 @@ def create(call: APICall):
 
         return IdResponse(
             id=ProjectBLL.create(
-                user=identity.user, company=identity.company, **fields,
+                user=identity.user,
+                company=company,
+                **fields,
             )
         )
 
 
-@endpoint(
-    "projects.update", required_fields=["project"], response_data_model=UpdateResponse
-)
-def update(call: APICall):
+@endpoint("projects.update", response_data_model=UpdateResponse)
+def update(call: APICall, company: str, request: ProjectRequest):
     """
     update
 
@@ -309,9 +315,7 @@ def update(call: APICall):
         call.data, create_fields, Project.get_fields(), discard_none_values=False
     )
     conform_tag_fields(call, fields, validate=True)
-    updated = ProjectBLL.update(
-        company=call.identity.company, project_id=call.data["project"], **fields
-    )
+    updated = ProjectBLL.update(company=company, project_id=request.project, **fields)
     conform_output_tags(call, fields)
     call.result.data_model = UpdateResponse(updated=updated, fields=fields)
 
@@ -375,7 +379,6 @@ def delete(call: APICall, company_id: str, request: DeleteRequest):
 def get_unique_metric_variants(
     call: APICall, company_id: str, request: GetUniqueMetricsRequest
 ):
-
     metrics = project_queries.get_unique_metric_variants(
         company_id,
         [request.project] if request.project else None,
@@ -429,7 +432,6 @@ def get_model_metadata_values(
     request_data_model=GetParamsRequest,
 )
 def get_hyper_parameters(call: APICall, company_id: str, request: GetParamsRequest):
-
     total, remaining, parameters = project_queries.get_aggregated_project_parameters(
         company_id,
         project_ids=[request.project] if request.project else None,

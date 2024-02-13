@@ -6,6 +6,10 @@ class ReportStatsOptionRequest(Base):
     enabled = BoolField(default=None, nullable=True)
 
 
+class GetConfigRequest(Base):
+    path = StringField()
+
+
 class ReportStatsOptionResponse(Base):
     supported = BoolField(default=True)
     enabled = BoolField()

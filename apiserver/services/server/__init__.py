@@ -3,7 +3,11 @@ from datetime import datetime
 from pyhocon.config_tree import NoneValue
 
 from apiserver.apierrors import errors
-from apiserver.apimodels.server import ReportStatsOptionRequest, ReportStatsOptionResponse
+from apiserver.apimodels.server import (
+    ReportStatsOptionRequest,
+    ReportStatsOptionResponse,
+    GetConfigRequest,
+)
 from apiserver.bll.statistics.stats_reporter import StatisticsReporter
 from apiserver.config_repo import config
 from apiserver.config.info import get_version, get_build_number, get_commit_number
@@ -22,8 +26,8 @@ def get_stats(call: APICall):
 
 
 @endpoint("server.config")
-def get_config(call: APICall):
-    path = call.data.get("path")
+def get_config(call: APICall, _, request: GetConfigRequest):
+    path = request.path
     if path:
         c = dict(config.get(path))
     else:

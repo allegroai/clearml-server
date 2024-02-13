@@ -42,6 +42,21 @@ class ModelRequest(models.Base):
     model = fields.StringField(required=True)
 
 
+class TaskRequest(models.Base):
+    task = fields.StringField(required=True)
+
+
+class UpdateForTaskRequest(TaskRequest):
+    uri = fields.StringField()
+    iteration = fields.IntField()
+    override_model_id = fields.StringField()
+
+
+class UpdateModelRequest(ModelRequest):
+    task = fields.StringField()
+    iteration = fields.IntField()
+
+
 class DeleteModelRequest(ModelRequest):
     force = fields.BoolField(default=False)
     delete_external_artifacts = fields.BoolField(default=True)

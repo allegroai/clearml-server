@@ -32,6 +32,14 @@ from apiserver.apimodels.events import (
     TaskMetric,
     MultiTaskPlotsRequest,
     MultiTaskMetricsRequest,
+    LegacyLogEventsRequest,
+    TaskRequest,
+    GetMetricsAndVariantsRequest,
+    ModelRequest,
+    LegacyMetricEventsRequest,
+    GetScalarMetricDataRequest,
+    VectorMetricsIterHistogramRequest,
+    LegacyMultiTaskEventsRequest,
 )
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType, MetricVariants, TaskCompanies
@@ -97,15 +105,15 @@ def add_batch(call: APICall, company_id, _):
     call.result.data = dict(added=added, errors=err_count, errors_info=err_info)
 
 
-@endpoint("events.get_task_log", required_fields=["task"])
-def get_task_log_v1_5(call, company_id, _):
-    task_id = call.data["task"]
+@endpoint("events.get_task_log")
+def get_task_log_v1_5(call, company_id, request: LegacyLogEventsRequest):
+    task_id = request.task
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
     )[0]
-    order = call.data.get("order") or "desc"
-    scroll_id = call.data.get("scroll_id")
-    batch_size = int(call.data.get("batch_size") or 500)
+    order = request.order
+    scroll_id = request.scroll_id
+    batch_size = request.batch_size
     events, scroll_id, total_events = event_bll.scroll_task_events(
         task.get_index_company(),
         task_id,
@@ -119,17 +127,17 @@ def get_task_log_v1_5(call, company_id, _):
     )
 
 
-@endpoint("events.get_task_log", min_version="1.7", required_fields=["task"])
-def get_task_log_v1_7(call, company_id, _):
-    task_id = call.data["task"]
+@endpoint("events.get_task_log", min_version="1.7")
+def get_task_log_v1_7(call, company_id, request: LegacyLogEventsRequest):
+    task_id = request.task
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
     )[0]
 
-    order = call.data.get("order") or "desc"
+    order = request.order
     from_ = call.data.get("from") or "head"
-    scroll_id = call.data.get("scroll_id")
-    batch_size = int(call.data.get("batch_size") or 500)
+    scroll_id = request.scroll_id
+    batch_size = request.batch_size
 
     scroll_order = "asc" if (from_ == "head") else "desc"
 
@@ -177,9 +185,9 @@ def get_task_log(call, company_id, request: LogEventsRequest):
     )
 
 
-@endpoint("events.download_task_log", required_fields=["task"])
-def download_task_log(call, company_id, _):
-    task_id = call.data["task"]
+@endpoint("events.download_task_log")
+def download_task_log(call, company_id, request: TaskRequest):
+    task_id = request.task
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
     )[0]
@@ -257,10 +265,12 @@ def download_task_log(call, company_id, _):
     call.result.raw_data = generate()
 
 
-@endpoint("events.get_vector_metrics_and_variants", required_fields=["task"])
-def get_vector_metrics_and_variants(call, company_id, _):
-    task_id = call.data["task"]
-    model_events = call.data["model_events"]
+@endpoint("events.get_vector_metrics_and_variants")
+def get_vector_metrics_and_variants(
+    call, company_id, request: GetMetricsAndVariantsRequest
+):
+    task_id = request.task
+    model_events = request.model_events
     task_or_model = _assert_task_or_model_exists(
         company_id,
         task_id,
@@ -273,10 +283,12 @@ def get_vector_metrics_and_variants(call, company_id, _):
     )
 
 
-@endpoint("events.get_scalar_metrics_and_variants", required_fields=["task"])
-def get_scalar_metrics_and_variants(call, company_id, _):
-    task_id = call.data["task"]
-    model_events = call.data["model_events"]
+@endpoint("events.get_scalar_metrics_and_variants")
+def get_scalar_metrics_and_variants(
+    call, company_id, request: GetMetricsAndVariantsRequest
+):
+    task_id = request.task
+    model_events = request.model_events
     task_or_model = _assert_task_or_model_exists(
         company_id,
         task_id,
@@ -292,18 +304,19 @@ def get_scalar_metrics_and_variants(call, company_id, _):
 # todo: !!! currently returning 10,000 records. should decide on a better way to control it
 @endpoint(
     "events.vector_metrics_iter_histogram",
-    required_fields=["task", "metric", "variant"],
 )
-def vector_metrics_iter_histogram(call, company_id, _):
-    task_id = call.data["task"]
-    model_events = call.data["model_events"]
+def vector_metrics_iter_histogram(
+    call, company_id, request: VectorMetricsIterHistogramRequest
+):
+    task_id = request.task
+    model_events = request.model_events
     task_or_model = _assert_task_or_model_exists(
         company_id,
         task_id,
         model_events=model_events,
     )[0]
-    metric = call.data["metric"]
-    variant = call.data["variant"]
+    metric = request.metric
+    variant = request.variant
     iterations, vectors = event_bll.get_vector_metrics_per_iter(
         task_or_model.get_index_company(), task_id, metric, variant
     )
@@ -404,13 +417,13 @@ def get_task_events(_, company_id, request: TaskEventsRequest):
     )
 
 
-@endpoint("events.get_scalar_metric_data", required_fields=["task", "metric"])
-def get_scalar_metric_data(call, company_id, _):
-    task_id = call.data["task"]
-    metric = call.data["metric"]
-    scroll_id = call.data.get("scroll_id")
-    no_scroll = call.data.get("no_scroll", False)
-    model_events = call.data.get("model_events", False)
+@endpoint("events.get_scalar_metric_data")
+def get_scalar_metric_data(call, company_id, request: GetScalarMetricDataRequest):
+    task_id = request.task
+    metric = request.metric
+    scroll_id = request.scroll_id
+    no_scroll = request.no_scroll
+    model_events = request.model_events
 
     task_or_model = _assert_task_or_model_exists(
         company_id,
@@ -435,9 +448,9 @@ def get_scalar_metric_data(call, company_id, _):
     )
 
 
-@endpoint("events.get_task_latest_scalar_values", required_fields=["task"])
-def get_task_latest_scalar_values(call, company_id, _):
-    task_id = call.data["task"]
+@endpoint("events.get_task_latest_scalar_values")
+def get_task_latest_scalar_values(call, company_id, request: TaskRequest):
+    task_id = request.task
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
     )[0]
@@ -558,11 +571,11 @@ def get_task_single_value_metrics(
     )
 
 
-@endpoint("events.get_multi_task_plots", required_fields=["tasks"])
-def get_multi_task_plots_v1_7(call, company_id, _):
-    task_ids = call.data["tasks"]
-    iters = call.data.get("iters", 1)
-    scroll_id = call.data.get("scroll_id")
+@endpoint("events.get_multi_task_plots")
+def get_multi_task_plots_v1_7(call, company_id, request: LegacyMultiTaskEventsRequest):
+    task_ids = request.tasks
+    iters = request.iters
+    scroll_id = request.scroll_id
 
     companies = _get_task_or_model_index_companies(company_id, task_ids)
 
@@ -644,11 +657,11 @@ def get_multi_task_plots(call, company_id, request: MultiTaskPlotsRequest):
     )
 
 
-@endpoint("events.get_task_plots", required_fields=["task"])
-def get_task_plots_v1_7(call, company_id, _):
-    task_id = call.data["task"]
-    iters = call.data.get("iters", 1)
-    scroll_id = call.data.get("scroll_id")
+@endpoint("events.get_task_plots")
+def get_task_plots_v1_7(call, company_id, request: LegacyMetricEventsRequest):
+    task_id = request.task
+    iters = request.iters
+    scroll_id = request.scroll_id
 
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
@@ -766,11 +779,11 @@ def task_plots(call, company_id, request: MetricEventsRequest):
     )
 
 
-@endpoint("events.debug_images", required_fields=["task"])
-def get_debug_images_v1_7(call, company_id, _):
-    task_id = call.data["task"]
-    iters = call.data.get("iters") or 1
-    scroll_id = call.data.get("scroll_id")
+@endpoint("events.debug_images")
+def get_debug_images_v1_7(call, company_id, request: LegacyMetricEventsRequest):
+    task_id = request.task
+    iters = request.iters
+    scroll_id = request.scroll_id
 
     task = task_bll.assert_exists(
         company_id, task_id, allow_public=True, only=("company", "company_origin")
@@ -803,12 +816,12 @@ def get_debug_images_v1_7(call, company_id, _):
     )
 
 
-@endpoint("events.debug_images", min_version="1.8", required_fields=["task"])
-def get_debug_images_v1_8(call, company_id, _):
-    task_id = call.data["task"]
-    iters = call.data.get("iters") or 1
-    scroll_id = call.data.get("scroll_id")
-    model_events = call.data.get("model_events", False)
+@endpoint("events.debug_images", min_version="1.8")
+def get_debug_images_v1_8(call, company_id, request: LegacyMetricEventsRequest):
+    task_id = request.task
+    iters = request.iters
+    scroll_id = request.scroll_id
+    model_events = request.model_events
 
     tasks_or_model = _assert_task_or_model_exists(
         company_id,
@@ -975,8 +988,7 @@ def get_multi_task_metrics(call: APICall, company_id, request: MultiTaskMetricsR
         return {"metrics": []}
 
     metrics = event_bll.metrics.get_multi_task_metrics(
-        companies=companies,
-        event_type=request.event_type
+        companies=companies, event_type=request.event_type
     )
     res = [
         {
@@ -985,14 +997,12 @@ def get_multi_task_metrics(call: APICall, company_id, request: MultiTaskMetricsR
         }
         for m, vars_ in metrics.items()
     ]
-    call.result.data = {
-        "metrics": sorted(res, key=itemgetter("metric"))
-    }
+    call.result.data = {"metrics": sorted(res, key=itemgetter("metric"))}
 
 
-@endpoint("events.delete_for_task", required_fields=["task"])
-def delete_for_task(call, company_id, _):
-    task_id = call.data["task"]
+@endpoint("events.delete_for_task")
+def delete_for_task(call, company_id, request: TaskRequest):
+    task_id = request.task
     allow_locked = call.data.get("allow_locked", False)
 
     get_task_with_write_access(
@@ -1005,9 +1015,9 @@ def delete_for_task(call, company_id, _):
     )
 
 
-@endpoint("events.delete_for_model", required_fields=["model"])
-def delete_for_model(call: APICall, company_id: str, _):
-    model_id = call.data["model"]
+@endpoint("events.delete_for_model")
+def delete_for_model(call: APICall, company_id: str, request: ModelRequest):
+    model_id = request.model
     allow_locked = call.data.get("allow_locked", False)
 
     model_bll.assert_exists(company_id, model_id, return_models=False)
