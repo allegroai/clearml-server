@@ -450,6 +450,7 @@ class AWSStorage(Storage):
             else None,
             "use_ssl": cfg.secure,
             "verify": cfg.verify,
+            "region_name": cfg.region or None,
         }
         name = base[len(scheme_prefix(self.scheme)) :]
         bucket_name = name[len(cfg.host) + 1 :] if cfg.host else name
