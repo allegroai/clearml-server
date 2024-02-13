@@ -46,7 +46,7 @@ class ProjectTagsRequest(TagsRequest):
 
 
 class MultiProjectRequest(models.Base):
-    projects = fields.ListField(str)
+    projects = fields.ListField(items_types=[str, type(None)])
     include_subprojects = fields.BoolField(default=True)
 
 
