@@ -182,6 +182,9 @@ def get_many_tasks_for_writing(
         )
     )
 
+    if not company_id:
+        return result
+
     forbidden_tasks = {task.id for task in result if not task.company}
     if forbidden_tasks:
         if throw_on_forbidden:
