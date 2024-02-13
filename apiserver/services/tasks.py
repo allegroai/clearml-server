@@ -266,7 +266,7 @@ def get_by_id_ex(call: APICall, company_id, _):
     call.result.data = {"tasks": tasks}
 
 
-@endpoint("tasks.get_all", required_fields=[])
+@endpoint("tasks.get_all")
 def get_all(call: APICall, company_id, _):
     conform_tag_fields(call, call.data)
     call_data = escape_execution_parameters(call.data)
@@ -364,13 +364,21 @@ def stopped(call: APICall, company_id, req_model: UpdateRequest):
     response_data_model=StartedResponse,
 )
 def started(call: APICall, company_id, req_model: UpdateRequest):
+    started_update = {}
+    if Task.objects(id=req_model.task, started=None).only("id"):
+        # this is the fix for older versions putting started to None on reset
+        started_update["started"] = datetime.utcnow()
+    else:
+        # don't override a previous, smaller "started" field value
+        started_update["min__started"] = datetime.utcnow()
+
     res = StartedResponse(
         **set_task_status_from_call(
             req_model,
             company_id=company_id,
             identity=call.identity,
             new_status=TaskStatus.in_progress,
-            min__started=datetime.utcnow(),  # don't override a previous, smaller "started" field value
+            **started_update,
         )
     )
     res.started = res.updated
