@@ -67,7 +67,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.7
     restart: unless-stopped
     volumes:
-      - /opt/clearml/data/elastic_7:/usr/share/elasticsearch/data
+      - /opt/clearml/data/elastic_7:/var/lib/elasticsearch/data
       - /usr/share/elasticsearch/logs
 
   fileserver:
