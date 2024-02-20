@@ -1,0 +1,37 @@
+from clearml import PipelineController
+
+
+if __name__ == '__main__':
+
+    
+    pipe = PipelineController(
+        project='{{project_name}}',
+        name='{{pipeline_name}}',
+        version='1.0',
+        add_pipeline_tags=False,
+        packages = ['clearml','piml'],
+    )
+
+    pipe.set_default_execution_queue('{{queue}}')
+
+    {% for parameter in parameters %}
+    
+    pipe.add_parameter(
+        name='{{parameter['name']}}',
+        description='{{parameter['description']}}',
+        default='{{parameter['default']}}',
+        param_type= {{parameter['param_type']}}
+        )
+
+    {% endfor %}
+    
+    {% for task in tasks %}
+    pipe.add_step(
+    name="{{task['name']}}",
+    parents ={{task['parents']}},
+    base_task_id='{{task['base_task_id']}}',
+    parameter_override= {{task['parameters']}},
+    )
+    {% endfor %}    
+    pipe.start_locally(run_pipeline_steps_locally=True)
+    print("{{pipeline_name}} complete succcessfully")

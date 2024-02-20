@@ -35,3 +35,5 @@ six
 validators>=0.12.4
 urllib3>=1.26.18
 werkzeug>=3.0.1
+piml
+networkx==2.8.6
