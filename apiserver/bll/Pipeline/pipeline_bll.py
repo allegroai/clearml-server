@@ -53,7 +53,7 @@ class PipelineBLL:
             project_obj = Project.objects(query).first()
             if not project:
                 raise errors.bad_request.InvalidProjectId(id=project)
-            ProjectBLL.create(user=user,company=company,system_tags=["pipeline"],name=f'{project_obj.name}/.pipelines/{name}',
+            p_id=ProjectBLL.create(user=user,company=company,system_tags=["pipeline"],name=f'{project_obj.name}/.pipelines/{name}',
                                     description=description)
 
         pipeline = Pipeline(
@@ -69,7 +69,7 @@ class PipelineBLL:
             created=now,
             last_update=now,
             parameters= parameters,
-            project=project,
+            project=p_id,
             flow_display=flow_display
         )
         pipeline.save()
