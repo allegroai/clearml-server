@@ -183,6 +183,21 @@ def get_by_id(call):
 
         call.result.data = {"pipeline": pipeline_dict}
 
+@endpoint("pipelines.get_all", required_fields=["project"])
+def get_by_id(call):
+    assert isinstance(call, APICall)
+    project_id = call.data["project"]
+
+    with translate_errors_context():
+        query = Q(project=project_id) & get_company_or_none_constraint(call.identity.company)
+        pipelines = Pipeline.objects(query).all()
+        pipelines_data=[]
+        for pipeline in pipelines:
+            pipelines_data.append(pipeline.to_proper_dict())
+
+        call.result.data = {"pipelines": pipelines_data}
+
+
 create_step_fields = {
     "name": None,
     "description": None,

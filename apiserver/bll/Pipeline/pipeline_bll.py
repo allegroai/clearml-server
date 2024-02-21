@@ -12,6 +12,8 @@ from typing import (
     Union,
 )
 import asyncio
+from apiserver.apierrors import errors
+from apiserver.database.model.project import Project
 from mongoengine import Q
 from datetime import datetime, timedelta
 from apiserver.database.model.pipeline import Pipeline,PipelineStep
@@ -19,6 +21,7 @@ from apiserver import database
 from .pipelinejinjagenerator import create_pipeline
 from .pipelinecompile import PipeLineWithConnectionCompile
 import subprocess
+from apiserver.bll.project.project_bll import ProjectBLL
 class PipelineBLL:
 
     @classmethod
@@ -41,6 +44,18 @@ class PipelineBLL:
         Returns pipeline ID
         """
         now = datetime.utcnow()
+
+        if not project:
+            raise errors.bad_request.ValidationError("project id or name required")
+
+        if project:
+            query = Q(id=project)
+            project_obj = Project.objects(query).first()
+            if not project:
+                raise errors.bad_request.InvalidProjectId(id=project)
+            ProjectBLL.create(user=user,company=company,system_tags=["pipeline"],name=f'{project_obj.name}/.pipelines/{name}',
+                                    description=description)
+
         pipeline = Pipeline(
             id=database.utils.id(),
             user=user,
