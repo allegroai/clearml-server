@@ -249,17 +249,19 @@ def pipeline_update(call:APICall):
     pipeline.flow_display = call.data["flow_display"]
     pipeline.parameters = call.data["parameters"]
     pipeline.save()
-    call.result.data = {"msg": "Pipeline updated Successfully."}
+    pipeline_data = pipeline.to_proper_dict()
+    call.result.data = {"pipelines": pipeline_data}
 
 
 @endpoint("pipelines.update_node", required_fields=["node_id"])
-def pipeline_update(call:APICall):
+def node_update(call:APICall):
 
     query = Q(id=call.data["node_id"])
     pipeline_step = PipelineStep.objects(query).first()
     pipeline_step.parameters = call.data["parameters"]
     pipeline_step.save()
-    call.result.data = {"msg": "Node updated Successfully."}
+    pipeline_step_data = pipeline_step.to_proper_dict()
+    call.result.data = {"stepdata": pipeline_step_data}
 
 
 @endpoint("pipelines.compile", required_fields=[])
