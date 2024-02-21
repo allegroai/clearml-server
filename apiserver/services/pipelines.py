@@ -170,13 +170,13 @@ def create(call: APICall):
 @endpoint("pipelines.get_by_id", required_fields=["pipeline"])
 def get_by_id(call):
     assert isinstance(call, APICall)
-    pipeline_id = call.data["pipeline"]
+    project_id = call.data["pipeline"]
 
     with translate_errors_context():
-        query = Q(id=pipeline_id) & get_company_or_none_constraint(call.identity.company)
+        query = Q(project=project_id) & get_company_or_none_constraint(call.identity.company)
         pipeline = Pipeline.objects(query).first()
         if not pipeline:
-            raise errors.bad_request.InvalidPipelineId(id=pipeline_id)
+            raise errors.bad_request.InvalidPipelineId(id=project_id)
 
         pipeline_dict = pipeline.to_proper_dict()
         conform_output_tags(call, pipeline_dict)
