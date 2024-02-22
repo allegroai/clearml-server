@@ -38,7 +38,7 @@ class PipelineBLL:
         parameters: dict= None,
         flow_display : dict=None,
         parent_creation_params: dict = None,
-    ) -> str:
+    )-> Tuple [str,str] :
         """
         Create a new pipeline.
         Returns pipeline ID
@@ -73,7 +73,7 @@ class PipelineBLL:
             flow_display=flow_display
         )
         pipeline.save()
-        return pipeline.id
+        return pipeline.id , p_id
     
     @classmethod
     def create_step(

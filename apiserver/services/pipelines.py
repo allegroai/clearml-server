@@ -159,12 +159,10 @@ def create(call: APICall):
     with translate_errors_context():
         fields = parse_from_call(call.data, create_fields, Pipeline.get_fields())
         conform_tag_fields(call, fields, validate=True)
-        print(fields)
-        return IdResponse(
-            id=PipelineBLL.create(
+        results =PipelineBLL.create(
                 user=identity.user, company=identity.company, **fields,
             )
-            )
+        call.result.data ={'id':results[0],"project_id":results[1]}
     
 
 @endpoint("pipelines.get_by_id", required_fields=["pipeline"])
