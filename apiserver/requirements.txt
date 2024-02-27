@@ -21,7 +21,7 @@ jsonschema>=2.6.0
 luqum>=0.10.0
 mongoengine==0.27.0
 nested_dict>=1.61
-packaging==20.3
+packaging>=20.3
 psutil>=5.6.5
 pyhocon>=0.3.35r
 pyjwt>=2.4.0
@@ -35,5 +35,5 @@ six
 validators>=0.12.4
 urllib3>=1.26.18
 werkzeug>=3.0.1
-piml
+PiML==0.6.0.post0
 networkx==2.8.6
