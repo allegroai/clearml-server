@@ -4,6 +4,7 @@ import networkx as nx
 from apiserver.database.model.pipeline import Pipeline,PipelineStep
 from mongoengine import Q
 import json
+from apiserver.database.model.project import Project
 class PipeLineWithConnectionCompile(object):
     """
     Class having uitlity functions used make a pipeline
@@ -56,7 +57,7 @@ class PipeLineWithConnectionCompile(object):
         query = Q(id=self.pipeline_id)
         pipeline = Pipeline.objects(query).first()
         self.compiled_json["pipeline_name"]=pipeline.name
-        self.compiled_json['project_name'] = pipeline.project
+        self.compiled_json['project_name'] = (Project.objects(Q(id=pipeline.project)).first()).name.split("/")[0]
         self.compiled_json['queue'] = "default"
         self.compiled_json["parameters"] = pipeline.parameters
         self.add_tasks()

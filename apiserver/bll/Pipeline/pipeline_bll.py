@@ -126,6 +126,20 @@ class PipelineBLL:
         Compile pipeline
         """
         pipeline_compile= PipeLineWithConnectionCompile(steps,connections,pipeline_id)
-        create_pipeline(pipeline_compile.compiled_json)
+        create_pipeline(pipeline_compile.compiled_json,pipeline_id)
+        return True
+    
+    @classmethod
+    def run(
+        cls,
+        pipeline_id: str
 
+    ) -> bool:
+        """
+        Run pipeline
+        """
+        try:
+            subprocess.Popen(['python',f"apiserver/Pipelines/{pipeline_id}.py"])
+        except Exception:
+            return False
         return True

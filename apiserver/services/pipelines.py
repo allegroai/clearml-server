@@ -264,9 +264,19 @@ def node_update(call:APICall):
 
 @endpoint("pipelines.compile", required_fields=[])
 def compile_pipeline(call:APICall):
-    
+
     compiled = PipelineBLL.compile(**call.data)
     if compiled:
         call.result.data = {"msg": "Pipeline compiled Successfully."}
     else:
         call.result.data = {"msg": "Pipeline compilation failed."}
+    
+@endpoint("pipelines.run", required_fields=['pipeline_id'])
+def run_pipeline(call:APICall):
+
+    pipeline_id = call.data['pipeline_id']
+    run = PipelineBLL.run(pipeline_id)
+    if run:
+        call.result.data = {"msg": "Pipeline execution successfully."}
+    else:
+        call.result.data = {"msg": "Pipeline execution unsuccessfully."}
