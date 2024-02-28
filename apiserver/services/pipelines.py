@@ -244,6 +244,8 @@ def pipeline_update(call:APICall):
 
     query = Q(id=call.data["pipeline_id"])
     pipeline = Pipeline.objects(query).first()
+    if not pipeline:
+        raise errors.bad_request.InvalidPipelineId(id=call.data["pipeline_id"])
     pipeline.flow_display = call.data["flow_display"]
     pipeline.parameters = call.data["parameters"]
     pipeline.save()
@@ -251,11 +253,13 @@ def pipeline_update(call:APICall):
     call.result.data = {"pipelines": pipeline_data}
 
 
-@endpoint("pipelines.update_node", required_fields=["node_id"])
+@endpoint("pipelines.update_node", required_fields=["step"])
 def node_update(call:APICall):
 
-    query = Q(id=call.data["node_id"])
+    query = Q(id=call.data["step"])
     pipeline_step = PipelineStep.objects(query).first()
+    if not pipeline_step:
+        raise errors.bad_request.InvalidStepId(id=call.data['step'])
     pipeline_step.parameters = call.data["parameters"]
     pipeline_step.save()
     pipeline_step_data = pipeline_step.to_proper_dict()
@@ -280,3 +284,10 @@ def run_pipeline(call:APICall):
         call.result.data = {"msg": "Pipeline execution successfully."}
     else:
         call.result.data = {"msg": "Pipeline execution unsuccessfully."}
+
+@endpoint("pipelines.delete_step", required_fields=['step'])
+def delete_step(call:APICall):
+
+    step_id = call.data['step']
+    PipelineBLL.delete_step(step_id)
+    call.result.data =  {'msg': 'Successfully deleted the step.'}

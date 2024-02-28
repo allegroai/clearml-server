@@ -143,3 +143,13 @@ class PipelineBLL:
         except Exception:
             return False
         return True
+    
+    @classmethod
+    def delete_step(cls, step_id:str):
+        
+
+        pipline_step_obj = PipelineStep.objects(id= step_id).first()
+        if pipline_step_obj:
+            pipline_step_obj.delete()
+        else:    
+            raise errors.bad_request.InvalidStepId(id=step_id)
