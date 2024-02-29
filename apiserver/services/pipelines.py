@@ -175,8 +175,9 @@ def get_by_id(call):
         pipeline = Pipeline.objects(query).first()
         if not pipeline:
             raise errors.bad_request.InvalidPipelineId(id=project_id)
-
+        project_name= (Project.objects(Q(id=pipeline.project)).first()).name.split("/")[0]
         pipeline_dict = pipeline.to_proper_dict()
+        pipeline_dict['project_name']=project_name
         conform_output_tags(call, pipeline_dict)
 
         call.result.data = {"pipeline": pipeline_dict}

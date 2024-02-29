@@ -1,5 +1,6 @@
 FROM node:18-bullseye as webapp_builder
 
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 ARG CLEARML_WEB_GIT_URL=https://github.com/Nuva-Org/clearml-web.git
 ARG WEB_BRANCH=development
 USER root
