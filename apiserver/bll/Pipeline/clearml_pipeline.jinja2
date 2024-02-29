@@ -19,8 +19,8 @@ if __name__ == '__main__':
     pipe.add_parameter(
         name='{{parameter['name']}}',
         description='{{parameter['description']}}',
-        default='{{parameter['default']}}',
-        param_type= {{parameter['param_type']}}
+        default='{{parameter['value']}}',
+        param_type= '',
         )
 
     {% endfor %}

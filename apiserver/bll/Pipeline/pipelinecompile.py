@@ -75,6 +75,17 @@ class PipeLineWithConnectionCompile(object):
     def get_parents(self,parent_dic,node_id):
         return  parent_dic.get(node_id)
 
+    def step_para(self, parameters):
+        parameters_override={}
+        for parameter in parameters:
+            if parameter['section']=='General' and '$' in parameter['value']:
+                para_val = parameter['value'].split(".")
+                para_val = f"{para_val[0]}.{para_val[1]}"
+                parameters_override[f"{parameter['section']}/{parameter['name']}"]= para_val
+            else:    
+                parameters_override[f"{parameter['section']}/{parameter['name']}"]= parameter['value']
+        return parameters_override
+    
     def add_tasks(self):
         """
         This function is used to add the tasks.
@@ -89,7 +100,7 @@ class PipeLineWithConnectionCompile(object):
             temp['base_task_id']= pipeline_step.experiment
             temp['parents'] = self.get_parents(parent_dependcy,i)
             if len(pipeline_step.parameters)>0:
-                temp['parameters'] = pipeline_step.parameters[0]
+                temp['parameters'] = self.step_para(pipeline_step.parameters)
             else:
                 temp['parameters']= {}
             tasks.append(temp)
@@ -102,7 +113,6 @@ class PipeLineWithConnectionCompile(object):
         This function is used to add the order of the tasks.
         """
         res = self.get_dependency()
-        print(res)
         self.compiled_json["PipeLineFlow"] = res
     
     def save_json(self):
