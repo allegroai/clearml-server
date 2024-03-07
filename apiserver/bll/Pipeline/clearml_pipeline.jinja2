@@ -31,6 +31,7 @@ if __name__ == '__main__':
     parents ={{task['parents']}},
     base_task_id='{{task['base_task_id']}}',
     parameter_override= {{task['parameters']}},
+    cache_executed_step=True,
     )
     {% endfor %}    
     pipe.start_locally(run_pipeline_steps_locally=True)
