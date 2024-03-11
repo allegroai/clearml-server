@@ -177,7 +177,9 @@ def get_by_id(call):
             raise errors.bad_request.InvalidPipelineId(id=project_id)
         project_name= (Project.objects(Q(id=pipeline.project)).first()).name.split("/")[0]
         pipeline_dict = pipeline.to_proper_dict()
+        pipeline_code = PipelineBLL.get_pipeline_code(pipeline.id)
         pipeline_dict['project_name']=project_name
+        pipeline_dict['code'] = pipeline_code
         conform_output_tags(call, pipeline_dict)
 
         call.result.data = {"pipeline": pipeline_dict}
@@ -233,7 +235,6 @@ def get_by_id(call):
         step = PipelineStep.objects(query).first()
         if not step:
             raise errors.bad_request.InvalidStepId(id=step_id)
-
         step_dict = step.to_proper_dict()
         conform_output_tags(call, step_dict)
 

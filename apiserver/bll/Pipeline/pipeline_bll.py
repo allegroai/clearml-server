@@ -153,3 +153,11 @@ class PipelineBLL:
             pipline_step_obj.delete()
         else:    
             raise errors.bad_request.InvalidStepId(id=step_id)
+
+    @classmethod 
+    def get_pipeline_code(cls,pipeline_id):
+
+        with open(f"apiserver/Pipelines/{pipeline_id}.py" , 'r') as file :
+            pipeline_code = file.read()
+
+        return pipeline_code
