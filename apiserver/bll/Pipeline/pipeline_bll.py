@@ -22,6 +22,7 @@ from .pipelinejinjagenerator import create_pipeline
 from .pipelinecompile import PipeLineWithConnectionCompile
 import subprocess
 from apiserver.bll.project.project_bll import ProjectBLL
+import os
 class PipelineBLL:
 
     @classmethod
@@ -157,7 +158,8 @@ class PipelineBLL:
     @classmethod 
     def get_pipeline_code(cls,pipeline_id):
 
-        with open(f"apiserver/Pipelines/{pipeline_id}.py" , 'r') as file :
-            pipeline_code = file.read()
-
-        return pipeline_code
+        if os.path.isfile("apiserver/Pipelines/{pipeline_id}.py"):
+            with open(f"apiserver/Pipelines/{pipeline_id}.py" , 'r') as file :
+                pipeline_code = file.read()
+                return pipeline_code
+        return ""
