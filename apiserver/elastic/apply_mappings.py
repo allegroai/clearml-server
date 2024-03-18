@@ -8,15 +8,18 @@ import logging
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, exceptions
 
 HERE = Path(__file__).resolve().parent
-logging.getLogger('elasticsearch').setLevel(logging.WARNING)
-logging.getLogger('elastic_transport').setLevel(logging.WARNING)
+logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+logging.getLogger("elastic_transport").setLevel(logging.WARNING)
 
 
 def apply_mappings_to_cluster(
-    hosts: Sequence, key: Optional[str] = None, es_args: dict = None, http_auth: Tuple = None
+    hosts: Sequence,
+    key: Optional[str] = None,
+    es_args: dict = None,
+    http_auth: Tuple = None,
 ):
     """Hosts maybe a sequence of strings or dicts in the form {"host": <host>, "port": <port>}"""
 
@@ -34,21 +37,33 @@ def apply_mappings_to_cluster(
             res = es.indices.put_index_template(name=template_name, body=body)
             return {"index_template": template_name, "result": res}
 
-    def _send_template(f):
-        with f.open() as json_data:
-            data = json.load(json_data)
-            template_name = f.stem
-            res = es.indices.put_template(name=template_name, body=data)
-            return {"mapping": template_name, "result": res}
+    # def _send_legacy_template(f):
+    #     with f.open() as json_data:
+    #         data = json.load(json_data)
+    #         template_name = f.stem
+    #         res = es.indices.put_template(name=template_name, body=data)
+    #         return {"mapping": template_name, "result": res}
+
+    def _delete_legacy_templates(legacy_folder):
+        res_list = []
+        for lt in legacy_folder.glob("*.json"):
+            template_name = lt.stem
+            try:
+                if not es.indices.get_template(name=template_name):
+                    continue
+                res = es.indices.delete_template(name=template_name)
+            except exceptions.NotFoundError:
+                continue
+            res_list.append({"deleted legacy mapping": template_name, "result": res})
+
+        return res_list
 
     es = Elasticsearch(hosts=hosts, http_auth=http_auth, **(es_args or {}))
-    p = HERE / "index_templates"
+    root = HERE / "index_templates"
     if key:
-        folders = [p / key]
+        folders = [root / key]
     else:
-        folders = [
-            f for f in p.iterdir() if f.is_dir()
-        ]
+        folders = [f for f in root.iterdir() if f.is_dir()]
 
     ret = []
     for f in folders:
@@ -56,6 +71,13 @@ def apply_mappings_to_cluster(
             ret.append(_send_component_template(ct))
         for it in f.glob("*.json"):
             ret.append(_send_index_template(it))
+
+    legacy_root = HERE / "mappings"
+    for f in folders:
+        legacy_f = legacy_root / f.stem
+        if not legacy_f.exists() or not legacy_f.is_dir():
+            continue
+        ret.extend(_delete_legacy_templates(legacy_f))
 
     return ret
     # p = HERE / "mappings"

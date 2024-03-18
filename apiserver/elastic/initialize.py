@@ -10,8 +10,8 @@ from apiserver.config_repo import config
 from apiserver.elastic.apply_mappings import apply_mappings_to_cluster
 
 log = config.logger(__file__)
-logging.getLogger('elasticsearch').setLevel(logging.WARNING)
-logging.getLogger('elastic_transport').setLevel(logging.WARNING)
+logging.getLogger("elasticsearch").setLevel(logging.WARNING)
+logging.getLogger("elastic_transport").setLevel(logging.WARNING)
 
 
 class MissingElasticConfiguration(Exception):
@@ -80,6 +80,18 @@ def check_elastic_empty() -> bool:
         err_type=urllib3.exceptions.NewConnectionError, args_prefix=("GET",)
     )
 
+    def events_legacy_template():
+        try:
+            return es.indices.get_template(name="events*")
+        except exceptions.NotFoundError:
+            return False
+
+    def events_template():
+        try:
+            return es.indices.get_index_template(name="events*")
+        except exceptions.NotFoundError:
+            return False
+
     try:
         es_logger.addFilter(log_filter)
         for retry in range(max_retries):
@@ -89,10 +101,7 @@ def check_elastic_empty() -> bool:
                     http_auth=es_factory.get_credentials("events", cluster_conf),
                     **cluster_conf.get("args", {}),
                 )
-                return not es.indices.get_template(name="events*")
-            except exceptions.NotFoundError as ex:
-                log.error(ex)
-                return True
+                return not (events_template() or events_legacy_template())
             except exceptions.ConnectionError as ex:
                 if retry >= max_retries - 1:
                     raise ElasticConnectionError(
