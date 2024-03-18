@@ -24,6 +24,7 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User, Role
 from apiserver.service_repo import APICall, endpoint
 from apiserver.service_repo.auth import Token
+from apiserver.service_repo.auth.auth import is_token_revoked, revoke_auth_token
 from apiserver.service_repo.auth.fixed_user import FixedUser
 
 log = config.logger(__file__)
@@ -35,7 +36,7 @@ log = config.logger(__file__)
     response_data_model=GetTokenResponse,
 )
 def login(call: APICall, *_, **__):
-    """ Generates a token based on the authenticated user (intended for use with credentials) """
+    """Generates a token based on the authenticated user (intended for use with credentials)"""
     call.result.data_model = AuthBLL.get_token_for_user(
         user_id=call.identity.user,
         company_id=call.identity.company,
@@ -48,6 +49,7 @@ def login(call: APICall, *_, **__):
 
 @endpoint("auth.logout", min_version="2.2")
 def logout(call: APICall, *_, **__):
+    revoke_auth_token(call.auth)
     call.result.set_auth_cookie(None)
 
 
@@ -57,7 +59,7 @@ def logout(call: APICall, *_, **__):
     response_data_model=GetTokenResponse,
 )
 def get_token_for_user(call: APICall, _: str, request: GetTokenForUserRequest):
-    """ Generates a token based on a requested user and company. INTERNAL. """
+    """Generates a token based on a requested user and company. INTERNAL."""
     if call.identity.role not in Role.get_system_roles():
         if call.identity.role != Role.admin and call.identity.user != request.user:
             raise errors.bad_request.InvalidUserId(
@@ -81,12 +83,14 @@ def get_token_for_user(call: APICall, _: str, request: GetTokenForUserRequest):
     response_data_model=ValidateResponse,
 )
 def validate_token_endpoint(call: APICall, _, __):
-    """ Validate a token and return identity if valid. INTERNAL. """
+    """Validate a token and return identity if valid. INTERNAL."""
     try:
         # if invalid, decoding will fail
         token = Token.from_encoded_token(call.data_model.token)
         call.result.data_model = ValidateResponse(
-            valid=True, user=token.identity.user, company=token.identity.company
+            valid=not is_token_revoked(token),
+            user=token.identity.user,
+            company=token.identity.company,
         )
     except Exception as e:
         call.result.data_model = ValidateResponse(valid=False, msg=e.args[0])
@@ -98,7 +102,7 @@ def validate_token_endpoint(call: APICall, _, __):
     response_data_model=CreateUserResponse,
 )
 def create_user(call: APICall, _, request: CreateUserRequest):
-    """ Create a user from. INTERNAL. """
+    """Create a user from. INTERNAL."""
     if (
         call.identity.role not in Role.get_system_roles()
         and request.company != call.identity.company

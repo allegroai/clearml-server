@@ -7,6 +7,7 @@ from apiserver.apimodels.login import (
 )
 from apiserver.config import info
 from apiserver.service_repo import endpoint, APICall
+from apiserver.service_repo.auth import revoke_auth_token
 from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
@@ -37,4 +38,5 @@ def supported_modes(call: APICall, _, __: GetSupportedModesRequest):
 
 @endpoint("login.logout", min_version="2.13")
 def logout(call: APICall, _, __):
+    revoke_auth_token(call.auth)
     call.result.set_auth_cookie(None)

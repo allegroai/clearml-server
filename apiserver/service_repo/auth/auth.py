@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime
+from time import time
 
 import bcrypt
 import jwt
@@ -11,15 +12,16 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.auth import User, Entities, Credentials
 from apiserver.database.model.company import Company
 from apiserver.database.utils import get_options
+from apiserver.redis_manager import redman
 from .fixed_user import FixedUser
 from .identity import Identity
 from .payload import Payload, Token, Basic, AuthType
 
 log = config.logger(__file__)
-
 entity_keys = set(get_options(Entities))
-
 verify_user_tokens = config.get("apiserver.auth.verify_user_tokens", True)
+_revoked_tokens_key = "revoked_tokens"
+redis = redman.connection("apiserver")
 
 
 def get_auth_func(auth_type):
@@ -41,8 +43,10 @@ def authorize_token(jwt_token, service, action, call):
         log.error(f"{msg} Call info: {info}")
 
     try:
-        return Token.from_encoded_token(jwt_token)
-
+        token = Token.from_encoded_token(jwt_token)
+        if is_token_revoked(token):
+            raise errors.unauthorized.InvalidToken("revoked token")
+        return token
     except jwt.exceptions.InvalidKeyError as ex:
         log_error("Failed parsing token.")
         raise errors.unauthorized.InvalidToken(
@@ -154,3 +158,23 @@ def compare_secret_key_hash(secret_key: str, hashed_secret: str) -> bool:
     return bcrypt.checkpw(
         secret_key.encode(), base64.b64decode(hashed_secret.encode("ascii"))
     )
+
+
+def is_token_revoked(token: Token) -> bool:
+    if not isinstance(token, Token) or not token.session_id:
+        return False
+
+    return redis.zscore(_revoked_tokens_key, token.session_id) is not None
+
+
+def revoke_auth_token(token: Token):
+    if not isinstance(token, Token) or not token.session_id:
+        return
+
+    timestamp_now = int(time())
+    expiration_timestamp = token.exp
+    if not expiration_timestamp:
+        expiration_timestamp = timestamp_now + Token.default_expiration_sec
+
+    redis.zadd(_revoked_tokens_key, {token.session_id: expiration_timestamp})
+    redis.zremrangebyscore(_revoked_tokens_key, min=0, max=timestamp_now)

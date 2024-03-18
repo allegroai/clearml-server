@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import jwt
 
 from datetime import datetime, timedelta
@@ -20,7 +22,15 @@ class Token(Payload):
     default_expiration_sec = config.get("apiserver.auth.default_expiration_sec")
 
     def __init__(
-        self, exp=None, iat=None, nbf=None, env=None, identity=None, entities=None, **_
+        self,
+        exp=None,
+        iat=None,
+        nbf=None,
+        env=None,
+        identity=None,
+        session_id=None,
+        entities=None,
+        **_,
     ):
         super(Token, self).__init__(
             AuthType.bearer_token, identity=identity, entities=entities
@@ -28,7 +38,12 @@ class Token(Payload):
         self.exp = exp
         self.iat = iat
         self.nbf = nbf
+        self._session_id = session_id
         self._env = env or config.get("env", "<unknown>")
+
+    @property
+    def session_id(self):
+        return self._session_id
 
     @property
     def env(self):
@@ -102,8 +117,11 @@ class Token(Payload):
             expiration_sec = expiration_sec or cls.default_expiration_sec
 
         now = datetime.utcnow()
+        session_id = uuid4().hex
 
-        token = cls(identity=identity, entities=entities, iat=now)
+        token = cls(
+            identity=identity, entities=entities, iat=now, session_id=session_id
+        )
 
         if expiration_sec:
             # add 'expiration' claim
