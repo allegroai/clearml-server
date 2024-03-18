@@ -869,7 +869,7 @@ class ProjectBLL:
         company,
         project_ids: Sequence[str],
         user_ids: Optional[Sequence[str]] = None,
-    ) -> Set[str]:
+    ) -> Set[Union[str, type(None)]]:
         """
         Get the set of user ids that created tasks/models in the given projects
         If project_ids is empty then all projects are examined

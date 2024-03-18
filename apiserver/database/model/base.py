@@ -1297,7 +1297,6 @@ class GetMixin(PropsMixin):
         return result
 
 
-
 class UpdateMixin(object):
     __user_set_allowed_fields = None
     __locked_when_published_fields = None

@@ -113,7 +113,7 @@ class TestProjectTags(TestService):
         new_tags = ["New model tag"]
         self.api.models.update_tags(ids=[model], add_tags=new_tags)
         data = self.api.projects.get_model_tags(projects=[p])
-        self.assertEqual(set(data.tags), set([*new_tags, *initial_tags]))
+        self.assertEqual(set(data.tags), {*new_tags, *initial_tags})
 
     def new_task(self, **kwargs):
         self.update_missing(

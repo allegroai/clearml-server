@@ -374,7 +374,7 @@ class EventBLL(object):
             if invalid_iterations_count:
                 raise BulkIndexError(
                     f"{invalid_iterations_count} document(s) failed to index.",
-                    [invalid_iteration_error],
+                    [{"_index": invalid_iteration_error}],
                 )
 
         if not added:
