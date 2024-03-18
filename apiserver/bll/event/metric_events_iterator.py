@@ -6,7 +6,6 @@ from operator import itemgetter
 from typing import Sequence, Tuple, Optional, Mapping, Callable
 
 import attr
-import dpath
 from boltons.iterutils import first
 from elasticsearch import Elasticsearch
 from jsonmodels.fields import StringField, ListField, IntField
@@ -27,6 +26,7 @@ from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.metrics import MetricEventStats
 from apiserver.database.model.task.task import Task
+from apiserver.utilities.dicts import nested_get
 
 
 class VariantState(Base):
@@ -305,13 +305,13 @@ class MetricEventsIterator:
         return [
             MetricState(
                 metric=metric["key"],
-                timestamp=dpath.get(metric, "last_event_timestamp/value"),
+                timestamp=nested_get(metric, ("last_event_timestamp", "value")),
                 variants=[
                     init_variant_state(variant)
-                    for variant in dpath.get(metric, "variants/buckets")
+                    for variant in nested_get(metric, ("variants", "buckets"))
                 ],
             )
-            for metric in dpath.get(es_res, "aggregations/metrics/buckets")
+            for metric in nested_get(es_res, ("aggregations", "metrics", "buckets"))
         ]
 
     @abc.abstractmethod
@@ -430,14 +430,14 @@ class MetricEventsIterator:
         def get_iteration_events(it_: dict) -> Sequence:
             return [
                 self._process_event(ev["_source"])
-                for m in dpath.get(it_, "metrics/buckets")
-                for v in dpath.get(m, "variants/buckets")
-                for ev in dpath.get(v, "events/hits/hits")
+                for m in nested_get(it_, ("metrics", "buckets"))
+                for v in nested_get(m, ("variants", "buckets"))
+                for ev in nested_get(v, ("events", "hits", "hits"))
                 if is_valid_event(ev["_source"])
             ]
 
         iterations = []
-        for it in dpath.get(es_res, "aggregations/iters/buckets"):
+        for it in nested_get(es_res, ("aggregations", "iters", "buckets")):
             events = get_iteration_events(it)
             if events:
                 iterations.append({"iter": it["key"], "events": events})

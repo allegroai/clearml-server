@@ -27,9 +27,8 @@ from apiserver.database.model.project import Project
 from apiserver.database.model.queue import Queue
 from apiserver.database.model.task.task import Task
 from apiserver.redis_manager import redman
-from apiserver.tools import safe_get
+from apiserver.utilities.dicts import nested_get
 from .stats import WorkerStats
-
 
 log = config.logger(__file__)
 
@@ -287,7 +286,7 @@ class WorkerBLL:
                 filter(
                     None,
                     (
-                        safe_get(info, "next_entry/task")
+                        nested_get(info, ("next_entry", "task"))
                         for info in queues_info.values()
                     ),
                 )
@@ -311,7 +310,7 @@ class WorkerBLL:
                     continue
                 entry.name = info.get("name", None)
                 entry.num_tasks = info.get("num_entries", 0)
-                task_id = safe_get(info, "next_entry/task")
+                task_id = nested_get(info, ("next_entry", "task"))
                 if task_id:
                     task = tasks_info.get(task_id, None)
                     entry.next_task = IdNameEntry(

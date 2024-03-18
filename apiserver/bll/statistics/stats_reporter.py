@@ -18,7 +18,7 @@ from apiserver.config.info import get_deployment_type
 from apiserver.database.model import Company, User
 from apiserver.database.model.queue import Queue
 from apiserver.database.model.task.task import Task
-from apiserver.tools import safe_get
+from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import dumps
 from apiserver.version import __version__ as current_version
 from .resource_monitor import ResourceMonitor, stat_threads
@@ -162,7 +162,7 @@ class StatisticsReporter:
         def _get_cardinality_fields(categories: Sequence[dict]) -> dict:
             names = {"cpu": "num_cores"}
             return {
-                names[c["key"]]: safe_get(c, "count/value")
+                names[c["key"]]: nested_get(c, ("count", "value"))
                 for c in categories
                 if c["key"] in names
             }
@@ -175,21 +175,21 @@ class StatisticsReporter:
             }
             return {
                 names[m["key"]]: {
-                    "min": safe_get(m, "min/value"),
-                    "max": safe_get(m, "max/value"),
-                    "avg": safe_get(m, "avg/value"),
+                    "min": nested_get(m, ("min", "value")),
+                    "max": nested_get(m, ("max", "value")),
+                    "avg": nested_get(m, ("avg", "value")),
                 }
                 for m in metrics
                 if m["key"] in names
             }
 
-        buckets = safe_get(res, "aggregations/workers/buckets", default=[])
+        buckets = nested_get(res, ("aggregations", "workers", "buckets"), default=[])
         return {
             b["key"]: {
                 key: {
                     "interval_sec": agent_resource_threshold_sec,
-                    **_get_cardinality_fields(safe_get(b, "categories/buckets", [])),
-                    **_get_metric_fields(safe_get(b, "metrics/buckets", [])),
+                    **_get_cardinality_fields(nested_get(b, ("categories", "buckets"), [])),
+                    **_get_metric_fields(nested_get(b, ("metrics", "buckets"), [])),
                 }
             }
             for b in buckets
@@ -227,7 +227,7 @@ class StatisticsReporter:
             },
         }
         res = cls._run_worker_stats_query(company_id, es_req)
-        buckets = safe_get(res, "aggregations/workers/buckets", default=[])
+        buckets = nested_get(res, ("aggregations", "workers", "buckets"), default=[])
         return {
             b["key"]: {"last_activity_time": b["last_activity_time"]["value"]}
             for b in buckets

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from functools import lru_cache
 from os import getenv
@@ -9,6 +10,8 @@ from elasticsearch import Elasticsearch
 from apiserver.config_repo import config
 
 log = config.logger(__file__)
+logging.getLogger('elasticsearch').setLevel(logging.WARNING)
+logging.getLogger('elastic_transport').setLevel(logging.WARNING)
 
 OVERRIDE_HOST_ENV_KEY = (
     "CLEARML_ELASTIC_SERVICE_HOST",
@@ -32,6 +35,7 @@ if OVERRIDE_HOST:
 
 OVERRIDE_PORT = first(filter(None, map(getenv, OVERRIDE_PORT_ENV_KEY)))
 if OVERRIDE_PORT:
+    OVERRIDE_PORT = int(OVERRIDE_PORT)
     log.info(f"Using override elastic port {OVERRIDE_PORT}")
 
 OVERRIDE_USERNAME = first(filter(None, map(getenv, OVERRIDE_USERNAME_ENV_KEY)))

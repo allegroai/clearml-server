@@ -1,0 +1,17 @@
+{
+  "index_patterns": "events-training_debug_image-*",
+  "template": {
+    "mappings": {
+      "properties": {
+        "key": {
+          "type": "keyword"
+        },
+        "url": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "priority": 500,
+  "composed_of": ["events_common"]
+}

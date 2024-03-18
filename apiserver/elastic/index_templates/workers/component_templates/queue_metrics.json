@@ -1,0 +1,26 @@
+{
+  "template": {
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "timestamp": {
+          "type": "date"
+        },
+        "queue": {
+          "type": "keyword"
+        },
+        "average_waiting_time": {
+          "type": "float"
+        },
+        "queue_length": {
+          "type": "integer"
+        },
+        "company_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

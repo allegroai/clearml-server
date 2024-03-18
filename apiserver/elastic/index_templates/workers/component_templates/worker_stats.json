@@ -1,0 +1,38 @@
+{
+  "template": {
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "timestamp": {
+          "type": "date"
+        },
+        "worker": {
+          "type": "keyword"
+        },
+        "category": {
+          "type": "keyword"
+        },
+        "metric": {
+          "type": "keyword"
+        },
+        "variant": {
+          "type": "keyword"
+        },
+        "value": {
+          "type": "float"
+        },
+        "unit": {
+          "type": "keyword"
+        },
+        "task": {
+          "type": "keyword"
+        },
+        "company_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

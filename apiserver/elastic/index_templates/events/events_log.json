@@ -1,0 +1,18 @@
+{
+  "index_patterns": "events-log-*",
+  "template": {
+    "mappings": {
+      "properties": {
+        "msg": {
+          "type": "text",
+          "index": false
+        },
+        "level": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "priority": 500,
+  "composed_of": ["events_common"]
+}

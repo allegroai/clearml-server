@@ -24,7 +24,7 @@ from apiserver.bll.event.scalar_key import ScalarKey, ScalarKeyEnum
 from apiserver.bll.query import Builder as QueryBuilder
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.tools import safe_get
+from apiserver.utilities.dicts import nested_get
 
 log = config.logger(__file__)
 
@@ -342,12 +342,12 @@ class EventMetrics:
         total amount of intervals does not exceeds the samples
         Return the interval and resulting amount of intervals
         """
-        count = safe_get(data, "count/value", default=0)
+        count = nested_get(data, ("count", "value"), default=0)
         if count < samples:
             return metric, variant, 1, count
 
-        min_index = safe_get(data, "min_index/value", default=0)
-        max_index = safe_get(data, "max_index/value", default=min_index)
+        min_index = nested_get(data, ("min_index", "value"), default=0)
+        max_index = nested_get(data, ("max_index", "value"), default=min_index)
         index_range = max_index - min_index + 1
         interval = max(1, math.ceil(float(index_range) / samples))
         max_samples = math.ceil(float(index_range) / interval)
@@ -592,5 +592,5 @@ class EventMetrics:
 
         return [
             metric["key"]
-            for metric in safe_get(es_res, "aggregations/metrics/buckets", default=[])
+            for metric in nested_get(es_res, ("aggregations", "metrics", "buckets"), default=[])
         ]

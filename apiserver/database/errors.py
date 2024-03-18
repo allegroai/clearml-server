@@ -5,7 +5,7 @@ from textwrap import shorten
 
 import dpath
 from dpath.exceptions import InvalidKeyName
-from elasticsearch import ElasticsearchException
+from elastic_transport import TransportError, ApiError
 from elasticsearch.helpers import BulkIndexError
 from jsonmodels.errors import ValidationError as JsonschemaValidationError
 from mongoengine.errors import (
@@ -210,9 +210,9 @@ def translate_errors_context(message=None, **kwargs):
         raise errors.bad_request.ValidationError(e.args[0])
     except BulkIndexError as e:
         ElasticErrorsHandler.bulk_error(e, message, **kwargs)
-    except ElasticsearchException as e:
+    except (TransportError, ApiError) as e:
         raise errors.server_error.DataError(e, message, **kwargs)
     except InvalidKeyName:
         raise errors.server_error.DataError("invalid empty key encountered in data")
-    except Exception as ex:
+    except Exception:
         raise

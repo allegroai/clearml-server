@@ -1,0 +1,48 @@
+{
+  "template": {
+    "settings": {
+      "number_of_replicas": 0,
+      "number_of_shards": 1
+    },
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "task": {
+          "type": "keyword"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "worker": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "iter": {
+          "type": "long"
+        },
+        "metric": {
+          "type": "keyword"
+        },
+        "variant": {
+          "type": "keyword"
+        },
+        "value": {
+          "type": "float"
+        },
+        "company_id": {
+          "type": "keyword"
+        },
+        "model_event": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

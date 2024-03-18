@@ -1,0 +1,18 @@
+{
+  "index_patterns": "events-plot-*",
+  "template": {
+    "mappings": {
+      "properties": {
+        "plot_str": {
+          "type": "text",
+          "index": false
+        },
+        "plot_data": {
+          "type": "binary"
+        }
+      }
+    }
+  },
+  "priority": 500,
+  "composed_of": ["events_common"]
+}

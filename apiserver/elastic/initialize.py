@@ -10,6 +10,8 @@ from apiserver.config_repo import config
 from apiserver.elastic.apply_mappings import apply_mappings_to_cluster
 
 log = config.logger(__file__)
+logging.getLogger('elasticsearch').setLevel(logging.WARNING)
+logging.getLogger('elastic_transport').setLevel(logging.WARNING)
 
 
 class MissingElasticConfiguration(Exception):

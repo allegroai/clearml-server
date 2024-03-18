@@ -44,7 +44,6 @@ from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.redis_manager import redman
 from apiserver.service_repo.auth import Identity
-from apiserver.tools import safe_get
 from apiserver.utilities.dicts import nested_get
 from apiserver.utilities.json import loads
 
@@ -661,8 +660,8 @@ class EventBLL(object):
         Return events and next scroll id from the scrolled query
         Release the scroll once it is exhausted
         """
-        total_events = safe_get(es_res, "hits/total/value", default=0)
-        events = [doc["_source"] for doc in safe_get(es_res, "hits/hits", default=[])]
+        total_events = nested_get(es_res, ("hits", "total", "value"), default=0)
+        events = [doc["_source"] for doc in nested_get(es_res, ("hits", "hits"), default=[])]
         next_scroll_id = es_res.get("_scroll_id")
         if next_scroll_id and not events:
             self.clear_scroll(next_scroll_id)

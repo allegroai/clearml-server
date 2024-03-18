@@ -9,7 +9,7 @@ from elasticsearch import Elasticsearch
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
 from apiserver.database.model.task.task import Task
-from apiserver.tools import safe_get
+from apiserver.utilities.dicts import nested_get
 
 
 class EventType(Enum):
@@ -123,8 +123,8 @@ def get_max_metric_and_variant_counts(
             es, company_id=company_id, event_type=event_type, body=es_req, **kwargs,
         )
 
-    metrics_count = safe_get(
-        es_res, "aggregations/metrics_count/value", max_metrics_count
+    metrics_count = nested_get(
+        es_res, ("aggregations", "metrics_count", "value"), max_metrics_count
     )
     if not metrics_count:
         return max_metrics_count, max_variants_count
