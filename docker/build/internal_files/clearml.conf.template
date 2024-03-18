@@ -29,7 +29,12 @@ server {
     include /etc/nginx/default.d/*.conf;
 
     location / {
-        try_files $uri$args $uri$args/ $uri index.html /index.html;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "frame-ancestors 'self'";
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer-when-downgrade";
+        try_files $uri $uri/ /index.html;
     }
 
     location /version.json {
