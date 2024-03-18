@@ -46,10 +46,26 @@ elif [[ ${SERVER_TYPE} == "webserver" ]]; then
 EOF
     fi
 
+    # Create an empty configuration json
+    echo "{}" > configuration.json
+	
+    # Copy the external configuration file if it exists
+    if test -f "/mnt/external_files/configs/configuration.json"; then
+      echo "Copying external configuration"
+      cp /mnt/external_files/configs/configuration.json configuration.json
+    fi
+
+	  # Update from env variables
+    echo "Updating configuration from env"
+    /opt/clearml/utilities/update_from_env.py \
+        --verbose \
+        configuration.json \
+        /usr/share/nginx/html/configuration.json
+
     export NGINX_APISERVER_ADDR=${NGINX_APISERVER_ADDRESS:-http://apiserver:8008}
     export NGINX_FILESERVER_ADDR=${NGINX_FILESERVER_ADDRESS:-http://fileserver:8081}
-    COMMENT_IPV6_LISTEN=$([ "$DISABLE_NGINX_IPV6" = "true" ] && echo "#" || echo "") \
-     envsubst '${COMMENT_IPV6_LISTEN} ${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR}' < /etc/nginx/clearml.conf.template > /etc/nginx/sites-enabled/default
+    export COMMENT_IPV6_LISTEN=$([ "$DISABLE_NGINX_IPV6" = "true" ] && echo "#" || echo "")
+    envsubst '${COMMENT_IPV6_LISTEN} ${NGINX_APISERVER_ADDR} ${NGINX_FILESERVER_ADDR}' < /etc/nginx/clearml.conf.template > /etc/nginx/sites-enabled/default
 
     if [[ -n "${CLEARML_SERVER_SUB_PATH}" ]]; then
       mkdir -p /etc/nginx/default.d/

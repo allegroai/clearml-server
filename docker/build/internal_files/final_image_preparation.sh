@@ -4,8 +4,7 @@ set -o nounset
 set -o pipefail
 
 apt-get update -y
-apt-get install -y python3-setuptools python3-dev build-essential nginx gettext
-apt-get install -y vim curl
+apt-get install -y python3-setuptools python3-dev build-essential nginx gettext vim curl
 
 python3 -m ensurepip
 python3 -m pip install --upgrade pip
