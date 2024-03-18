@@ -148,6 +148,11 @@ class RequestHandlers:
         call.set_error_result(msg=msg, code=code, subcode=subcode)
         return call
 
+    def _get_session_auth_cookie(self, req):
+        return req.cookies.get(
+            config.get("apiserver.auth.session_auth_cookie_name")
+        )
+
     def _create_api_call(self, req):
         call = None
         try:
@@ -161,9 +166,7 @@ class RequestHandlers:
 
             # Resolve authorization: if cookies contain an authorization token, use it as a starting point.
             # in any case, request headers always take precedence.
-            auth_cookie = req.cookies.get(
-                config.get("apiserver.auth.session_auth_cookie_name")
-            )
+            auth_cookie = self._get_session_auth_cookie(req)
             headers = (
                 {}
                 if not auth_cookie
