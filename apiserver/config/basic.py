@@ -6,7 +6,7 @@ from functools import reduce
 from os import getenv
 from os.path import expandvars
 from pathlib import Path
-from typing import List, Any, TypeVar, Sequence
+from typing import List, Any, TypeVar, Sequence, Set
 
 from boltons.iterutils import first
 from pyhocon import ConfigTree, ConfigFactory, ConfigValues
@@ -35,6 +35,7 @@ class BasicConfig:
         folder: str = None,
         verbose: bool = True,
         prefix: Sequence[str] = DEFAULT_PREFIXES,
+        exclude_files_from_base_folder: Sequence[str] = None,
     ):
         folder = (
             Path(folder)
@@ -44,6 +45,11 @@ class BasicConfig:
         if not folder.is_dir():
             raise ValueError("Invalid configuration folder")
 
+        self.exclude_files_from_base_folder = (
+            set(exclude_files_from_base_folder)
+            if exclude_files_from_base_folder
+            else set()
+        )
         self.verbose = verbose
 
         self.extra_config_path_override_var = [
@@ -85,7 +91,7 @@ class BasicConfig:
         return logging.getLogger(path)
 
     def _read_extra_env_config_values(self) -> ConfigTree:
-        """ Loads extra configuration from environment-injected values """
+        """Loads extra configuration from environment-injected values"""
         result = ConfigTree()
 
         for prefix in self.extra_config_values_env_key_prefix:
@@ -125,12 +131,18 @@ class BasicConfig:
     def _reload(self) -> ConfigTree:
         extra_config_values = self._read_extra_env_config_values()
 
-        configs = [self._read_recursive(path) for path in self._paths]
+        configs = [
+            self._read_recursive(
+                path,
+                exclude_files=(
+                    self.exclude_files_from_base_folder if idx == 0 else None
+                ),
+            )
+            for idx, path in enumerate(self._paths)
+        ]
 
         return reduce(
-            lambda last, config: self._merge_configs(
-                last, config, copy_trees=True
-            ),
+            lambda last, config: self._merge_configs(last, config, copy_trees=True),
             configs + [extra_config_values],
             ConfigTree(),
         )
@@ -141,9 +153,14 @@ class BasicConfig:
         for key, value in b.items():
             override = key.startswith(override_prefix)
             if override:
-                key = key[len(override_prefix):]
+                key = key[len(override_prefix) :]
             # if key is in both a and b and both values are dictionary then merge it otherwise override it
-            if not override and key in a and isinstance(a[key], ConfigTree) and isinstance(b[key], ConfigTree):
+            if (
+                not override
+                and key in a
+                and isinstance(a[key], ConfigTree)
+                and isinstance(b[key], ConfigTree)
+            ):
                 if copy_trees:
                     a[key] = a[key].copy()
                 cls._merge_configs(a[key], b[key], copy_trees=copy_trees)
@@ -156,13 +173,15 @@ class BasicConfig:
                 a[key] = value
                 if a.root:
                     if b.root:
-                        a.history[key] = a.history.get(key, []) + b.history.get(key, [value])
+                        a.history[key] = a.history.get(key, []) + b.history.get(
+                            key, [value]
+                        )
                     else:
                         a.history[key] = a.history.get(key, []) + [value]
 
         return a
 
-    def _read_recursive(self, conf_root) -> ConfigTree:
+    def _read_recursive(self, conf_root, exclude_files: Set[str]) -> ConfigTree:
         conf = ConfigTree()
 
         if not conf_root:
@@ -180,6 +199,8 @@ class BasicConfig:
             print(f"Loading config from {conf_root}")
 
         for file in conf_root.rglob("*.conf"):
+            if exclude_files and file.name in exclude_files:
+                continue
             key = ".".join(file.relative_to(conf_root).with_suffix("").parts)
             conf.put(key, self._read_single_file(file))
 
