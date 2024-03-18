@@ -16,7 +16,7 @@ from apiserver.bll.project import ProjectBLL
 from apiserver.bll.user import UserBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model.auth import Role
+from apiserver.database.model.auth import Role, User as AuthUser
 from apiserver.database.model.company import Company
 from apiserver.database.model.user import User
 from apiserver.database.utils import parse_from_call
@@ -158,9 +158,17 @@ def update_user(user_id, company_id, data: dict) -> Tuple[int, dict]:
     update_fields = {
         k: v for k, v in create_fields.items() if k in User.user_set_allowed()
     }
+    auth_user_update_fields = ("name",)
     partial_update_dict = parse_from_call(data, update_fields, User.get_fields())
     with translate_errors_context("updating user"):
-        return User.safe_update(company_id, user_id, partial_update_dict)
+        ret = User.safe_update(company_id, user_id, partial_update_dict)
+        auth_update = {
+            k: v for k, v in partial_update_dict.items() if k in auth_user_update_fields
+        }
+        if auth_update:
+            AuthUser.objects(id=user_id).update(**auth_update)
+
+    return ret
 
 
 @endpoint("users.update", response_data_model=UpdateResponse)

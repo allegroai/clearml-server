@@ -3,7 +3,7 @@ from typing import Sequence, Union
 
 from apiserver.config_repo import config
 from apiserver.config.info import get_default_company
-from apiserver.database.model.auth import Role
+from apiserver.database.model.auth import Role, User as AuthUser
 from apiserver.service_repo.auth.fixed_user import FixedUser
 from .migration import _apply_migrations, check_mongo_empty, get_last_server_version
 from .pre_populate import PrePopulate
@@ -60,14 +60,18 @@ def init_mongo_data():
 
         fixed_mode = FixedUser.enabled()
 
+        internal_user_emails = set()
         for user, credentials in config.get("secure.credentials", {}).items():
+            email = f"{user}@example.com"
             user_data = {
                 "name": user,
                 "role": credentials.role,
-                "email": f"{user}@example.com",
+                "email": email,
                 "key": credentials.user_key,
                 "secret": credentials.user_secret,
+                "autocreated": True,
             }
+            internal_user_emails.add(email.lower())
             revoke = fixed_mode and credentials.get("revoke_in_fixed_mode", False)
             user_id = _ensure_auth_user(user_data, company_id, log=log, revoke=revoke)
             if credentials.role == Role.user:
@@ -82,8 +86,20 @@ def init_mongo_data():
 
             for user in FixedUser.from_config():
                 try:
-                    ensure_fixed_user(user, log=log)
+                    ensure_fixed_user(user, log=log, emails=internal_user_emails)
                 except Exception as ex:
                     log.error(f"Failed creating fixed user {user.name}: {ex}")
+
+        if internal_user_emails and config.get(
+            f"apiserver.auth.delete_missing_autocreated_users", True
+        ):
+            for user in AuthUser.objects(
+                company=company_id, autocreated=True, email__nin=internal_user_emails
+            ):
+                log.info(
+                    f"Removing user that is no longer in configuration: {user['id']}\t{user['email']}\t{user['name']}"
+                )
+                user.delete()
+
     except Exception as ex:
-        log.exception("Failed initializing mongodb")
+        log.exception(f"Failed initializing mongodb: {str(ex)}")

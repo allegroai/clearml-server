@@ -4,6 +4,7 @@ from mongoengine import (
     EmbeddedDocumentListField,
     EmailField,
     DateTimeField,
+    BooleanField,
 )
 
 from apiserver.database import Database, strict
@@ -76,3 +77,6 @@ class User(DbModelMixin, AuthDocument):
 
     email = EmailField(unique=True, sparse=True)
     """ Email uniquely identifying the user """
+
+    autocreated = BooleanField(default=False)
+    """ Set to true if the user was auto created based on config settings"""

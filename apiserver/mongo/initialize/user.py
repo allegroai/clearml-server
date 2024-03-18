@@ -26,6 +26,7 @@ def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: boo
         credentials = [] if revoke else [creds]
 
     user_id = user_data.get("id", f"__{user_data['name']}__")
+    autocreated = user_data.get("autocreated", False)
 
     log.info(f"Creating user: {user_data['name']}")
 
@@ -37,6 +38,7 @@ def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: boo
         email=user_data["email"],
         created=datetime.utcnow(),
         credentials=credentials,
+        autocreated=autocreated,
     )
 
     user.save()
@@ -59,7 +61,7 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
     return user_id
 
 
-def ensure_fixed_user(user: FixedUser, log: Logger):
+def ensure_fixed_user(user: FixedUser, log: Logger, emails: set):
     db_user = User.objects(company=user.company, id=user.user_id).first()
     if db_user:
         # noinspection PyBroadException
@@ -73,9 +75,12 @@ def ensure_fixed_user(user: FixedUser, log: Logger):
 
     data = attr.asdict(user)
     data["id"] = user.user_id
-    data["email"] = f"{user.user_id}@example.com"
+    email = f"{user.user_id}@example.com"
+    data["email"] = email
     data["role"] = Role.guest if user.is_guest else Role.user
+    data["autocreated"] = True
 
     _ensure_auth_user(user_data=data, company_id=user.company, log=log)
+    emails.add(email)
 
     return _ensure_backend_user(user.user_id, user.company, user.name)
