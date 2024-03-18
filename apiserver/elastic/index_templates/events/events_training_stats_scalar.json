@@ -1,0 +1,5 @@
+{
+  "index_patterns": "events-training_stats_scalar-*",
+  "priority": 500,
+  "composed_of": ["events_common"]
+}
