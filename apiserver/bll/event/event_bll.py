@@ -438,10 +438,8 @@ class EventBLL(object):
         last_events contains [hashed_metric_name -> hashed_variant_name -> event]. Keys are hashed to avoid mongodb
         key conflicts due to invalid characters and/or long field names.
         """
-        metric = event.get("metric")
-        variant = event.get("variant")
-        if not (metric and variant):
-            return
+        metric = event.get("metric") or ""
+        variant = event.get("variant") or ""
 
         metric_hash = dbutils.hash_field_name(metric)
         variant_hash = dbutils.hash_field_name(variant)
@@ -486,9 +484,9 @@ class EventBLL(object):
         recent than the currently stored event for its metric/event_type combination.
         last_events contains [metric_name -> event_type -> event]
         """
-        metric = event.get("metric")
+        metric = event.get("metric") or ""
         event_type = event.get("type")
-        if not (metric and event_type):
+        if not event_type:
             return
 
         timestamp = last_events[metric][event_type].get("timestamp", None)
