@@ -55,6 +55,12 @@ server {
         rewrite /files/(.*) /$1  break;
     }
 
+    location /widgets {
+        alias /usr/share/nginx/widgets;
+        try_files $uri $uri/ /widgets/index.html;
+        add_header Content-Security-Policy "frame-ancestors *";
+    }
+
     error_page 404 /404.html;
         location = /40x.html {
     }

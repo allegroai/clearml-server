@@ -47,19 +47,19 @@ EOF
     fi
 
     # Create an empty configuration json
-    echo "{}" > configuration.json
+    echo "{}" > /tmp/configuration.json
 	
     # Copy the external configuration file if it exists
     if test -f "/mnt/external_files/configs/configuration.json"; then
       echo "Copying external configuration"
-      cp /mnt/external_files/configs/configuration.json configuration.json
+      cp /mnt/external_files/configs/configuration.json /tmp/configuration.json
     fi
 
 	  # Update from env variables
     echo "Updating configuration from env"
     /opt/clearml/utilities/update_from_env.py \
         --verbose \
-        configuration.json \
+        /tmp/configuration.json \
         /usr/share/nginx/html/configuration.json
 
     export NGINX_APISERVER_ADDR=${NGINX_APISERVER_ADDRESS:-http://apiserver:8008}
