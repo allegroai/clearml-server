@@ -1,4 +1,4 @@
-FROM node:18-bullseye as webapp_builder
+FROM node:20-bookworm as webapp_builder
 
 ARG CLEARML_WEB_GIT_URL=https://github.com/allegroai/clearml-web.git
 
@@ -10,7 +10,7 @@ RUN mv clearml-web /opt/open-webapp
 COPY --chmod=744 docker/build/internal_files/build_webapp.sh /tmp/internal_files/
 RUN /bin/bash -c '/tmp/internal_files/build_webapp.sh'
 
-FROM python:3.9-slim-bullseye
+FROM python:3.9-slim-bookworm
 COPY --chmod=744 docker/build/internal_files/entrypoint.sh /opt/clearml/
 COPY fileserver /opt/clearml/fileserver/
 COPY apiserver /opt/clearml/apiserver/
