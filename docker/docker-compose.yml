@@ -100,7 +100,7 @@ services:
     networks:
       - backend
     container_name: clearml-redis
-    image: redis:5.0
+    image: redis:6.2
     restart: unless-stopped
     volumes:
     - /opt/clearml/data/redis:/data
