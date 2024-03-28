@@ -5,6 +5,7 @@ ARG CLEARML_WEB_GIT_URL=https://github.com/allegroai/clearml-web.git
 USER root
 WORKDIR /opt
 
+RUN apt-get update && apt-get install -y git
 RUN git clone ${CLEARML_WEB_GIT_URL} clearml-web
 RUN mv clearml-web /opt/open-webapp
 COPY --chmod=744 docker/build/internal_files/build_webapp.sh /tmp/internal_files/
