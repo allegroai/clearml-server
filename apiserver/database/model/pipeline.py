@@ -94,5 +94,5 @@ class PipelineStep(AttributedDocument):
     company_origin = StringField(exclude_by_default=True)
     pipeline_id = StringField()
     parameters = SafeSortedListField(SafeDictField(),default=list)
-
+    code = StringField()
 

@@ -89,6 +89,7 @@ class PipelineBLL:
         parameters: dict= None,
         experiment:str = "",
         pipeline_id:str = "",
+        code: str=""
     ) -> str:
         """
         Create a new step.
@@ -110,6 +111,7 @@ class PipelineBLL:
             last_update=now,
             parameters= parameters,
             pipeline_id= pipeline_id,
+            code =code
         )
         pipeline_step.save()
 

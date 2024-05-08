@@ -207,7 +207,8 @@ create_step_fields = {
     "default_output_destination": None,
     "parameters" : list,
     "pipeline_id": None,
-    "experiment" : None
+    "experiment" : None,
+    "code":""
 
 }
 @endpoint(
@@ -263,6 +264,7 @@ def node_update(call:APICall):
     if not pipeline_step:
         raise errors.bad_request.InvalidStepId(id=call.data['step'])
     pipeline_step.parameters = call.data["parameters"]
+    pipeline_step.code = call.data['code']
     pipeline_step.save()
     pipeline_step_data = pipeline_step.to_proper_dict()
     call.result.data = {"stepdata": pipeline_step_data}

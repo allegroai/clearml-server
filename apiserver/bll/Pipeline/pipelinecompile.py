@@ -103,6 +103,10 @@ class PipeLineWithConnectionCompile(object):
                 temp['parameters'] = self.step_para(pipeline_step.parameters)
             else:
                 temp['parameters']= {}
+            if pipeline_step.code=="":
+                temp['task_overrides']={'script.diff':None}
+            else:
+                temp["task_overrides"]= {'script.diff':pipeline_step.code}
             tasks.append(temp)
 
         self.compiled_json["tasks"] = tasks
