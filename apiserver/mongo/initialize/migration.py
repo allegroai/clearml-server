@@ -62,6 +62,7 @@ def _apply_migrations(log: Logger):
             for ver, path in (
                 (parse(f.stem.replace("_", ".")), f)
                 for f in _migration_dir.glob("*.py")
+                if f.name != "utils.py" 
             )
             if ver > last_version
         }
