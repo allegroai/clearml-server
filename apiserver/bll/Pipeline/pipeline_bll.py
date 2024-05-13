@@ -16,7 +16,7 @@ from apiserver.apierrors import errors
 from apiserver.database.model.project import Project
 from mongoengine import Q
 from datetime import datetime, timedelta
-from apiserver.database.model.pipeline import Pipeline,PipelineStep
+from apiserver.database.model.pipeline import Projectextendpipeline
 from apiserver import database
 from .pipelinejinjagenerator import create_pipeline
 from .pipelinecompile import PipeLineWithConnectionCompile
@@ -38,7 +38,6 @@ class PipelineBLL:
         default_output_destination: str = None,
         parameters: dict= None,
         flow_display : dict=None,
-        parent_creation_params: dict = None,
     )-> Tuple [str,str] :
         """
         Create a new pipeline.
@@ -54,42 +53,38 @@ class PipelineBLL:
             project_obj = Project.objects(query).first()
             if not project:
                 raise errors.bad_request.InvalidProjectId(id=project)
-            p_id=ProjectBLL.create(user=user,company=company,system_tags=["pipeline"],name=f'{project_obj.name}/.pipelines/{name}',
+            p_id=ProjectBLL.find_or_create(user=user,company=company,system_tags=["hidden"],project_name=f'{project_obj.name}/.pipelines',
                                     description=description)
-
-        pipeline = Pipeline(
+        pipeline = Projectextendpipeline(
             id=database.utils.id(),
             user=user,
             company=company,
-            name=name,
-            basename=name.split("/")[-1],
+            name=f'{project_obj.name}/.pipelines/{name}',
+            basename=name,
             description=description,
             tags=tags,
-            system_tags=system_tags,
+            system_tags=["hidden","pipeline"],
             default_output_destination=default_output_destination,
             created=now,
             last_update=now,
+            parent= p_id, 
+            path ={p_id,project},
             parameters= parameters,
-            project=p_id,
             flow_display=flow_display
         )
         pipeline.save()
-        return pipeline.id , p_id
+        return pipeline.id
     
     @classmethod
     def create_step(
         cls,
-        user: str,
-        company: str,
         name: str,
         description: str = "",
-        tags: Sequence[str] = None,
-        system_tags: Sequence[str] = None,
-        default_output_destination: str = None,
         parameters: dict= None,
         experiment:str = "",
         pipeline_id:str = "",
-        code: str=""
+        code: str="",
+        experiment_details : dict=None
     ) -> str:
         """
         Create a new step.
@@ -98,25 +93,23 @@ class PipelineBLL:
         now = datetime.utcnow()
         pipeline_step = PipelineStep(
             id=database.utils.id(),
-            user=user,
-            company=company,
             name=name,
             experiment = experiment,
             basename=name.split("/")[-1],
             description=description,
-            tags=tags,
-            system_tags=system_tags,
-            default_output_destination=default_output_destination,
             created=now,
             last_update=now,
             parameters= parameters,
-            pipeline_id= pipeline_id,
-            code =code
+            pipeline_id = pipeline_id,
+            code =code,
+            experiment_details= experiment_details
         )
-        pipeline_step.save()
+        ppo= Pipeline.objects(id= pipeline_id).first()
+        print(pipeline_step.to_json())
+        ppo.node_data.update({pipeline_step.id:pipeline_step})
+        ppo.save()
+        return ppo.id
 
-        return pipeline_step.id
-    
     @classmethod
     def compile(
         cls,

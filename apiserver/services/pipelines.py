@@ -16,7 +16,7 @@ from apiserver.bll.Pipeline import PipelineBLL
 from apiserver.bll.task.task_operations import enqueue_task, delete_task
 from apiserver.bll.util import run_batch_operation
 from apiserver.database.model.project import Project
-from apiserver.database.model.pipeline import Pipeline, PipelineStep
+from apiserver.database.model.pipeline import Pipeline, PipelineStep, Projectextendpipeline
 from apiserver.database.model.task.task import Task, TaskType
 from apiserver.service_repo import APICall, endpoint
 from apiserver.utilities.dicts import nested_get
@@ -171,32 +171,18 @@ def get_by_id(call):
     project_id = call.data["pipeline"]
 
     with translate_errors_context():
-        query = Q(project=project_id) & get_company_or_none_constraint(call.identity.company)
-        pipeline = Pipeline.objects(query).first()
+        query = Q(id=project_id) & get_company_or_none_constraint(call.identity.company)
+        pipeline = Projectextendpipeline.objects(query).first()
         if not pipeline:
             raise errors.bad_request.InvalidPipelineId(id=project_id)
-        project_name= (Project.objects(Q(id=pipeline.project)).first()).name.split("/")[0]
         pipeline_dict = pipeline.to_proper_dict()
         pipeline_code = PipelineBLL.get_pipeline_code(pipeline.id)
-        pipeline_dict['project_name']=project_name
         pipeline_dict['code'] = pipeline_code
+        pipeline_dict['name']= pipeline.basename
         conform_output_tags(call, pipeline_dict)
 
         call.result.data = {"pipeline": pipeline_dict}
 
-@endpoint("pipelines.get_all", required_fields=["project"])
-def get_by_id(call):
-    assert isinstance(call, APICall)
-    project_id = call.data["project"]
-
-    with translate_errors_context():
-        query = Q(project=project_id) & get_company_or_none_constraint(call.identity.company)
-        pipelines = Pipeline.objects(query).all()
-        pipelines_data=[]
-        for pipeline in pipelines:
-            pipelines_data.append(pipeline.to_proper_dict())
-
-        call.result.data = {"pipelines": pipelines_data}
 
 
 create_step_fields = {
@@ -208,6 +194,7 @@ create_step_fields = {
     "parameters" : list,
     "pipeline_id": None,
     "experiment" : None,
+    "experiment_details":{},
     "code":""
 
 }
@@ -216,13 +203,13 @@ create_step_fields = {
 )
 def create_step(call: APICall):
  
-    identity = call.identity
-    with translate_errors_context():
-        fields = parse_from_call(call.data, create_step_fields, PipelineStep.get_fields())
-        conform_tag_fields(call, fields, validate=True)
-        return IdResponse(
+
+    # with translate_errors_context():
+    #     fields = parse_from_call(call.data, create_step_fields, PipelineStep.get_fields())
+    #     conform_tag_fields(call, fields, validate=True)
+    return IdResponse(
             id=PipelineBLL.create_step(
-                user=identity.user, company=identity.company, **fields,
+                **call.data
             )
             )
 
