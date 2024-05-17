@@ -16,7 +16,7 @@ from apiserver.bll.Pipeline import PipelineBLL
 from apiserver.bll.task.task_operations import enqueue_task, delete_task
 from apiserver.bll.util import run_batch_operation
 from apiserver.database.model.project import Project
-from apiserver.database.model.pipeline import Pipeline, PipelineStep, Projectextendpipeline
+from apiserver.database.model.pipeline import  PipelineNode, Projectextendpipeline
 from apiserver.database.model.task.task import Task, TaskType
 from apiserver.service_repo import APICall, endpoint
 from apiserver.utilities.dicts import nested_get
@@ -148,8 +148,8 @@ create_fields = {
     "system_tags": list,
     "default_output_destination": None,
     "parameters" : list,
-    "project": None,
-    "flow_display" : dict
+    "flow_display" : dict,
+    "pipeline_setting": dict
 }
 @endpoint(
     "pipelines.create_pipeline", required_fields=["name"], response_data_model=IdResponse,
@@ -157,12 +157,12 @@ create_fields = {
 def create(call: APICall):
     identity = call.identity
     with translate_errors_context():
-        fields = parse_from_call(call.data, create_fields, Pipeline.get_fields())
+        fields = parse_from_call(call.data, create_fields, Projectextendpipeline.get_fields())
         conform_tag_fields(call, fields, validate=True)
-        results =PipelineBLL.create(
-                user=identity.user, company=identity.company, **fields,
+        pipeline_id =PipelineBLL.create(
+                user=identity.user, company=identity.company,project=call.data.get("project"), **fields,
             )
-        call.result.data ={'id':results[0],"project_id":results[1]}
+        call.result.data ={'id':pipeline_id}
     
 
 @endpoint("pipelines.get_by_id", required_fields=["pipeline"])
@@ -172,15 +172,12 @@ def get_by_id(call):
 
     with translate_errors_context():
         query = Q(id=project_id) & get_company_or_none_constraint(call.identity.company)
-        pipeline = Projectextendpipeline.objects(query).first()
+        pipeline = Projectextendpipeline.objects(query).exclude("nodes").first()
         if not pipeline:
             raise errors.bad_request.InvalidPipelineId(id=project_id)
+        # print(dir(pipeline))
         pipeline_dict = pipeline.to_proper_dict()
-        pipeline_code = PipelineBLL.get_pipeline_code(pipeline.id)
-        pipeline_dict['code'] = pipeline_code
-        pipeline_dict['name']= pipeline.basename
         conform_output_tags(call, pipeline_dict)
-
         call.result.data = {"pipeline": pipeline_dict}
 
 
@@ -192,69 +189,57 @@ create_step_fields = {
     "system_tags": list,
     "default_output_destination": None,
     "parameters" : list,
-    "pipeline_id": None,
+    "pipeline": None,
     "experiment" : None,
     "experiment_details":{},
     "code":""
 
 }
 @endpoint(
-    "pipelines.create_step", required_fields=["name","experiment"], response_data_model=IdResponse,
+    "pipelines.create_node", required_fields=["name","experiment","pipeline_id"], response_data_model=IdResponse,
 )
 def create_step(call: APICall):
- 
-
-    # with translate_errors_context():
-    #     fields = parse_from_call(call.data, create_step_fields, PipelineStep.get_fields())
-    #     conform_tag_fields(call, fields, validate=True)
+    
+    PipelineBLL.verify_node_name(call.data.get("name"),call.data.get("pipeline"))
     return IdResponse(
             id=PipelineBLL.create_step(
                 **call.data
             )
             )
 
-@endpoint("pipelines.step_get_by_id", required_fields=["step"])
+@endpoint("pipelines.node_get_by_id", required_fields=["pipeline","node"])
 def get_by_id(call):
     assert isinstance(call, APICall)
-    step_id = call.data["step"]
-
-    with translate_errors_context():
-        query = Q(id=step_id) & get_company_or_none_constraint(call.identity.company)
-        step = PipelineStep.objects(query).first()
-        if not step:
-            raise errors.bad_request.InvalidStepId(id=step_id)
-        step_dict = step.to_proper_dict()
-        conform_output_tags(call, step_dict)
-
-        call.result.data = {"step": step_dict}
+    pipeline = call.data["pipeline"]
+    node_id = call.data["node"]
+    pipeline = Projectextendpipeline.objects.get(id=pipeline).nodes.filter(id=node_id)
+    if not pipeline:
+        raise errors.bad_request.InvalidNodeId(id=node_id)
+    node_dict = pipeline[0].to_mongo()
+    node_dict['id']= node_dict['_id']
+    call.result.data = {"node": node_dict}
 
 
-@endpoint("pipelines.update_pipeline", required_fields=["pipeline_id"])
+@endpoint("pipelines.update_pipeline", required_fields=["pipeline"])
 def pipeline_update(call:APICall):
 
-    query = Q(id=call.data["pipeline_id"])
-    pipeline = Pipeline.objects(query).first()
+    query = Q(id=call.data["pipeline"])
+    pipeline = Projectextendpipeline.objects(query).first()
     if not pipeline:
-        raise errors.bad_request.InvalidPipelineId(id=call.data["pipeline_id"])
+        raise errors.bad_request.InvalidPipelineId(id=call.data["pipeline"])
     pipeline.flow_display = call.data["flow_display"]
     pipeline.parameters = call.data["parameters"]
+    pipeline.pipeline_setting = call.data['pipeline_setting']
     pipeline.save()
     pipeline_data = pipeline.to_proper_dict()
     call.result.data = {"pipelines": pipeline_data}
 
 
-@endpoint("pipelines.update_node", required_fields=["step"])
+@endpoint("pipelines.update_node", required_fields=["pipeline","node"])
 def node_update(call:APICall):
 
-    query = Q(id=call.data["step"])
-    pipeline_step = PipelineStep.objects(query).first()
-    if not pipeline_step:
-        raise errors.bad_request.InvalidStepId(id=call.data['step'])
-    pipeline_step.parameters = call.data["parameters"]
-    pipeline_step.code = call.data['code']
-    pipeline_step.save()
-    pipeline_step_data = pipeline_step.to_proper_dict()
-    call.result.data = {"stepdata": pipeline_step_data}
+    pipeline_node_data=PipelineBLL.update_node(**call.data)
+    call.result.data = {"stepdata": pipeline_node_data}
 
 
 @endpoint("pipelines.compile", required_fields=[])
@@ -276,9 +261,8 @@ def run_pipeline(call:APICall):
     else:
         call.result.data = {"msg": "Pipeline execution unsuccessfully."}
 
-@endpoint("pipelines.delete_step", required_fields=['step'])
+@endpoint("pipelines.delete_node", required_fields=['pipeline','node'])
 def delete_step(call:APICall):
 
-    step_id = call.data['step']
-    PipelineBLL.delete_step(step_id)
+    PipelineBLL.delete_step(**call.data)
     call.result.data =  {'msg': 'Successfully deleted the step.'}
