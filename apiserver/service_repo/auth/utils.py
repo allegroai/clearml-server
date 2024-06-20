@@ -1,40 +1,38 @@
-import random
+import secrets
 import string
 
-sys_random = random.SystemRandom()
+
+def get_random_string(length):
+    """
+    Create a random crypto-safe sequence of 'length' or more characters
+    Possible characters: alphanumeric, '-' and '_'
+    Make sure that it starts from alphanumeric for better compatibility with yaml files
+    """
+    token = secrets.token_urlsafe(length)
+    for _ in range(10):
+        if not (token.startswith("-") or token.startswith("_")):
+            break
+        token = secrets.token_urlsafe(length)
+
+    return token
 
 
-def get_random_string(
-    length: int = 12, allowed_chars: str = string.ascii_letters + string.digits
+def get_client_id(
+    length: int = 30, allowed_chars: str = string.ascii_uppercase + string.digits
 ) -> str:
     """
-    Returns a securely generated random string.
-
-    The default length of 12 with the a-z, A-Z, 0-9 character set returns
-    a 71-bit value. log_2((26+26+10)^12) =~ 71 bits.
-
-    Taken from the django.utils.crypto module.
+    Create a random client id composed of 'length' upper case characters or digits
     """
-    return "".join(sys_random.choice(allowed_chars) for _ in range(length))
-
-
-def get_client_id(length: int = 20) -> str:
-    """
-    Create a random secret key.
-
-    Taken from the Django project.
-    """
-    chars = string.ascii_uppercase + string.digits
-    return get_random_string(length, chars)
+    return "".join(secrets.choice(allowed_chars) for _ in range(length))
 
 
 def get_secret_key(length: int = 50) -> str:
     """
-    Create a random secret key.
-
-    Taken from the Django project.
-    NOTE: asterisk is not supported due to issues with environment variables containing
-     asterisks (in case the secret key is stored in an environment variable)
+    Create a random secret key
     """
-    chars = string.ascii_letters + string.digits
-    return get_random_string(length, chars)
+    return get_random_string(length)
+
+
+if __name__ == "__main__":
+    print(get_client_id())
+    print(get_secret_key())
