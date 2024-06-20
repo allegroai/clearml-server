@@ -9,33 +9,60 @@ from apiserver.database.model.user import User
 from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
-def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False):
-    key, secret = user_data.get("key"), user_data.get("secret")
+def _ensure_user_credentials(
+    user: AuthUser, key: str, secret: str, log: Logger, revoke: bool = False
+) -> None:
+    if revoke:
+        log.info(f"Revoking credentials for existing user {user.id} ({user.name})")
+        user.credentials = []
+        user.save()
+        return
+
     if not (key and secret):
-        credentials = None
-    else:
-        creds = Credentials(key=key, secret=secret)
+        return
 
-        user = AuthUser.objects(credentials__match=creds).first()
-        if user:
-            if revoke:
-                user.credentials = []
-                user.save()
-            return user.id
+    new_credentials = Credentials(key=key, secret=secret)
+    log.info(f"Setting credentials for existing user {user.id} ({user.name})")
+    user.credentials = [new_credentials]
+    user.save()
+    return
 
-        credentials = [] if revoke else [creds]
 
+def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False) -> str:
     user_id = user_data.get("id", f"__{user_data['name']}__")
+    role = user_data["role"]
+    email = user_data["email"]
     autocreated = user_data.get("autocreated", False)
+    key, secret = user_data.get("key"), user_data.get("secret")
 
+    user: AuthUser = AuthUser.objects(id=user_id).first()
+    if user:
+        _ensure_user_credentials(user=user, key=key, secret=secret, log=log, revoke=revoke)
+        if (
+            user.role != role
+            or user.email != email
+            or user.autocreated != autocreated
+        ):
+            user.email = email
+            user.role = role
+            user.autocreated = autocreated
+            user.save()
+
+        return user.id
+
+    credentials = (
+        [Credentials(key=key, secret=secret)]
+        if not revoke and key and secret
+        else []
+    )
     log.info(f"Creating user: {user_data['name']}")
 
     user = AuthUser(
         id=user_id,
         name=user_data["name"],
         company=company_id,
-        role=user_data["role"],
-        email=user_data["email"],
+        role=role,
+        email=email,
         created=datetime.utcnow(),
         credentials=credentials,
         autocreated=autocreated,
@@ -62,6 +89,15 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
 
 
 def ensure_fixed_user(user: FixedUser, log: Logger, emails: set):
+    data = attr.asdict(user)
+    data["id"] = user.user_id
+    email = f"{user.user_id}@example.com"
+    data["email"] = email
+    data["role"] = Role.guest if user.is_guest else Role.user
+    data["autocreated"] = True
+
+    _ensure_auth_user(user_data=data, company_id=user.company, log=log)
+
     db_user = User.objects(company=user.company, id=user.user_id).first()
     if db_user:
         # noinspection PyBroadException
@@ -71,16 +107,7 @@ def ensure_fixed_user(user: FixedUser, log: Logger, emails: set):
             db_user.update(name=user.name, given_name=given_name, family_name=family_name)
         except Exception:
             pass
-        return
+    else:
+        _ensure_backend_user(user.user_id, user.company, user.name)
 
-    data = attr.asdict(user)
-    data["id"] = user.user_id
-    email = f"{user.user_id}@example.com"
-    data["email"] = email
-    data["role"] = Role.guest if user.is_guest else Role.user
-    data["autocreated"] = True
-
-    _ensure_auth_user(user_data=data, company_id=user.company, log=log)
     emails.add(email)
-
-    return _ensure_backend_user(user.user_id, user.company, user.name)

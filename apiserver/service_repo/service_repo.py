@@ -296,7 +296,7 @@ class ServiceRepo(object):
 
         except APIError as ex:
             # report stack trace only for gene
-            include_stack = cls._return_stack and cls._should_return_stack(
+            include_stack = cls._should_return_stack(
                 ex.code, ex.subcode
             )
             call.set_error_result(
@@ -310,8 +310,11 @@ class ServiceRepo(object):
             pass
         except Exception as ex:
             log.exception(ex)
+            include_stack = cls._should_return_stack(
+                500, 0
+            )
             call.set_error_result(
-                code=500, subcode=0, msg=str(ex), include_stack=cls._return_stack
+                code=500, subcode=0, msg=str(ex), include_stack=include_stack
             )
         finally:
             content, content_type = call.get_response()
