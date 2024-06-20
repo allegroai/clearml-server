@@ -13,6 +13,8 @@ log = config.logger(__file__)
 
 
 class WorkerStats:
+    min_chart_interval = config.get("services.workers.min_chart_interval_sec", 40)
+
     def __init__(self, es):
         self.es = es
 
@@ -203,6 +205,7 @@ class WorkerStats:
         """
         if from_date >= to_date:
             raise bad_request.FieldsValueError("from_date must be less than to_date")
+        interval = max(interval, self.min_chart_interval)
 
         must = [QueryBuilder.dates_range(from_date, to_date)]
         if active_only:
