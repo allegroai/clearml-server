@@ -105,14 +105,14 @@ def _get_full_path(path: str) -> Path:
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
-    real_path = _get_full_path(path)
-    if not real_path.exists() or not real_path.is_file():
-        log.error(f"Error deleting file {str(real_path)}. Not found or not a file")
-        abort(Response(f"File {str(real_path)} not found", 404))
+    full_path = _get_full_path(path)
+    if not full_path.exists() or not full_path.is_file():
+        log.error(f"Error deleting file {str(full_path)}. Not found or not a file")
+        abort(Response(f"File {str(path)} not found", 404))
 
-    real_path.unlink()
+    full_path.unlink()
 
-    log.info(f"Deleted file {str(real_path)}")
+    log.info(f"Deleted file {str(full_path)}")
     return json.dumps(str(path)), 200
 
 
@@ -139,17 +139,17 @@ def batch_delete():
             record_error("Empty path not allowed", file, path)
             continue
 
-        path = _get_full_path(path)
+        full_path = _get_full_path(path)
 
-        if not path.exists():
+        if not full_path.exists():
             record_error("Not found", file, path)
             continue
 
         try:
-            if path.is_file():
-                path.unlink()
-            elif path.is_dir():
-                shutil.rmtree(path)
+            if full_path.is_file():
+                full_path.unlink()
+            elif full_path.is_dir():
+                shutil.rmtree(full_path)
             else:
                 record_error("Not a file or folder", file, path)
                 continue
@@ -157,7 +157,7 @@ def batch_delete():
             record_error(ex.strerror, file, path)
             continue
         except Exception as ex:
-            record_error(str(ex).replace(str(path), ""), file, path)
+            record_error(str(ex).replace(str(full_path), ""), file, path)
             continue
 
         deleted[file] = str(path)
