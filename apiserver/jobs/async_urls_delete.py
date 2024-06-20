@@ -19,7 +19,9 @@ from google.cloud import storage as google_storage
 from mongoengine import Q
 from mypy_boto3_s3.service_resource import Bucket as AWSBucket
 
+from apiserver.bll.auth import AuthBLL
 from apiserver.bll.storage import StorageBLL
+from apiserver.config.info import get_default_company
 from apiserver.config_repo import config
 from apiserver.database import db
 from apiserver.database.model.url_to_delete import UrlToDelete, StorageType, DeletionStatus
@@ -200,6 +202,8 @@ class FileserverStorage(Storage):
             res_data = res.json()
             return list(res_data.get("deleted", {})), res_data.get("errors", {})
 
+    token_expiration_sec = conf.get("fileserver.token_expiration_sec", 600)
+
     def __init__(self, company: str, fileserver_host: str = None):
         fileserver_host = fileserver_host or config.get("hosts.fileserver", None)
         self.host = fileserver_host.rstrip("/")
@@ -219,13 +223,6 @@ class FileserverStorage(Storage):
         self.url_prefixes = url_prefixes
 
         self.company = company
-
-    # @classmethod
-    # def validate_fileserver_access(cls, fileserver_host: str):
-    #     res = requests.get(
-    #         url=fileserver_host
-    #     )
-    #     res.raise_for_status()
 
     @property
     def name(self) -> str:
@@ -260,7 +257,13 @@ class FileserverStorage(Storage):
 
     def get_client(self, base: str, urls: Sequence[UrlToDelete]) -> Client:
         host = base
+        token = AuthBLL.get_token_for_user(
+            user_id="__apiserver__",
+            company_id=get_default_company(),
+            expiration_sec=self.token_expiration_sec,
+        ).token
         session = requests.session()
+        session.headers.update({"Authorization": "Bearer {}".format(token)})
         res = session.get(url=host, timeout=self.Client.timeout)
         res.raise_for_status()
 
@@ -285,6 +288,7 @@ class AzureStorage(Storage):
             ):
                 raise ValueError("No path found following container name")
 
+            # noinspection PyTypeChecker
             return os.path.join(*parsed.path.segments[1:])
 
         @staticmethod
