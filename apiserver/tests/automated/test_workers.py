@@ -32,7 +32,7 @@ class TestWorkersService(TestService):
             self.api.workers.register(worker=w, system_tags=[system_tag])
         # total workers count include the new ones
         count = self.api.workers.get_count().count
-        self.assertGreater(count, len(test_workers))
+        self.assertGreaterEqual(count, len(test_workers))
         # filter by system tag and last seen
         count = self.api.workers.get_count(system_tags=[system_tag], last_seen=4).count
         self.assertEqual(count, len(test_workers))

@@ -100,6 +100,7 @@ class GetAllRequest(Base):
     last_seen = IntField(default=3600)
     tags = ListField(str)
     system_tags = ListField(str)
+    worker_pattern = StringField()
 
 
 class GetAllResponse(Base):

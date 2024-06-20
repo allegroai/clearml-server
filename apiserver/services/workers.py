@@ -47,6 +47,7 @@ def get_all(call: APICall, company_id: str, request: GetAllRequest):
             request.last_seen,
             tags=request.tags,
             system_tags=request.system_tags,
+            worker_pattern=request.worker_pattern,
         )
     )
 
@@ -61,6 +62,7 @@ def get_all(call: APICall, company_id: str, request: GetCountRequest):
             request.last_seen,
             tags=request.tags,
             system_tags=request.system_tags,
+            worker_pattern=request.worker_pattern,
         )
     }
 
