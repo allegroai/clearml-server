@@ -21,7 +21,7 @@ def distributed_lock(name: str, timeout: int, max_wait: int = 0):
     max_wait = max_wait or timeout * 2
     pid = os.getpid()
     while _redis.set(lock_name, value=pid, ex=timeout, nx=True) is None:
-        sleep(1)
+        sleep(0.1)
         if time.time() - start > max_wait:
             holder = _redis.get(lock_name)
             raise Exception(f"Could not acquire {name} lock for {max_wait} seconds. The lock is hold by {holder}")
