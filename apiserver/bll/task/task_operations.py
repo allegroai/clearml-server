@@ -22,7 +22,7 @@ from apiserver.database.model.task.task import (
     TaskStatusMessage,
     ArtifactModes,
     Execution,
-    DEFAULT_LAST_ITERATION,
+    DEFAULT_LAST_ITERATION, TaskType,
 )
 from apiserver.database.utils import get_options
 from apiserver.service_repo.auth import Identity
@@ -32,54 +32,79 @@ log = config.logger(__file__)
 queue_bll = QueueBLL()
 
 
+def _get_pipeline_steps_for_controller_task(
+    task: Task, company_id: str, only: Sequence[str] = None
+) -> Sequence[Task]:
+    if not task or task.type != TaskType.controller:
+        return []
+
+    query = Task.objects(company=company_id, parent=task.id)
+    if only:
+        query = query.only(*only)
+
+    return list(query)
+
+
 def archive_task(
     task: Union[str, Task],
     company_id: str,
     identity: Identity,
     status_message: str,
     status_reason: str,
+    include_pipeline_steps: bool,
 ) -> int:
     """
     Deque and archive task
     Return 1 if successful
     """
+    user_id = identity.user
+    fields = (
+        "id",
+        "company",
+        "execution",
+        "status",
+        "project",
+        "system_tags",
+        "enqueue_status",
+        "type",
+    )
     if isinstance(task, str):
         task = get_task_with_write_access(
             task,
             company_id=company_id,
             identity=identity,
-            only=(
-                "id",
-                "company",
-                "execution",
-                "status",
-                "project",
-                "system_tags",
-                "enqueue_status",
-            ),
+            only=fields,
         )
 
-    user_id = identity.user
-    try:
-        TaskBLL.dequeue_and_change_status(
-            task,
-            company_id=company_id,
-            user_id=user_id,
+    def archive_task_core(task_: Task) -> int:
+        try:
+            TaskBLL.dequeue_and_change_status(
+                task_,
+                company_id=company_id,
+                user_id=user_id,
+                status_message=status_message,
+                status_reason=status_reason,
+                remove_from_all_queues=True,
+            )
+        except APIError:
+            # dequeue may fail if the task was not enqueued
+            pass
+
+        return task_.update(
             status_message=status_message,
             status_reason=status_reason,
-            remove_from_all_queues=True,
+            add_to_set__system_tags=EntityVisibility.archived.value,
+            last_change=datetime.utcnow(),
+            last_changed_by=user_id,
         )
-    except APIError:
-        # dequeue may fail if the task was not enqueued
-        pass
 
-    return task.update(
-        status_message=status_message,
-        status_reason=status_reason,
-        add_to_set__system_tags=EntityVisibility.archived.value,
-        last_change=datetime.utcnow(),
-        last_changed_by=user_id,
-    )
+    if include_pipeline_steps and (
+        step_tasks := _get_pipeline_steps_for_controller_task(task, company_id, only=fields)
+    ):
+        for step in step_tasks:
+            archive_task_core(step)
+
+    return archive_task_core(task)
 
 
 def unarchive_task(
@@ -88,23 +113,35 @@ def unarchive_task(
     identity: Identity,
     status_message: str,
     status_reason: str,
+    include_pipeline_steps: bool,
 ) -> int:
     """
     Unarchive task. Return 1 if successful
     """
+    fields = ("id", "type")
     task = get_task_with_write_access(
         task_id,
         company_id=company_id,
         identity=identity,
-        only=("id",),
+        only=fields,
     )
-    return task.update(
-        status_message=status_message,
-        status_reason=status_reason,
-        pull__system_tags=EntityVisibility.archived.value,
-        last_change=datetime.utcnow(),
-        last_changed_by=identity.user,
-    )
+
+    def unarchive_task_core(task_: Task) -> int:
+        return task_.update(
+            status_message=status_message,
+            status_reason=status_reason,
+            pull__system_tags=EntityVisibility.archived.value,
+            last_change=datetime.utcnow(),
+            last_changed_by=identity.user,
+        )
+
+    if include_pipeline_steps and (
+        step_tasks := _get_pipeline_steps_for_controller_task(task, company_id, only=fields)
+    ):
+        for step in step_tasks:
+            unarchive_task_core(step)
+
+    return unarchive_task_core(task)
 
 
 def dequeue_task(
@@ -262,6 +299,7 @@ def delete_task(
     status_message: str,
     status_reason: str,
     delete_external_artifacts: bool,
+    include_pipeline_steps: bool = False,
 ) -> Tuple[int, Task, CleanupResult]:
     user_id = identity.user
     task = get_task_with_write_access(
@@ -280,36 +318,51 @@ def delete_task(
             current=task.status,
         )
 
-    try:
-        TaskBLL.dequeue_and_change_status(
-            task,
-            company_id=company_id,
-            user_id=user_id,
-            status_message=status_message,
-            status_reason=status_reason,
-            remove_from_all_queues=True,
+    def delete_task_core(task_: Task, force_: bool):
+        try:
+            TaskBLL.dequeue_and_change_status(
+                task_,
+                company_id=company_id,
+                user_id=user_id,
+                status_message=status_message,
+                status_reason=status_reason,
+                remove_from_all_queues=True,
+            )
+        except APIError:
+            # dequeue may fail if the task was not enqueued
+            pass
+
+        res = cleanup_task(
+            company=company_id,
+            user=user_id,
+            task=task_,
+            force=force_,
+            return_file_urls=return_file_urls,
+            delete_output_models=delete_output_models,
+            delete_external_artifacts=delete_external_artifacts,
         )
-    except APIError:
-        # dequeue may fail if the task was not enqueued
-        pass
 
-    cleanup_res = cleanup_task(
-        company=company_id,
-        user=user_id,
-        task=task,
-        force=force,
-        return_file_urls=return_file_urls,
-        delete_output_models=delete_output_models,
-        delete_external_artifacts=delete_external_artifacts,
-    )
+        if move_to_trash:
+            # make sure that whatever changes were done to the task are saved
+            # the task itself will be deleted later in the move_tasks_to_trash operation
+            task_.last_update = datetime.utcnow()
+            task_.save()
+        else:
+            task_.delete()
 
+        return res
+
+    task_ids = [task.id]
+    if include_pipeline_steps and (
+        step_tasks := _get_pipeline_steps_for_controller_task(task, company_id)
+    ):
+        for step in step_tasks:
+            delete_task_core(step, True)
+            task_ids.append(step.id)
+
+    cleanup_res = delete_task_core(task, force)
     if move_to_trash:
-        # make sure that whatever changes were done to the task are saved
-        # the task itself will be deleted later in the move_tasks_to_trash operation
-        task.last_update = datetime.utcnow()
-        task.save()
-    else:
-        task.delete()
+        move_tasks_to_trash(task_ids)
 
     update_project_time(task.project)
     return 1, task, cleanup_res
@@ -465,6 +518,7 @@ def stop_task(
     user_name: str,
     status_reason: str,
     force: bool,
+    include_pipeline_steps: bool = False,
 ) -> dict:
     """
     Stop a running task. Requires task status 'in_progress' and
@@ -475,19 +529,21 @@ def stop_task(
     :return: updated task fields
     """
     user_id = identity.user
+    fields = (
+        "status",
+        "project",
+        "tags",
+        "system_tags",
+        "last_worker",
+        "last_update",
+        "execution.queue",
+        "type",
+    )
     task = get_task_with_write_access(
         task_id,
         company_id=company_id,
         identity=identity,
-        only=(
-            "status",
-            "project",
-            "tags",
-            "system_tags",
-            "last_worker",
-            "last_update",
-            "execution.queue",
-        ),
+        only=fields,
     )
 
     def is_run_by_worker(t: Task) -> bool:
@@ -499,32 +555,41 @@ def stop_task(
             and (datetime.utcnow() - t.last_update).total_seconds() < update_timeout
         )
 
-    is_queued = task.status == TaskStatus.queued
-    set_stopped = (
-        is_queued
-        or TaskSystemTags.development in task.system_tags
-        or not is_run_by_worker(task)
-    )
+    def stop_task_core(task_: Task, force_: bool):
+        is_queued = task_.status == TaskStatus.queued
+        set_stopped = (
+            is_queued
+            or TaskSystemTags.development in task_.system_tags
+            or not is_run_by_worker(task_)
+        )
 
-    if set_stopped:
-        if is_queued:
-            try:
-                TaskBLL.dequeue(task, company_id=company_id, silent_fail=True)
-            except APIError:
-                # dequeue may fail if the task was not enqueued
-                pass
+        if set_stopped:
+            if is_queued:
+                try:
+                    TaskBLL.dequeue(task_, company_id=company_id, silent_fail=True)
+                except APIError:
+                    # dequeue may fail if the task was not enqueued
+                    pass
 
-        new_status = TaskStatus.stopped
-        status_message = f"Stopped by {user_name}"
-    else:
-        new_status = task.status
-        status_message = TaskStatusMessage.stopping
+            new_status = TaskStatus.stopped
+            status_message = f"Stopped by {user_name}"
+        else:
+            new_status = task_.status
+            status_message = TaskStatusMessage.stopping
 
-    return ChangeStatusRequest(
-        task=task,
-        new_status=new_status,
-        status_reason=status_reason,
-        status_message=status_message,
-        force=force,
-        user_id=user_id,
-    ).execute()
+        return ChangeStatusRequest(
+            task=task_,
+            new_status=new_status,
+            status_reason=status_reason,
+            status_message=status_message,
+            force=force_,
+            user_id=user_id,
+        ).execute()
+
+    if include_pipeline_steps and (
+        step_tasks := _get_pipeline_steps_for_controller_task(task, company_id, only=fields)
+    ):
+        for step in step_tasks:
+            stop_task_core(step, True)
+
+    return stop_task_core(task, force)

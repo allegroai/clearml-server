@@ -5,6 +5,45 @@ from apiserver.tests.automated import TestService
 
 
 class TestPipelines(TestService):
+    def test_controller_operations(self):
+        task_name = "pipelines test"
+        project, task = self._temp_project_and_task(name=task_name)
+        steps = [
+            self.api.tasks.create(
+                name=f"Pipeline step {i}",
+                project=project,
+                type="training",
+                system_tags=["pipeline"],
+                parent=task
+            ).id
+            for i in range(2)
+        ]
+        ids = [task, *steps]
+        res = self.api.tasks.get_all_ex(id=ids, search_hidden=True)
+        self.assertEqual(len(res.tasks), len(ids))
+
+        # stop
+        partial_ids = [task, steps[0]]
+        self.api.tasks.enqueue_many(ids=partial_ids)
+        res = self.api.tasks.get_all_ex(id=partial_ids, search_hidden=True)
+        self.assertTrue(t.stats == "in_progress" for t in res.tasks)
+        self.api.tasks.stop(task=task, include_pipeline_steps=True)
+        res = self.api.tasks.get_all_ex(id=ids, search_hidden=True)
+        self.assertTrue(t.stats == "created" for t in res.tasks)
+
+        # archive/unarchive
+        self.api.tasks.archive(tasks=[task], include_pipeline_steps=True)
+        res = self.api.tasks.get_all_ex(id=ids, search_hidden=True, system_tags=["-archived"])
+        self.assertEqual(len(res.tasks), 0)
+        self.api.tasks.unarchive_many(ids=[task], include_pipeline_steps=True)
+        res = self.api.tasks.get_all_ex(id=ids, search_hidden=True, system_tags=["-archived"])
+        self.assertEqual(len(res.tasks), len(ids))
+
+        # delete
+        self.api.tasks.delete(task=task, force=True, include_pipeline_steps=True)
+        res = self.api.tasks.get_all_ex(id=ids, search_hidden=True)
+        self.assertEqual(len(res.tasks), 0)
+
     def test_delete_runs(self):
         queue = self.api.queues.get_default().id
         task_name = "pipelines test"

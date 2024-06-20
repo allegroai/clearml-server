@@ -101,6 +101,10 @@ class DequeueRequest(UpdateRequest):
     new_status = StringField()
 
 
+class StopRequest(UpdateRequest):
+    include_pipeline_steps = BoolField(default=False)
+
+
 class EnqueueRequest(UpdateRequest):
     queue = StringField()
     queue_name = StringField()
@@ -112,6 +116,7 @@ class DeleteRequest(UpdateRequest):
     return_file_urls = BoolField(default=False)
     delete_output_models = BoolField(default=True)
     delete_external_artifacts = BoolField(default=True)
+    include_pipeline_steps = BoolField(default=False)
 
 
 class SetRequirementsRequest(TaskRequest):
@@ -264,6 +269,7 @@ class DeleteConfigurationRequest(TaskUpdateRequest):
 class ArchiveRequest(MultiTaskRequest):
     status_reason = StringField(default="")
     status_message = StringField(default="")
+    include_pipeline_steps = BoolField(default=False)
 
 
 class ArchiveResponse(models.Base):
@@ -275,8 +281,17 @@ class TaskBatchRequest(BatchRequest):
     status_message = StringField(default="")
 
 
+class ArchiveManyRequest(TaskBatchRequest):
+    include_pipeline_steps = BoolField(default=False)
+
+
+class UnarchiveManyRequest(TaskBatchRequest):
+    include_pipeline_steps = BoolField(default=False)
+
+
 class StopManyRequest(TaskBatchRequest):
     force = BoolField(default=False)
+    include_pipeline_steps = BoolField(default=False)
 
 
 class DequeueManyRequest(TaskBatchRequest):
@@ -297,6 +312,7 @@ class DeleteManyRequest(TaskBatchRequest):
     delete_output_models = BoolField(default=True)
     force = BoolField(default=False)
     delete_external_artifacts = BoolField(default=True)
+    include_pipeline_steps = BoolField(default=False)
 
 
 class ResetManyRequest(TaskBatchRequest):
