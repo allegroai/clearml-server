@@ -1027,14 +1027,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
         clear_all=request.clear_all,
         delete_external_artifacts=request.delete_external_artifacts,
     )
-
-    res = ResetResponse(**updates, dequeued=dequeued)
-    # do not return artifacts since they are not serializable
-    res.fields.pop("execution.artifacts", None)
-
-    for key, value in attr.asdict(cleanup_res).items():
-        setattr(res, key, value)
-
+    res = ResetResponse(**updates, **attr.asdict(cleanup_res), dequeued=dequeued)
     call.result.data_model = res
 
 
@@ -1058,23 +1051,19 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
         ids=request.ids,
     )
 
-    def clean_res(res: dict) -> dict:
-        # do not return artifacts since they are not serializable
-        fields = res.get("fields")
-        if fields:
-            fields.pop("execution.artifacts", None)
-        return res
-
-    call.result.data_model = ResetManyResponse(
-        succeeded=[
+    succeeded = []
+    for _id, (dequeued, cleanup, res) in results:
+        succeeded.append(
             ResetBatchItem(
                 id=_id,
                 dequeued=bool(dequeued.get("removed")) if dequeued else False,
                 **attr.asdict(cleanup),
-                **clean_res(res),
+                **res,
             )
-            for _id, (dequeued, cleanup, res) in results
-        ],
+        )
+
+    call.result.data_model = ResetManyResponse(
+        succeeded=succeeded,
         failed=failures,
     )
 

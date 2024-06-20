@@ -4,6 +4,7 @@ from typing import Sequence
 import attr
 import six
 from mongoengine import Q
+from mongoengine.base import UPDATE_OPERATORS
 
 from apiserver.apierrors import errors
 from apiserver.bll.util import update_project_time
@@ -78,8 +79,16 @@ class ChangeStatusRequest(object):
 
         update_project_time(project_id)
 
-        # make sure that _raw_ queries are not returned back to the client
-        fields.pop("__raw__", None)
+        def is_mongo_operator(field: str) -> bool:
+            head, _, tail = field.partition("__")
+            return tail and (head in UPDATE_OPERATORS)
+
+        # make sure to not return _raw_ queries or any of the update operators
+        fields = {
+            key: value
+            for key, value in fields.items()
+            if not (key == "__raw__" or is_mongo_operator(key))
+        }
 
         return dict(updated=updated, fields=fields)
 
