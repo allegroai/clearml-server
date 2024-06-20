@@ -346,6 +346,34 @@ class TestTaskEvents(TestService):
         # test order
         self._assert_log_events(task=task, order="asc")
 
+        metric = "metric"
+        variant = "variant"
+        events = [
+            self._create_task_event(
+                "log",
+                task=task,
+                iteration=iter_,
+                timestamp=timestamp + iter_ * 1000,
+                msg=f"This is a log message from test task iter {iter_}",
+                metric=metric,
+                variant=variant,
+            )
+            for iter_ in range(2)
+        ]
+        self.send_batch(events)
+        res = self.api.events.get_task_log(task=task)
+        self.assertEqual(res.total, 12)
+        res = self.api.events.get_task_log(task=task, metrics=[{"metric": metric}])
+        self.assertEqual(res.total, 2)
+
+        # test clear
+        self.api.events.clear_task_log(task=task, exclude_metrics=[metric])
+        res = self.api.events.get_task_log(task=task)
+        self.assertEqual(res.total, 2)
+        self.api.events.clear_task_log(task=task)
+        res = self.api.events.get_task_log(task=task)
+        self.assertEqual(res.total, 0)
+
     def _assert_log_events(
         self,
         task,

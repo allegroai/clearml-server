@@ -1227,6 +1227,8 @@ class EventBLL(object):
         task_id: str,
         allow_locked: bool = False,
         threshold_sec: int = None,
+        include_metrics: Sequence[str] = None,
+        exclude_metrics: Sequence[str] = None,
     ):
         self._validate_task_state(
             company_id=company_id, task_id=task_id, allow_locked=allow_locked
@@ -1251,8 +1253,16 @@ class EventBLL(object):
                     }
                 )
                 sort = {"timestamp": {"order": "desc"}}
+
+            if include_metrics:
+                must.append({"terms": {"metric": include_metrics}})
+
+            more_conditions = {}
+            if exclude_metrics:
+                more_conditions = {"must_not": [{"terms": {"metric": exclude_metrics}}]}
+
             es_req = {
-                "query": {"bool": {"must": must}},
+                "query": {"bool": {"must": must, **more_conditions}},
                 **({"sort": sort} if sort else {}),
             }
             es_res = delete_company_events(

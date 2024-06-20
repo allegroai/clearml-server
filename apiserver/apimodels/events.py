@@ -146,6 +146,7 @@ class LogEventsRequest(TaskEventsRequestBase):
     navigate_earlier: bool = BoolField(default=True)
     from_timestamp: Optional[int] = IntField()
     order: Optional[str] = ActualEnumField(LogOrderEnum)
+    metrics: Sequence[MetricVariants] = ListField(items_types=MetricVariants)
 
 
 class ScalarMetricsIterRawRequest(TaskEventsRequestBase):
@@ -229,3 +230,5 @@ class ClearTaskLogRequest(Base):
     task: str = StringField(required=True)
     threshold_sec = IntField()
     allow_locked = BoolField(default=False)
+    exclude_metrics = ListField(items_types=[str])
+    include_metrics = ListField(items_types=[str])

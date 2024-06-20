@@ -172,6 +172,7 @@ def get_task_log(call, company_id, request: LogEventsRequest):
         batch_size=request.batch_size,
         navigate_earlier=request.navigate_earlier,
         from_timestamp=request.from_timestamp,
+        metric_variants=_get_metric_variants_from_request(request.metrics),
     )
 
     if request.order and (
@@ -1041,6 +1042,8 @@ def clear_task_log(call: APICall, company_id: str, request: ClearTaskLogRequest)
             task_id=task_id,
             allow_locked=request.allow_locked,
             threshold_sec=request.threshold_sec,
+            exclude_metrics=request.exclude_metrics,
+            include_metrics=request.include_metrics,
         )
     )
 
