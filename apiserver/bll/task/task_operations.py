@@ -299,7 +299,7 @@ def delete_task(
     status_message: str,
     status_reason: str,
     delete_external_artifacts: bool,
-    include_pipeline_steps: bool = False,
+    include_pipeline_steps: bool,
 ) -> Tuple[int, Task, CleanupResult]:
     user_id = identity.user
     task = get_task_with_write_access(
@@ -518,7 +518,7 @@ def stop_task(
     user_name: str,
     status_reason: str,
     force: bool,
-    include_pipeline_steps: bool = False,
+    include_pipeline_steps: bool,
 ) -> dict:
     """
     Stop a running task. Requires task status 'in_progress' and

@@ -67,6 +67,7 @@ def delete_runs(call: APICall, company_id: str, request: DeleteRunsRequest):
             status_message="",
             status_reason="Pipeline run deleted",
             delete_external_artifacts=True,
+            include_pipeline_steps=True,
         ),
         ids=list(ids),
     )
