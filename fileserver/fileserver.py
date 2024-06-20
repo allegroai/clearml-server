@@ -35,6 +35,9 @@ app.config["UPLOAD_FOLDER"] = first(
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
     "fileserver.download.cache_timeout_sec", 5 * 60
 )
+if max_upload_size := config.get("fileserver.upload.max_upload_size_mb", None):
+    app.config["MAX_CONTENT_LENGTH"] = max_upload_size * 1024
+
 auth_handler = AuthHandler.instance()
 
 
