@@ -25,7 +25,7 @@ packaging==20.3
 psutil>=5.6.5
 pyhocon>=0.3.35r
 pyjwt>=2.4.0
-pymongo==4.4.0
+pymongo==4.6.3
 python-rapidjson>=0.6.3
 redis>=4.5.4,<5
 requests>=2.13.0
