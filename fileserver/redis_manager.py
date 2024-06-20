@@ -4,8 +4,7 @@ from boltons.iterutils import first
 from redis import StrictRedis
 from redis.cluster import RedisCluster
 
-from apiserver.apierrors.errors.server_error import ConfigError, GeneralError
-from apiserver.config_repo import config
+from config import config
 
 log = config.logger(__file__)
 
@@ -36,6 +35,14 @@ if OVERRIDE_PORT:
 OVERRIDE_PASSWORD = first(filter(None, map(getenv, OVERRIDE_PASSWORD_ENV_KEY)))
 
 
+class ConfigError(Exception):
+    pass
+
+
+class GeneralError(Exception):
+    pass
+
+
 class RedisManager(object):
     def __init__(self, redis_config_dict):
         self.aliases = {}
@@ -62,7 +69,7 @@ class RedisManager(object):
 
             if not port or not host:
                 raise ConfigError(
-                    "Redis configuration is invalid. missing port or host", alias=alias
+                    f"Redis configuration is invalid. missing port or host (alias={alias})"
                 )
 
             if is_cluster:
