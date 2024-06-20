@@ -15,6 +15,7 @@ from flask_cors import CORS
 from werkzeug.exceptions import NotFound
 from werkzeug.security import safe_join
 
+from auth import AuthHandler
 from config import config
 from utils import get_env_bool
 
@@ -34,10 +35,14 @@ app.config["UPLOAD_FOLDER"] = first(
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = config.get(
     "fileserver.download.cache_timeout_sec", 5 * 60
 )
+auth_handler = AuthHandler.instance()
 
 
 @app.route("/", methods=["GET"])
 def ping():
+    if auth_handler and auth_handler.get_token(request):
+        auth_handler.validate(request)
+
     return "OK", 200
 
 
@@ -57,6 +62,9 @@ def after_request(response):
 
 @app.route("/", methods=["POST"])
 def upload():
+    if auth_handler:
+        auth_handler.validate(request)
+
     results = []
     for filename, file in request.files.items():
         if not filename:
@@ -76,6 +84,9 @@ def upload():
 
 @app.route("/<path:path>", methods=["GET"])
 def download(path):
+    if auth_handler:
+        auth_handler.validate(request)
+
     as_attachment = "download" in request.args
 
     _, encoding = mimetypes.guess_type(os.path.basename(path))
@@ -105,6 +116,9 @@ def _get_full_path(path: str) -> Path:
 
 @app.route("/<path:path>", methods=["DELETE"])
 def delete(path):
+    if auth_handler:
+        auth_handler.validate(request)
+
     full_path = _get_full_path(path)
     if not full_path.exists() or not full_path.is_file():
         log.error(f"Error deleting file {str(full_path)}. Not found or not a file")
@@ -117,6 +131,9 @@ def delete(path):
 
 
 def batch_delete():
+    if auth_handler:
+        auth_handler.validate(request)
+
     body = request.get_json(force=True, silent=False)
     if not body:
         abort(Response("Json payload is missing", 400))
