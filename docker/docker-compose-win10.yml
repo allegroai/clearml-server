@@ -29,8 +29,6 @@ services:
       CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
       CLEARML__services__async_urls_delete__enabled: "true"
       CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[${CLEARML_FILES_HOST:-}]"
-      CLEARML__secure__credentials__services_agent__user_key: ${CLEARML_AGENT_ACCESS_KEY:-}
-      CLEARML__secure__credentials__services_agent__user_secret: ${CLEARML_AGENT_SECRET_KEY:-}
     ports:
     - "8008:8008"
     networks:
