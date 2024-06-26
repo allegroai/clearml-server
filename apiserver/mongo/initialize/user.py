@@ -19,6 +19,9 @@ def _ensure_user_credentials(
         return
 
     if not (key and secret):
+        log.info(f"Resetting credentials for existing user {user.id} ({user.name})")
+        user.credentials = []
+        user.save()
         return
 
     new_credentials = Credentials(key=key, secret=secret)
@@ -89,6 +92,7 @@ def _ensure_backend_user(user_id: str, company_id: str, user_name: str):
 
 
 def ensure_fixed_user(user: FixedUser, log: Logger, emails: set):
+    # noinspection PyTypeChecker
     data = attr.asdict(user)
     data["id"] = user.user_id
     email = f"{user.user_id}@example.com"

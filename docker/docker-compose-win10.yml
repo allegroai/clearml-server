@@ -19,17 +19,18 @@ services:
     environment:
       CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
       CLEARML_ELASTIC_SERVICE_PORT: 9200
-      CLEARML_ELASTIC_SERVICE_PASSWORD: ${ELASTIC_PASSWORD}
       CLEARML_MONGODB_SERVICE_HOST: mongo
       CLEARML_MONGODB_SERVICE_PORT: 27017
       CLEARML_REDIS_SERVICE_HOST: redis
       CLEARML_REDIS_SERVICE_PORT: 6379
-      CLEARML_SERVER_DEPLOYMENT_TYPE: ${CLEARML_SERVER_DEPLOYMENT_TYPE:-win10}
+      CLEARML_SERVER_DEPLOYMENT_TYPE: win10
       CLEARML__apiserver__pre_populate__enabled: "true"
       CLEARML__apiserver__pre_populate__zip_files: "/opt/clearml/db-pre-populate"
       CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
       CLEARML__services__async_urls_delete__enabled: "true"
       CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[${CLEARML_FILES_HOST:-}]"
+      CLEARML__secure__credentials__services_agent__user_key: ${CLEARML_AGENT_ACCESS_KEY:-}
+      CLEARML__secure__credentials__services_agent__user_secret: ${CLEARML_AGENT_SECRET_KEY:-}
     ports:
     - "8008:8008"
     networks:
@@ -41,8 +42,6 @@ services:
       - backend
     container_name: clearml-elastic
     environment:
-      ES_JAVA_OPTS: -Xms2g -Xmx2g -Dlog4j2.formatMsgNoLookups=true
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       bootstrap.memory_lock: "true"
       cluster.name: clearml
       cluster.routing.allocation.node_initial_primaries_recoveries: "500"
@@ -137,7 +136,6 @@ services:
     environment:
       CLEARML_ELASTIC_SERVICE_HOST: elasticsearch
       CLEARML_ELASTIC_SERVICE_PORT: 9200
-      CLEARML_ELASTIC_SERVICE_PASSWORD: ${ELASTIC_PASSWORD}
       CLEARML_MONGODB_SERVICE_HOST: mongo
       CLEARML_MONGODB_SERVICE_PORT: 27017
       CLEARML_REDIS_SERVICE_HOST: redis
