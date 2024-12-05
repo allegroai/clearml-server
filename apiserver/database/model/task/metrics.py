@@ -5,6 +5,7 @@ from mongoengine import (
     LongField,
     EmbeddedDocumentField,
     IntField,
+    FloatField,
 )
 
 from apiserver.database.fields import SafeMapField
@@ -23,6 +24,10 @@ class MetricEvent(EmbeddedDocument):
     min_value_iteration = IntField()
     max_value = DynamicField()  # for backwards compatibility reasons
     max_value_iteration = IntField()
+    first_value = FloatField()
+    first_value_iteration = IntField()
+    count = IntField()
+    mean_value = FloatField()
 
 
 class EventStats(EmbeddedDocument):

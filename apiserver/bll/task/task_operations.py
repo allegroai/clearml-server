@@ -85,6 +85,7 @@ def archive_task(
                 status_message=status_message,
                 status_reason=status_reason,
                 remove_from_all_queues=True,
+                new_status_for_aborted_task=TaskStatus.stopped,
             )
         except APIError:
             # dequeue may fail if the task was not enqueued

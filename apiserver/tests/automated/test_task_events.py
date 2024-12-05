@@ -217,7 +217,10 @@ class TestTaskEvents(TestService):
             self.assertEqual(iter_count - 1, metric_data.max_value_iteration)
             self.assertEqual(0, metric_data.min_value)
             self.assertEqual(0, metric_data.min_value_iteration)
-
+            self.assertEqual(0, metric_data.first_value_iteration)
+            self.assertEqual(0, metric_data.first_value)
+            self.assertEqual(iter_count, metric_data.count)
+            self.assertEqual(sum(i for i in range(iter_count)) / iter_count, metric_data.mean_value)
             res = self.api.events.get_task_latest_scalar_values(task=task)
             self.assertEqual(iter_count - 1, res.last_iter)
 

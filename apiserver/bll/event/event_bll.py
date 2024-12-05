@@ -319,6 +319,7 @@ class EventBLL(object):
             if actions:
                 chunk_size = 500
                 # TODO: replace it with helpers.parallel_bulk in the future once the parallel pool leak is fixed
+                # noinspection PyTypeChecker
                 with closing(
                     elasticsearch.helpers.streaming_bulk(
                         self.es,
@@ -438,45 +439,45 @@ class EventBLL(object):
         last_events contains [hashed_metric_name -> hashed_variant_name -> event]. Keys are hashed to avoid mongodb
         key conflicts due to invalid characters and/or long field names.
         """
+        value = event.get("value")
+        if value is None:
+            return
+
         metric = event.get("metric") or ""
         variant = event.get("variant") or ""
-
         metric_hash = dbutils.hash_field_name(metric)
         variant_hash = dbutils.hash_field_name(variant)
 
         last_event = last_events[metric_hash][variant_hash]
+        last_event["metric"] = metric
+        last_event["variant"] = variant
+        last_event["count"] = last_event.get("count", 0) + 1
+        last_event["total"] = last_event.get("total", 0) + value
+
         event_iter = event.get("iter", 0)
         event_timestamp = event.get("timestamp", 0)
-        value = event.get("value")
-        if value is not None and (
-            (event_iter, event_timestamp)
-            >= (
-                last_event.get("iter", event_iter),
-                last_event.get("timestamp", event_timestamp),
-            )
+        if (event_iter, event_timestamp) >= (
+            last_event.get("iter", event_iter),
+            last_event.get("timestamp", event_timestamp),
         ):
-            event_data = {
-                k: event[k]
-                for k in ("value", "metric", "variant", "iter", "timestamp")
-                if k in event
-            }
-            last_event_min_value = last_event.get("min_value", value)
-            last_event_min_value_iter = last_event.get("min_value_iter", event_iter)
-            if value < last_event_min_value:
-                event_data["min_value"] = value
-                event_data["min_value_iter"] = event_iter
-            else:
-                event_data["min_value"] = last_event_min_value
-                event_data["min_value_iter"] = last_event_min_value_iter
-            last_event_max_value = last_event.get("max_value", value)
-            last_event_max_value_iter = last_event.get("max_value_iter", event_iter)
-            if value > last_event_max_value:
-                event_data["max_value"] = value
-                event_data["max_value_iter"] = event_iter
-            else:
-                event_data["max_value"] = last_event_max_value
-                event_data["max_value_iter"] = last_event_max_value_iter
-            last_events[metric_hash][variant_hash] = event_data
+            last_event["value"] = value
+            last_event["iter"] = event_iter
+            last_event["timestamp"] = event_timestamp
+
+        first_value_iter = last_event.get("first_value_iter")
+        if first_value_iter is None or event_iter < first_value_iter:
+            last_event["first_value"] = value
+            last_event["first_value_iter"] = event_iter
+
+        last_event_min_value = last_event.get("min_value")
+        if last_event_min_value is None or value < last_event_min_value:
+            last_event["min_value"] = value
+            last_event["min_value_iter"] = event_iter
+
+        last_event_max_value = last_event.get("max_value")
+        if last_event_max_value is None or value > last_event_max_value:
+            last_event["max_value"] = value
+            last_event["max_value_iter"] = event_iter
 
     def _update_last_metric_events_for_task(self, last_events, event):
         """

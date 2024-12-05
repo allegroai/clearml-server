@@ -10,12 +10,7 @@ from apiserver.service_repo.auth.fixed_user import FixedUser
 
 
 def _ensure_user_credentials(
-    user: AuthUser,
-    key: str,
-    secret: str,
-    log: Logger,
-    revoke: bool = False,
-    internal_user: bool = False,
+    user: AuthUser, key: str, secret: str, log: Logger, revoke: bool = False
 ) -> None:
     if revoke:
         log.info(f"Revoking credentials for existing user {user.id} ({user.name})")
@@ -24,34 +19,19 @@ def _ensure_user_credentials(
         return
 
     if not (key and secret):
-        if internal_user:
-            log.info(f"Resetting credentials for existing user {user.id} ({user.name})")
-            user.credentials = []
-            user.save()
+        log.info(f"Resetting credentials for existing user {user.id} ({user.name})")
+        user.credentials = []
+        user.save()
         return
 
     new_credentials = Credentials(key=key, secret=secret)
-    if internal_user:
-        log.info(f"Setting credentials for existing user {user.id} ({user.name})")
-        user.credentials = [new_credentials]
-        user.save()
-        return
-
-    if user.credentials is None:
-        user.credentials = []
-    if not any((cred.key, cred.secret) == (key, secret) for cred in user.credentials):
-        log.info(f"Adding credentials for existing user {user.id} ({user.name})")
-        user.credentials.append(new_credentials)
-        user.save()
+    log.info(f"Setting credentials for existing user {user.id} ({user.name})")
+    user.credentials = [new_credentials]
+    user.save()
+    return
 
 
-def _ensure_auth_user(
-    user_data: dict,
-    company_id: str,
-    log: Logger,
-    revoke: bool = False,
-    internal_user: bool = False,
-) -> str:
+def _ensure_auth_user(user_data: dict, company_id: str, log: Logger, revoke: bool = False) -> str:
     user_id = user_data.get("id", f"__{user_data['name']}__")
     role = user_data["role"]
     email = user_data["email"]
@@ -60,15 +40,12 @@ def _ensure_auth_user(
 
     user: AuthUser = AuthUser.objects(id=user_id).first()
     if user:
-        _ensure_user_credentials(
-            user=user,
-            key=key,
-            secret=secret,
-            log=log,
-            revoke=revoke,
-            internal_user=internal_user,
-        )
-        if user.role != role or user.email != email or user.autocreated != autocreated:
+        _ensure_user_credentials(user=user, key=key, secret=secret, log=log, revoke=revoke)
+        if (
+            user.role != role
+            or user.email != email
+            or user.autocreated != autocreated
+        ):
             user.email = email
             user.role = role
             user.autocreated = autocreated
@@ -77,7 +54,9 @@ def _ensure_auth_user(
         return user.id
 
     credentials = (
-        [Credentials(key=key, secret=secret)] if not revoke and key and secret else []
+        [Credentials(key=key, secret=secret)]
+        if not revoke and key and secret
+        else []
     )
     log.info(f"Creating user: {user_data['name']}")
 
@@ -129,9 +108,7 @@ def ensure_fixed_user(user: FixedUser, log: Logger, emails: set):
         try:
             log.info(f"Updating user name: {user.name}")
             given_name, _, family_name = user.name.partition(" ")
-            db_user.update(
-                name=user.name, given_name=given_name, family_name=family_name
-            )
+            db_user.update(name=user.name, given_name=given_name, family_name=family_name)
         except Exception:
             pass
     else:

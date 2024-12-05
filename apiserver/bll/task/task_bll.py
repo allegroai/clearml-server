@@ -454,6 +454,7 @@ class TaskBLL:
         status_reason: str,
         remove_from_all_queues=False,
         new_status=None,
+        new_status_for_aborted_task=None,
     ):
         try:
             cls.dequeue(task, company_id, silent_fail=True)
@@ -466,6 +467,9 @@ class TaskBLL:
 
         if task.status not in [TaskStatus.queued, TaskStatus.in_progress]:
             return {"updated": 0}
+
+        if new_status_for_aborted_task and task.status == TaskStatus.in_progress:
+            new_status = new_status_for_aborted_task
 
         return ChangeStatusRequest(
             task=task,
