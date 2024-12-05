@@ -40,6 +40,53 @@ class TestQueues(TestService):
         )
         self.assertMetricQueues(res["queues"], queue_id)
 
+    def test_add_remove_clear(self):
+        queue1 = self._temp_queue("TestTempQueue1")
+        queue2 = self._temp_queue("TestTempQueue2")
+
+        task_names = ["TempDevTask1", "TempDevTask2"]
+        tasks = [self._temp_task(name) for name in task_names]
+
+        for task in tasks:
+            self.api.tasks.enqueue(task=task, queue=queue1)
+
+        # remove task with and without status update
+        res = self.api.queues.remove_task(task=tasks[0], queue=queue1)
+        self.assertEqual(res.removed, 1)
+        res = self.api.tasks.get_by_id(task=tasks[0])
+        self.assertEqual(res.task.status, "queued")
+        self.assertEqual(res.task.execution.queue, queue1)
+
+        res = self.api.queues.remove_task(task=tasks[1], queue=queue1, update_task_status=True)
+        self.assertEqual(res.removed, 1)
+        res = self.api.tasks.get_by_id(task=tasks[1])
+        self.assertEqual(res.task.status, "created")
+
+        res = self.api.queues.get_by_id(queue=queue1)
+        self.assertQueueTasks(res.queue, [])
+
+        # add task
+        res = self.api.queues.add_task(queue=queue2, task=tasks[0])
+        self.assertEqual(res.added, 1)
+        res = self.api.tasks.get_by_id(task=tasks[0])
+        self.assertEqual(res.task.status, "queued")
+        self.assertEqual(res.task.execution.queue, queue2)
+
+        res = self.api.queues.get_by_id(queue=queue2)
+        self.assertQueueTasks(res.queue, [tasks[0]])
+
+        # clear queue
+        res = self.api.queues.clear_queue(queue=queue1)
+        self.assertEqual(res.removed_tasks, [])
+        res = self.api.queues.clear_queue(queue=queue2)
+        self.assertEqual(res.removed_tasks, [tasks[0]])
+
+        res = self.api.tasks.get_by_id(task=tasks[0])
+        self.assertEqual(res.task.status, "created")
+
+        res = self.api.queues.get_by_id(queue=queue2)
+        self.assertQueueTasks(res.queue, [])
+
     def test_hidden_queues(self):
         hidden_name = "TestHiddenQueue"
         hidden_queue = self._temp_queue(hidden_name, system_tags=["k8s-glue"])

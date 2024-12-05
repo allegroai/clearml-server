@@ -405,7 +405,9 @@ def reset_task(
     updates = {}
 
     try:
-        dequeued = TaskBLL.dequeue(task, company_id, silent_fail=True)
+        dequeued = TaskBLL.dequeue(
+            task, company_id=company_id, user_id=user_id, silent_fail=True
+        )
     except APIError:
         # dequeue may fail if the task was not enqueued
         pass
@@ -577,7 +579,9 @@ def stop_task(
         if set_stopped:
             if is_queued:
                 try:
-                    TaskBLL.dequeue(task_, company_id=company_id, silent_fail=True)
+                    TaskBLL.dequeue(
+                        task_, company_id=company_id, user_id=user_id, silent_fail=True
+                    )
                 except APIError:
                     # dequeue may fail if the task was not enqueued
                     pass

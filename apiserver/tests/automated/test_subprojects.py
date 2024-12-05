@@ -15,7 +15,7 @@ class TestSubProjects(TestService):
     def test_dataset_stats(self):
         project = self._temp_project(name="Dataset test", system_tags=["dataset"])
         res = self.api.organization.get_entities_count(
-            datasets={"system_tags": ["dataset"]}
+            datasets={"system_tags": ["dataset"]}, allow_public=False,
         )
         self.assertEqual(res.datasets, 1)
 

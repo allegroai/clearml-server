@@ -56,6 +56,10 @@ class TaskRequest(QueueRequest):
     task = StringField(required=True)
 
 
+class RemoveTaskRequest(TaskRequest):
+    update_task_status = BoolField(default=False)
+
+
 class AddTaskRequest(TaskRequest):
     update_execution_queue = BoolField(default=True)
 

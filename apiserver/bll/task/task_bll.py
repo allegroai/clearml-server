@@ -168,7 +168,9 @@ class TaskBLL:
         configuration_overrides: Optional[dict] = None,
     ) -> Tuple[Task, dict]:
         validate_tags(tags, system_tags)
-        task: Task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
+        task: Task = cls.get_by_id(
+            company_id=company_id, task_id=task_id, allow_public=True
+        )
 
         params_dict = {}
         if hyperparams:
@@ -187,8 +189,7 @@ class TaskBLL:
             params_dict["configuration"] = configuration
         elif configuration_overrides:
             updated_configuration = {
-                k: value
-                for k, value in (task.configuration or {}).items()
+                k: value for k, value in (task.configuration or {}).items()
             }
             for key, value in configuration_overrides.items():
                 updated_configuration[key] = value
@@ -457,7 +458,9 @@ class TaskBLL:
         return ret
 
     @staticmethod
-    def remove_task_from_all_queues(company_id: str, task_id: str, exclude: str = None) -> int:
+    def remove_task_from_all_queues(
+        company_id: str, task_id: str, exclude: str = None
+    ) -> int:
         more = {}
         if exclude:
             more["id__ne"] = exclude
@@ -478,7 +481,7 @@ class TaskBLL:
         new_status_for_aborted_task=None,
     ):
         try:
-            cls.dequeue(task, company_id, silent_fail=True)
+            cls.dequeue(task, company_id=company_id, user_id=user_id, silent_fail=True)
         except APIError:
             # dequeue may fail if the queue was deleted
             pass
@@ -502,7 +505,7 @@ class TaskBLL:
         ).execute(enqueue_status=None)
 
     @classmethod
-    def dequeue(cls, task: Task, company_id: str, silent_fail=False):
+    def dequeue(cls, task: Task, company_id: str, user_id: str, silent_fail=False):
         """
         Dequeue the task from the queue
         :param task: task to dequeue
@@ -529,6 +532,9 @@ class TaskBLL:
 
         return {
             "removed": queue_bll.remove_task(
-                company_id=company_id, queue_id=task.execution.queue, task_id=task.id
+                company_id=company_id,
+                user_id=user_id,
+                queue_id=task.execution.queue,
+                task_id=task.id,
             )
         }
