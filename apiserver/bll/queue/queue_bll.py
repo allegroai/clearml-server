@@ -150,6 +150,7 @@ class QueueBLL(object):
                 task = Task.get(
                     company=company_id,
                     id=task_id,
+                    execution__queue=queue_id,
                     _only=[
                         "id",
                         "company",
@@ -169,7 +170,10 @@ class QueueBLL(object):
                     status_message="",
                     user_id=user_id,
                     force=True,
-                ).execute(enqueue_status=None)
+                ).execute(
+                    enqueue_status=None,
+                    unset__execution__queue=1,
+                )
             except Exception as ex:
                 log.error(
                     f"Failed updating task {task_id} status on removal from queue: {queue_id}, {str(ex)}"
