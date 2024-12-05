@@ -144,7 +144,12 @@ state_machine = {
         TaskStatus.publishing,
         TaskStatus.stopped,
     },
-    TaskStatus.failed: {TaskStatus.created, TaskStatus.stopped, TaskStatus.published},
+    TaskStatus.failed: {
+        TaskStatus.created,
+        TaskStatus.stopped,
+        TaskStatus.published,
+        TaskStatus.queued,
+    },
     TaskStatus.publishing: {TaskStatus.published},
     TaskStatus.published: set(),
     TaskStatus.completed: {
