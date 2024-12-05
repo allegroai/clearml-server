@@ -37,7 +37,7 @@ from apiserver.bll.task.task_cleanup import (
     delete_task_events_and_collect_urls,
 )
 from apiserver.bll.task.task_operations import publish_task
-from apiserver.bll.task.utils import get_task_with_write_access
+from apiserver.bll.task.utils import get_task_with_write_access, deleted_prefix
 from apiserver.bll.util import run_batch_operation
 from apiserver.config_repo import config
 from apiserver.database.model import validate_id
@@ -222,6 +222,9 @@ last_update_fields = (
 
 
 def parse_model_fields(call, valid_fields):
+    task_id = call.data.get("task")
+    if isinstance(task_id, str) and task_id.startswith(deleted_prefix):
+        call.data.pop("task")
     fields = parse_from_call(call.data, valid_fields, Model.get_fields())
     conform_tag_fields(call, fields, validate=True)
     escape_metadata(fields)
