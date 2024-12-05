@@ -79,8 +79,8 @@ class Model(AttributedDocument):
             "parent",
             "metadata.*",
         ),
-        range_fields=("last_metrics.*", "last_iteration"),
-        datetime_fields=("last_update",),
+        range_fields=("created", "last_metrics.*", "last_iteration"),
+        datetime_fields=("last_update", "last_change"),
     )
 
     id = StringField(primary_key=True)

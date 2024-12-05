@@ -244,7 +244,7 @@ class Task(AttributedDocument):
             "models.input.model",
         ),
         range_fields=("created", "started", "active_duration", "last_metrics.*", "last_iteration"),
-        datetime_fields=("status_changed", "last_update"),
+        datetime_fields=("status_changed", "last_update", "last_change"),
         pattern_fields=("name", "comment", "report"),
         fields=("runtime.*",),
     )
