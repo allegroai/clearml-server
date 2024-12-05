@@ -32,7 +32,7 @@ import attr
 import mongoengine
 from boltons.iterutils import chunked_iter, first
 from furl import furl
-from mongoengine import Q
+from mongoengine import Q, Document
 
 from apiserver.bll.event import EventBLL
 from apiserver.bll.event.event_common import EventType
@@ -1009,8 +1009,10 @@ class PrePopulate:
         module = importlib.import_module(module_name)
         return getattr(module, class_name)
 
-    @staticmethod
-    def _upgrade_project_data(project_data: dict) -> dict:
+    @classmethod
+    def _upgrade_project_data(cls, project_data: dict) -> dict:
+        cls._remove_incompatible_fields(cls.project_cls, project_data)
+
         if not project_data.get("basename"):
             name: str = project_data["name"]
             _, _, basename = name.rpartition("/")
@@ -1018,8 +1020,10 @@ class PrePopulate:
 
         return project_data
 
-    @staticmethod
-    def _upgrade_model_data(model_data: dict) -> dict:
+    @classmethod
+    def _upgrade_model_data(cls, model_data: dict) -> dict:
+        cls._remove_incompatible_fields(cls.model_cls, model_data)
+
         metadata_key = "metadata"
         metadata = model_data.get(metadata_key)
         if isinstance(metadata, list):
@@ -1032,7 +1036,13 @@ class PrePopulate:
         return model_data
 
     @staticmethod
-    def _upgrade_task_data(task_data: dict) -> dict:
+    def _remove_incompatible_fields(cls_: Type[Document], data: dict):
+        for field in ("company_origin",):
+            if field not in cls_._db_field_map:
+                data.pop(field, None)
+
+    @classmethod
+    def _upgrade_task_data(cls, task_data: dict) -> dict:
         """
         Migrate from execution/parameters and model_desc to hyperparams and configuration fiields
         Upgrade artifacts list to dict
@@ -1041,6 +1051,8 @@ class PrePopulate:
         :param task_data: Upgraded in place
         :return: The upgraded task data
         """
+        cls._remove_incompatible_fields(cls.task_cls, task_data)
+
         for old_param_field, new_param_field, default_section in (
             ("execution.parameters", "hyperparams", hyperparams_default_section),
             ("execution.model_desc", "configuration", None),
