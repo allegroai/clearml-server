@@ -26,7 +26,7 @@ from apiserver.bll.queue import QueueBLL
 from apiserver.bll.queue.queue_bll import MOVE_FIRST, MOVE_LAST
 from apiserver.bll.workers import WorkerBLL
 from apiserver.config_repo import config
-from apiserver.database.model.task.task import Task
+from apiserver.database.model.task.task import Task, TaskStatus
 from apiserver.service_repo import APICall, endpoint
 from apiserver.services.utils import (
     conform_tag_fields,
@@ -170,9 +170,14 @@ def get_next_task(call: APICall, company_id, request: GetNextTaskRequest):
     )
     if entry:
         data = {"entry": entry.to_proper_dict()}
-        if request.get_task_info:
-            task = Task.objects(id=entry.task).only("company", "user").first()
-            if task:
+        task = Task.objects(id=entry.task).only("company", "user", "status").first()
+        if task:
+            # fix racing condition that can result in the task being aborted
+            # by an agent after it was already placed in a queue
+            if task.status == TaskStatus.stopped:
+                task.update(status=TaskStatus.queued)
+
+            if request.get_task_info:
                 data["task_info"] = {"company": task.company, "user": task.user}
 
         call.result.data = data
