@@ -49,7 +49,7 @@ class TestServing(TestService):
                 latency_ms=100 * mul,  # average latency
                 machine_stats={  # the same structure here as used by worker status_reports
                     "cpu_usage": [10, 20],
-                    "memory_used": 50,
+                    "memory_used": 50 * 1024,
                 },
             )
 
@@ -68,14 +68,16 @@ class TestServing(TestService):
                         "requests",
                         "requests_min",
                         "latency_ms",
+                        "cpu_count",
+                        "gpu_count",
                         "reference",
                     )
                 ]
                 for inst in details.instances
             },
             {
-                "container_1": [1000, 1000, 5, 100, reference],
-                "container_2": [2000, 2000, 10, 200, []],
+                "container_1": [1000, 1000, 5, 100, 2, 0, reference],
+                "container_2": [2000, 2000, 10, 200, 2, 0, []],
             },
         )
         # make sure that the first call did not invalidate anything
@@ -92,7 +94,7 @@ class TestServing(TestService):
             ("latency_ms", "Average Latency (ms)", 150),
             ("cpu_count", "CPU Count", 4),
             ("cpu_util", "Average CPU Load (%)", 15),
-            ("ram_total", "RAM Total (GB)", 100),
+            ("ram_used", "RAM Used (GB)", 100.0),
         ):
             res = self.api.serving.get_endpoint_metrics_history(
                 endpoint_url=url,

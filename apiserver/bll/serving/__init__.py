@@ -13,10 +13,12 @@ from apiserver.apimodels.serving import (
     RegisterRequest,
     StatusReportRequest,
 )
+from apiserver.apimodels.workers import MachineStats
 from apiserver.apierrors import errors
 from apiserver.config_repo import config
 from apiserver.redis_manager import redman
 from .stats import ServingStats
+
 
 log = config.logger(__file__)
 
@@ -329,6 +331,21 @@ class ServingBLL:
                 }
             )
 
+        def get_machine_stats_data(machine_stats: MachineStats) -> dict:
+            ret = {"cpu_count": 0, "gpu_count": 0}
+            if not machine_stats:
+                return ret
+
+            for value, field in (
+                (machine_stats.cpu_usage, "cpu_count"),
+                (machine_stats.gpu_usage, "gpu_count"),
+            ):
+                if value is None:
+                    continue
+                ret[field] = len(value) if isinstance(value, (list, tuple)) else 1
+
+            return ret
+
         first_entry = entries[0]
         return {
             "endpoint": first_entry.endpoint_name,
@@ -352,6 +369,7 @@ class ServingBLL:
                     "reference": [ref.to_struct() for ref in entry.reference]
                     if isinstance(entry.reference, list)
                     else entry.reference,
+                    **get_machine_stats_data(entry.machine_stats),
                 }
                 for entry in entries
             ],

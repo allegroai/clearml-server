@@ -94,7 +94,7 @@ class ServingStats:
                     {
                         f"{category}_free": free,
                         f"{category}_used": used,
-                        f"{category}_total": (free or 0) + (used or 0),
+                        f"{category}_total": round((free or 0) + (used or 0), 3),
                     }
                 )
 
@@ -110,58 +110,90 @@ class ServingStats:
         return 1
 
     @staticmethod
-    def round_series(values: Sequence, koeff=1.0) -> list:
+    def round_series(values: Sequence, koeff) -> list:
         return [round(v * koeff, 2) if v else 0 for v in values]
 
+    _mb_to_gb = 1 / 1024
     agg_fields = {
         MetricType.requests: (
             "requests_num",
             "Number of Requests",
             _AggregationType.sum,
+            None,
         ),
         MetricType.requests_min: (
             "requests_min",
             "Requests per Minute",
             _AggregationType.sum,
+            None,
         ),
         MetricType.latency_ms: (
             "latency_ms",
             "Average Latency (ms)",
             _AggregationType.avg,
+            None,
         ),
-        MetricType.cpu_count: ("cpu_num", "CPU Count", _AggregationType.sum),
-        MetricType.gpu_count: ("gpu_num", "GPU Count", _AggregationType.sum),
+        MetricType.cpu_count: ("cpu_num", "CPU Count", _AggregationType.sum, None),
+        MetricType.gpu_count: ("gpu_num", "GPU Count", _AggregationType.sum, None),
         MetricType.cpu_util: (
             "cpu_usage",
             "Average CPU Load (%)",
             _AggregationType.avg,
+            None,
         ),
         MetricType.gpu_util: (
             "gpu_usage",
             "Average GPU Utilization (%)",
             _AggregationType.avg,
+            None,
         ),
-        MetricType.ram_total: ("memory_total", "RAM Total (GB)", _AggregationType.sum),
-        MetricType.ram_free: ("memory_free", "RAM Free (GB)", _AggregationType.sum),
+        MetricType.ram_total: (
+            "memory_total",
+            "RAM Total (GB)",
+            _AggregationType.sum,
+            _mb_to_gb,
+        ),
+        MetricType.ram_used: (
+            "memory_used",
+            "RAM Used (GB)",
+            _AggregationType.sum,
+            _mb_to_gb,
+        ),
+        MetricType.ram_free: (
+            "memory_free",
+            "RAM Free (GB)",
+            _AggregationType.sum,
+            _mb_to_gb,
+        ),
         MetricType.gpu_ram_total: (
             "gpu_memory_total",
             "GPU RAM Total (GB)",
             _AggregationType.sum,
+            _mb_to_gb,
+        ),
+        MetricType.gpu_ram_used: (
+            "gpu_memory_used",
+            "GPU RAM Used (GB)",
+            _AggregationType.sum,
+            _mb_to_gb,
         ),
         MetricType.gpu_ram_free: (
             "gpu_memory_free",
             "GPU RAM Free (GB)",
             _AggregationType.sum,
+            _mb_to_gb,
         ),
         MetricType.network_rx: (
             "network_rx",
             "Network Throughput RX (MBps)",
             _AggregationType.sum,
+            None,
         ),
         MetricType.network_tx: (
             "network_tx",
             "Network Throughput TX (MBps)",
             _AggregationType.sum,
+            None,
         ),
     }
 
@@ -183,7 +215,7 @@ class ServingStats:
         if not agg_data:
             raise NotImplemented(f"Charts for {metric_type} not implemented")
 
-        agg_field, title, agg_type = agg_data
+        agg_field, title, agg_type, multiplier = agg_data
         if agg_type == _AggregationType.sum:
             instance_sum_type = "sum_bucket"
         else:
@@ -220,7 +252,7 @@ class ServingStats:
         instance_keys = {ib["key"] for ib in instance_buckets}
         must_conditions.append(QueryBuilder.terms("container_id", instance_keys))
         query = {"bool": {"must": must_conditions}}
-
+        sample_func = "avg" if metric_type != MetricType.requests else "max"
         aggs = {
             "instances": {
                 "terms": {
@@ -228,13 +260,13 @@ class ServingStats:
                     "size": max(len(instance_keys), 10),
                 },
                 "aggs": {
-                    "average": {"avg": {"field": agg_field}},
+                    "sample": {sample_func: {"field": agg_field}},
                 },
             },
             "total_instances": {
                 instance_sum_type: {
                     "gap_policy": "insert_zeros",
-                    "buckets_path": "instances>average",
+                    "buckets_path": "instances>sample",
                 }
             },
         }
@@ -282,16 +314,21 @@ class ServingStats:
                 found_keys = set()
                 for instance in nested_get(point, ("instances", "buckets"), []):
                     instances[instance["key"]].append(
-                        nested_get(instance, ("average", "value"), 0)
+                        nested_get(instance, ("sample", "value"), 0)
                     )
                     found_keys.add(instance["key"])
                 for missing_key in instance_keys - found_keys:
                     instances[missing_key].append(0)
 
+        koeff = multiplier if multiplier else 1.0
         hist_ret["total"]["dates"] = dates_
-        hist_ret["total"]["values"] = cls.round_series(total)
+        hist_ret["total"]["values"] = cls.round_series(total, koeff)
         hist_ret["instances"] = {
-            key: {"title": key, "dates": dates_, "values": cls.round_series(values)}
+            key: {
+                "title": key,
+                "dates": dates_,
+                "values": cls.round_series(values, koeff),
+            }
             for key, values in sorted(instances.items(), key=lambda p: p[0])
         }
 
