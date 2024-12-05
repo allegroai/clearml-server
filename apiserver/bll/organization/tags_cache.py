@@ -6,7 +6,6 @@ from redis import Redis
 
 from apiserver.config_repo import config
 from apiserver.bll.project import project_ids_with_children
-from apiserver.database.model import EntityVisibility
 from apiserver.database.model.base import GetMixin
 from apiserver.database.model.model import Model
 from apiserver.database.model.task.task import Task

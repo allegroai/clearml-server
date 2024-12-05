@@ -26,6 +26,7 @@ class TestServing(TestService):
             for container_id in (container_id1, container_id2)
         ]
 
+        # registering instances
         for container_info in container_infos:
             self.api.serving.register_container(
                 **container_info,
@@ -39,63 +40,72 @@ class TestServing(TestService):
                 requests_num=1000 * mul,
                 requests_min=5 * mul,  # requests per minute
                 latency_ms=100 * mul,  # average latency
-                machine_stats={   # the same structure here as used by worker status_reports
+                machine_stats={  # the same structure here as used by worker status_reports
                     "cpu_usage": [10, 20],
                     "memory_used": 50,
-                }
+                },
             )
-        endpoints = self.api.serving.get_endpoints().endpoints
-        details = self.api.serving.get_endpoint_details(endpoint_url=url)
-        details = self.api.serving.get_endpoint_details(endpoint_url=url)
 
+        # getting endpoints and endpoint details
+        endpoints = self.api.serving.get_endpoints().endpoints
+        self.assertTrue(any(e for e in endpoints if e.url == url))
+        details = self.api.serving.get_endpoint_details(endpoint_url=url)
+        self.assertEqual(details.url, url)
+        self.assertEqual(details.uptime_sec, 2000)
+        self.assertEqual(
+            {
+                inst.id: [
+                    inst[field]
+                    for field in (
+                        "uptime_sec",
+                        "requests",
+                        "requests_min",
+                        "latency_ms",
+                    )
+                ]
+                for inst in details.instances
+            },
+            {"container_1": [1000, 1000, 5, 100], "container_2": [2000, 2000, 10, 200]},
+        )
+        # make sure that the first call did not invalidate anything
+        new_details = self.api.serving.get_endpoint_details(endpoint_url=url)
+        self.assertEqual(details, new_details)
+
+        # charts
         sleep(5)  # give time to ES to accomodate data
         to_date = int(time()) + 40
         from_date = to_date - 100
-        res1 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-        )
-        res2 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-            metric_type="requests_min",
-        )
-        res3 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-            metric_type="latency_ms",
-        )
-        res4 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-            metric_type="cpu_count",
-        )
-        res5 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-            metric_type="cpu_util",
-        )
-        res6 = self.api.serving.get_endpoint_metrics_history(
-            endpoint_url=url,
-            from_date=from_date,
-            to_date=to_date,
-            interval=1,
-            metric_type="ram_total",
-        )
+        for metric_type, title, value in (
+            (None, "Number of Requests", 3000),
+            ("requests_min", "Requests per Minute", 15),
+            ("latency_ms", "Average Latency (ms)", 150),
+            ("cpu_count", "CPU Count", 4),
+            ("cpu_util", "Average CPU Load (%)", 15),
+            ("ram_total", "RAM Total (GB)", 100),
+        ):
+            res = self.api.serving.get_endpoint_metrics_history(
+                endpoint_url=url,
+                from_date=from_date,
+                to_date=to_date,
+                interval=1,
+                **({"metric_type": metric_type} if metric_type else {}),
+            )
+            self.assertEqual(res.computed_interval, 40)
+            self.assertEqual(res.total.title, title)
+            length = len(res.total.dates)
+            self.assertTrue(3>=length>=1)
+            self.assertEqual(len(res.total["values"]), length)
+            self.assertIn(value, res.total["values"])
+            self.assertEqual(set(res.instances), {container_id1, container_id2})
+            for inst in res.instances.values():
+                self.assertEqual(inst.dates, res.total.dates)
+                self.assertEqual(len(inst["values"]), length)
 
+        # unregistering containers
         for container_id in (container_id1, container_id2):
             self.api.serving.unregister_container(container_id=container_id)
         endpoints = self.api.serving.get_endpoints().endpoints
+        self.assertFalse(any(e for e in endpoints if e.url == url))
+
         with self.api.raises(errors.bad_request.NoContainersForUrl):
-            details = self.api.serving.get_endpoint_details(endpoint_url=url)
-        pass
+            self.api.serving.get_endpoint_details(endpoint_url=url)
