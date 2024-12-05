@@ -231,15 +231,17 @@ def enqueue_task(
     if validate:
         TaskBLL.validate(task)
 
+    before_enqueue_status = task.status
+    if task.status == TaskStatus.queued and task.enqueue_status:
+        before_enqueue_status = task.enqueue_status
     res = ChangeStatusRequest(
         task=task,
         new_status=TaskStatus.queued,
         status_reason=status_reason,
         status_message=status_message,
-        allow_same_state_transition=False,
         force=force,
         user_id=user_id,
-    ).execute(enqueue_status=task.status)
+    ).execute(enqueue_status=before_enqueue_status)
 
     try:
         queue_bll.add_task(company_id=company_id, queue_id=queue_id, task_id=task.id)
@@ -260,7 +262,8 @@ def enqueue_task(
         Task.objects(id=task_id).update(execution__queue=queue_id, multi=False)
     else:
         Task.objects(id=task_id).update(execution=Execution(queue=queue_id), multi=False)
-
+    # make sure that the task is not queued in any other queue
+    TaskBLL.remove_task_from_all_queues(company_id=company_id, task_id=task_id, exclude=queue_id)
     nested_set(res, ("fields", "execution.queue"), queue_id)
     return 1, res
 

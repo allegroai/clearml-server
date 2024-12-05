@@ -439,8 +439,11 @@ class TaskBLL:
         return ret
 
     @staticmethod
-    def remove_task_from_all_queues(company_id: str, task_id: str) -> int:
-        return Queue.objects(company=company_id, entries__task=task_id).update(
+    def remove_task_from_all_queues(company_id: str, task_id: str, exclude: str = None) -> int:
+        more = {}
+        if exclude:
+            more["id__ne"] = exclude
+        return Queue.objects(company=company_id, entries__task=task_id, **more).update(
             pull__entries__task=task_id, last_update=datetime.utcnow()
         )
 
