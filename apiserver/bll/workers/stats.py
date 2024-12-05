@@ -73,7 +73,9 @@ class WorkerStats:
         Buckets with no metrics are not returned
         Note: all the statistics are retrieved as one ES query
         """
-        if request.from_date >= request.to_date:
+        from_date = request.from_date
+        to_date = request.to_date
+        if from_date >= to_date:
             raise bad_request.FieldsValueError("from_date must be less than to_date")
 
         def get_dates_agg() -> dict:
@@ -83,12 +85,16 @@ class WorkerStats:
                 ("max", AggregationType.max.value),
             )
 
+            interval = max(request.interval, self.min_chart_interval)
             return {
                 "dates": {
                     "date_histogram": {
                         "field": "timestamp",
-                        "fixed_interval": f"{request.interval}s",
-                        "min_doc_count": 1,
+                        "fixed_interval": f"{interval}s",
+                        "extended_bounds": {
+                          "min": int(from_date) * 1000,
+                          "max": int(to_date) * 1000,
+                        }
                     },
                     "aggs": {
                         agg_type: {es_agg: {"field": "value"}}
@@ -120,7 +126,7 @@ class WorkerStats:
         }
 
         query_terms = [
-            QueryBuilder.dates_range(request.from_date, request.to_date),
+            QueryBuilder.dates_range(from_date, to_date),
             QueryBuilder.terms("metric", {item.key for item in request.items}),
         ]
         if request.worker_ids:
@@ -157,7 +163,7 @@ class WorkerStats:
             return {
                 "date": date["key"],
                 "count": date["doc_count"],
-                **{agg: date[agg]["value"] for agg in aggs_per_metric[metric_key]},
+                **{agg: date[agg]["value"] or 0.0 for agg in aggs_per_metric[metric_key]},
             }
 
         def extract_metric_results(
@@ -166,7 +172,6 @@ class WorkerStats:
             return [
                 extract_date_stats(date, metric_key)
                 for date in metric_or_variant["dates"]["buckets"]
-                if date["doc_count"]
             ]
 
         def extract_variant_results(metric: dict) -> dict:
