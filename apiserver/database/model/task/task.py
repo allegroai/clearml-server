@@ -233,7 +233,7 @@ class Task(AttributedDocument):
             "execution.queue",
             "models.input.model",
         ),
-        range_fields=("started", "active_duration", "last_metrics.*", "last_iteration"),
+        range_fields=("created", "started", "active_duration", "last_metrics.*", "last_iteration"),
         datetime_fields=("status_changed", "last_update"),
         pattern_fields=("name", "comment", "report"),
         fields=("runtime.*",),
