@@ -183,7 +183,7 @@ class HistoryDebugImageIterator:
         order = "desc" if navigate_earlier else "asc"
         es_req = {
             "size": 1,
-            "sort": [{"metric": order}, {"variant": order}],
+            "sort": [{"metric": order}, {"variant": order}, {"url": "desc"}],
             "query": {"bool": {"must": must_conditions}},
         }
 
