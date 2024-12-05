@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from typing import Tuple, Optional, Sequence
@@ -35,7 +35,7 @@ class ServingStats:
     @staticmethod
     def _get_es_index_suffix():
         """Get the index name suffix for storing current month data"""
-        return datetime.utcnow().strftime("%Y-%m")
+        return datetime.now(timezone.utc).strftime("%Y-%m")
 
     @staticmethod
     def _get_average_value(value) -> Tuple[Optional[float], Optional[int]]:
@@ -292,7 +292,7 @@ class ServingStats:
         hist_ret["total"]["values"] = cls.round_series(total)
         hist_ret["instances"] = {
             key: {"title": key, "dates": dates_, "values": cls.round_series(values)}
-            for key, values in instances.items()
+            for key, values in sorted(instances.items(), key=lambda p: p[0])
         }
 
         return hist_ret

@@ -40,7 +40,8 @@ from .sub_projects import (
     _ids_with_children,
     _ids_with_parents,
     _get_project_depth,
-    ProjectsChildren, _get_writable_project_from_name,
+    ProjectsChildren,
+    _get_writable_project_from_name,
 )
 
 log = config.logger(__file__)

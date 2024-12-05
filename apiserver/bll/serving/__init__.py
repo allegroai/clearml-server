@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from operator import attrgetter
 from time import time
@@ -75,7 +75,7 @@ class ServingBLL:
         """
         Register a serving container
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         key = self._get_container_key(company_id, request.container_id)
         entry = ServingContainerEntry(
             **request.to_struct(),
@@ -120,7 +120,7 @@ class ServingBLL:
         Serving container status report
         """
         container_id = report.container_id
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entry = self._get_serving_container_entry(company_id, container_id)
         if entry:
             ip = ip or entry.ip
@@ -252,7 +252,7 @@ class ServingBLL:
             "instances": len(entries),
             **{counter.name: counter() for counter in counters},
         }
-        ret["last_update"] = self._naive_time(ret.get("last_update"))
+        ret["last_update"] = ret.get("last_update")
         return ret
 
     def get_endpoints(self, company_id: str):
@@ -307,17 +307,11 @@ class ServingBLL:
                 "input_type": entry.input_type,
                 "input_size": entry.input_size,
                 "uptime_sec": entry.uptime_sec,
-                "last_update": self._naive_time(entry.last_activity_time),
+                "age_sec": int((datetime.now(timezone.utc) - entry.register_time).total_seconds()),
+                "last_update": entry.last_activity_time,
             }
             for entry in entries
         ]
-
-    @staticmethod
-    def _naive_time(input_: datetime) -> datetime:
-        if not isinstance(input_, datetime):
-            return input_
-
-        return input_.replace(tzinfo=None)
 
     def get_endpoint_details(self, company_id, endpoint_url: str) -> dict:
         entries = self._get_endpoint_entries(company_id, endpoint_url)
@@ -346,7 +340,7 @@ class ServingBLL:
             "model_source": first_entry.model_source,
             "model_version": first_entry.model_version,
             "uptime_sec": max(e.uptime_sec for e in entries),
-            "last_update": self._naive_time(max(e.last_activity_time for e in entries)),
+            "last_update": max(e.last_activity_time for e in entries),
             "instances": [
                 {
                     "id": entry.container_id,
@@ -354,7 +348,7 @@ class ServingBLL:
                     "requests": entry.requests_num,
                     "requests_min": entry.requests_min,
                     "latency_ms": entry.latency_ms,
-                    "last_update": self._naive_time(entry.last_activity_time),
+                    "last_update": entry.last_activity_time,
                     "reference": [ref.to_struct() for ref in entry.reference]
                     if isinstance(entry.reference, list)
                     else entry.reference,
