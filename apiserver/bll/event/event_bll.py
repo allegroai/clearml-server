@@ -41,7 +41,7 @@ from apiserver.bll.event.event_metrics import EventMetrics
 from apiserver.bll.task import TaskBLL
 from apiserver.config_repo import config
 from apiserver.database.errors import translate_errors_context
-from apiserver.database.model.task.task import Task, TaskStatus
+from apiserver.database.model.task.task import TaskStatus
 from apiserver.redis_manager import redman
 from apiserver.service_repo.auth import Identity
 from apiserver.utilities.dicts import nested_get
@@ -1150,34 +1150,6 @@ class EventBLL(object):
         }
 
     @staticmethod
-    def _validate_model_state(
-        company_id: str, model_id: str, allow_locked: bool = False
-    ):
-        extra_msg = None
-        query = Q(id=model_id, company=company_id)
-        if not allow_locked:
-            query &= Q(ready__ne=True)
-            extra_msg = "or model published"
-        res = Model.objects(query).only("id").first()
-        if not res:
-            raise errors.bad_request.InvalidModelId(
-                extra_msg, company=company_id, id=model_id
-            )
-
-    @staticmethod
-    def _validate_task_state(company_id: str, task_id: str, allow_locked: bool = False):
-        extra_msg = None
-        query = Q(id=task_id, company=company_id)
-        if not allow_locked:
-            query &= Q(status__nin=LOCKED_TASK_STATUSES)
-            extra_msg = "or task published"
-        res = Task.objects(query).only("id").first()
-        if not res:
-            raise errors.bad_request.InvalidTaskId(
-                extra_msg, company=company_id, id=task_id
-            )
-
-    @staticmethod
     def _get_events_deletion_params(async_delete: bool) -> dict:
         if async_delete:
             return {
@@ -1189,51 +1161,47 @@ class EventBLL(object):
 
         return {"refresh": True}
 
-    def delete_task_events(self, company_id, task_id, allow_locked=False, model=False):
-        if model:
-            self._validate_model_state(
-                company_id=company_id,
-                model_id=task_id,
-                allow_locked=allow_locked,
-            )
-        else:
-            self._validate_task_state(
-                company_id=company_id, task_id=task_id, allow_locked=allow_locked
-            )
-        async_delete = async_task_events_delete
-        if async_delete:
-            total = self.events_iterator.count_task_events(
-                event_type=EventType.all,
-                company_id=company_id,
-                task_ids=[task_id],
-            )
-            if total <= async_delete_threshold:
-                async_delete = False
-        es_req = {"query": {"term": {"task": task_id}}}
+    def delete_task_events(self, company_id, task_ids: Union[str, Sequence[str]], model=False):
+        """
+        Delete task events. No check is done for tasks write access
+        so it should be checked by the calling code
+        """
+        if isinstance(task_ids, str):
+            task_ids = [task_ids]
+        deleted = 0
         with translate_errors_context():
-            es_res = delete_company_events(
-                es=self.es,
-                company_id=company_id,
-                event_type=EventType.all,
-                body=es_req,
-                **self._get_events_deletion_params(async_delete),
-            )
+            async_delete = async_task_events_delete
+            if async_delete and len(task_ids) < 100:
+                total = self.events_iterator.count_task_events(
+                    event_type=EventType.all,
+                    company_id=company_id,
+                    task_ids=task_ids,
+                )
+                if total <= async_delete_threshold:
+                    async_delete = False
+            for tasks in chunked_iter(task_ids, 100):
+                es_req = {"query": {"terms": {"task": tasks}}}
+                es_res = delete_company_events(
+                    es=self.es,
+                    company_id=company_id,
+                    event_type=EventType.all,
+                    body=es_req,
+                    **self._get_events_deletion_params(async_delete),
+                )
+                if not async_delete:
+                    deleted += es_res.get("deleted", 0)
 
         if not async_delete:
-            return es_res.get("deleted", 0)
+            return deleted
 
     def clear_task_log(
         self,
         company_id: str,
         task_id: str,
-        allow_locked: bool = False,
         threshold_sec: int = None,
         include_metrics: Sequence[str] = None,
         exclude_metrics: Sequence[str] = None,
     ):
-        self._validate_task_state(
-            company_id=company_id, task_id=task_id, allow_locked=allow_locked
-        )
         if check_empty_data(
             self.es, company_id=company_id, event_type=EventType.task_log
         ):
@@ -1274,39 +1242,6 @@ class EventBLL(object):
                 refresh=True,
             )
             return es_res.get("deleted", 0)
-
-    def delete_multi_task_events(
-        self, company_id: str, task_ids: Sequence[str], model=False
-    ):
-        """
-        Delete multiple task events. No check is done for tasks write access
-        so it should be checked by the calling code
-        """
-        deleted = 0
-        with translate_errors_context():
-            async_delete = async_task_events_delete
-            if async_delete and len(task_ids) < 100:
-                total = self.events_iterator.count_task_events(
-                    event_type=EventType.all,
-                    company_id=company_id,
-                    task_ids=task_ids,
-                )
-                if total <= async_delete_threshold:
-                    async_delete = False
-            for tasks in chunked_iter(task_ids, 100):
-                es_req = {"query": {"terms": {"task": tasks}}}
-                es_res = delete_company_events(
-                    es=self.es,
-                    company_id=company_id,
-                    event_type=EventType.all,
-                    body=es_req,
-                    **self._get_events_deletion_params(async_delete),
-                )
-                if not async_delete:
-                    deleted += es_res.get("deleted", 0)
-
-        if not async_delete:
-            return deleted
 
     def clear_scroll(self, scroll_id: str):
         if scroll_id == self.empty_scroll:

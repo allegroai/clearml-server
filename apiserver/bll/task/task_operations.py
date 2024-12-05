@@ -295,11 +295,9 @@ def delete_task(
     identity: Identity,
     move_to_trash: bool,
     force: bool,
-    return_file_urls: bool,
     delete_output_models: bool,
     status_message: str,
     status_reason: str,
-    delete_external_artifacts: bool,
     include_pipeline_steps: bool,
 ) -> Tuple[int, Task, CleanupResult]:
     user_id = identity.user
@@ -319,7 +317,7 @@ def delete_task(
             current=task.status,
         )
 
-    def delete_task_core(task_: Task, force_: bool):
+    def delete_task_core(task_: Task, force_: bool) -> CleanupResult:
         try:
             TaskBLL.dequeue_and_change_status(
                 task_,
@@ -338,9 +336,7 @@ def delete_task(
             user=user_id,
             task=task_,
             force=force_,
-            return_file_urls=return_file_urls,
             delete_output_models=delete_output_models,
-            delete_external_artifacts=delete_external_artifacts,
         )
 
         if move_to_trash:
@@ -354,11 +350,12 @@ def delete_task(
         return res
 
     task_ids = [task.id]
+    cleanup_res = CleanupResult.empty()
     if include_pipeline_steps and (
         step_tasks := _get_pipeline_steps_for_controller_task(task, company_id)
     ):
         for step in step_tasks:
-            delete_task_core(step, True)
+            cleanup_res += delete_task_core(step, True)
             task_ids.append(step.id)
 
     cleanup_res = delete_task_core(task, force)
@@ -374,10 +371,8 @@ def reset_task(
     company_id: str,
     identity: Identity,
     force: bool,
-    return_file_urls: bool,
     delete_output_models: bool,
     clear_all: bool,
-    delete_external_artifacts: bool,
 ) -> Tuple[dict, CleanupResult, dict]:
     user_id = identity.user
     task = get_task_with_write_access(
@@ -404,9 +399,7 @@ def reset_task(
         task=task,
         force=force,
         update_children=False,
-        return_file_urls=return_file_urls,
         delete_output_models=delete_output_models,
-        delete_external_artifacts=delete_external_artifacts,
     )
 
     updates.update(

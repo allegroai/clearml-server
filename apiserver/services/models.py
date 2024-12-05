@@ -27,10 +27,15 @@ from apiserver.apimodels.models import (
     UpdateModelRequest,
 )
 from apiserver.apimodels.tasks import UpdateTagsRequest
+from apiserver.bll.event import EventBLL
 from apiserver.bll.model import ModelBLL, Metadata
 from apiserver.bll.organization import OrgBLL, Tags
 from apiserver.bll.project import ProjectBLL
 from apiserver.bll.task import TaskBLL
+from apiserver.bll.task.task_cleanup import (
+    schedule_for_delete,
+    delete_task_events_and_collect_urls,
+)
 from apiserver.bll.task.task_operations import publish_task
 from apiserver.bll.task.utils import get_task_with_write_access
 from apiserver.bll.util import run_batch_operation
@@ -64,6 +69,7 @@ from apiserver.services.utils import (
 log = config.logger(__file__)
 org_bll = OrgBLL()
 project_bll = ProjectBLL()
+event_bll = EventBLL()
 
 
 def conform_model_data(call: APICall, model_data: Union[Sequence[dict], dict]):
@@ -555,16 +561,59 @@ def publish_many(call: APICall, company_id, request: ModelsPublishManyRequest):
     )
 
 
+def _delete_model_events(
+    company_id: str,
+    user_id: str,
+    models: Sequence[Model],
+    delete_external_artifacts: bool,
+):
+    model_ids = [m.id for m in models]
+    delete_external_artifacts = delete_external_artifacts and config.get(
+        "services.async_urls_delete.enabled", True
+    )
+    if delete_external_artifacts:
+        for m in models:
+            if not m.uri:
+                continue
+            schedule_for_delete(
+                task_id=m.id,
+                company=company_id,
+                user=user_id,
+                urls=m.uri,
+                can_delete_folders=False,
+            )
+
+        event_urls = delete_task_events_and_collect_urls(
+            company=company_id, task_ids=model_ids, model=True
+        )
+        if event_urls:
+            schedule_for_delete(
+                task_id=model_ids[0],
+                company=company_id,
+                user=user_id,
+                urls=event_urls,
+                can_delete_folders=False,
+            )
+
+    event_bll.delete_task_events(company_id, model_ids, model=True)
+
+
 @endpoint("models.delete", request_data_model=DeleteModelRequest)
 def delete(call: APICall, company_id, request: DeleteModelRequest):
+    user_id = call.identity.user
     del_count, model = ModelBLL.delete_model(
         model_id=request.model,
         company_id=company_id,
-        user_id=call.identity.user,
+        user_id=user_id,
         force=request.force,
-        delete_external_artifacts=request.delete_external_artifacts,
     )
     if del_count:
+        _delete_model_events(
+            company_id=company_id,
+            user_id=user_id,
+            models=[model],
+            delete_external_artifacts=request.delete_external_artifacts,
+        )
         _reset_cached_tags(
             company_id, projects=[model.project] if model.project else []
         )
@@ -578,26 +627,36 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
     response_data_model=BatchResponse,
 )
 def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
+    user_id = call.identity.user
+
     results, failures = run_batch_operation(
         func=partial(
             ModelBLL.delete_model,
             company_id=company_id,
             user_id=call.identity.user,
             force=request.force,
-            delete_external_artifacts=request.delete_external_artifacts,
         ),
         ids=request.ids,
     )
 
-    if results:
-        projects = set(model.project for _, (_, model) in results)
+    succeeded = []
+    deleted_models = []
+    for _id, (deleted, model) in results:
+        succeeded.append(dict(id=_id, deleted=bool(deleted), url=model.uri))
+        deleted_models.append(model)
+
+    if deleted_models:
+        _delete_model_events(
+            company_id=company_id,
+            user_id=user_id,
+            models=deleted_models,
+            delete_external_artifacts=request.delete_external_artifacts,
+        )
+        projects = set(model.project for model in deleted_models)
         _reset_cached_tags(company_id, projects=list(projects))
 
     call.result.data_model = BatchResponse(
-        succeeded=[
-            dict(id=_id, deleted=bool(deleted), url=model.uri)
-            for _id, (deleted, model) in results
-        ],
+        succeeded=succeeded,
         failed=failures,
     )
 
