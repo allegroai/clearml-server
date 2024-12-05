@@ -1504,6 +1504,7 @@ def update_tags(call: APICall, company_id: str, request: UpdateTagsRequest):
     return {
         "updated": org_bll.edit_entity_tags(
             company_id=company_id,
+            user_id=call.identity.user,
             entity_cls=Task,
             entity_ids=request.ids,
             add_tags=request.add_tags,
