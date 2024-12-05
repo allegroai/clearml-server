@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Sequence
 
 from jsonmodels.models import Base
 from jsonmodels.fields import (
@@ -6,14 +7,24 @@ from jsonmodels.fields import (
     EmbeddedField,
     DateTimeField,
     IntField,
-    FloatField, BoolField,
+    FloatField,
+    BoolField,
 )
+from jsonmodels import validators
 from jsonmodels.validators import Min
 
 from apiserver.apimodels import ListField, JsonSerializableMixin
 from apiserver.apimodels import ActualEnumField
 from apiserver.config_repo import config
 from .workers import MachineStats
+
+
+class ReferenceItem(Base):
+    type = StringField(
+        required=True,
+        validators=validators.Enum("app_id", "app_instance", "model", "task", "url"),
+    )
+    value = StringField(required=True)
 
 
 class ServingModel(Base):
@@ -28,12 +39,15 @@ class ServingModel(Base):
     input_size = IntField()
     tags = ListField(str)
     system_tags = ListField(str)
+    reference: Sequence[ReferenceItem] = ListField(ReferenceItem)
 
 
 class RegisterRequest(ServingModel):
     timeout = IntField(
-        default=int(config.get("services.serving.default_container_timeout_sec", 10 * 60)),
-        validators=[Min(1)]
+        default=int(
+            config.get("services.serving.default_container_timeout_sec", 10 * 60)
+        ),
+        validators=[Min(1)],
     )
     """ registration timeout in seconds (default is 10min) """
 
@@ -84,7 +98,5 @@ class GetEndpointMetricsHistoryRequest(Base):
     to_date = FloatField(required=True, validators=Min(0))
     interval = IntField(required=True, validators=Min(1))
     endpoint_url = StringField(required=True)
-    metric_type = ActualEnumField(
-        MetricType, default=MetricType.requests
-    )
+    metric_type = ActualEnumField(MetricType, default=MetricType.requests)
     instance_charts = BoolField(default=True)

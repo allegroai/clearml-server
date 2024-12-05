@@ -9,6 +9,12 @@ class TestServing(TestService):
         container_id1 = "container_1"
         container_id2 = "container_2"
         url = "http://test_url"
+        reference = [
+            {"type": "app_id", "value": "test"},
+            {"type": "app_instance", "value": "abd478c8"},
+            {"type": "model", "value": "262829d3"},
+            {"type": "model", "value": "7ea29c04"},
+        ]
         container_infos = [
             {
                 "container_id": container_id,  # required
@@ -22,6 +28,7 @@ class TestServing(TestService):
                 "input_size": 9_000_000,  # optional right now, bytes
                 "tags": ["tag1", "tag2"],  # optional
                 "system_tags": None,  # optional
+                **({"reference": reference} if container_id == container_id1 else {}),
             }
             for container_id in (container_id1, container_id2)
         ]
@@ -61,11 +68,15 @@ class TestServing(TestService):
                         "requests",
                         "requests_min",
                         "latency_ms",
+                        "reference",
                     )
                 ]
                 for inst in details.instances
             },
-            {"container_1": [1000, 1000, 5, 100], "container_2": [2000, 2000, 10, 200]},
+            {
+                "container_1": [1000, 1000, 5, 100, reference],
+                "container_2": [2000, 2000, 10, 200, []],
+            },
         )
         # make sure that the first call did not invalidate anything
         new_details = self.api.serving.get_endpoint_details(endpoint_url=url)
@@ -93,7 +104,7 @@ class TestServing(TestService):
             self.assertEqual(res.computed_interval, 40)
             self.assertEqual(res.total.title, title)
             length = len(res.total.dates)
-            self.assertTrue(3>=length>=1)
+            self.assertTrue(3 >= length >= 1)
             self.assertEqual(len(res.total["values"]), length)
             self.assertIn(value, res.total["values"])
             self.assertEqual(set(res.instances), {container_id1, container_id2})

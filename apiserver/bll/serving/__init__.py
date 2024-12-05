@@ -207,7 +207,9 @@ class ServingBLL:
             if not self._count:
                 return None
             avg = self._total / self._count
-            return round(avg, self.float_precision) if self.float_precision else round(avg)
+            return (
+                round(avg, self.float_precision) if self.float_precision else round(avg)
+            )
 
     def _get_summary(self, entries: Sequence[ServingContainerEntry]) -> dict:
         counters = [
@@ -263,7 +265,9 @@ class ServingBLL:
         by_url.pop(None, None)
         return [self._get_summary(url_entries) for url_entries in by_url.values()]
 
-    def _get_endpoint_entries(self, company_id, endpoint_url: Union[str, None]) -> Sequence[ServingContainerEntry]:
+    def _get_endpoint_entries(
+        self, company_id, endpoint_url: Union[str, None]
+    ) -> Sequence[ServingContainerEntry]:
         url_key = self._get_url_key(company_id, endpoint_url)
         timestamp = int(time())
         self.redis.zremrangebyscore(url_key, min=0, max=timestamp)
@@ -328,7 +332,6 @@ class ServingBLL:
                     "endpoint": entry.endpoint_name,
                     "model": entry.model_name,
                     "url": entry.endpoint_url,
-
                 }
             )
 
@@ -352,7 +355,10 @@ class ServingBLL:
                     "requests_min": entry.requests_min,
                     "latency_ms": entry.latency_ms,
                     "last_update": self._naive_time(entry.last_activity_time),
+                    "reference": [ref.to_struct() for ref in entry.reference]
+                    if isinstance(entry.reference, list)
+                    else entry.reference,
                 }
                 for entry in entries
-            ]
+            ],
         }
