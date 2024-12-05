@@ -583,14 +583,13 @@ def _delete_model_events(
         "services.async_urls_delete.enabled", True
     )
     if delete_external_artifacts:
-        for m in models:
-            if not m.uri:
-                continue
+        model_urls = {m.uri for m in models if m.uri}
+        if model_urls:
             schedule_for_delete(
-                task_id=m.id,
+                task_id=model_ids[0],
                 company=company_id,
                 user=user_id,
-                urls=m.uri,
+                urls=model_urls,
                 can_delete_folders=False,
             )
 
