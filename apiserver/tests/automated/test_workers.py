@@ -180,7 +180,7 @@ class TestWorkersService(TestService):
                 self.assertEqual(
                     set(stat.aggregation for stat in metric.stats), metric_stats
                 )
-                self.assertEqual(len(metric.dates), 11)
+                self.assertTrue(11 >= len(metric.dates) >= 10)
 
         # split by variants
         res = self.api.workers.get_stats(
@@ -199,7 +199,7 @@ class TestWorkersService(TestService):
                     set(metric.variant for metric in worker.metrics),
                     {"0", "1"} if worker.worker == workers[0] else {"0"},
                 )
-                self.assertEqual(len(metric.dates), 11)
+                self.assertTrue(11 >= len(metric.dates) >= 10)
 
         res = self.api.workers.get_stats(
             items=[dict(key="cpu_usage", aggregation="avg")],

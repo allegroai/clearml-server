@@ -78,6 +78,8 @@ class WorkerStats:
         if from_date >= to_date:
             raise bad_request.FieldsValueError("from_date must be less than to_date")
 
+        interval = max(request.interval, self.min_chart_interval)
+
         def get_dates_agg() -> dict:
             es_to_agg_types = (
                 ("avg", AggregationType.avg.value),
@@ -85,7 +87,6 @@ class WorkerStats:
                 ("max", AggregationType.max.value),
             )
 
-            interval = max(request.interval, self.min_chart_interval)
             return {
                 "dates": {
                     "date_histogram": {
@@ -136,16 +137,16 @@ class WorkerStats:
         with translate_errors_context():
             data = self._search_company_stats(company_id, es_req)
 
-        return self._extract_results(data, request.items, request.split_by_variant)
+        cutoff_date = (to_date - 0.9 * interval) * 1000  # do not return the point for the incomplete last interval
+        return self._extract_results(data, request.items, request.split_by_variant, cutoff_date)
 
     @staticmethod
     def _extract_results(
-        data: dict, request_items: Sequence[StatItem], split_by_variant: bool
+        data: dict, request_items: Sequence[StatItem], split_by_variant: bool, cutoff_date
     ) -> dict:
         """
         Clean results returned from elastic search (remove "aggregations", "buckets" etc.),
         leave only aggregation types requested by the user and return a clean dictionary
-        and return a "clean" dictionary of
         :param data: aggregation data retrieved from ES
         :param request_items: aggs types requested by the user
         :param split_by_variant: if False then aggregate by metric type, otherwise metric type + variant
@@ -172,6 +173,7 @@ class WorkerStats:
             return [
                 extract_date_stats(date, metric_key)
                 for date in metric_or_variant["dates"]["buckets"]
+                if date["key"] <= cutoff_date
             ]
 
         def extract_variant_results(metric: dict) -> dict:
