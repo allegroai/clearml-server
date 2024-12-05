@@ -1478,10 +1478,11 @@ def move(call: APICall, company_id: str, request: MoveRequest):
             "project or project_name is required"
         )
 
-    _assert_writable_tasks(company_id, call.identity, request.ids)
-    updated_projects = set(
-        t.project for t in Task.objects(id__in=request.ids).only("project") if t.project
+    tasks = _assert_writable_tasks(
+        company_id, call.identity, request.ids, only=("id", "project")
     )
+    updated_projects = set(t.project for t in tasks if t.project)
+
     project_id = project_bll.move_under_project(
         entity_cls=Task,
         user=call.identity.user,
