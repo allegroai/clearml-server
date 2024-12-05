@@ -5,6 +5,7 @@ from functools import partial
 from flask import request, Response, redirect
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.exceptions import BadRequest
+from werkzeug.http import quote_header_value
 
 from apiserver.apierrors import APIError
 from apiserver.apierrors.base import BaseError
@@ -54,17 +55,18 @@ class RequestHandlers:
                 if call.result.filename:
                     # make sure that downloaded files are not cached by the client
                     disable_cache = True
+                    download_name = call.result.filename
                     try:
-                        call.result.filename.encode("ascii")
+                        download_name.encode("ascii")
                     except UnicodeEncodeError:
-                        simple = unicodedata.normalize("NFKD", call.result.filename)
+                        simple = unicodedata.normalize("NFKD", download_name)
                         simple = simple.encode("ascii", "ignore").decode("ascii")
                         # safe = RFC 5987 attr-char
-                        quoted = urllib.parse.quote(call.result.filename, safe="")
-                        filenames = f"filename={simple}; filename*=UTF-8''{quoted}"
+                        quoted = urllib.parse.quote(download_name, safe="")
+                        filenames = f"filename={quote_header_value(simple)}; filename*=UTF-8''{quoted}"
                     else:
-                        filenames = f"filename={call.result.filename}"
-                    headers = {"Content-Disposition": "attachment; " + filenames}
+                        filenames = f"filename={quote_header_value(download_name)}"
+                    headers = {f"Content-Disposition": f"attachment; {filenames}"}
 
                 response = Response(
                     content,
