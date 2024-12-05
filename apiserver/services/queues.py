@@ -20,6 +20,7 @@ from apiserver.apimodels.queues import (
     GetNextTaskRequest,
     GetByIdRequest,
     GetAllRequest,
+    AddTaskRequest,
 )
 from apiserver.bll.model import Metadata
 from apiserver.bll.queue import QueueBLL
@@ -154,13 +155,16 @@ def delete(call: APICall, company_id, req_model: DeleteRequest):
     call.result.data = {"deleted": 1}
 
 
-@endpoint("queues.add_task", min_version="2.4", request_data_model=TaskRequest)
-def add_task(call: APICall, company_id, req_model: TaskRequest):
-    call.result.data = {
-        "added": queue_bll.add_task(
-            company_id=company_id, queue_id=req_model.queue, task_id=req_model.task
+@endpoint("queues.add_task", min_version="2.4")
+def add_task(call: APICall, company_id, request: AddTaskRequest):
+    added = queue_bll.add_task(
+        company_id=company_id, queue_id=request.queue, task_id=request.task
+    )
+    if added and request.update_execution_queue:
+        Task.objects(id=request.task).update(
+            execution__queue=request.queue, multi=False
         )
-    }
+    call.result.data = {"added": added}
 
 
 @endpoint("queues.get_next_task", request_data_model=GetNextTaskRequest)

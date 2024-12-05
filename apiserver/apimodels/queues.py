@@ -56,6 +56,10 @@ class TaskRequest(QueueRequest):
     task = StringField(required=True)
 
 
+class AddTaskRequest(TaskRequest):
+    update_execution_queue = BoolField(default=True)
+
+
 class MoveTaskRequest(TaskRequest):
     count = IntField(default=1)
 
