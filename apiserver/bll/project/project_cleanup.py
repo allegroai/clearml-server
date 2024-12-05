@@ -253,7 +253,7 @@ def _delete_tasks(
             )
 
     event_urls = delete_task_events_and_collect_urls(
-        company=company, task_ids=task_ids
+        company=company, task_ids=task_ids, wait_for_delete=False
     )
     deleted = tasks.delete()
 
@@ -317,7 +317,7 @@ def _delete_models(
 
     model_urls = {m.uri for m in models if m.uri}
     event_urls = delete_task_events_and_collect_urls(
-        company=company, task_ids=model_ids, model=True
+        company=company, task_ids=model_ids, model=True, wait_for_delete=False
     )
     deleted = models.delete()
 

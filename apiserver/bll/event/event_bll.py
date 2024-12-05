@@ -660,7 +660,9 @@ class EventBLL(object):
         Release the scroll once it is exhausted
         """
         total_events = nested_get(es_res, ("hits", "total", "value"), default=0)
-        events = [doc["_source"] for doc in nested_get(es_res, ("hits", "hits"), default=[])]
+        events = [
+            doc["_source"] for doc in nested_get(es_res, ("hits", "hits"), default=[])
+        ]
         next_scroll_id = es_res.get("_scroll_id")
         if next_scroll_id and not events:
             self.clear_scroll(next_scroll_id)
@@ -1161,7 +1163,13 @@ class EventBLL(object):
 
         return {"refresh": True}
 
-    def delete_task_events(self, company_id, task_ids: Union[str, Sequence[str]], model=False):
+    def delete_task_events(
+        self,
+        company_id,
+        task_ids: Union[str, Sequence[str]],
+        wait_for_delete: bool,
+        model=False,
+    ):
         """
         Delete task events. No check is done for tasks write access
         so it should be checked by the calling code
@@ -1170,7 +1178,7 @@ class EventBLL(object):
             task_ids = [task_ids]
         deleted = 0
         with translate_errors_context():
-            async_delete = async_task_events_delete
+            async_delete = async_task_events_delete and not wait_for_delete
             if async_delete and len(task_ids) < 100:
                 total = self.events_iterator.count_task_events(
                     event_type=EventType.all,

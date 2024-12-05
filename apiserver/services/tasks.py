@@ -1031,7 +1031,10 @@ def _delete_task_events(
     user_id: str,
     tasks: Mapping[str, CleanupResult],
     delete_external_artifacts: bool,
+    sync_delete: bool,
 ):
+    if not tasks:
+        return
     task_ids = list(tasks)
     deleted_model_ids = set(
         itertools.chain.from_iterable(
@@ -1057,7 +1060,9 @@ def _delete_task_events(
                 )
 
         event_urls = delete_task_events_and_collect_urls(
-            company=company_id, task_ids=task_ids
+            company=company_id,
+            task_ids=task_ids,
+            wait_for_delete=sync_delete,
         )
         if deleted_model_ids:
             event_urls.update(
@@ -1065,6 +1070,7 @@ def _delete_task_events(
                     company=company_id,
                     task_ids=list(deleted_model_ids),
                     model=True,
+                    wait_for_delete=sync_delete,
                 )
             )
 
@@ -1077,10 +1083,13 @@ def _delete_task_events(
                 can_delete_folders=False,
             )
     else:
-        event_bll.delete_task_events(company_id, task_ids)
+        event_bll.delete_task_events(company_id, task_ids, wait_for_delete=sync_delete)
         if deleted_model_ids:
             event_bll.delete_task_events(
-                company_id, list(deleted_model_ids), model=True
+                company_id,
+                list(deleted_model_ids),
+                model=True,
+                wait_for_delete=sync_delete,
             )
 
 
@@ -1102,6 +1111,7 @@ def reset(call: APICall, company_id, request: ResetRequest):
         user_id=call.identity.user,
         tasks={task_id: cleanup_res},
         delete_external_artifacts=request.delete_external_artifacts,
+        sync_delete=True,
     )
     res = ResetResponse(
         **updates,
@@ -1147,6 +1157,7 @@ def reset_many(call: APICall, company_id, request: ResetManyRequest):
         user_id=call.identity.user,
         tasks=tasks,
         delete_external_artifacts=request.delete_external_artifacts,
+        sync_delete=False,
     )
 
     call.result.data_model = ResetManyResponse(
@@ -1255,6 +1266,7 @@ def delete(call: APICall, company_id, request: DeleteRequest):
             user_id=call.identity.user,
             tasks={request.task: cleanup_res},
             delete_external_artifacts=request.delete_external_artifacts,
+            sync_delete=True,
         )
         _reset_cached_tags(company_id, projects=[task.project] if task.project else [])
     call.result.data = dict(
@@ -1301,6 +1313,7 @@ def delete_many(call: APICall, company_id, request: DeleteManyRequest):
                 user_id=call.identity.user,
                 tasks=tasks,
                 delete_external_artifacts=request.delete_external_artifacts,
+                sync_delete=False,
             )
         _reset_cached_tags(company_id, projects=list(projects))
 

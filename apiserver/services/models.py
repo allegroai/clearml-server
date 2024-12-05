@@ -569,7 +569,10 @@ def _delete_model_events(
     user_id: str,
     models: Sequence[Model],
     delete_external_artifacts: bool,
+    sync_delete: bool,
 ):
+    if not models:
+        return
     model_ids = [m.id for m in models]
     delete_external_artifacts = delete_external_artifacts and config.get(
         "services.async_urls_delete.enabled", True
@@ -587,7 +590,7 @@ def _delete_model_events(
             )
 
         event_urls = delete_task_events_and_collect_urls(
-            company=company_id, task_ids=model_ids, model=True
+            company=company_id, task_ids=model_ids, model=True, wait_for_delete=sync_delete
         )
         if event_urls:
             schedule_for_delete(
@@ -598,7 +601,7 @@ def _delete_model_events(
                 can_delete_folders=False,
             )
 
-    event_bll.delete_task_events(company_id, model_ids, model=True)
+    event_bll.delete_task_events(company_id, model_ids, model=True, wait_for_delete=sync_delete)
 
 
 @endpoint("models.delete", request_data_model=DeleteModelRequest)
@@ -616,6 +619,7 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
             user_id=user_id,
             models=[model],
             delete_external_artifacts=request.delete_external_artifacts,
+            sync_delete=True,
         )
         _reset_cached_tags(
             company_id, projects=[model.project] if model.project else []
@@ -629,7 +633,7 @@ def delete(call: APICall, company_id, request: DeleteModelRequest):
     request_data_model=ModelsDeleteManyRequest,
     response_data_model=BatchResponse,
 )
-def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
+def delete_many(call: APICall, company_id, request: ModelsDeleteManyRequest):
     user_id = call.identity.user
 
     results, failures = run_batch_operation(
@@ -654,6 +658,7 @@ def delete(call: APICall, company_id, request: ModelsDeleteManyRequest):
             user_id=user_id,
             models=deleted_models,
             delete_external_artifacts=request.delete_external_artifacts,
+            sync_delete=False,
         )
         projects = set(model.project for model in deleted_models)
         _reset_cached_tags(company_id, projects=list(projects))

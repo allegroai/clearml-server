@@ -79,7 +79,7 @@ class CleanupResult:
             updated_models=self.updated_models + other.updated_models,
             deleted_models=self.deleted_models + other.deleted_models,
             urls=self.urls + other.urls if self.urls else other.urls,
-            deleted_model_ids=self.deleted_model_ids | other.deleted_model_ids
+            deleted_model_ids=self.deleted_model_ids | other.deleted_model_ids,
         )
 
     @staticmethod
@@ -222,13 +222,15 @@ def schedule_for_delete(
 
 
 def delete_task_events_and_collect_urls(
-    company: str, task_ids: Sequence[str], model=False
+    company: str, task_ids: Sequence[str], wait_for_delete: bool, model=False
 ) -> Set[str]:
-    event_urls = collect_debug_image_urls(
+    event_urls = collect_debug_image_urls(company, task_ids) | collect_plot_image_urls(
         company, task_ids
-    ) | collect_plot_image_urls(company, task_ids)
+    )
 
-    event_bll.delete_task_events(company, task_ids, model=model)
+    event_bll.delete_task_events(
+        company, task_ids, model=model, wait_for_delete=wait_for_delete
+    )
 
     return event_urls
 
@@ -250,14 +252,16 @@ def cleanup_task(
     published_models, draft_models, in_use_model_ids = verify_task_children_and_ouptuts(
         task, force
     )
-    artifact_urls = {
-        a.uri
-        for a in task.execution.artifacts.values()
-        if a.mode == ArtifactModes.output and a.uri
-    } if task.execution and task.execution.artifacts else {}
-    model_urls = {
-        m.uri for m in draft_models if m.uri and m.id not in in_use_model_ids
-    }
+    artifact_urls = (
+        {
+            a.uri
+            for a in task.execution.artifacts.values()
+            if a.mode == ArtifactModes.output and a.uri
+        }
+        if task.execution and task.execution.artifacts
+        else {}
+    )
+    model_urls = {m.uri for m in draft_models if m.uri and m.id not in in_use_model_ids}
 
     deleted_task_id = f"{deleted_prefix}{task.id}"
     updated_children = 0

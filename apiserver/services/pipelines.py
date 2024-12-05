@@ -84,7 +84,8 @@ def delete_runs(call: APICall, company_id: str, request: DeleteRunsRequest):
                 company_id=company_id,
                 user_id=call.identity.user,
                 tasks=tasks,
-                delete_external_artifacts=True
+                delete_external_artifacts=True,
+                sync_delete=True,
             )
 
     call.result.data = dict(succeeded=succeeded, failed=failures)

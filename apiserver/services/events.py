@@ -1033,7 +1033,7 @@ def delete_for_task(call, company_id, request: TaskRequest):
     )
 
     call.result.data = dict(
-        deleted=event_bll.delete_task_events(company_id, task_id)
+        deleted=event_bll.delete_task_events(company_id, task_id, wait_for_delete=True)
     )
 
 
@@ -1060,7 +1060,7 @@ def delete_for_model(call: APICall, company_id: str, request: ModelRequest):
 
     call.result.data = dict(
         deleted=event_bll.delete_task_events(
-            company_id, model_id, model=True
+            company_id, model_id, model=True, wait_for_delete=True
         )
     )
 
