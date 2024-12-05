@@ -1394,7 +1394,7 @@ class DbModelMixin(GetMixin, ProperDictMixin, UpdateMixin):
         else:
             items = list(
                 cls.objects(
-                    id__in=ids, company__in=(None, ""), company_origin=company_id
+                    id__in=ids, company="", company_origin=company_id
                 ).only("id")
             )
             update: dict = dict(set__company=company_id, unset__company_origin=1)

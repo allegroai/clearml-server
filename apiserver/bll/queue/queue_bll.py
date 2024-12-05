@@ -525,7 +525,7 @@ class QueueBLL(object):
                 [
                     {
                         "$match": {
-                            "company": {"$in": [None, "", company]},
+                            "company": {"$in": ["", company]},
                             "_id": queue_id,
                         }
                     },

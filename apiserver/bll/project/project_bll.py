@@ -1015,8 +1015,8 @@ class ProjectBLL:
             if include_subprojects:
                 projects = _ids_with_children(projects)
             query &= Q(project__in=projects)
-        else:
-            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
+        # else:
+        #     query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
 
         if state == EntityVisibility.archived:
             query &= Q(system_tags__in=[EntityVisibility.archived.value])
@@ -1101,7 +1101,7 @@ class ProjectBLL:
         project_field: str = "project",
     ):
         conditions = {
-            "company": {"$in": [None, "", company]},
+            "company": {"$in": ["", company]},
             project_field: {"$in": project_ids},
         }
         if users:

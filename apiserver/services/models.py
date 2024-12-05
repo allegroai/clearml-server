@@ -188,7 +188,12 @@ def get_all(call: APICall, company_id, _):
 def get_frameworks(call: APICall, company_id, request: GetFrameworksRequest):
     call.result.data = {
         "frameworks": sorted(
-            project_bll.get_model_frameworks(company_id, project_ids=request.projects)
+            filter(
+                None,
+                project_bll.get_model_frameworks(
+                    company_id, project_ids=request.projects
+                ),
+            )
         )
     }
 
@@ -590,7 +595,10 @@ def _delete_model_events(
             )
 
         event_urls = delete_task_events_and_collect_urls(
-            company=company_id, task_ids=model_ids, model=True, wait_for_delete=sync_delete
+            company=company_id,
+            task_ids=model_ids,
+            model=True,
+            wait_for_delete=sync_delete,
         )
         if event_urls:
             schedule_for_delete(
@@ -601,7 +609,9 @@ def _delete_model_events(
                 can_delete_folders=False,
             )
 
-    event_bll.delete_task_events(company_id, model_ids, model=True, wait_for_delete=sync_delete)
+    event_bll.delete_task_events(
+        company_id, model_ids, model=True, wait_for_delete=sync_delete
+    )
 
 
 @endpoint("models.delete", request_data_model=DeleteModelRequest)

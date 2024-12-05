@@ -186,7 +186,7 @@ class ModelBLL:
             [
                 {
                     "$match": {
-                        "company": {"$in": [None, "", company]},
+                        "company": {"$in": ["", company]},
                         "_id": {"$in": model_ids},
                     }
                 },

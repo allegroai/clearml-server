@@ -43,8 +43,8 @@ class _TagsCache:
                     query &= GetMixin.get_list_field_query(name, vals)
         if project:
             query &= Q(project__in=project_ids_with_children([project]))
-        else:
-            query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
+        # else:
+        #     query &= Q(system_tags__nin=[EntityVisibility.hidden.value])
 
         return self.db_cls.objects(query).distinct(field)
 

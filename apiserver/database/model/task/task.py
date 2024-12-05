@@ -183,9 +183,8 @@ class Task(AttributedDocument):
             "status_changed",
             "models.input.model",
             ("company", "name"),
-            ("company", "user"),
             ("company", "status", "type"),
-            ("company", "system_tags", "last_update"),
+            ("company", "last_update", "system_tags"),
             ("company", "type", "system_tags", "status"),
             ("company", "project", "type", "system_tags", "status"),
             ("status", "last_update"),  # for maintenance tasks
@@ -193,6 +192,17 @@ class Task(AttributedDocument):
                 "fields": ["company", "project"],
                 "collation": AttributedDocument._numeric_locale,
             },
+            # distinct queries support
+            ("company", "tags"),
+            ("company", "system_tags"),
+            ("company", "project", "tags"),
+            ("company", "project", "system_tags"),
+            ("company", "user"),
+            ("company", "project", "user"),
+            ("company", "parent"),
+            ("company", "project", "parent"),
+            ("company", "type"),
+            ("company", "project", "type"),
             {
                 "name": "%s.task.main_text_index" % Database.backend,
                 "fields": [
