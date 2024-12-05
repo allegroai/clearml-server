@@ -40,7 +40,7 @@ from .sub_projects import (
     _ids_with_children,
     _ids_with_parents,
     _get_project_depth,
-    ProjectsChildren,
+    ProjectsChildren, _get_writable_project_from_name,
 )
 
 log = config.logger(__file__)
@@ -225,6 +225,18 @@ class ProjectBLL:
             raise errors.bad_request.ProjectPathExceedsMax(max_depth=max_depth)
 
         name, location = _validate_project_name(name)
+
+        existing = _get_writable_project_from_name(
+            company=company,
+            name=name,
+        )
+        if existing:
+            raise errors.bad_request.ExpectedUniqueData(
+                replacement_msg="Project with the same name already exists",
+                name=name,
+                company=company,
+            )
+
         now = datetime.utcnow()
         project = Project(
             id=database.utils.id(),

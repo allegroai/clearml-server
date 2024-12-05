@@ -439,6 +439,15 @@ class TestSubProjects(TestService):
         self.assertEqual(res2.own_tasks, 0)
         self.assertEqual(res2.own_models, 0)
 
+    def test_public_names_clash(self):
+        # cannot create a project with a name that match public existing project
+        with self.api.raises(errors.bad_request.PublicProjectExists):
+            project = self._temp_project(name="ClearML Examples")
+
+        # cannot create a subproject under a public project
+        with self.api.raises(errors.bad_request.PublicProjectExists):
+            project = self._temp_project(name="ClearML Examples/my project")
+
     def test_get_all_with_stats(self):
         project4, _ = self._temp_project_with_tasks(name="project1/project3/project4")
         project5, _ = self._temp_project_with_tasks(name="project1/project3/project5")
