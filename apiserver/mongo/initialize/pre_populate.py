@@ -62,6 +62,8 @@ from apiserver.utilities import json
 from apiserver.utilities.dicts import nested_get, nested_set, nested_delete
 from apiserver.utilities.parameter_key_escaper import ParameterKeyEscaper
 
+replace_s3_scheme = os.getenv("CLEARML_REPLACE_S3_SCHEME")
+
 
 class PrePopulate:
     module_name_prefix = "apiserver."
@@ -666,8 +668,9 @@ class PrePopulate:
 
     @staticmethod
     def _get_fixed_url(url: Optional[str]) -> Optional[str]:
-        if not (url and url.lower().startswith("s3://")):
+        if not (replace_s3_scheme and url and url.lower().startswith("s3://")):
             return url
+
         try:
             fixed = furl(url)
             fixed.scheme = "https"
