@@ -39,6 +39,7 @@ from apiserver.database.utils import (
 from apiserver.es_factory import es_factory
 from apiserver.redis_manager import redman
 from apiserver.services.utils import validate_tags, escape_dict_field, escape_dict
+from apiserver.utilities.dicts import nested_set
 from .artifacts import artifacts_prepare_for_save
 from .param_utils import params_prepare_for_save
 from .utils import (
@@ -163,18 +164,35 @@ class TaskBLL:
         input_models: Optional[Sequence[TaskInputModel]] = None,
         validate_references: bool = False,
         new_project_name: str = None,
+        hyperparams_overrides: Optional[dict] = None,
+        configuration_overrides: Optional[dict] = None,
     ) -> Tuple[Task, dict]:
         validate_tags(tags, system_tags)
-        params_dict = {
-            field: value
-            for field, value in (
-                ("hyperparams", hyperparams),
-                ("configuration", configuration),
-            )
-            if value is not None
-        }
+        task: Task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
 
-        task = cls.get_by_id(company_id=company_id, task_id=task_id, allow_public=True)
+        params_dict = {}
+        if hyperparams:
+            params_dict["hyperparams"] = hyperparams
+        elif hyperparams_overrides:
+            updated_hyperparams = {
+                sec: {k: value for k, value in sec_data.items()}
+                for sec, sec_data in (task.hyperparams or {}).items()
+            }
+            for section, section_data in hyperparams_overrides.items():
+                for key, value in section_data.items():
+                    nested_set(updated_hyperparams, (section, key), value)
+            params_dict["hyperparams"] = updated_hyperparams
+
+        if configuration:
+            params_dict["configuration"] = configuration
+        elif configuration_overrides:
+            updated_configuration = {
+                k: value
+                for k, value in (task.configuration or {}).items()
+            }
+            for key, value in configuration_overrides.items():
+                updated_configuration[key] = value
+            params_dict["configuration"] = updated_configuration
 
         now = datetime.utcnow()
         if input_models:

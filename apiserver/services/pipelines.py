@@ -109,7 +109,7 @@ def start_pipeline(call: APICall, company_id: str, request: StartPipelineRequest
         company_id=company_id,
         user_id=call.identity.user,
         task_id=request.task,
-        hyperparams=hyperparams,
+        hyperparams_overrides=hyperparams,
     )
 
     _update_task_name(task)
