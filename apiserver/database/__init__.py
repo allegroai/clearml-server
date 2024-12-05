@@ -81,7 +81,7 @@ class DatabaseFactory:
             entry = cls._create_db_entry(alias=alias, settings=db_entries.get(key))
 
             if override_connection_string:
-                con_str = f"{override_connection_string.rstrip('/')}/{key}"
+                con_str = furl(override_connection_string).add(path=key).url
                 log.info(f"Using override mongodb connection string for {alias}: {con_str}")
                 entry.host = con_str
             else:
