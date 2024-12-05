@@ -28,6 +28,7 @@ from urllib.parse import unquote, urlparse
 from uuid import uuid4, UUID, uuid5
 from zipfile import ZipFile, ZIP_BZIP2
 
+import attr
 import mongoengine
 from boltons.iterutils import chunked_iter, first
 from furl import furl
@@ -83,6 +84,11 @@ class PrePopulate:
     model_cls: Type[Model]
     user_cls: Type[User]
     auth_user_cls: Type[AuthUser]
+
+    @attr.s(auto_attribs=True)
+    class ParentPrefix:
+        prefix: str
+        path: Sequence[str]
 
     # noinspection PyTypeChecker
     @classmethod
@@ -469,20 +475,35 @@ class PrePopulate:
     @classmethod
     def _check_projects_hierarchy(cls, projects: Set[Project]):
         """
-        For any exported project all its parents up to the root should be present
+        For the projects that are exported not from the root
+        fix their parents tree to exclude the not exported parents
         """
         if not projects:
             return
 
         project_ids = {p.id for p in projects}
-        orphans = [p.id for p in projects if p.parent and p.parent not in project_ids]
+        orphans = [p for p in projects if p.parent and p.parent not in project_ids]
         if not orphans:
             return
 
-        print(
-            f"ERROR: the following projects are exported without their parents: {orphans}"
-        )
-        exit(1)
+        prefixes = [
+            cls.ParentPrefix(prefix=f"{project.name.rpartition('/')[0]}/", path=project.path)
+            for project in orphans
+        ]
+        prefixes.sort(key=lambda p: len(p.path), reverse=True)
+        for project in projects:
+            prefix = first(pref for pref in prefixes if project.path[:len(pref.path)] == pref.path)
+            if not prefix:
+                continue
+            project.path = project.path[len(prefix.path):]
+            if not project.path:
+                project.parent = None
+            project.name = project.name.removeprefix(prefix.prefix)
+
+        # print(
+        #     f"ERROR: the following projects are exported without their parents: {orphans}"
+        # )
+        # exit(1)
 
     @classmethod
     def _resolve_entities(
@@ -491,6 +512,7 @@ class PrePopulate:
         projects: Sequence[str] = None,
         task_statuses: Sequence[str] = None,
     ) -> Dict[Type[mongoengine.Document], Set[mongoengine.Document]]:
+        # noinspection PyTypeChecker
         entities: Dict[Any] = defaultdict(set)
 
         if projects:
@@ -539,6 +561,7 @@ class PrePopulate:
             print("Reading models...")
             entities[cls.model_cls] = set(cls.model_cls.objects(id__in=list(model_ids)))
 
+        # noinspection PyTypeChecker
         return entities
 
     @classmethod
@@ -1133,7 +1156,7 @@ class PrePopulate:
 
             if isinstance(doc, cls.task_cls):
                 tasks.append(doc)
-                cls.event_bll.delete_task_events(company_id, doc.id, allow_locked=True)
+                cls.event_bll.delete_task_events(company_id, doc.id)
 
         if tasks:
             return tasks
