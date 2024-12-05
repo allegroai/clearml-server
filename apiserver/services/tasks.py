@@ -923,6 +923,11 @@ def delete_configuration(
     response_data_model=EnqueueResponse,
 )
 def enqueue(call: APICall, company_id, request: EnqueueRequest):
+    if request.verify_watched_queue and not request.update_execution_queue:
+        raise errors.bad_request.ValidationError(
+            "verify_watched_queue cannot be used with update_execution_queue=False"
+        )
+
     queued, res = enqueue_task(
         task_id=request.task,
         company_id=company_id,
@@ -932,6 +937,7 @@ def enqueue(call: APICall, company_id, request: EnqueueRequest):
         status_reason=request.status_reason,
         queue_name=request.queue_name,
         force=request.force,
+        update_execution_queue=request.update_execution_queue,
     )
     if request.verify_watched_queue:
         res_queue = nested_get(res, ("fields", "execution.queue"))
