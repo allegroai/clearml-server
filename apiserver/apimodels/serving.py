@@ -13,7 +13,7 @@ from jsonmodels.fields import (
 from jsonmodels import validators
 from jsonmodels.validators import Min
 
-from apiserver.apimodels import ListField, JsonSerializableMixin
+from apiserver.apimodels import ListField, JsonSerializableMixin, SafeStringField
 from apiserver.apimodels import ActualEnumField
 from apiserver.config_repo import config
 from .workers import MachineStats
@@ -36,7 +36,7 @@ class ServingModel(Base):
     model_version = StringField()
     preprocess_artifact = StringField()
     input_type = StringField()
-    input_size = IntField()
+    input_size = SafeStringField()
     tags = ListField(str)
     system_tags = ListField(str)
     reference: Sequence[ReferenceItem] = ListField(ReferenceItem)

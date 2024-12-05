@@ -1,4 +1,5 @@
 from enum import Enum
+from numbers import Number
 from typing import Union, Type, Iterable, Mapping
 
 import jsonmodels.errors
@@ -94,6 +95,15 @@ class ScalarField(fields.BaseField):
     """String field."""
 
     types = (str, int, float, bool)
+
+
+class SafeStringField(fields.StringField):
+    """String field that can also accept numbers as input"""
+    def parse_value(self, value):
+        if isinstance(value, Number):
+            value = str(value)
+
+        return super().parse_value(value)
 
 
 class DictField(fields.BaseField):
