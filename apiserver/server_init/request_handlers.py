@@ -2,6 +2,7 @@ import unicodedata
 import urllib.parse
 from functools import partial
 
+from boltons.iterutils import first
 from flask import request, Response, redirect
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.exceptions import BadRequest
@@ -22,11 +23,25 @@ log = config.logger(__file__)
 class RequestHandlers:
     _request_strip_prefix = config.get("apiserver.request.strip_prefix", None)
     _server_header = config.get("apiserver.response.headers.server", "clearml")
+    _basic_cookie_settings = config.get("apiserver.auth.cookies")
     _custom_cookie_settings = {
         c["name"]: c["settings"]
         for c in config.get("apiserver.auth.custom_cookies", {}).values()
         if c.get("enabled") and c.get("settings")
     }
+
+    def _get_cookie_settings(self, cookie_key=None):
+        settings = (
+            self._custom_cookie_settings.get(cookie_key) or self._basic_cookie_settings
+        ).copy()
+        if isinstance(settings["domain"], list):
+            host_without_port, _, _ = request.host.partition(":")
+            domain = first(
+                settings["domain"],
+                key=lambda d: host_without_port.endswith(d) if d else False,
+            )
+            settings["domain"] = domain
+        return settings
 
     def before_request(self):
         if request.method == "OPTIONS":
@@ -80,10 +95,7 @@ class RequestHandlers:
 
             if call.result.cookies:
                 for key, value in call.result.cookies.items():
-                    kwargs = (
-                        self._custom_cookie_settings.get(key)
-                        or config.get("apiserver.auth.cookies")
-                    ).copy()
+                    kwargs = self._get_cookie_settings(key)
                     if value is None:
                         # Removing a cookie
                         kwargs["max_age"] = 0
