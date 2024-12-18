@@ -259,12 +259,19 @@ class TestQueues(TestService):
 
     def test_get_all_ex(self):
         queue_name = "TestTempQueue1"
+        queue_display_name = "Test display name"
         queue_tags = ["Test1", "Test2"]
-        queue = self._temp_queue(queue_name, tags=queue_tags)
+        queue = self._temp_queue(queue_name, display_name=queue_display_name, tags=queue_tags)
 
         res = self.api.queues.get_all_ex(name="TestTempQueue*").queues
         self.assertQueue(
-            res, queue_id=queue, name=queue_name, tags=queue_tags, tasks=[], workers=[]
+            res,
+            queue_id=queue,
+            display_name=queue_display_name,
+            name=queue_name,
+            tags=queue_tags,
+            tasks=[],
+            workers=[],
         )
 
         tasks = [
@@ -279,6 +286,7 @@ class TestQueues(TestService):
             res,
             queue_id=queue,
             name=queue_name,
+            display_name=queue_display_name,
             tags=queue_tags,
             tasks=tasks,
             workers=workers,
@@ -306,6 +314,7 @@ class TestQueues(TestService):
         queues: Sequence[AttrDict],
         queue_id: str,
         name: str,
+        display_name: str,
         tags: Sequence[str],
         tasks: Sequence[dict],
         workers: Sequence[dict],
@@ -314,15 +323,33 @@ class TestQueues(TestService):
         assert queue.last_update
         self.assertEqualNoOrder(queue.tags, tags)
         self.assertEqual(queue.name, name)
-        self.assertQueueTasks(queue, tasks)
-        self.assertQueueWorkers(queue, workers)
+        self.assertEqual(queue.display_name, display_name)
+        self.assertQueueTasks(queue, tasks, name, display_name)
+        self.assertQueueWorkers(queue, workers, name, display_name)
 
     def assertTaskTags(self, task, system_tags):
         res = self.api.tasks.get_by_id(task=task)
         self.assertSequenceEqual(res.task.system_tags, system_tags)
 
-    def assertQueueTasks(self, queue: AttrDict, tasks: Sequence):
+    def assertQueueTasks(
+        self,
+        queue: AttrDict,
+        tasks: Sequence,
+        queue_name: str = None,
+        display_queue_name: str = None,
+    ):
         self.assertEqual([e.task for e in queue.entries], tasks)
+        if queue_name:
+            for task in tasks:
+                execution = self.api.tasks.get_by_id_ex(
+                    id=[task["id"]],
+                    only_fields=[
+                        "execution.queue.name",
+                        "execution.queue.display_name",
+                    ],
+                ).tasks[0].execution
+                self.assertEqual(execution.queue.name, queue_name)
+                self.assertEqual(execution.queue.display_name, display_queue_name)
 
     def assertGetNextTasks(self, queue, tasks):
         for task_id in tasks:
@@ -330,11 +357,28 @@ class TestQueues(TestService):
             self.assertEqual(res.entry.task, task_id)
         assert not self.api.queues.get_next_task(queue=queue)
 
-    def assertQueueWorkers(self, queue: AttrDict, workers: Sequence[dict]):
+    def assertQueueWorkers(
+        self,
+        queue: AttrDict,
+        workers: Sequence[dict],
+        queue_name: str = None,
+        display_queue_name: str = None,
+    ):
         sort_key = itemgetter("name")
         self.assertEqual(
             sorted(queue.workers, key=sort_key), sorted(workers, key=sort_key)
         )
+        if not workers:
+            return
+
+        res = self.api.workers.get_all()
+        worker_ids = {w["key"] for w in workers}
+        found = [w for w in res.workers if w.key in worker_ids]
+        self.assertEqual(len(found), len(worker_ids))
+        for worker in found:
+            for queue in worker.queues:
+                self.assertEqual(queue.name, queue_name)
+                self.assertEqual(queue.display_name, display_queue_name)
 
     def _temp_queue(self, queue_name, **kwargs):
         return self.create_temp("queues", name=queue_name, **kwargs)

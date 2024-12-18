@@ -34,6 +34,7 @@ class QueueBLL(object):
     def create(
         company_id: str,
         name: str,
+        display_name: str = None,
         tags: Optional[Sequence[str]] = None,
         system_tags: Optional[Sequence[str]] = None,
         metadata: Optional[dict] = None,
@@ -46,6 +47,7 @@ class QueueBLL(object):
                 company=company_id,
                 created=now,
                 name=name,
+                display_name=display_name,
                 tags=tags or [],
                 system_tags=system_tags or [],
                 metadata=metadata,

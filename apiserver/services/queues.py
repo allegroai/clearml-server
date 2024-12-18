@@ -121,6 +121,7 @@ def create(call: APICall, company_id, request: CreateRequest):
     queue = queue_bll.create(
         company_id=company_id,
         name=request.name,
+        display_name=request.display_name,
         tags=tags,
         system_tags=system_tags,
         metadata=Metadata.metadata_from_api(request.metadata),
