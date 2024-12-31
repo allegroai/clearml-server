@@ -270,15 +270,20 @@ class ServingStats:
                 }
             },
         }
+        hist_params = {}
+        if metric_type == MetricType.requests:
+            hist_params["min_doc_count"] = 1
+        else:
+            hist_params["extended_bounds"] = {
+                "min": int(from_date) * 1000,
+                "max": int(to_date) * 1000,
+            }
         aggs = {
             "dates": {
                 "date_histogram": {
                     "field": "timestamp",
                     "fixed_interval": f"{interval}s",
-                    "extended_bounds": {
-                        "min": int(from_date) * 1000,
-                        "max": int(to_date) * 1000,
-                    },
+                    **hist_params,
                 },
                 "aggs": aggs,
             }
