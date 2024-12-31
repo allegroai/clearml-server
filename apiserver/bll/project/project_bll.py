@@ -170,6 +170,7 @@ class ProjectBLL:
 
         now = datetime.utcnow()
         affected = set()
+        p: Project
         for p in filter(None, (old_parent, new_parent)):
             p.update(last_update=now)
             affected.update({p.id, *(p.path or [])})
@@ -184,6 +185,7 @@ class ProjectBLL:
 
         new_name = fields.pop("name", None)
         if new_name:
+            # noinspection PyTypeChecker
             new_name, new_location = _validate_project_name(new_name)
             old_name, old_location = _validate_project_name(project.name)
             if new_location != old_location:
@@ -823,7 +825,7 @@ class ProjectBLL:
         }
 
         def sum_runtime(
-            a: Mapping[str, Mapping], b: Mapping[str, Mapping]
+            a: Mapping[str, dict], b: Mapping[str, dict]
         ) -> Dict[str, dict]:
             return {
                 section: a.get(section, 0) + b.get(section, 0)
@@ -1059,7 +1061,7 @@ class ProjectBLL:
         if not parent_ids:
             return []
 
-        parents = Task.get_many_with_join(
+        parents: Sequence[dict] = Task.get_many_with_join(
             company_id,
             query=Q(id__in=parent_ids),
             query_dict={"name": name} if name else None,
@@ -1166,7 +1168,7 @@ class ProjectBLL:
 
         if or_conditions:
             if len(or_conditions) == 1:
-                conditions = next(iter(or_conditions))
+                conditions.update(next(iter(or_conditions)))
             else:
                 conditions["$and"] = [c for c in or_conditions]
 
