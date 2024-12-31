@@ -1171,7 +1171,7 @@ class PrePopulate:
 
             if isinstance(doc, cls.task_cls):
                 tasks.append(doc)
-                cls.event_bll.delete_task_events(company_id, doc.id)
+                cls.event_bll.delete_task_events(company_id, doc.id, wait_for_delete=True)
 
         if tasks:
             return tasks
