@@ -201,6 +201,8 @@ class EventBLL(object):
         invalid_iteration_error = f"Iteration number should not exceed {MAX_LONG}"
 
         for event in events:
+            x_axis_label = event.pop("x_axis_label", None)
+
             # remove spaces from event type
             event_type = event.get("type")
             if event_type is None:
@@ -296,6 +298,7 @@ class EventBLL(object):
                 self._update_last_scalar_events_for_task(
                     last_events=task_last_scalar_events[task_or_model_id],
                     event=event,
+                    x_axis_label=x_axis_label,
                 )
 
             actions.append(es_action)
@@ -431,7 +434,7 @@ class EventBLL(object):
             return False
         return True
 
-    def _update_last_scalar_events_for_task(self, last_events, event):
+    def _update_last_scalar_events_for_task(self, last_events, event, x_axis_label=None):
         """
         Update last_events structure with the provided event details if this event is more
         recent than the currently stored event for its metric/variant combination.
@@ -463,6 +466,8 @@ class EventBLL(object):
             last_event["value"] = value
             last_event["iter"] = event_iter
             last_event["timestamp"] = event_timestamp
+            if x_axis_label is not None:
+                last_event["x_axis_label"] = x_axis_label
 
         first_value_iter = last_event.get("first_value_iter")
         if first_value_iter is None or event_iter < first_value_iter:

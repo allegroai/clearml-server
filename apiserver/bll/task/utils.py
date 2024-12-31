@@ -395,7 +395,7 @@ def get_last_metric_updates(
                         is_min=(key == "min_value"),
                         is_first=(key == "first_value"),
                     )
-                elif key in ("metric", "variant", "value"):
+                elif key in ("metric", "variant", "value", "x_axis_label"):
                     extra_updates[f"set__{path}__{key}"] = value
 
             count = variant_data.get("count")

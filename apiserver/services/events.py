@@ -490,6 +490,7 @@ def scalar_metrics_iter_histogram(
         samples=request.samples,
         key=request.key,
         metric_variants=_get_metric_variants_from_request(request.metrics),
+        model_events=request.model_events,
     )
     call.result.data = metrics
 
@@ -540,12 +541,13 @@ def multi_task_scalar_metrics_iter_histogram(
             samples=request.samples,
             key=request.key,
             metric_variants=_get_metric_variants_from_request(request.metrics),
+            model_events=request.model_events,
         )
     )
 
 
 def _get_single_value_metrics_response(
-    companies: TaskCompanies, value_metrics: Mapping[str, dict]
+    companies: TaskCompanies, value_metrics: Mapping[str, Sequence[dict]]
 ) -> Sequence[dict]:
     task_names = {
         task.id: task.name for task in itertools.chain.from_iterable(companies.values())

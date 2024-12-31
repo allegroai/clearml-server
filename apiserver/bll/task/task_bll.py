@@ -408,7 +408,7 @@ class TaskBLL:
             task's last iteration value.
         :param last_iteration_max: Last reported iteration. Use this to conditionally set a value only
             if the current task's last iteration value is smaller than the provided value.
-        :param last_scalar_values: Last reported metrics summary for scalar events (value, metric, variant).
+        :param last_scalar_events: Last reported metrics summary for scalar events (value, metric, variant).
         :param last_events: Last reported metrics summary (value, metric, event type).
         :param extra_updates: Extra task updates to include in this update call.
         :return:

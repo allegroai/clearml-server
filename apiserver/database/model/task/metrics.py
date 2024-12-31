@@ -28,6 +28,7 @@ class MetricEvent(EmbeddedDocument):
     first_value_iteration = IntField()
     count = IntField()
     mean_value = FloatField()
+    x_axis_label = StringField()
 
 
 class EventStats(EmbeddedDocument):

@@ -246,6 +246,7 @@ class TestTaskEvents(TestService):
                 "variant": f"Variant{variant_idx}",
                 "value": iteration,
                 "model_event": True,
+                "x_axis_label": f"Label_{metric_idx}_{variant_idx}"
             }
             for iteration in range(2)
             for metric_idx in range(5)
@@ -274,6 +275,7 @@ class TestTaskEvents(TestService):
         variant_data = metric_data.Variant0
         self.assertEqual(variant_data.x, [0, 1])
         self.assertEqual(variant_data.y, [0.0, 1.0])
+        self.assertEqual(variant_data.x_axis_label, "Label_0_0")
 
         model_data = self.api.models.get_all_ex(
             id=[model], only_fields=["last_metrics", "last_iteration"]
@@ -285,6 +287,7 @@ class TestTaskEvents(TestService):
         self.assertEqual(1, metric_data.max_value_iteration)
         self.assertEqual(0, metric_data.min_value)
         self.assertEqual(0, metric_data.min_value_iteration)
+        self.assertEqual("Label_4_4", metric_data.x_axis_label)
 
         self._assert_log_events(task=task, expected_total=1)
 
